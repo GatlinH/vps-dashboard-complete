@@ -1,9 +1,6 @@
-# backend/app.py - 改进版本
+# backend/app.py - 修改版本（添加 scheduler 集成）
 
-"""
-VPS 星图 · Flask 后端入口
-完全重构版本，集成安全加固
-"""
+from datetime import datetime
 from flask import Flask
 from flask_cors import CORS
 from extensions import db, redis_client, jwt
@@ -19,6 +16,8 @@ from api.geo import geo_bp
 from api.traffic import traffic_bp
 from api.audit import audit_bp
 from config import Config
+from services.scheduler import scheduler
+
 
 def create_app(config_class=Config):
     """应用工厂"""
@@ -32,7 +31,7 @@ def create_app(config_class=Config):
     # ===== 安全中间件 =====
     SecurityConfig.init_app(app)
     limiter = RateLimitConfig.init_app(app)
-    app.limiter = limiter  # 暴露 limiter 实例
+    app.limiter = limiter
     
     # ===== 错误处理与审计 =====
     ErrorHandler(app)
@@ -55,6 +54,14 @@ def create_app(config_class=Config):
     # ===== 数据库初始化 =====
     with app.app_context():
         db.create_all()
+    
+    # ===== 后台任务调度 =====
+    scheduler.init_app(app)
+    
+    @app.before_first_request
+    def start_scheduler():
+        """首次请求时启动调度器"""
+        scheduler.start()
 
     # ===== 健康检查 =====
     @app.route('/health')
@@ -64,6 +71,7 @@ def create_app(config_class=Config):
             'status': 'ok',
             'timestamp': datetime.utcnow().isoformat(),
             'version': '1.0.0',
+            'scheduler_running': scheduler.is_running,
         }, 200
 
     # ===== 404 处理 =====
@@ -74,11 +82,16 @@ def create_app(config_class=Config):
             'error_code': 'NOT_FOUND',
             'message': '请求的资源不存在',
         }, 404
+    
+    # ===== 应用清理 =====
+    @app.teardown_appcontext
+    def shutdown_scheduler(exception=None):
+        """应用关闭时停止调度器"""
+        scheduler.stop()
 
     return app
 
 
 if __name__ == "__main__":
-    from datetime import datetime
     app = create_app()
     app.run(host="0.0.0.0", port=5000, debug=False)
