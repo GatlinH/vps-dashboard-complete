@@ -3660,7 +3660,76 @@ setInterval(() => {
     renderTrafficTable();
   }
 }, 3000);
+//-- 新的：引入现代化模块 --
+<script type="module">
+    import app from './app.js';
 
+    // 等待应用初始化
+    app.eventBus.on('appReady', async () => {
+        console.log('✓ 应用已准备好');
+        
+        // 立即加载服务器列表
+        try {
+            await app.loadServers();
+            initDashboard();  // 现有的初始化函数
+        } catch (error) {
+            console.error('初始化失败:', error);
+        }
+    });
+
+    // 登录成功后启动实时更新
+    app.eventBus.on('loginSuccess', () => {
+        app.startMetricsPolling(15000);  // 15 秒更新一次
+    });
+
+    // 登出时停止更新
+    app.eventBus.on('logoutSuccess', () => {
+        app.stopMetricsPolling();
+    });
+
+    // 监听错误事件
+    app.eventBus.on('error', (error) => {
+        console.error('应用错误:', error.message);
+        // 可以显示到 UI
+    });
+
+    // 暴露全局函数供 HTML 调用
+    window.appLogin = async (username, password) => {
+        try {
+            await app.login(username, password);
+            showNotification('登录成功！');
+        } catch (error) {
+            showNotification('登录失败: ' + error.message, 'error');
+        }
+    };
+
+    window.appLogout = () => {
+        app.logout();
+        showNotification('已退出登录');
+    };
+
+    window.appAddServer = async (data) => {
+        try {
+            await app.createServer(data);
+            showNotification('服务器添加成功！');
+        } catch (error) {
+            showNotification('添加失败: ' + error.message, 'error');
+        }
+    };
+
+    window.appDeleteServer = async (id) => {
+        if (confirm('确定要删除该服务器吗？')) {
+            try {
+                await app.deleteServer(id);
+                showNotification('服务器已删除');
+            } catch (error) {
+                showNotification('删除失败: ' + error.message, 'error');
+            }
+        }
+    };
+
+    window.getAppState = () => app.store.getState();
+  
 // ===== INIT LOGIN STATE =====
 updateLoginUI();
 
