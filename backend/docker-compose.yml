@@ -1,0 +1,104 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────
+# VPS 星图 · Docker Compose 一键部署
+# 启动：docker compose up -d
+# ─────────────────────────────────────────────────────────────
+
+services:
+
+  # ── MySQL 8 ───────────────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: vps_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password_change_me
+      MYSQL_DATABASE:      vps_dashboard
+      MYSQL_USER:          vps_user
+      MYSQL_PASSWORD:      vps_pass_change_me
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init_db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uvps_user", "-pvps_pass_change_me"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ── Redis 7 ───────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: vps_redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ── Flask API ─────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vps_api
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      FLASK_DEBUG:       "0"
+      SECRET_KEY:        "change_me_to_random_32chars_string"
+      JWT_SECRET_KEY:    "change_me_jwt_secret"
+      MYSQL_HOST:        mysql
+      MYSQL_PORT:        "3306"
+      MYSQL_USER:        vps_user
+      MYSQL_PASSWORD:    vps_pass_change_me
+      MYSQL_DB:          vps_dashboard
+      REDIS_HOST:        redis
+      REDIS_PORT:        "6379"
+      REDIS_PASSWORD:    ""
+      REDIS_DB:          "0"
+      CORS_ORIGINS:      "http://localhost:8080,http://localhost:5173"
+      PROBE_TIMEOUT_S:   "5"
+      PROBE_CACHE_TTL:   "15"
+      TILE_CACHE_TTL:    "86400"
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+
+  # ── Nginx 反向代理（可选，生产推荐） ───────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: vps_nginx
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ../frontend:/usr/share/nginx/html:ro      # 前端静态文件目录
+    profiles:
+      - production   # docker compose --profile production up -d
+
+
+volumes:
+  mysql_data:
+  redis_data:
