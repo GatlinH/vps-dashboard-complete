@@ -9,25 +9,49 @@ class PerformanceOptimizer {
     }
 
     // 惰性加载图表
-    enableLazyChartLoading() {
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const canvas = entry.target;
-                    if (canvas.dataset.lazy && !canvas.dataset.loaded) {
-                        this.renderChart(canvas);
-                        canvas.dataset.loaded = 'true';
-                        observer.unobserve(canvas);
+    enableLazyChartLoading(chartManager) {
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const canvas = entry.target;
+                if (canvas.dataset.lazy && !canvas.dataset.loaded) {
+                    const id = canvas.id;
+                    
+                    // 根据 ID 调用相应的图表创���方法
+                    try {
+                        if (id === 'cpuChart' && this.app.store.state.servers.length > 0) {
+                            chartManager.createCPUChart(id, this.app.store.state.servers[0]);
+                        } else if (id === 'trafficChart') {
+                            chartManager.createTrafficChart(id, this.app.store.state.servers);
+                        } else if (id === 'costChart') {
+                            chartManager.createCostTrendChart(id, this.app.store.state.servers);
+                        }
+                    } catch (error) {
+                        console.error(`图表初始化失败: ${id}`, error);
                     }
+                    
+                    canvas.dataset.loaded = 'true';
+                    observer.unobserve(canvas);
                 }
-            });
+            }
         });
+    }, { rootMargin: '50px' });
 
-        document.querySelectorAll('canvas[data-lazy]').forEach(canvas => {
-            observer.observe(canvas);
-        });
+    document.querySelectorAll('canvas[data-lazy]').forEach(canvas => {
+        observer.observe(canvas);
+    });
+    
+    // 返回观察器实例，便于清理
+    return observer;
+}
+
+// 在 destroy 时清理
+destroy(observer) {
+    if (observer) {
+        observer.disconnect();
     }
-
+    this.observerCache.clear();
+}
     // 防抖请求
     debounce(func, delay) {
         let timeoutId;
