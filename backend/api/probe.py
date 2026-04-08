@@ -4,8 +4,6 @@
 import socket
 import time
 import json
-import asyncio
-import aiohttp
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required
 from extensions import db, redis_client
