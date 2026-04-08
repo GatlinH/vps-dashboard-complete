@@ -1,4 +1,4 @@
-# backend/services/cache_warmer.py - 新文���
+# backend/services/cache_warmer.py - 新文件
 
 """
 缓存预热和智能失效机制
