@@ -1,5 +1,9 @@
-# backend/middleware/security.py - 新建文件
+# backend/middleware/security.py - 修改
 
+"""
+安全配置管理 - 完善版本
+添加更多安全头和优化 CSP 策略
+"""
 from flask import Flask
 from flask_talisman import Talisman
 from datetime import timedelta
@@ -11,13 +15,14 @@ class SecurityConfig:
     def init_app(app: Flask):
         """初始化安全中间件"""
         
-        # 1. 安全头配置
+        # 1. 安全头配置（完善版本）
         Talisman(
             app,
             force_https=app.config.get('FORCE_HTTPS', True),
             strict_transport_security=True,
             strict_transport_security_max_age=31536000,  # 1 year
             strict_transport_security_include_subdomains=True,
+            strict_transport_security_preload=True,  # ��� 新增
             content_security_policy={
                 'default-src': "'self'",
                 'script-src': [
@@ -27,7 +32,7 @@ class SecurityConfig:
                 ],
                 'style-src': [
                     "'self'",
-                    "'unsafe-inline'",
+                    "'unsafe-inline'",  # 前端需要内联样式
                     "https://fonts.googleapis.com",
                 ],
                 'img-src': [
@@ -45,11 +50,13 @@ class SecurityConfig:
                     "https://ip-api.com",
                 ],
                 'frame-ancestors': "'none'",
+                'base-uri': "'self'",  # ✅ 新增
+                'form-action': "'self'",  # ✅ 新增
             },
             content_security_policy_nonce_in=['script-src', 'style-src'],
         )
         
-        # 2. CORS 配置（更严格）
+        # 2. CORS 配置（保持现有）
         from flask_cors import CORS
         CORS(
             app,
@@ -61,16 +68,16 @@ class SecurityConfig:
             max_age=3600,
         )
         
-        # 3. 响应安全头
+        # 3. 响应安全头（完善版本）
         @app.after_request
         def add_security_headers(response):
-            # 防止点击劫持
+            # 防点击劫持
             response.headers['X-Frame-Options'] = 'DENY'
             
-            # 防止 MIME 嗅探
+            # 防 MIME 嗅探
             response.headers['X-Content-Type-Options'] = 'nosniff'
             
-            # 启用 XSS 保护
+            # XSS 保护
             response.headers['X-XSS-Protection'] = '1; mode=block'
             
             # Referrer 政策
@@ -81,8 +88,20 @@ class SecurityConfig:
                 'geolocation=(), '
                 'microphone=(), '
                 'camera=(), '
-                'payment=()'
+                'payment=(), '
+                'usb=(), '
+                'magnetometer=()'  # ✅ 新增
             )
+            
+            # ✅ 新增安全头
+            response.headers['X-Permitted-Cross-Domain-Policies'] = 'none'
+            response.headers['X-DNS-Prefetch-Control'] = 'off'
+            response.headers['X-Content-Type-Options'] = 'nosniff'
+            
+            # ✅ 防缓存敏感数据
+            if 'Authorization' in request.headers or '/api/' in request.path:
+                response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+                response.headers['Pragma'] = 'no-cache'
             
             return response
         
@@ -91,5 +110,6 @@ class SecurityConfig:
             SESSION_COOKIE_SECURE=True,
             SESSION_COOKIE_HTTPONLY=True,
             SESSION_COOKIE_SAMESITE='Lax',
+            SESSION_COOKIE_NAME='__Host-session',  # ✅ 前缀提升安全
             PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
         )
