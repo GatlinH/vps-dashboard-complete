@@ -10,6 +10,8 @@ jobs:
   test:
     name: Backend Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     services:
       redis:
@@ -58,6 +60,8 @@ jobs:
   lint:
     name: Frontend Lint Check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - name: Check HTML syntax (DOCTYPE)

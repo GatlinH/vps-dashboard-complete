@@ -3,6 +3,7 @@
 """
 缓存预热和智能失效机制
 """
+import json
 import logging
 from extensions import redis_client, db
 from models.models import Server
