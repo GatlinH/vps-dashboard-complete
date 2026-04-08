@@ -264,3 +264,37 @@ SELECT '📊 数据库版本：' AS info, VERSION() AS version;
 SELECT COUNT(*) AS user_count FROM users;
 SELECT COUNT(*) AS server_count FROM servers;
 SELECT COUNT(*) AS rule_count FROM alert_rules;
+
+-- ============================================================
+-- AFF 商品表
+-- ============================================================
+CREATE TABLE IF NOT EXISTS aff_products (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    provider VARCHAR(128) NOT NULL,
+    stock VARCHAR(16) DEFAULT 'avail',
+    cpu VARCHAR(32) DEFAULT '',
+    ram VARCHAR(32) DEFAULT '',
+    disk VARCHAR(32) DEFAULT '',
+    bandwidth VARCHAR(64) DEFAULT '',
+    location VARCHAR(128) DEFAULT '',
+    price FLOAT DEFAULT 0,
+    currency VARCHAR(8) DEFAULT 'CNY',
+    period VARCHAR(16) DEFAULT 'monthly',
+    buy_url VARCHAR(512) DEFAULT '',
+    review_url VARCHAR(512) DEFAULT '',
+    note TEXT,
+    sort_order INT DEFAULT 100,
+    enabled TINYINT(1) DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_provider (provider),
+    INDEX idx_stock (stock),
+    INDEX idx_sort (sort_order),
+    INDEX idx_enabled (enabled)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 示例数据（3 条）
+INSERT IGNORE INTO aff_products (provider, stock, cpu, ram, disk, bandwidth, location, price, currency, period, buy_url, note, sort_order) VALUES
+('RackNerd', 'avail', '1 vCPU', '1 GB', '15 GB SSD', '1.5 TB/月', '美国洛杉矶', 99, 'CNY', 'yearly', 'https://www.racknerd.com', '年付特惠，性价比超高', 10),
+('Vultr', 'avail', '1 vCPU', '1 GB', '25 GB SSD', '1 TB/月', '全球25节点', 42, 'CNY', 'monthly', 'https://www.vultr.com', '按小时计费，随时销毁', 20),
+('BandwagonHost', 'low', '2 vCPU', '2 GB', '40 GB SSD', '2 TB/月', '香港/美国', 299, 'CNY', 'yearly', 'https://bandwagonhost.com', 'CN2 GIA 线路，延迟极低', 30);

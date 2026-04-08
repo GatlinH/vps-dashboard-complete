@@ -1,24 +1,10 @@
-<<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VPS 星图</title>
-    <link rel="stylesheet" href="/styles/main.css">
-</head>
-<body>
-    <div id="app"></div>
-
-    <!-- 第三方库 -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@latest/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-
-    <!-- 应用脚本 -->
-    <script type="module" src="/frontend/init-enhanced.js"></script>
-  
+    <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
 
   :root {
@@ -848,6 +834,16 @@
 </head>
 <body>
 
+    <!-- 第三方库 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@latest/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+    <!-- 应用脚本 -->
+    <script type="module" src="./init-enhanced.js"></script>
+
 <canvas id="starfield"></canvas>
 
 <div id="app">
@@ -891,34 +887,26 @@
 
   <!-- ===== DASHBOARD PAGE ===== -->
   <div id="page-dashboard" class="page active">
-    <div class="page-title">服务器监控总览</div>
-    <!-- 新增：实时性能图表 -->
-    <div style="margin-top: 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
-        <div style="background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem;">
-            <h3 style="margin-bottom: 1rem; color: var(--text);">📈 CPU 趋势</h3>
-            <canvas id="cpuChart" height="200"></canvas>
-        </div>
-        
-        <div style="background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem;">
-            <h3 style="margin-bottom: 1rem; color: var(--text);">📊 流量统计</h3>
-            <canvas id="trafficChart" height="200"></canvas>
-        </div>
-    </div>
-</div>
-
-    <!-- Stats Bar -->
-    <div class="stats-bar" id="statsBar"></div>
-
-    <!-- Toolbar -->
-    <div class="toolbar">
-      <div class="group-tabs" id="groupTabs"></div>
-      <input class="search-box" id="searchBox" placeholder="搜索服务器、IP、位置..." oninput="filterServers()">
-      <button class="add-btn" onclick="openAddModal()">+ 添加服务器</button>
-    </div>
-
-    <!-- Server Grid -->
-    <div class="server-grid" id="serverGrid"></div>
+  <div class="page-title">服务器监控总览</div>
+  <div class="stats-bar" id="statsBar"></div>
+  <div class="toolbar">
+    <div class="group-tabs" id="groupTabs"></div>
+    <input class="search-box" id="searchBox" placeholder="搜索服务器、IP、位置..." oninput="filterServers()">
+    <button class="add-btn" id="addServerBtn" style="display:none" onclick="openAddModal()">+ 添加服务器</button>
   </div>
+  <div class="server-grid" id="serverGrid"></div>
+  <!-- 图表放在下方 -->
+  <div style="margin-top: 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
+    <div style="background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem;">
+      <h3 style="margin-bottom: 1rem; color: var(--text);">📈 CPU 趋势</h3>
+      <canvas id="cpuChart" height="200"></canvas>
+    </div>
+    <div style="background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem;">
+      <h3 style="margin-bottom: 1rem; color: var(--text);">📊 流量统计</h3>
+      <canvas id="trafficChart" height="200"></canvas>
+    </div>
+  </div>
+</div>
 
   <!-- ===== AFF PAGE ===== -->
   <div id="page-aff" class="page">
@@ -1966,38 +1954,89 @@ function closeModal(e) {
 }
 
 // ===== AFF PAGE =====
-function renderAff() {
-  document.getElementById('affGrid').innerHTML = affCards.map(a => {
+function renderAffProducts(products) {
+  document.getElementById('affGrid').innerHTML = products.map(a => {
+    const stockLabel = { avail: '有货', low: '剩余少量', out: '已售罄' }[a.stock] || a.stock;
     const stockClass = { avail: 'stock-avail', low: 'stock-low', out: 'stock-out' }[a.stock];
+    const adminBtns = isLoggedIn ? `
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button onclick="affEditProduct(${a.id})" style="flex:1;padding:4px 8px;border-radius:6px;background:rgba(99,179,237,.1);border:1px solid var(--border2);color:var(--accent);font-size:11px;cursor:pointer">✏️ 编辑</button>
+        <button onclick="affDeleteProduct(${a.id})" style="flex:1;padding:4px 8px;border-radius:6px;background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.25);color:var(--red);font-size:11px;cursor:pointer">🗑️ 删除</button>
+      </div>` : '';
     return `<div class="aff-card">
       <div class="aff-card-header">
         <div>
-          <div class="aff-provider">${a.flag} ${a.provider}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px">${a.location}</div>
+          <div class="aff-provider">${a.provider}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${a.location || ''}</div>
         </div>
-        <div class="aff-stock ${stockClass}">${a.stock_label}</div>
+        <div class="aff-stock ${stockClass}">${stockLabel}</div>
       </div>
       <div class="aff-card-body">
         <div class="aff-spec-grid">
-          <div class="aff-spec-item"><div class="aff-spec-key">CPU</div><div class="aff-spec-val">${a.cpu} 核</div></div>
-          <div class="aff-spec-item"><div class="aff-spec-key">内存</div><div class="aff-spec-val">${a.ram} GB</div></div>
-          <div class="aff-spec-item"><div class="aff-spec-key">存储</div><div class="aff-spec-val">${a.disk} GB</div></div>
-          <div class="aff-spec-item"><div class="aff-spec-key">流量</div><div class="aff-spec-val">${a.bw}</div></div>
-          <div class="aff-spec-item"><div class="aff-spec-key">IP数量</div><div class="aff-spec-val">${a.ip_count} 个</div></div>
-          <div class="aff-spec-item"><div class="aff-spec-key">付款周期</div><div class="aff-spec-val">/${a.period}</div></div>
+          <div class="aff-spec-item"><div class="aff-spec-key">CPU</div><div class="aff-spec-val">${a.cpu || '-'}</div></div>
+          <div class="aff-spec-item"><div class="aff-spec-key">内存</div><div class="aff-spec-val">${a.ram || '-'}</div></div>
+          <div class="aff-spec-item"><div class="aff-spec-key">存储</div><div class="aff-spec-val">${a.disk || '-'}</div></div>
+          <div class="aff-spec-item"><div class="aff-spec-key">流量</div><div class="aff-spec-val">${a.bandwidth || '-'}</div></div>
+          <div class="aff-spec-item"><div class="aff-spec-key">货币</div><div class="aff-spec-val">${a.currency || 'CNY'}</div></div>
+          <div class="aff-spec-item"><div class="aff-spec-key">周期</div><div class="aff-spec-val">${a.period || '-'}</div></div>
         </div>
         <div class="aff-price">
-          <div class="aff-price-main">${a.currency_sym}${a.price}</div>
+          <div class="aff-price-main">${a.price}</div>
           <div class="aff-price-period">/ ${a.period}</div>
         </div>
-        <div class="aff-note">${a.note}</div>
+        <div class="aff-note">${a.note || ''}</div>
         <div class="aff-links">
-          ${a.stock !== 'out' ? `<a href="${a.buy_url}" class="aff-link-btn aff-btn-buy" target="_blank">🛒 一键购买</a>` : '<div class="aff-link-btn aff-btn-review" style="opacity:.5;cursor:not-allowed">已售罄</div>'}
-          <a href="${a.review_url}" class="aff-link-btn aff-btn-review" target="_blank">📝 测评报告</a>
+          ${a.stock !== 'out' ? `<a href="${a.buy_url || '#'}" class="aff-link-btn aff-btn-buy" target="_blank">🛒 一键购买</a>` : '<div class="aff-link-btn aff-btn-review" style="opacity:.5;cursor:not-allowed">已售罄</div>'}
+          ${a.review_url ? `<a href="${a.review_url}" class="aff-link-btn aff-btn-review" target="_blank">📝 测评报告</a>` : ''}
         </div>
+        ${adminBtns}
       </div>
     </div>`;
   }).join('');
+}
+
+function renderAff() {
+  // Keep for backward compat - render local static data
+  const mapped = affCards.map(a => ({
+    id: 0, provider: a.provider, location: a.location, stock: a.stock,
+    cpu: String(a.cpu), ram: String(a.ram), disk: String(a.disk), bandwidth: a.bw,
+    price: a.price, currency: a.currency_sym, period: a.period,
+    buy_url: a.buy_url, review_url: a.review_url, note: a.note,
+  }));
+  renderAffProducts(mapped);
+}
+
+async function loadAffProducts() {
+  try {
+    if (window.app && window.app.api) {
+      const data = await window.app.api.listAffProducts();
+      if (data && data.products && data.products.length > 0) {
+        renderAffProducts(data.products);
+        return;
+      }
+    }
+  } catch(e) {
+    console.warn('AFF API 请求失败，降级到本地数据:', e);
+  }
+  // Fallback to static data
+  renderAff();
+}
+
+async function affDeleteProduct(id) {
+  if (!isLoggedIn) { openLoginModal(); return; }
+  if (!confirm('确认删除该商品？')) return;
+  try {
+    await window.app.api.deleteAffProduct(id);
+    loadAffProducts();
+  } catch(e) {
+    alert('删除失败：' + e.message);
+  }
+}
+
+function affEditProduct(id) {
+  if (!isLoggedIn) { openLoginModal(); return; }
+  // Simple prompt-based edit; can be replaced with a modal later
+  alert('编辑功能请通过管理面板操作（id=' + id + '）');
 }
 
 // ===== 3D GLOBE =====
@@ -2631,6 +2670,11 @@ function calculateFromManual() {
 
 // ===== ADD SERVER =====
 function openAddModal(prefillId) {
+  if (!isLoggedIn) {
+    alert('请先登录后再添加服务器');
+    openLoginModal();
+    return;
+  }
   // Populate source selector from current servers
   const sel = document.getElementById('addSourceSelect');
   sel.innerHTML = '<option value="">— 选择一台 VPS 自动填入规格 —</option>' +
@@ -2734,6 +2778,7 @@ function switchPage(page) {
   if (page === 'globe') initGlobe();
   if (page === 'calc')  initProbeList();
   if (page === 'traffic') renderTrafficPage();
+  if (page === 'aff') loadAffProducts();
 }
 
 // ===== STARFIELD =====
@@ -2758,6 +2803,24 @@ function initStars() {
   draw();
 }
 
+async function fetchAndUpdateRates() {
+  try {
+    if (window.app && window.app.api) {
+      const data = await window.app.api.getExchangeRates('CNY');
+      if (data && data.rates) {
+        // data.rates is relative to CNY base
+        // store as CNY-based: CNY=1, USD=rates.USD, EUR=rates.EUR
+        window._rates = data.rates;
+        exchangeRates.CNY = 1 / (data.rates.USD || 0.138);
+        exchangeRates.EUR = (data.rates.EUR || 0.127) / (data.rates.USD || 0.138);
+        updateRateDisplay();
+      }
+    }
+  } catch(e) {
+    console.warn('汇率获取失败，使用默认值');
+  }
+}
+
 // ===== INIT =====
 initStars();
 renderGroupTabs();
@@ -2765,6 +2828,8 @@ renderStats();
 renderServers();
 renderAff();
 updateRateDisplay();
+fetchAndUpdateRates();
+setInterval(fetchAndUpdateRates, 3600000);
 
 // Simulate live updates (dashboard only — globe uses its own cycle)
 setInterval(() => {
@@ -2787,6 +2852,7 @@ let isLoggedIn = JSON.parse(sessionStorage.getItem('vps_admin') || 'false');
 function updateLoginUI() {
   document.getElementById('loginBtn').style.display = isLoggedIn ? 'none' : 'flex';
   document.getElementById('adminAvatar').style.display = isLoggedIn ? 'flex' : 'none';
+  document.getElementById('addServerBtn').style.display = isLoggedIn ? '' : 'none';
 }
 
 function openLoginModal() {

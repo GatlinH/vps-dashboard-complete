@@ -165,6 +165,26 @@ class APIService {
         return this.request('/telegram/test', { method: 'POST' });
     }
 
+    // AFF API
+    async listAffProducts(stock = null) {
+        const qs = stock ? `?stock=${stock}` : '';
+        return this.request(`/aff/${qs}`);
+    }
+    async createAffProduct(data) {
+        return this.request('/aff/', { method: 'POST', body: data });
+    }
+    async updateAffProduct(id, data) {
+        return this.request(`/aff/${id}`, { method: 'PUT', body: data });
+    }
+    async deleteAffProduct(id) {
+        return this.request(`/aff/${id}`, { method: 'DELETE' });
+    }
+
+    // 汇率 API
+    async getExchangeRates(base = 'CNY') {
+        return this.request(`/exchange/rates?base=${base}`);
+    }
+
     handleUnauthorized() {
         localStorage.removeItem('authToken');
         window.location.reload();
