@@ -913,7 +913,7 @@
     <div class="toolbar">
       <div class="group-tabs" id="groupTabs"></div>
       <input class="search-box" id="searchBox" placeholder="搜索服务器、IP、位置..." oninput="filterServers()">
-      <button class="add-btn" onclick="openAddModal()">+ 添加服务器</button>
+      <button class="add-btn" id="addServerBtn" onclick="openAddModal()" style="display:none">+ 添加服务器</button>
     </div>
 
     <!-- Server Grid -->
@@ -2631,6 +2631,11 @@ function calculateFromManual() {
 
 // ===== ADD SERVER =====
 function openAddModal(prefillId) {
+  if (!isLoggedIn) {
+    alert('请先登录后再添加服务器');
+    openLoginModal();
+    return;
+  }
   // Populate source selector from current servers
   const sel = document.getElementById('addSourceSelect');
   sel.innerHTML = '<option value="">— 选择一台 VPS 自动填入规格 —</option>' +
@@ -2787,6 +2792,7 @@ let isLoggedIn = JSON.parse(sessionStorage.getItem('vps_admin') || 'false');
 function updateLoginUI() {
   document.getElementById('loginBtn').style.display = isLoggedIn ? 'none' : 'flex';
   document.getElementById('adminAvatar').style.display = isLoggedIn ? 'flex' : 'none';
+  document.getElementById('addServerBtn').style.display = isLoggedIn ? 'inline-block' : 'none';
 }
 
 function openLoginModal() {
