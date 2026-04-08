@@ -1,0 +1,41 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: SSH deploy to VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            set -e
+            echo "=== 开始部署 $(date) ==="
+
+            cd /opt/vps-dashboard
+            git pull origin main
+
+            # 复制最新前端文件
+            cp frontend/index.html /usr/share/nginx/html/index.html
+
+            # 重启后端服务（仅重建有变更的镜像）
+            cd backend
+            docker compose up -d --build --remove-orphans
+
+            # 等待健康检查
+            echo "等待服务启动..."
+            sleep 10
+            docker compose ps
+
+            echo "=== 部署完成 $(date) ==="
