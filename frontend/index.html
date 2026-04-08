@@ -3754,5 +3754,64 @@ updateLoginUI();
   if (savedCss) injectCustomCSS(savedCss);
 })();
 </script>
+//-- index.html 末尾，</body> 前 --
+<script type="module">
+    import app from './app.js';
+    import { ChartManager } from './charts.js';
+    import { PerformanceOptimizer } from './performance.js';
+    import { Logger } from './logger.js';
+
+    // 初始化模块
+    const chartManager = new ChartManager(app);
+    const perfOptimizer = new PerformanceOptimizer(app);
+    const logger = new Logger('info');
+    
+    // 将 logger 暴露到全局
+    window.logger = logger;
+
+    // 应用就绪事件
+    app.eventBus.on('appReady', async () => {
+        logger.info('应用初始化开始');
+        
+        try {
+            // 加载服务器列表
+            await app.loadServers();
+            logger.info('服务器列表已加载');
+            
+            // 初始化图表
+            setTimeout(() => {
+                const servers = app.store.state.servers;
+                if (servers.length > 0) {
+                    chartManager.createCPUChart('cpuChart', servers[0]);
+                    chartManager.createTrafficChart('trafficChart', servers);
+                    chartManager.createCostTrendChart('costChart', servers);
+                }
+            }, 300);
+            
+            // 启用性能优化
+            perfOptimizer.enableRequestDeduplication(app.api);
+            
+        } catch (error) {
+            logger.error('应用初始化失败', error);
+        }
+    });
+
+    // 登录成功后启动实时更新
+    app.eventBus.on('loginSuccess', (user) => {
+        logger.info('用户已登录', { username: user.username });
+        app.startMetricsPolling(15000);
+    });
+
+    // 指标更新事件
+    app.eventBus.on('metricsUpdated', () => {
+        logger.debug('指标已更新');
+        // 可以在这里刷新图表
+    });
+
+    // 暴露全局 API
+    window.app = app;
+    window.chartManager = chartManager;
+    window.logger = logger;
+</script>
 </body>
 </html>
