@@ -4,7 +4,7 @@
 安全配置管理 - 完善版本
 添加更多安全头和优化 CSP 策略
 """
-from flask import Flask
+from flask import Flask, request
 from flask_talisman import Talisman
 from datetime import timedelta
 

@@ -22,7 +22,7 @@ class RateLimitConfig:
                 "20 per minute"
             ],
             storage_uri=app.config.get('REDIS_URL'),
-            strategy="fixed-window-elastic-expiry",
+            strategy="fixed-window",
             swallow_errors=True,  # 在 Redis 故障时不中断
         )
         
