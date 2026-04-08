@@ -1,0 +1,75 @@
+# backend/utils/metrics.py - Prometheus 指标导出
+
+from prometheus_client import Counter, Histogram, Gauge
+import time
+
+# 定义指标
+api_request_count = Counter(
+    'vps_api_requests_total',
+    'API 请求总数',
+    ['method', 'endpoint', 'status']
+)
+
+api_request_duration = Histogram(
+    'vps_api_request_duration_seconds',
+    'API 请求耗时',
+    ['method', 'endpoint']
+)
+
+database_query_duration = Histogram(
+    'vps_database_query_duration_seconds',
+    '数据库查询耗时',
+    ['query_type']
+)
+
+active_servers = Gauge(
+    'vps_servers_active',
+    '活跃服务器数',
+    ['status']
+)
+
+cache_hit_rate = Gauge(
+    'vps_cache_hit_rate',
+    '缓存命中率',
+    ['cache_type']
+)
+
+
+# backend/middleware/metrics.py - 集成到中间件
+
+from flask import Flask, request, jsonify
+from prometheus_client import generate_latest, CollectorRegistry, CONTENT_TYPE_LATEST
+from utils.metrics import *
+
+def init_metrics(app: Flask):
+    """初始化 Prometheus 指标"""
+    
+    @app.before_request
+    def before_request():
+        request.start_time = time.time()
+    
+    @app.after_request
+    def after_request(response):
+        if hasattr(request, 'start_time'):
+            duration = time.time() - request.start_time
+            method = request.method
+            endpoint = request.endpoint or 'unknown'
+            status = response.status_code
+            
+            api_request_count.labels(
+                method=method,
+                endpoint=endpoint,
+                status=status
+            ).inc()
+            
+            api_request_duration.labels(
+                method=method,
+                endpoint=endpoint
+            ).observe(duration)
+        
+        return response
+    
+    @app.route('/metrics')
+    def metrics():
+        """Prometheus 指标端点"""
+        return generate_latest(), 200, {'Content-Type': CONTENT_TYPE_LATEST}
