@@ -259,6 +259,9 @@ def get_server(sid):
         return jsonify(server=d), 200
     
     except Exception as e:
+        from werkzeug.exceptions import HTTPException
+        if isinstance(e, HTTPException):
+            raise
         logger.error(f"❌ 获取服务器信息失败: {e}")
         raise InternalServerError("获取服务器信息失败", str(e))
 

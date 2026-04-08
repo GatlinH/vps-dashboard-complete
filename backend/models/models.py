@@ -146,7 +146,7 @@ class ProbeResult(db.Model):
     __table_args__ = (
         db.Index('idx_server_created', 'server_id', 'created_at'),
         db.Index('idx_created_at_server', 'created_at', 'server_id'),
-        db.Index('idx_created_date', 'created_at'),  # 用于日期范围查询
+        db.Index('idx_probe_created_date', 'created_at'),  # 用于日期范围查询
     )
     
     def to_dict(self):
@@ -248,9 +248,9 @@ class AuditLog(db.Model):
     __table_args__ = (
         db.Index('idx_user_created', 'user_id', 'created_at'),
         db.Index('idx_action_created', 'action', 'created_at'),
-        db.Index('idx_created_date', 'created_at'),
+        db.Index('idx_audit_created_date', 'created_at'),
     )
-    
+
     def to_dict(self):
         return dict(
             id=self.id,
