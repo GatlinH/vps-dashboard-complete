@@ -169,6 +169,29 @@ class APIService {
         localStorage.removeItem('authToken');
         window.location.reload();
     }
+
+    // AFF 市场 API
+    async listAffProducts(params = {}) {
+        const qs = new URLSearchParams(params).toString();
+        return this.request(`/aff/${qs ? '?' + qs : ''}`);
+    }
+
+    async createAffProduct(data) {
+        return this.request('/aff/', { method: 'POST', body: data });
+    }
+
+    async updateAffProduct(id, data) {
+        return this.request(`/aff/${id}`, { method: 'PUT', body: data });
+    }
+
+    async deleteAffProduct(id) {
+        return this.request(`/aff/${id}`, { method: 'DELETE' });
+    }
+
+    // 汇率 API
+    async getExchangeRates(base = 'CNY') {
+        return this.request(`/exchange/rates?base=${base}`);
+    }
 }
 
 // 自定义错误类

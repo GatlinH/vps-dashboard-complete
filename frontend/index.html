@@ -1,24 +1,10 @@
-<<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VPS 星图</title>
-    <link rel="stylesheet" href="/styles/main.css">
-</head>
-<body>
-    <div id="app"></div>
-
-    <!-- 第三方库 -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@latest/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-
-    <!-- 应用脚本 -->
-    <script type="module" src="/frontend/init-enhanced.js"></script>
-  
+    <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
 
   :root {
@@ -844,9 +830,14 @@
     background: rgba(99,179,237,.1); border: 1px solid var(--border2);
     color: var(--accent); font-size: 11px; cursor: pointer;
   }
-</style>
+    </style>
 </head>
 <body>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@latest/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 
 <canvas id="starfield"></canvas>
 
@@ -892,32 +883,24 @@
   <!-- ===== DASHBOARD PAGE ===== -->
   <div id="page-dashboard" class="page active">
     <div class="page-title">服务器监控总览</div>
-    <!-- 新增：实时性能图表 -->
-    <div style="margin-top: 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
-        <div style="background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem;">
-            <h3 style="margin-bottom: 1rem; color: var(--text);">📈 CPU 趋势</h3>
-            <canvas id="cpuChart" height="200"></canvas>
-        </div>
-        
-        <div style="background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem;">
-            <h3 style="margin-bottom: 1rem; color: var(--text);">📊 流量统计</h3>
-            <canvas id="trafficChart" height="200"></canvas>
-        </div>
-    </div>
-</div>
-
-    <!-- Stats Bar -->
     <div class="stats-bar" id="statsBar"></div>
-
-    <!-- Toolbar -->
     <div class="toolbar">
       <div class="group-tabs" id="groupTabs"></div>
       <input class="search-box" id="searchBox" placeholder="搜索服务器、IP、位置..." oninput="filterServers()">
-      <button class="add-btn" onclick="openAddModal()">+ 添加服务器</button>
+      <button class="add-btn" id="addServerBtn" style="display:none" onclick="openAddModal()">+ 添加服务器</button>
     </div>
-
-    <!-- Server Grid -->
     <div class="server-grid" id="serverGrid"></div>
+    <!-- 图表放在下方 -->
+    <div style="margin-top: 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
+      <div style="background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem;">
+        <h3 style="margin-bottom: 1rem; color: var(--text);">📈 CPU 趋势</h3>
+        <canvas id="cpuChart" height="200"></canvas>
+      </div>
+      <div style="background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem;">
+        <h3 style="margin-bottom: 1rem; color: var(--text);">📊 流量统计</h3>
+        <canvas id="trafficChart" height="200"></canvas>
+      </div>
+    </div>
   </div>
 
   <!-- ===== AFF PAGE ===== -->
@@ -1531,7 +1514,30 @@ nav {
 <script>
 // ===== DATA =====
 let currency = 'CNY';
-let exchangeRates = { USD: 1, CNY: 7.26, EUR: 0.92 };
+let exchangeRates = { USD: 0.138, CNY: 7.26, EUR: 0.127 };
+
+async function fetchAndUpdateRates() {
+  try {
+    const data = window.app && window.app.api
+      ? await window.app.api.getExchangeRates('CNY')
+      : null;
+    if (data && data.rates) {
+      window._rates = data.rates;
+      // API returns rates relative to CNY base: CNY->USD etc
+      // But our exchangeRates uses CNY as 1 base with USD/EUR as conversion
+      // The API returns: CNY=1, USD=0.138, EUR=0.127 (relative to CNY)
+      if (data.rates.USD) exchangeRates.USD = data.rates.USD;
+      if (data.rates.EUR) exchangeRates.EUR = data.rates.EUR;
+      // CNY stays as the reference (already 1 in toDisplay logic)
+      if (data.rates.USD && data.rates.USD > 0) {
+        document.getElementById('rateDisplay').textContent = `1 USD = ${(1/data.rates.USD).toFixed(2)} CNY`;
+      }
+      if (typeof renderStats === 'function') renderStats();
+    }
+  } catch(e) {
+    console.warn('汇率获取失败，使用默认值', e);
+  }
+}
 let activeGroup = '全部';
 let servers = JSON.parse(localStorage.getItem('vps_servers') || 'null') || [
   {
@@ -1614,54 +1620,31 @@ let servers = JSON.parse(localStorage.getItem('vps_servers') || 'null') || [
   }
 ];
 
-let affCards = [
+// AFF static fallback data
+const AFF_FALLBACK = [
   {
-    provider: 'RackNerd', flag: '🇺🇸', location: '美国多机房',
-    cpu: 2, ram: 2.5, disk: 40, bw: '4TB/月', ip_count: 1,
-    price: 10.98, period: '年', currency_sym: '$',
+    provider: 'RackNerd', flag: '🇺🇸', location: '美国洛杉矶',
+    cpu: 1, ram: 1, disk: 15, bw: '1.5TB/月', ip_count: 1,
+    price: 99, period: '年', currency_sym: '¥',
     stock: 'avail', stock_label: '有货',
-    note: 'AMD EPYC，年付不到 $11，超高性价比，洛杉矶/圣何塞可选',
-    buy_url: '#', review_url: '#',
+    note: '年付特惠，性价比极高',
+    buy_url: 'https://www.racknerd.com', review_url: '#',
   },
   {
-    provider: 'BandwagonHost', flag: '🇺🇸🇯🇵🇭🇰', location: '多节点可选',
-    cpu: 2, ram: 1, disk: 20, bw: '1TB/月', ip_count: 1,
-    price: 49.99, period: '年', currency_sym: '$',
-    stock: 'low', stock_label: '剩余少量',
-    note: '搬瓦工经典款，CN2 GIA线路，延迟低，限购注意使用规则',
-    buy_url: '#', review_url: '#',
-  },
-  {
-    provider: 'Vultr', flag: '🌍', location: '全球32机房',
+    provider: 'Vultr', flag: '🌍', location: '全球25节点',
     cpu: 1, ram: 1, disk: 25, bw: '1TB/月', ip_count: 1,
-    price: 3.50, period: '月', currency_sym: '$',
+    price: 42, period: '月', currency_sym: '¥',
     stock: 'avail', stock_label: '有货',
-    note: '按小时计费，全球节点随意切换，新用户可领$100赠金',
-    buy_url: '#', review_url: '#',
+    note: '按小时计费，随时销毁',
+    buy_url: 'https://www.vultr.com', review_url: '#',
   },
   {
-    provider: 'Hetzner', flag: '🇩🇪🇫🇮', location: '欧洲德国/芬兰',
-    cpu: 2, ram: 4, disk: 40, bw: '20TB/月', ip_count: 1,
-    price: 4.51, period: '月', currency_sym: '€',
-    stock: 'avail', stock_label: '有货',
-    note: '欧洲性价比之王，ARM架构价格更低，机器质量稳定',
-    buy_url: '#', review_url: '#',
-  },
-  {
-    provider: 'Bandwagon Special', flag: '🇭🇰', location: '香港 CN2 GIA',
-    cpu: 2, ram: 2, disk: 40, bw: '500GB/月', ip_count: 1,
-    price: 299.99, period: '年', currency_sym: '$',
-    stock: 'out', stock_label: '已售罄',
-    note: '香港CN2 GIA顶级线路，延迟<5ms，库存长期缺货',
-    buy_url: '#', review_url: '#',
-  },
-  {
-    provider: 'DMIT', flag: '🇺🇸🇯🇵🇭🇰', location: 'CN2 GIA多节点',
-    cpu: 1, ram: 1.5, disk: 20, bw: '500GB/月', ip_count: 1,
-    price: 28.88, period: '季', currency_sym: '$',
-    stock: 'avail', stock_label: '有货',
-    note: 'CN2 GIA Premium套餐，三网直连，iplc中继可选',
-    buy_url: '#', review_url: '#',
+    provider: 'BandwagonHost', flag: '🇺🇸🇭🇰', location: '香港/美国',
+    cpu: 2, ram: 2, disk: 40, bw: '2TB/月', ip_count: 1,
+    price: 299, period: '年', currency_sym: '¥',
+    stock: 'low', stock_label: '剩余少量',
+    note: 'CN2 GIA 线路，延迟极低',
+    buy_url: 'https://bandwagonhost.com', review_url: '#',
   }
 ];
 
@@ -1966,38 +1949,89 @@ function closeModal(e) {
 }
 
 // ===== AFF PAGE =====
-function renderAff() {
+async function loadAffProducts() {
+  let affCards = AFF_FALLBACK;
+  try {
+    if (window.app && window.app.api) {
+      const resp = await window.app.api.listAffProducts();
+      if (resp && resp.products && resp.products.length > 0) {
+        affCards = resp.products.map(p => ({
+          provider: p.provider,
+          flag: '',
+          location: p.location,
+          cpu: p.cpu,
+          ram: p.ram,
+          disk: p.disk,
+          bw: p.bandwidth,
+          ip_count: 1,
+          price: p.price,
+          period: p.period === 'monthly' ? '月' : p.period === 'yearly' ? '年' : p.period,
+          currency_sym: p.currency === 'CNY' ? '¥' : p.currency === 'USD' ? '$' : p.currency,
+          stock: p.stock,
+          stock_label: p.stock === 'avail' ? '有货' : p.stock === 'low' ? '剩余少量' : '已售罄',
+          note: p.note,
+          buy_url: p.buy_url || '#',
+          review_url: p.review_url || '#',
+          _id: p.id,
+        }));
+      }
+    }
+  } catch(e) {
+    console.warn('AFF API 不可用，使用静态备用数据', e);
+  }
+  renderAffCards(affCards);
+}
+
+function renderAff() { loadAffProducts(); }
+
+function renderAffCards(affCards) {
   document.getElementById('affGrid').innerHTML = affCards.map(a => {
     const stockClass = { avail: 'stock-avail', low: 'stock-low', out: 'stock-out' }[a.stock];
-    return `<div class="aff-card">
+    const editBtns = isLoggedIn && a._id ? `
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="aff-link-btn aff-btn-review" onclick="deleteAffProduct(${a._id})" style="background:rgba(255,107,107,.1);border-color:rgba(255,107,107,.3);color:var(--red)">🗑 删除</button>
+      </div>` : '';
+    return \`<div class="aff-card">
       <div class="aff-card-header">
         <div>
-          <div class="aff-provider">${a.flag} ${a.provider}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px">${a.location}</div>
+          <div class="aff-provider">\${a.flag} \${a.provider}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">\${a.location}</div>
         </div>
-        <div class="aff-stock ${stockClass}">${a.stock_label}</div>
+        <div class="aff-stock \${stockClass}">\${a.stock_label}</div>
       </div>
       <div class="aff-card-body">
         <div class="aff-spec-grid">
-          <div class="aff-spec-item"><div class="aff-spec-key">CPU</div><div class="aff-spec-val">${a.cpu} 核</div></div>
-          <div class="aff-spec-item"><div class="aff-spec-key">内存</div><div class="aff-spec-val">${a.ram} GB</div></div>
-          <div class="aff-spec-item"><div class="aff-spec-key">存储</div><div class="aff-spec-val">${a.disk} GB</div></div>
-          <div class="aff-spec-item"><div class="aff-spec-key">流量</div><div class="aff-spec-val">${a.bw}</div></div>
-          <div class="aff-spec-item"><div class="aff-spec-key">IP数量</div><div class="aff-spec-val">${a.ip_count} 个</div></div>
-          <div class="aff-spec-item"><div class="aff-spec-key">付款周期</div><div class="aff-spec-val">/${a.period}</div></div>
+          <div class="aff-spec-item"><div class="aff-spec-key">CPU</div><div class="aff-spec-val">\${a.cpu} 核</div></div>
+          <div class="aff-spec-item"><div class="aff-spec-key">内存</div><div class="aff-spec-val">\${a.ram} GB</div></div>
+          <div class="aff-spec-item"><div class="aff-spec-key">存储</div><div class="aff-spec-val">\${a.disk} GB</div></div>
+          <div class="aff-spec-item"><div class="aff-spec-key">流量</div><div class="aff-spec-val">\${a.bw}</div></div>
+          <div class="aff-spec-item"><div class="aff-spec-key">IP数量</div><div class="aff-spec-val">\${a.ip_count} 个</div></div>
+          <div class="aff-spec-item"><div class="aff-spec-key">付款周期</div><div class="aff-spec-val">/\${a.period}</div></div>
         </div>
         <div class="aff-price">
-          <div class="aff-price-main">${a.currency_sym}${a.price}</div>
-          <div class="aff-price-period">/ ${a.period}</div>
+          <div class="aff-price-main">\${a.currency_sym}\${a.price}</div>
+          <div class="aff-price-period">/ \${a.period}</div>
         </div>
-        <div class="aff-note">${a.note}</div>
+        <div class="aff-note">\${a.note}</div>
         <div class="aff-links">
-          ${a.stock !== 'out' ? `<a href="${a.buy_url}" class="aff-link-btn aff-btn-buy" target="_blank">🛒 一键购买</a>` : '<div class="aff-link-btn aff-btn-review" style="opacity:.5;cursor:not-allowed">已售罄</div>'}
-          <a href="${a.review_url}" class="aff-link-btn aff-btn-review" target="_blank">📝 测评报告</a>
+          \${a.stock !== 'out' ? \`<a href="\${a.buy_url}" class="aff-link-btn aff-btn-buy" target="_blank">🛒 一键购买</a>\` : '<div class="aff-link-btn aff-btn-review" style="opacity:.5;cursor:not-allowed">已售罄</div>'}
+          <a href="\${a.review_url}" class="aff-link-btn aff-btn-review" target="_blank">📝 测评报告</a>
         </div>
+        \${editBtns}
       </div>
-    </div>`;
+    </div>\`;
   }).join('');
+}
+
+async function deleteAffProduct(id) {
+  if (!isLoggedIn) { openLoginModal(); return; }
+  if (!confirm('确定删除该商品？')) return;
+  try {
+    await window.app.api.deleteAffProduct(id);
+    loadAffProducts();
+  } catch(e) {
+    alert('删除失败: ' + e.message);
+  }
 }
 
 // ===== 3D GLOBE =====
@@ -2631,6 +2665,7 @@ function calculateFromManual() {
 
 // ===== ADD SERVER =====
 function openAddModal(prefillId) {
+  if (!isLoggedIn) { alert('请先登录后再添加服务器'); openLoginModal(); return; }
   // Populate source selector from current servers
   const sel = document.getElementById('addSourceSelect');
   sel.innerHTML = '<option value="">— 选择一台 VPS 自动填入规格 —</option>' +
@@ -2734,6 +2769,7 @@ function switchPage(page) {
   if (page === 'globe') initGlobe();
   if (page === 'calc')  initProbeList();
   if (page === 'traffic') renderTrafficPage();
+  if (page === 'aff') loadAffProducts();
 }
 
 // ===== STARFIELD =====
@@ -2765,6 +2801,10 @@ renderStats();
 renderServers();
 renderAff();
 updateRateDisplay();
+// 异步获取实时汇率
+fetchAndUpdateRates();
+// 每小时自动刷新汇率
+setInterval(fetchAndUpdateRates, 3600000);
 
 // Simulate live updates (dashboard only — globe uses its own cycle)
 setInterval(() => {
@@ -2808,6 +2848,7 @@ function doLogin() {
     isLoggedIn = true;
     sessionStorage.setItem('vps_admin', 'true');
     updateLoginUI();
+    document.getElementById('addServerBtn').style.display = '';
     closeLoginModal();
     // Brief welcome flash
     const btn = document.getElementById('adminAvatar');
@@ -2828,6 +2869,7 @@ function logout() {
   isLoggedIn = false;
   sessionStorage.removeItem('vps_admin');
   updateLoginUI();
+  document.getElementById('addServerBtn').style.display = 'none';
 }
 
 // ===== ADMIN PANEL =====
@@ -3950,5 +3992,8 @@ updateLoginUI();
 
     logger.info('✓ 所有模块初始化完成！');
 </script>
+
+    <!-- 应用脚本 -->
+    <script type="module" src="./init-enhanced.js"></script>
 </body>
 </html>

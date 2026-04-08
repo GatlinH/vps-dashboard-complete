@@ -1,0 +1,28 @@
+import logging
+from flask import jsonify
+
+logger = logging.getLogger(__name__)
+
+
+class ErrorHandler:
+    def __init__(self, app):
+        @app.errorhandler(400)
+        def bad_request(e):
+            return jsonify(success=False, error_code='BAD_REQUEST', message=str(e)), 400
+
+        @app.errorhandler(401)
+        def unauthorized(e):
+            return jsonify(success=False, error_code='UNAUTHORIZED', message='未授权'), 401
+
+        @app.errorhandler(403)
+        def forbidden(e):
+            return jsonify(success=False, error_code='FORBIDDEN', message='权限不足'), 403
+
+        @app.errorhandler(404)
+        def not_found(e):
+            return jsonify(success=False, error_code='NOT_FOUND', message='资源不存在'), 404
+
+        @app.errorhandler(Exception)
+        def handle_exception(e):
+            logger.error(f'Unhandled: {e}', exc_info=True)
+            return jsonify(success=False, error_code='INTERNAL_ERROR', message=str(e)), 500
