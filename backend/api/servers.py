@@ -241,3 +241,38 @@ def list_groups():
     """返回所有分组列表"""
     rows = db.session.query(Server.group_name).distinct().all()
     return jsonify(groups=[r[0] for r in rows])
+# backend/api/servers.py 中添加
+
+@servers_bp.get("/<int:sid>/history")
+@jwt_required()
+def get_server_history(sid):
+    """
+    获取服务器历史数据
+    查询参数：
+      - days: 1-30（默认 1）
+      - metric: cpu|memory|disk|traffic（默认 cpu）
+    """
+    days = request.args.get('days', 1, type=int)
+    metric = request.args.get('metric', 'cpu', type=str)
+    
+    server = Server.query.get_or_404(sid)
+    
+    # 获取过去 N 天的 ProbeResult
+    from datetime import datetime, timedelta
+    start_date = datetime.utcnow() - timedelta(days=days)
+    
+    results = ProbeResult.query.filter(
+        ProbeResult.server_id == sid,
+        ProbeResult.created_at >= start_date
+    ).order_by(ProbeResult.created_at).all()
+    
+    data = [{
+        'timestamp': r.created_at.isoformat(),
+        'cpu_use': r.cpu_use,
+        'ram_use': r.ram_use,
+        'disk_use': r.disk_use,
+        'net_up': r.net_up,
+        'net_down': r.net_down,
+    } for r in results]
+    
+    return jsonify(data=data, count=len(data))
