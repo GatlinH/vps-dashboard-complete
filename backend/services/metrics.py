@@ -4,7 +4,7 @@
 Prometheus 兼容的性能指标收集
 """
 from prometheus_client import Counter, Histogram, Gauge, generate_latest
-from flask import Blueprint
+from flask import Blueprint, request
 import time
 
 metrics_bp = Blueprint('metrics', __name__)

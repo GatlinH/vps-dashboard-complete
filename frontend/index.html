@@ -2811,8 +2811,10 @@ async function fetchAndUpdateRates() {
         // data.rates is relative to CNY base
         // store as CNY-based: CNY=1, USD=rates.USD, EUR=rates.EUR
         window._rates = data.rates;
-        exchangeRates.CNY = 1 / (data.rates.USD || 0.138);
-        exchangeRates.EUR = (data.rates.EUR || 0.127) / (data.rates.USD || 0.138);
+        const usdRate = data.rates.USD && data.rates.USD > 0 ? data.rates.USD : 0.138;
+        const eurRate = data.rates.EUR && data.rates.EUR > 0 ? data.rates.EUR : 0.127;
+        exchangeRates.CNY = 1 / usdRate;
+        exchangeRates.EUR = eurRate / usdRate;
         updateRateDisplay();
       }
     }
