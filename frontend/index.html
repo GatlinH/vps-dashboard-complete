@@ -3813,5 +3813,128 @@ updateLoginUI();
     window.chartManager = chartManager;
     window.logger = logger;
 </script>
+<!-- ===== 模块初始化脚本 ===== -->
+<script type="module">
+    import app from './app.js';
+    import { ChartManager } from './charts.js';
+    import { PerformanceOptimizer } from './performance.js';
+    import { Logger } from './logger.js';
+
+    // ===== 初始化模块 =====
+    const chartManager = new ChartManager(app);
+    const perfOptimizer = new PerformanceOptimizer(app);
+    const logger = new Logger('info');
+    
+    // 暴露到全局作用域（便于调试）
+    window.logger = logger;
+    window.app = app;
+    window.chartManager = chartManager;
+    window.perfOptimizer = perfOptimizer;
+
+    logger.info('📦 模块初始化开始');
+
+    // ===== 应用就绪事件 =====
+    app.eventBus.on('appReady', async () => {
+        logger.info('🚀 应用初始化开始');
+        
+        try {
+            // 1. 加载服务器列表
+            await app.loadServers();
+            logger.info('✓ 服务器列表已加载', { count: app.store.state.servers.length });
+            
+            // 2. 初始化图表（延迟 300ms，确保 DOM 准备就绪）
+            setTimeout(() => {
+                const servers = app.store.state.servers;
+                if (servers.length > 0) {
+                    logger.info('📊 初始化图表...');
+                    try {
+                        chartManager.createCPUChart('cpuChart', servers[0]);
+                        logger.info('✓ CPU 趋势图已创建');
+                    } catch (e) {
+                        logger.warn('CPU 趋势图初始化失败', e);
+                    }
+                    
+                    try {
+                        chartManager.createTrafficChart('trafficChart', servers);
+                        logger.info('✓ 流量统计图已创建');
+                    } catch (e) {
+                        logger.warn('流量统计图初始化失败', e);
+                    }
+                    
+                    try {
+                        chartManager.createCostTrendChart('costTrendChart', servers);
+                        logger.info('✓ 成本趋势图已创建');
+                    } catch (e) {
+                        logger.warn('成本趋势图初始化失败', e);
+                    }
+                } else {
+                    logger.warn('⚠️ 没有可用的服务器数据');
+                }
+            }, 300);
+            
+            // 3. 启用性能优化
+            perfOptimizer.enableRequestDeduplication(app.api);
+            logger.info('✓ 请求去重已启用');
+            
+            // 4. 启用惰性加载（可选，取决于 HTML 中是否有 data-lazy 属性）
+            const lazyCharts = document.querySelectorAll('canvas[data-lazy]');
+            if (lazyCharts.length > 0) {
+                perfOptimizer.enableLazyChartLoading(chartManager);
+                logger.info('✓ 图表惰性加载已启用', { count: lazyCharts.length });
+            }
+            
+        } catch (error) {
+            logger.error('❌ 应用初始化失败', error);
+        }
+    });
+
+    // ===== 登录成功事件 =====
+    app.eventBus.on('loginSuccess', (user) => {
+        logger.info('👤 用户已登录', { username: user.username });
+        
+        // 启动实时轮询
+        app.startMetricsPolling(15000);
+        logger.info('✓ 实时轮询已启动 (15s 间隔)');
+    });
+
+    // ===== 指标更新事件 =====
+    app.eventBus.on('metricsUpdated', (metrics) => {
+        logger.debug('🔄 指标已更新', { count: metrics.size });
+        
+        // 可以在这里刷新图表等操作
+        try {
+            const servers = app.store.state.servers;
+            if (servers.length > 0 && window.chartManager) {
+                // 更新流量图表
+                window.chartManager.destroyChart('trafficChart');
+                window.chartManager.createTrafficChart('trafficChart', servers);
+            }
+        } catch (e) {
+            logger.warn('图表更新失败', e);
+        }
+    });
+
+    // ===== 登出事件 =====
+    app.eventBus.on('logoutSuccess', () => {
+        logger.info('👋 用户已登出');
+        app.stopMetricsPolling();
+        chartManager.destroyAll();
+    });
+
+    // ===== 错误处理 =====
+    app.eventBus.on('error', (errorObj) => {
+        logger.error('⚠️ 应用错误', errorObj);
+    });
+
+    // ===== 性能监测（可选） =====
+    if (window.performance) {
+        window.addEventListener('load', () => {
+            logger.info('📈 页面加载完成，性能指标：');
+            perfOptimizer.recordMetrics();
+        });
+    }
+
+    logger.info('✓ 所有模块初始化完成！');
+</script>
 </body>
 </html>
