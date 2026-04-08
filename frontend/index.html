@@ -878,6 +878,19 @@
   <!-- ===== DASHBOARD PAGE ===== -->
   <div id="page-dashboard" class="page active">
     <div class="page-title">服务器监控总览</div>
+    <!-- 新增：实时性能图表 -->
+    <div style="margin-top: 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
+        <div style="background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem;">
+            <h3 style="margin-bottom: 1rem; color: var(--text);">📈 CPU 趋势</h3>
+            <canvas id="cpuChart" height="200"></canvas>
+        </div>
+        
+        <div style="background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem;">
+            <h3 style="margin-bottom: 1rem; color: var(--text);">📊 流量统计</h3>
+            <canvas id="trafficChart" height="200"></canvas>
+        </div>
+    </div>
+</div>
 
     <!-- Stats Bar -->
     <div class="stats-bar" id="statsBar"></div>
