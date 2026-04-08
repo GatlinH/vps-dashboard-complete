@@ -883,7 +883,10 @@
         登录
       </button>
       <div id="adminAvatar" style="display:none;align-items:center;gap:8px">
-        <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--purple));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#000;cursor:pointer" onclick="openAdminPanel()" title="进入管理后台">管</div>
+        <div id="navUserInfo" style="display:flex;align-items:center;gap:6px;cursor:pointer" onclick="openAdminPanel()" title="进入管理后台">
+          <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--purple));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#000">管</div>
+          <span id="navUsername" style="font-size:12px;color:var(--text2);font-family:var(--sans);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+        </div>
         <button onclick="logout()" style="padding:4px 10px;border-radius:6px;background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.25);color:var(--red);font-size:11px;cursor:pointer">退出</button>
       </div>
     </div>
@@ -1282,7 +1285,7 @@
 </div>
 
 <!-- ===== LOGIN MODAL ===== -->
-<div class="modal-overlay" id="loginModal" onclick="if(event.target.id==='loginModal')closeLoginModal()">
+<div class="modal-overlay" id="loginModal">
   <div class="login-box" onclick="event.stopPropagation()">
     <div class="login-logo">
       <div class="login-logo-text">VPS<span style="color:var(--gold)">·</span>星图</div>
@@ -1297,8 +1300,13 @@
       <input class="login-input" id="loginPass" type="password" placeholder="••••••••"
         autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <input type="checkbox" id="loginRemember" style="cursor:pointer;accent-color:var(--accent)">
+      <label for="loginRemember" style="font-size:12px;color:var(--text2);cursor:pointer;user-select:none">记住我</label>
+      <span id="loginAttemptInfo" style="margin-left:auto;font-size:11px;color:var(--text3)"></span>
+    </div>
     <div class="login-err" id="loginErr"></div>
-    <button class="login-btn" onclick="doLogin()">登 录</button>
+    <button class="login-btn" id="loginSubmitBtn" onclick="doLogin()">登 录</button>
     <div style="text-align:center;margin-top:14px;font-size:11px;color:var(--text3)">
       默认账号 admin / admin123
     </div>
@@ -1528,6 +1536,7 @@ nav {
   </div><!-- admin-body -->
 </div><!-- adminPanel -->
 
+<script src="/frontend/auth.js"></script>
 <script>
 // ===== DATA =====
 let currency = 'CNY';
@@ -2781,12 +2790,22 @@ setInterval(() => {
 }, 3000);
 
 // ===== LOGIN =====
-const ADMIN_CREDENTIALS = { user: 'admin', pass: 'admin123' };
-let isLoggedIn = JSON.parse(sessionStorage.getItem('vps_admin') || 'false');
+// Auth state is managed by authManager (auth.js); isLoggedIn mirrors it for legacy code.
+let isLoggedIn = authManager.isAuthenticated();
 
 function updateLoginUI() {
-  document.getElementById('loginBtn').style.display = isLoggedIn ? 'none' : 'flex';
-  document.getElementById('adminAvatar').style.display = isLoggedIn ? 'flex' : 'none';
+  const loggedIn = authManager.isAuthenticated();
+  isLoggedIn = loggedIn;
+  document.getElementById('loginBtn').style.display = loggedIn ? 'none' : 'flex';
+  const avatar = document.getElementById('adminAvatar');
+  avatar.style.display = loggedIn ? 'flex' : 'none';
+  if (loggedIn) {
+    const user = authManager.getUser();
+    const nameEl = document.getElementById('navUsername');
+    if (nameEl && user) {
+      nameEl.textContent = (user.username || '') + (user.role === 'admin' ? ' ⚙' : '');
+    }
+  }
 }
 
 function openLoginModal() {
@@ -2794,6 +2813,7 @@ function openLoginModal() {
   document.getElementById('loginUser').value = '';
   document.getElementById('loginPass').value = '';
   document.getElementById('loginErr').textContent = '';
+  document.getElementById('loginAttemptInfo').textContent = '';
   setTimeout(() => document.getElementById('loginUser').focus(), 50);
 }
 
@@ -2801,34 +2821,74 @@ function closeLoginModal() {
   document.getElementById('loginModal').classList.remove('open');
 }
 
-function doLogin() {
+async function doLogin() {
   const u = document.getElementById('loginUser').value.trim();
   const p = document.getElementById('loginPass').value;
-  if (u === ADMIN_CREDENTIALS.user && p === ADMIN_CREDENTIALS.pass) {
+  const remember = document.getElementById('loginRemember').checked;
+  const errEl = document.getElementById('loginErr');
+  const submitBtn = document.getElementById('loginSubmitBtn');
+  const attemptEl = document.getElementById('loginAttemptInfo');
+
+  if (!u || !p) {
+    errEl.textContent = '请填写用户名和密码';
+    return;
+  }
+
+  // Loading state
+  submitBtn.disabled = true;
+  submitBtn.textContent = '登录中…';
+  errEl.textContent = '';
+
+  try {
+    const user = await authManager.login(u, p, remember);
     isLoggedIn = true;
-    sessionStorage.setItem('vps_admin', 'true');
     updateLoginUI();
     closeLoginModal();
-    // Brief welcome flash
-    const btn = document.getElementById('adminAvatar');
-    btn.style.transition = 'opacity .3s';
-    btn.style.opacity = 0;
-    setTimeout(() => { btn.style.opacity = 1; }, 50);
-  } else {
-    const err = document.getElementById('loginErr');
-    err.textContent = '用户名或密码错误，请重试';
+    attemptEl.textContent = '';
+    showNotification(`欢迎回来，${user.username}！`);
+    // Trigger app modules if available
+    if (window.app && window.app.eventBus) {
+      window.app.eventBus.emit('loginSuccess', user);
+    }
+  } catch (err) {
+    const attempts = authManager.loginAttempts;
+    errEl.textContent = err.message || '用户名或密码错误，请重试';
+    attemptEl.textContent = `已尝试 ${attempts} 次`;
     document.getElementById('loginPass').value = '';
-    document.getElementById('loginPass').focus();
     document.getElementById('loginPass').style.borderColor = 'var(--red)';
     setTimeout(() => { document.getElementById('loginPass').style.borderColor = ''; }, 1500);
+    document.getElementById('loginPass').focus();
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = '登 录';
   }
 }
 
 function logout() {
+  authManager.logout();
   isLoggedIn = false;
-  sessionStorage.removeItem('vps_admin');
   updateLoginUI();
+  // Stop metrics polling if app module is available
+  if (window.app && window.app.stopMetricsPolling) {
+    window.app.stopMetricsPolling();
+    window.app.eventBus.emit('logoutSuccess');
+  }
+  showNotification('已退出登录');
 }
+
+// Listen for token expiry (fired by auth.js when refresh fails)
+window.addEventListener('auth:expired', () => {
+  isLoggedIn = false;
+  updateLoginUI();
+  showNotification('登录已过期，请重新登录');
+  openLoginModal();
+});
+
+// Listen for successful login events (e.g. from app.js module)
+window.addEventListener('auth:login', (e) => {
+  isLoggedIn = true;
+  updateLoginUI();
+});
 
 // ===== ADMIN PANEL =====
 function openAdminPanel() {
@@ -3758,6 +3818,7 @@ setInterval(() => {
     window.getAppState = () => app.store.getState();
   
 // ===== INIT LOGIN STATE =====
+authManager.restoreSession();
 updateLoginUI();
 
 // Apply saved theme on load

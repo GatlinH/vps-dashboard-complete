@@ -10,14 +10,22 @@
 class APIService {
     constructor(baseURL = '/api') {
         this.baseURL = baseURL;
-        this.token = localStorage.getItem('authToken');
         this.timeout = 10000;
     }
 
-    // 设置认证令牌
+    // 获取当前 access token（优先使用 authManager）
+    get token() {
+        if (window.authManager) return window.authManager.getAccessToken();
+        return localStorage.getItem('authToken');
+    }
+
+    // 设置认证令牌（兼容旧调用方式）
     setToken(token) {
-        this.token = token;
-        localStorage.setItem('authToken', token);
+        if (token === null) {
+            localStorage.removeItem('authToken');
+        } else {
+            localStorage.setItem('authToken', token);
+        }
     }
 
     // 通用请求方法
@@ -166,8 +174,12 @@ class APIService {
     }
 
     handleUnauthorized() {
-        localStorage.removeItem('authToken');
-        window.location.reload();
+        if (window.authManager) {
+            window.authManager.logout();
+        } else {
+            localStorage.removeItem('authToken');
+        }
+        window.dispatchEvent(new CustomEvent('auth:expired'));
     }
 }
 
@@ -267,9 +279,13 @@ class AppStore {
     constructor() {
         this.state = {
             // 认证状态
-            isAuthenticated: !!localStorage.getItem('authToken'),
-            currentUser: null,
-            token: localStorage.getItem('authToken'),
+            isAuthenticated: window.authManager
+                ? window.authManager.isAuthenticated()
+                : !!localStorage.getItem('authToken'),
+            currentUser: window.authManager ? window.authManager.getUser() : null,
+            token: window.authManager
+                ? window.authManager.getAccessToken()
+                : localStorage.getItem('authToken'),
 
             // UI 状态
             currentPage: 'dashboard',
@@ -389,14 +405,19 @@ class VPSDashboardApp {
     // ====== 认证方法 ======
     async login(username, password) {
         try {
-            const response = await this.api.login(username, password);
-            this.api.setToken(response.access_token);
-            
-            const user = await this.api.getCurrentUser();
+            let user;
+            if (window.authManager) {
+                user = await window.authManager.login(username, password, false);
+            } else {
+                const response = await this.api.login(username, password);
+                this.api.setToken(response.access_token);
+                user = response.user;
+            }
+
             this.store.setState({
                 isAuthenticated: true,
                 currentUser: user,
-                token: response.access_token,
+                token: this.api.token,
             });
 
             this.eventBus.emit('loginSuccess', user);
@@ -408,7 +429,11 @@ class VPSDashboardApp {
     }
 
     async logout() {
-        this.api.setToken(null);
+        if (window.authManager) {
+            window.authManager.logout();
+        } else {
+            this.api.setToken(null);
+        }
         this.cache.clear();
         this.store.setState({
             isAuthenticated: false,
