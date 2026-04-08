@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-flask
+
+      - name: Run tests
+        working-directory: backend
+        env:
+          FLASK_ENV: testing
+          SECRET_KEY: ci-test-secret-key-32-characters!
+          JWT_SECRET_KEY: ci-test-jwt-secret-key-32chars!!
+          MYSQL_HOST: localhost
+          MYSQL_PORT: 3306
+          MYSQL_USER: vps_user
+          MYSQL_PASSWORD: vps_pass
+          MYSQL_DB: vps_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          FORCE_HTTPS: "0"
+        run: pytest tests/ -v --tb=short
+
+  lint:
+    name: Frontend Lint Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check HTML syntax (DOCTYPE)
+        run: |
+          if grep -q '<<!DOCTYPE' frontend/index.html; then
+            echo "❌ DOCTYPE 错误: 发现 '<<!DOCTYPE'"
+            exit 1
+          else
+            echo "✅ DOCTYPE 正确"
+          fi
+      - name: Check script path
+        run: |
+          if grep -q '"/frontend/init-enhanced.js"' frontend/index.html; then
+            echo "❌ 脚本路径错误: 应使用相对路径 ./init-enhanced.js"
+            exit 1
+          else
+            echo "✅ 脚本路径正确"
+          fi
