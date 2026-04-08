@@ -24,6 +24,8 @@ const AUTH_CONFIG = {
     refreshBeforeMs: 2 * 60 * 1000,
     // Access Token 默认有效期（15 分钟，与后端一致）
     defaultAccessTtlMs: 15 * 60 * 1000,
+    // 自动刷新最短等待时间（毫秒）
+    minRefreshDelayMs: 10 * 1000,
 };
 
 class AuthManager {
@@ -121,7 +123,7 @@ class AuthManager {
         const expiresIn = this._tokenExpiresIn(accessToken);
         const delay = Math.max(
             expiresIn - AUTH_CONFIG.refreshBeforeMs,
-            10000 // 至少 10 秒后
+            AUTH_CONFIG.minRefreshDelayMs
         );
         this._refreshTimer = setTimeout(() => this._doRefresh(), delay);
     }
@@ -140,10 +142,11 @@ class AuthManager {
                     'Authorization': `Bearer ${refreshToken}`,
                 },
             });
-            if (!res.ok) throw new Error('refresh failed');
+            if (!res.ok) throw new Error(`Token refresh failed (${res.status})`);
             const data = await res.json();
             const newAccess = data.access_token;
             const remember = localStorage.getItem(AUTH_CONFIG.rememberKey) === '1';
+            // /api/auth/refresh returns a new access token only; pass null for refreshToken
             this._saveTokens(newAccess, null, remember);
             this._scheduleRefresh(newAccess);
             console.log('[Auth] Access token refreshed');
