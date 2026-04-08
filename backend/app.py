@@ -23,6 +23,25 @@ def create_app(config_class=Config):
     """应用工厂"""
     app = Flask(__name__)
     app.config.from_object(config_class)
+    swagger = Flasgger(
+        app,
+        title='VPS Dashboard API',
+        version='1.0.0',
+        description='VPS 监控与管理平台 API 文档',
+        base_url='/api',
+        uiversion=3,
+        specs_kwargs={
+            "info": {
+                "title": "VPS Dashboard API",
+                "version": "1.0.0",
+                "description": "完整的 VPS 服务器监控、告警、流量统计平台",
+                "termsOfService": "http://example.com/terms",
+                "contact": {
+                    "email": "support@example.com"
+                }
+            }
+        }
+    )
 
     # ===== 扩展初始化 =====
     db.init_app(app)
