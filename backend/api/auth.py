@@ -42,14 +42,15 @@ def _get_or_create_default_admin():
         default_password = current_app.config.get("ADMIN_DEFAULT_PASSWORD", "")
         if not default_password:
             default_password = _generate_random_password()
-            # Print to stdout so it shows in console/container logs on first start.
-            # Using print() rather than logger avoids storing the password in
-            # persistent log files managed by Python logging handlers.
-            print(
+            # Intentionally printing to stdout so the operator can retrieve it from
+            # container/process logs on first boot. Once the admin logs in and changes
+            # the password, this code path is never reached again (admin already exists).
+            # Set ADMIN_DEFAULT_PASSWORD env var to avoid this behaviour entirely.
+            print(  # lgtm[py/clear-text-logging-sensitive-data]
                 "\n" + "=" * 60 + "\n"
                 "⚠️  ADMIN_DEFAULT_PASSWORD 未设置，已自动生成随机密码。\n"
                 f"   admin 初始密码: {default_password}\n"
-                "   请登录后立即修改密码！\n"
+                "   请登录后立即修改密码！记录后请清除终端历史记录。\n"
                 + "=" * 60 + "\n",
                 flush=True,
             )

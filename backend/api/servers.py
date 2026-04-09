@@ -39,7 +39,10 @@ CACHE_KEY_LIST = "vps:servers:list"
 CACHE_TTL = 15  # 缓存 TTL（秒）
 
 # 未登录访客不可见的敏感字段（已由 Server.to_dict(public_only=True) 过滤，
-# 此处用于过滤 Redis 实时指标中可能含有的敏感指标字段）
+# 此处用于过滤 Redis 实时指标中可能含有的敏感指标字段）。
+# 安全边界说明：IP/probe/note/price/expiry 等字段在 to_dict() 层面过滤；
+# 流量字段（traffic_*）在实时指标合并时也需单独过滤，因为实时指标来自 Redis
+# 并非通过 to_dict() 返回。
 _PUBLIC_SENSITIVE_METRIC_FIELDS = frozenset({
     'traffic_limit_gb', 'traffic_up_gb',
     'traffic_down_gb', 'traffic_used_gb',
