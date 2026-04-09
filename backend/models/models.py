@@ -7,6 +7,7 @@
 from datetime import datetime, date
 from extensions import db
 from sqlalchemy.dialects.mysql import BIGINT
+from models.audit_log import AuditLog  # re-export for backward compatibility
 
 class User(db.Model):
     __tablename__ = "users"
@@ -210,62 +211,6 @@ class TelegramConfig(db.Model):
             prefix=self.prefix,
             enabled=self.enabled,
             has_token=bool(self.bot_token),
-        )
-
-
-class AuditLog(db.Model):
-    """审计日志表"""
-    __tablename__ = "audit_logs"
-    
-    id = db.Column(BIGINT, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
-    username = db.Column(db.String(64), index=True)
-    
-    # 操作信息
-    action = db.Column(db.String(32), nullable=False, index=True)
-    resource_type = db.Column(db.String(32), index=True)
-    resource_id = db.Column(db.String(100), index=True)
-    
-    # 请求信息
-    method = db.Column(db.String(10))
-    endpoint = db.Column(db.String(255))
-    status_code = db.Column(db.Integer)
-    
-    # 结果
-    success = db.Column(db.Boolean, default=True, index=True)
-    error_message = db.Column(db.Text)
-    
-    # 详细数据
-    old_values = db.Column(db.JSON)
-    new_values = db.Column(db.JSON)
-    
-    # 元数据
-    ip_address = db.Column(db.String(50), index=True)
-    user_agent = db.Column(db.Text)
-    
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
-    
-    __table_args__ = (
-        db.Index('idx_user_created', 'user_id', 'created_at'),
-        db.Index('idx_action_created', 'action', 'created_at'),
-        db.Index('idx_audit_created_date', 'created_at'),
-    )
-    
-    def to_dict(self):
-        return dict(
-            id=self.id,
-            user_id=self.user_id,
-            username=self.username,
-            action=self.action,
-            resource_type=self.resource_type,
-            resource_id=self.resource_id,
-            method=self.method,
-            endpoint=self.endpoint,
-            status_code=self.status_code,
-            success=self.success,
-            error_message=self.error_message,
-            ip_address=self.ip_address,
-            created_at=self.created_at.isoformat(),
         )
 
 
