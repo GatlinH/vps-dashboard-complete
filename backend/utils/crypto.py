@@ -2,7 +2,7 @@
 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
 import os
 import base64
@@ -26,7 +26,7 @@ class CryptoManager:
     @staticmethod
     def _derive_key(password: str) -> bytes:
         """从密码衍生 Fernet 密钥"""
-        kdf = PBKDF2(
+        kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
             salt=b'vps-dashboard-salt',  # 生产环境应使用动态 salt

@@ -184,3 +184,98 @@ def get_traffic_history(sid):
     
     except Exception as e:
         raise InternalServerError("获取流量历史失败", str(e))
+
+
+def check_monthly_resets():
+    """
+    检查并重置到达重置日的服务器流量
+    返回重置的服务器 ID 列表
+    """
+    from datetime import date
+    from models.models import Server
+    
+    today = date.today()
+    reset_ids = []
+    
+    try:
+        # 查找所有需要在今天重置的服务器
+        servers = Server.query.filter(
+            Server.traffic_reset_day == today.day
+        ).all()
+        
+        for server in servers:
+            # 重置流量计数
+            server.traffic_used_gb = 0
+            server.traffic_up_gb = 0
+            server.traffic_down_gb = 0
+            reset_ids.append(server.id)
+        
+        if reset_ids:
+            db.session.commit()
+            # 清除缓存
+            try:
+                redis_client.delete("vps:traffic:summary")
+                for sid in reset_ids:
+                    redis_client.delete(f"vps:traffic:{sid}")
+            except Exception:
+                pass
+    
+    except Exception as e:
+        db.session.rollback()
+        logger = __import__('logging').getLogger(__name__)
+        logger.error(f"月度流量重置失败: {e}")
+    
+    return reset_ids
+
+
+def _check_and_fire_traffic_alert(server):
+    """
+    检查单个服务器的流量超限情况并触发告警
+    """
+    if server.traffic_limit_gb <= 0:
+        return
+    
+    # 计算使用百分比
+    used_percent = (server.traffic_used_gb / server.traffic_limit_gb) * 100
+    
+    # 告警阈值：80%, 90%, 95%
+    thresholds = [
+        (95, '🔴 严重警告'),
+        (90, '⚠️ 警告'),
+        (80, '⚡ 提醒'),
+    ]
+    
+    for threshold, level in thresholds:
+        if used_percent >= threshold:
+            # 检查冷却期（避免重复告警）
+            cache_key = f"vps:traffic_alert:{server.id}:{threshold}"
+            
+            try:
+                if redis_client.exists(cache_key):
+                    return  # 冷却期内，跳过
+                
+                # 发送告警
+                from models.models import TelegramConfig
+                from api.telegram import send_message, _full_msg
+                
+                cfg = TelegramConfig.query.first()
+                if cfg and cfg.enabled and cfg.bot_token:
+                    body = (
+                        f"{level} <b>流量超限</b>\n\n"
+                        f"服务器: <b>{server.name}</b>\n"
+                        f"位置: {server.location}\n"
+                        f"流量使用: <b>{used_percent:.1f}%</b>\n"
+                        f"已用: {server.traffic_used_gb:.2f} GB / {server.traffic_limit_gb:.2f} GB\n"
+                        f"剩余: {server.traffic_limit_gb - server.traffic_used_gb:.2f} GB"
+                    )
+                    send_message(_full_msg(cfg.prefix, body))
+                    
+                    # 设置冷却期（1小时）
+                    redis_client.setex(cache_key, 3600, "1")
+                    
+            except Exception as e:
+                logger = __import__('logging').getLogger(__name__)
+                logger.warning(f"流量告警发送失败: {e}")
+            
+            break  # 只发送最高级别的告警
+

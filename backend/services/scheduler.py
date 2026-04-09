@@ -248,7 +248,7 @@ def _job_cleanup(app):
     from models.models import ProbeResult
     cutoff = datetime.utcnow() - timedelta(days=30)
     with app.app_context():
-        deleted = ProbeResult.query.filter(ProbeResult.probed_at < cutoff).delete()
+        deleted = ProbeResult.query.filter(ProbeResult.created_at < cutoff).delete()
         db.session.commit()
         if deleted:
             log.info(f"历史数据清理: 删除 {deleted} 条 probe_results")
