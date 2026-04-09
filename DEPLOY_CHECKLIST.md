@@ -1,0 +1,107 @@
+# 上线部署检查清单 (Deploy Checklist)
+
+在将本项目部署到生产环境前，请逐项确认以下检查点。  
+未完成 P0 项目时，**请勿上线**。
+
+---
+
+## P0 — 必须完成（上线阻断项）
+
+### 🔐 安全与密钥
+
+- [ ] `SECRET_KEY` 已修改为长度 ≥ 32 的随机字符串  
+      ```bash
+      python -c "import secrets; print(secrets.token_hex(32))"
+      ```
+- [ ] `JWT_SECRET_KEY` 已修改为独立的长度 ≥ 32 随机字符串（与 SECRET_KEY 不同）
+- [ ] `MYSQL_PASSWORD` 和 `MYSQL_ROOT_PASSWORD` 已改为强密码
+- [ ] `MASTER_ENCRYPTION_KEY` 已设置为随机强密钥
+- [ ] `.env` 文件未提交到 Git（确认 `.gitignore` 包含 `.env`）
+- [ ] 管理员初始密码已通过 `ADMIN_DEFAULT_PASSWORD` 设置，或首次启动后立即修改
+- [ ] `CORS_ORIGINS` 仅包含正式域名，已删除 localhost 条目
+
+### 🐳 容器与服务
+
+- [ ] `docker-compose.yml` 所有关键服务均有 `restart: unless-stopped`（已默认配置）
+- [ ] MySQL、Redis、API 均配置了 `healthcheck`（已默认配置）
+- [ ] `depends_on` 使用健康条件（`condition: service_healthy`）（已默认配置）
+- [ ] MySQL（3306）和 Redis（6379）端口仅绑定 `127.0.0.1`，不对公网开放（已默认配置）
+- [ ] API 端口 5000 不直接暴露公网（通过 Nginx 代理）
+
+### 🌐 网络与防火墙
+
+- [ ] 防火墙仅开放 80（HTTP）和 443（HTTPS）端口
+- [ ] SSH 登录使用密钥认证，已禁用密码登录
+- [ ] root 用户直接登录已禁用或受限
+
+### 📦 数据库
+
+- [ ] 数据库已成功初始化（`init_db.sql` 已执行）
+- [ ] 备份策略已配置（见 `backend/BACKUP_AND_ROLLBACK.md`）
+- [ ] 至少完成一次备份恢复演练，确认可以从备份恢复
+
+### ✅ 功能回归（最小上线验证）
+
+- [ ] 登录 / 刷新 Token / 鉴权失败路径已验证
+- [ ] 服务器 CRUD 全流程验证通过
+- [ ] TCP Ping 单点与批量探测正常
+- [ ] Telegram 测试消息发送成功（若已配置）
+- [ ] 健康检查端点可访问：`curl http://localhost:5000/health`
+
+---
+
+## P1 — 建议完成（影响稳定性）
+
+### 🧪 测试与 CI
+
+- [ ] `pytest tests/ -v` 在本地全部通过
+- [ ] CI 流水线（GitHub Actions）正常，`deploy` Job 的 `needs: test` 已生效
+- [ ] 测试覆盖核心模块：auth、servers、probe（建议覆盖率 ≥ 60%）
+
+### 📊 监控与观测
+
+- [ ] 结构化日志（method/path/status/latency）已输出到容器日志
+- [ ] 关键错误（5xx、DB/Redis 连接失败）通过 Telegram 或其他方式告警
+- [ ] 磁盘、内存、CPU 监控已接入（可使用宿主机监控工具）
+- [ ] 容器重启次数纳入监控（`docker stats` 或监控工具）
+
+### ⚡ 性能
+
+- [ ] Nginx 启用 gzip 压缩（`gzip on;` 已在 nginx.conf 中配置）
+- [ ] 前端静态资源缓存头已配置
+- [ ] 50 并发下关键 API P95 延迟 < 500ms（压测验证）
+
+### 🔄 回滚能力
+
+- [ ] 当前部署版本（镜像 tag 或 git commit）已记录
+- [ ] 回滚操作流程已验证（见 `backend/BACKUP_AND_ROLLBACK.md`）
+- [ ] 至少完成一次回滚演练
+
+---
+
+## P2 — 上线后 1~2 周内补齐
+
+- [ ] 登录失败次数限制与临时锁定
+- [ ] 审计日志定期归档策略
+- [ ] API 权限细化（从单管理员到角色模型）
+- [ ] 离线页与 Service Worker 缓存策略精细化
+- [ ] 国际化文案完整性检查（i18n key 缺失扫描）
+- [ ] `DEPLOY_CHECKLIST.md` 固化进发布流程（作为 PR 模板检查项）
+
+---
+
+## 上线 Go / No-Go 判断
+
+```
+✅ P0 全部完成
+✅ P1 至少完成 70%
+✅ 完成一次预生产全链路演练（登录→CRUD→探测→告警→导出）
+✅ 演练中无 P0/P1 阻断级问题
+→ Go ✅
+
+否则 → No-Go ❌（记录未完成原因并制定修复计划）
+```
+
+---
+
+*最后更新：请在每次部署前更新此文件的完成状态。*

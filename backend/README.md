@@ -98,11 +98,11 @@ docker compose logs -f api
 ## 前端对接
 
 ```js
-// 登录
+// 登录（password 替换为你在 .env 中设置的实际管理员密码）
 const { access_token } = await fetch('/api/auth/login', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ username: 'admin', password: 'admin123' })
+  body: JSON.stringify({ username: 'admin', password: '<your-admin-password>' })
 }).then(r => r.json());
 
 // 获取服务器列表

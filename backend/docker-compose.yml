@@ -14,7 +14,7 @@ services:
       MYSQL_USER: ${MYSQL_USER:-vps_user}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-vps_pass}
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./init_db.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -44,7 +44,7 @@ services:
       --appendonly yes
       --appendfsync everysec
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
