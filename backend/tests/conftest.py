@@ -66,22 +66,19 @@ def client(app):
     return app.test_client()
 
 
-@pytest.fixture(autouse=True)
-def reset_db(app):
-    """每个测试前重置数据库，确保 admin 用户存在"""
-    with app.app_context():
-        _db.create_all()
-        if not User.query.filter_by(username='admin').first():
-            admin = User(
-                username='admin',
-                password_hash=generate_password_hash('admin123'),
-                role='admin',
-            )
-            _db.session.add(admin)
-            _db.session.commit()
-        yield
-        _db.session.remove()
-        _db.drop_all()
+@pytest.fixture
+def auth_headers(client, reset_db):  # ← 明确依赖 reset_db，确保 admin 存在
+    """获取 admin 的认证头（使用 reset_db 已保证 admin 存在）"""
+    response = client.post('/api/auth/login', json={
+        'username': 'admin',        # ← 改用 reset_db 保证存在的 admin
+        'password': 'admin123',     # ← reset_db 中用的密码
+    })
+    json_data = response.get_json()
+    assert 'access_token' in json_data, (
+        f"登录失败，响应：{json_data}（状态码 {response.status_code}）"
+    )
+    token = json_data['access_token']
+    return {'Authorization': f'Bearer {token}'}
 
 
 @pytest.fixture
