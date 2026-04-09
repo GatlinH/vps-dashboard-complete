@@ -8,7 +8,7 @@ from flask import request, g
 from datetime import datetime
 from functools import wraps
 from extensions import db
-from models.models import AuditLog
+from models.audit_log import AuditLog
 from flask_jwt_extended import get_jwt_identity
 
 logger = logging.getLogger(__name__)
