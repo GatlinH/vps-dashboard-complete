@@ -9,8 +9,9 @@ load_dotenv()
 
 class Config:
     # ── 基本 ────────────────────────────────────────────────────────────────
-    SECRET_KEY         = os.getenv("SECRET_KEY", "change-me-in-production-32chars!")
-    DEBUG              = os.getenv("FLASK_DEBUG", "0") == "1"
+    SECRET_KEY              = os.getenv("SECRET_KEY", "change-me-in-production-32chars!")
+    DEBUG                   = os.getenv("FLASK_DEBUG", "0") == "1"
+    ADMIN_DEFAULT_PASSWORD  = os.getenv("ADMIN_DEFAULT_PASSWORD", "")
 
     # ── MySQL (SQLAlchemy) ───────────────────────────────────────────────────
     MYSQL_HOST         = os.getenv("MYSQL_HOST",     "127.0.0.1")
