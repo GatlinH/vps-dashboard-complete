@@ -454,8 +454,10 @@
       return;
     }
   } catch (e) {
-    // Network error - still allow access if token exists
-    console.warn('Auth check failed:', e);
+    // Network error — fail closed: redirect to login rather than granting access
+    console.warn('Auth check failed (network error):', e);
+    window.location.href = '/';
+    return;
   }
   document.getElementById('authOverlay').style.display = 'none';
   initAdmin();

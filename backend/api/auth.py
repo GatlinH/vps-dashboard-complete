@@ -23,16 +23,16 @@ logger = logging.getLogger(__name__)
 # ── 辅助 ────────────────────────────────────────────────────────────────────
 
 def _generate_random_password(length=20):
-    """生成随机强密码"""
+    """生成随机强密码（确保包含大写、小写、数字、特殊字符各至少一位）"""
+    lower = secrets.choice(string.ascii_lowercase)
+    upper = secrets.choice(string.ascii_uppercase)
+    digit = secrets.choice(string.digits)
+    punct = secrets.choice(string.punctuation)
     alphabet = string.ascii_letters + string.digits + string.punctuation
-    # Ensure at least one of each character type
-    while True:
-        pwd = ''.join(secrets.choice(alphabet) for _ in range(length))
-        if (any(c.islower() for c in pwd)
-                and any(c.isupper() for c in pwd)
-                and any(c.isdigit() for c in pwd)
-                and any(c in string.punctuation for c in pwd)):
-            return pwd
+    rest = [secrets.choice(alphabet) for _ in range(length - 4)]
+    pool = list(lower + upper + digit + punct) + rest
+    secrets.SystemRandom().shuffle(pool)
+    return ''.join(pool)
 
 
 def _get_or_create_default_admin():
@@ -42,10 +42,16 @@ def _get_or_create_default_admin():
         default_password = current_app.config.get("ADMIN_DEFAULT_PASSWORD", "")
         if not default_password:
             default_password = _generate_random_password()
-            logger.warning(
-                "⚠️  未设置 ADMIN_DEFAULT_PASSWORD 环境变量，已自动生成随机密码。"
-                f"  admin 初始密码: {default_password}"
-                "  请立即登录并修改密码！"
+            # Print to stdout so it shows in console/container logs on first start.
+            # Using print() rather than logger avoids storing the password in
+            # persistent log files managed by Python logging handlers.
+            print(
+                "\n" + "=" * 60 + "\n"
+                "⚠️  ADMIN_DEFAULT_PASSWORD 未设置，已自动生成随机密码。\n"
+                f"   admin 初始密码: {default_password}\n"
+                "   请登录后立即修改密码！\n"
+                + "=" * 60 + "\n",
+                flush=True,
             )
         u = User(
             username="admin",

@@ -38,6 +38,13 @@ servers_bp = Blueprint("servers", __name__)
 CACHE_KEY_LIST = "vps:servers:list"
 CACHE_TTL = 15  # 缓存 TTL（秒）
 
+# 未登录访客不可见的敏感字段（已由 Server.to_dict(public_only=True) 过滤，
+# 此处用于过滤 Redis 实时指标中可能含有的敏感指标字段）
+_PUBLIC_SENSITIVE_METRIC_FIELDS = frozenset({
+    'traffic_limit_gb', 'traffic_up_gb',
+    'traffic_down_gb', 'traffic_used_gb',
+})
+
 def _metrics_key(server_id):
     """获取服务器指标缓存键"""
     return f"vps:server:{server_id}:metrics"
@@ -203,10 +210,8 @@ def list_servers():
                     metrics = json.loads(metrics_json)
                     # 合并实时指标到响应（访客模式下过滤敏感指标字段）
                     if public_only:
-                        sensitive = {'traffic_limit_gb', 'traffic_up_gb',
-                                     'traffic_down_gb', 'traffic_used_gb'}
                         metrics = {k: v for k, v in metrics.items()
-                                   if k not in sensitive}
+                                   if k not in _PUBLIC_SENSITIVE_METRIC_FIELDS}
                     d.update(metrics)
                     d['has_realtime_metrics'] = True
             except Exception as e:
@@ -271,10 +276,8 @@ def get_server(sid):
             if metrics_json:
                 metrics = json.loads(metrics_json)
                 if public_only:
-                    sensitive = {'traffic_limit_gb', 'traffic_up_gb',
-                                 'traffic_down_gb', 'traffic_used_gb'}
                     metrics = {k: v for k, v in metrics.items()
-                               if k not in sensitive}
+                               if k not in _PUBLIC_SENSITIVE_METRIC_FIELDS}
                 d.update(metrics)
                 d['has_realtime_metrics'] = True
         except Exception as e:
