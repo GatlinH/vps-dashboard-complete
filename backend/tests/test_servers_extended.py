@@ -212,12 +212,17 @@ class TestProbe:
         data = response.get_json()
         assert test_server.id in data['results']
     
-    def test_probe_fetch(self, client, auth_headers, test_server):
-        """测试探针数据抓取"""
-        test_server.probe_url = 'http://example.com/api/probe'
+def test_probe_fetch(self, client, auth_headers, test_server, app):
+    """测试探针数据抓取"""
+    # 在 app context 内更新 probe_url
+    with app.app_context():
+        from models.models import Server
+        from extensions import db
+        s = Server.query.get(test_server.id)
+        s.probe_url = 'http://example.com/api/probe'
         db.session.commit()
-        
-        with patch('urllib.request.urlopen') as mock_urlopen:
+
+    with patch('urllib.request.urlopen') as mock_urlopen:
             mock_response = MagicMock()
             mock_response.read.return_value = b'''{
                 "cpu_use": 45.5,
