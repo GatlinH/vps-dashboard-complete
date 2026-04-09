@@ -1,4 +1,31 @@
 """测试配置和 fixtures"""
+# 在文件顶部添加
+from sqlalchemy.orm import make_transient
+
+@pytest.fixture
+def test_server(app, test_user):
+    """创建测试服务器"""
+    with app.app_context():
+        server = Server(
+            name='Test Server',
+            group_name='Test Group',
+            ip='192.168.1.1',
+            cpu_cores=4,
+            ram_gb=8.0,
+            disk_gb=100,
+            price=100.0,
+            period='monthly',
+            status='online',
+            cpu_use=50.0,
+            ram_use=60.0,
+            disk_use=70.0,
+        )
+        _db.session.add(server)
+        _db.session.commit()
+        _db.session.refresh(server)   # ← 强制立即加载所有列
+        _db.session.expunge(server)   # ← 从 Session 中分离
+        make_transient(server)        # ← 标记为 transient，允许离线访问属性
+        return server
 import pytest
 import sys
 import os
