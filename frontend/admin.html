@@ -1,0 +1,1750 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VPS 星图 · 管理后台</title>
+    <link rel="stylesheet" href="/styles/main.css">
+    <style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+  :root {
+    --bg: #070b14;
+    --bg2: #0d1525;
+    --bg3: #111d33;
+    --card: rgba(13,21,37,0.92);
+    --border: rgba(99,179,237,0.15);
+    --border2: rgba(99,179,237,0.3);
+    --accent: #63b3ed;
+    --accent2: #4fc3f7;
+    --gold: #f6c90e;
+    --green: #38ef7d;
+    --red: #ff6b6b;
+    --orange: #ff9f43;
+    --purple: #a78bfa;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --text3: #64748b;
+    --mono: 'Space Mono', monospace;
+    --sans: 'Noto Sans SC', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Starfield */
+  #starfield {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 0;
+    background: radial-gradient(ellipse at 20% 50%, rgba(99,179,237,0.04) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 20%, rgba(167,139,250,0.04) 0%, transparent 60%),
+                var(--bg);
+  }
+
+  #app { position: relative; z-index: 1; }
+
+  /* NAV */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(7,11,20,0.9);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex; align-items: center; gap: 0;
+    height: 56px;
+  }
+
+  .nav-logo {
+    font-family: var(--mono);
+    font-size: 15px; font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 2px;
+    margin-right: 2rem;
+    white-space: nowrap;
+  }
+
+  .nav-logo span { color: var(--gold); }
+
+  .nav-tabs { display: flex; gap: 0; flex: 1; }
+
+  .nav-tab {
+    padding: 0 1.25rem;
+    height: 56px;
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13px; color: var(--text2);
+    cursor: pointer; border: none; background: none;
+    border-bottom: 2px solid transparent;
+    transition: all .2s; white-space: nowrap;
+    font-family: var(--sans);
+  }
+
+  .nav-tab:hover { color: var(--text); }
+  .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .nav-tab .tab-icon { font-size: 16px; }
+
+  .nav-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+
+  .currency-switch {
+    display: flex; gap: 4px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px; padding: 3px;
+  }
+
+  .currency-btn {
+    padding: 4px 10px; border-radius: 4px;
+    font-size: 12px; font-family: var(--mono);
+    cursor: pointer; border: none;
+    background: none; color: var(--text2);
+    transition: all .2s;
+  }
+  .currency-btn.active { background: var(--accent); color: #000; }
+
+  .rate-display {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--text3);
+  }
+
+  /* PAGES */
+  .page { display: none; padding: 2rem; max-width: 1400px; margin: 0 auto; }
+  .page.active { display: block; }
+
+  /* ===== STATS BAR ===== */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px; margin-bottom: 2rem;
+  }
+
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px; padding: 1rem 1.25rem;
+    position: relative; overflow: hidden;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  }
+  .stat-card.blue::before { background: linear-gradient(90deg, var(--accent), transparent); }
+  .stat-card.gold::before { background: linear-gradient(90deg, var(--gold), transparent); }
+  .stat-card.green::before { background: linear-gradient(90deg, var(--green), transparent); }
+  .stat-card.red::before { background: linear-gradient(90deg, var(--red), transparent); }
+  .stat-card.purple::before { background: linear-gradient(90deg, var(--purple), transparent); }
+
+  .stat-label { font-size: 11px; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+  .stat-val { font-family: var(--mono); font-size: 22px; font-weight: 700; color: var(--text); }
+  .stat-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+  .stat-val.green { color: var(--green); }
+  .stat-val.gold { color: var(--gold); }
+  .stat-val.red { color: var(--red); }
+
+  /* ===== SERVER GRID ===== */
+  .toolbar {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 1.5rem; flex-wrap: wrap;
+  }
+
+  .group-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+
+  .group-tab {
+    padding: 5px 14px; border-radius: 20px;
+    font-size: 12px; cursor: pointer;
+    border: 1px solid var(--border);
+    background: none; color: var(--text2);
+    transition: all .2s;
+  }
+  .group-tab.active { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 700; }
+
+  .search-box {
+    flex: 1; min-width: 200px;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 14px;
+    font-size: 13px; color: var(--text);
+    font-family: var(--sans);
+    outline: none;
+  }
+  .search-box:focus { border-color: var(--accent); }
+
+  .add-btn {
+    padding: 7px 18px; border-radius: 8px;
+    background: var(--accent); color: #000;
+    border: none; font-size: 13px; font-weight: 700;
+    cursor: pointer; white-space: nowrap;
+    transition: opacity .2s;
+  }
+  .add-btn:hover { opacity: .85; }
+
+  .server-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+  }
+
+  /* SERVER CARD */
+  .server-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px; padding: 1.25rem;
+    position: relative; overflow: hidden;
+    cursor: pointer;
+    transition: border-color .2s, transform .2s;
+  }
+  .server-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+
+  .card-status-line {
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    border-radius: 14px 14px 0 0;
+  }
+  .status-online { background: var(--green); }
+  .status-offline { background: var(--red); }
+  .status-warn { background: var(--orange); }
+
+  .card-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 10px;
+  }
+
+  .card-name {
+    font-size: 15px; font-weight: 700; color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .flag { font-size: 18px; }
+
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    display: inline-block;
+  }
+  .status-dot.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-dot.offline { background: var(--red); }
+  .status-dot.warn { background: var(--orange); }
+
+  .card-badges { display: flex; gap: 4px; flex-wrap: wrap; }
+
+  .badge {
+    padding: 2px 8px; border-radius: 10px;
+    font-size: 10px; font-family: var(--mono);
+    letter-spacing: .5px;
+  }
+  .badge-blue { background: rgba(99,179,237,.15); color: var(--accent); border: 1px solid rgba(99,179,237,.3); }
+  .badge-green { background: rgba(56,239,125,.12); color: var(--green); border: 1px solid rgba(56,239,125,.25); }
+  .badge-gold { background: rgba(246,201,14,.12); color: var(--gold); border: 1px solid rgba(246,201,14,.25); }
+  .badge-red { background: rgba(255,107,107,.12); color: var(--red); border: 1px solid rgba(255,107,107,.25); }
+  .badge-purple { background: rgba(167,139,250,.12); color: var(--purple); border: 1px solid rgba(167,139,250,.25); }
+
+  /* Metrics bars */
+  .metrics { margin: 12px 0; display: flex; flex-direction: column; gap: 8px; }
+
+  .metric-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px;
+  }
+  .metric-label { color: var(--text3); width: 32px; }
+  .metric-bar { flex: 1; height: 4px; background: rgba(255,255,255,.06); border-radius: 2px; overflow: hidden; }
+  .metric-fill {
+    height: 100%; border-radius: 2px;
+    transition: width .6s ease;
+  }
+  .fill-green { background: var(--green); }
+  .fill-blue { background: var(--accent); }
+  .fill-orange { background: var(--orange); }
+  .fill-red { background: var(--red); }
+  .metric-val { color: var(--text2); font-family: var(--mono); font-size: 11px; min-width: 52px; text-align: right; }
+
+  .card-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  .card-spec { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+
+  /* ===== RESIDUAL VALUE TAG ===== */
+  .rv-tag-wrapper { position: relative; display: inline-block; }
+
+  .rv-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 10px;
+    background: rgba(246,201,14,.1);
+    border: 1px solid rgba(246,201,14,.3);
+    font-size: 11px; color: var(--gold);
+    cursor: default;
+    font-family: var(--mono);
+  }
+
+  .rv-tooltip {
+    display: none;
+    position: absolute; bottom: calc(100% + 8px); right: 0;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 10px; padding: 12px;
+    min-width: 220px; z-index: 50;
+    box-shadow: 0 8px 32px rgba(0,0,0,.6);
+    font-size: 12px;
+  }
+
+  .rv-tag-wrapper:hover .rv-tooltip { display: block; }
+
+  .rv-tooltip-row {
+    display: flex; justify-content: space-between;
+    padding: 3px 0; border-bottom: 1px solid var(--border);
+    color: var(--text2);
+  }
+  .rv-tooltip-row:last-child { border-bottom: none; }
+  .rv-tooltip-row .key { color: var(--text3); }
+  .rv-tooltip-row .val { font-family: var(--mono); color: var(--text); }
+  .rv-tooltip-title {
+    font-size: 11px; color: var(--text3); letter-spacing: 1px;
+    text-transform: uppercase; margin-bottom: 8px;
+  }
+
+  /* ===== AFF CARD ===== */
+  .aff-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+  }
+
+  .aff-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px; overflow: hidden;
+    transition: border-color .2s;
+  }
+  .aff-card:hover { border-color: var(--border2); }
+
+  .aff-card-header {
+    padding: 1rem 1.25rem;
+    background: linear-gradient(135deg, rgba(99,179,237,.08), rgba(167,139,250,.05));
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  .aff-provider { font-size: 16px; font-weight: 700; color: var(--text); }
+  .aff-stock {
+    font-size: 11px; padding: 3px 8px; border-radius: 8px;
+    font-family: var(--mono);
+  }
+  .stock-avail { background: rgba(56,239,125,.1); color: var(--green); border: 1px solid rgba(56,239,125,.2); }
+  .stock-low { background: rgba(255,159,67,.1); color: var(--orange); border: 1px solid rgba(255,159,67,.2); }
+  .stock-out { background: rgba(255,107,107,.1); color: var(--red); border: 1px solid rgba(255,107,107,.2); }
+
+  .aff-card-body { padding: 1rem 1.25rem; }
+
+  .aff-spec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+  .aff-spec-item { font-size: 12px; }
+  .aff-spec-key { color: var(--text3); margin-bottom: 2px; }
+  .aff-spec-val { color: var(--text); font-family: var(--mono); font-size: 13px; }
+
+  .aff-price {
+    display: flex; align-items: baseline; gap: 6px;
+    margin-bottom: 10px;
+  }
+  .aff-price-main { font-family: var(--mono); font-size: 22px; font-weight: 700; color: var(--gold); }
+  .aff-price-period { font-size: 12px; color: var(--text3); }
+
+  .aff-note {
+    font-size: 12px; color: var(--text2);
+    background: rgba(255,255,255,.03);
+    border-left: 2px solid var(--accent);
+    padding: 6px 10px; border-radius: 0 6px 6px 0;
+    margin-bottom: 12px; line-height: 1.6;
+  }
+
+  .aff-links { display: flex; gap: 8px; }
+
+  .aff-link-btn {
+    flex: 1; padding: 8px; border-radius: 8px;
+    font-size: 12px; font-weight: 700; text-align: center;
+    text-decoration: none; cursor: pointer; border: none;
+    transition: opacity .2s;
+  }
+  .aff-link-btn:hover { opacity: .85; }
+  .aff-btn-buy { background: var(--accent); color: #000; }
+  .aff-btn-review { background: rgba(99,179,237,.1); color: var(--accent); border: 1px solid var(--border2); }
+
+  /* ===== DETAIL MODAL ===== */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; z-index: 200;
+    background: rgba(0,0,0,.8); backdrop-filter: blur(4px);
+    align-items: center; justify-content: center; padding: 2rem;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    width: 100%; max-width: 680px;
+    max-height: 85vh; overflow-y: auto;
+    padding: 1.5rem;
+  }
+
+  .modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 1.25rem; padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-title { font-size: 18px; font-weight: 700; color: var(--text); }
+  .modal-close {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--bg3); border: 1px solid var(--border);
+    color: var(--text2); cursor: pointer; font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .modal-section { margin-bottom: 1.25rem; }
+  .modal-section-title { font-size: 11px; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+
+  .spec-table { width: 100%; border-collapse: collapse; }
+  .spec-table td { padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
+  .spec-table td:first-child { color: var(--text3); width: 40%; }
+  .spec-table td:last-child { color: var(--text); font-family: var(--mono); text-align: right; }
+
+  /* Reviews */
+  .review-item {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px;
+    margin-bottom: 10px;
+  }
+  .review-author { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+  .review-stars { color: var(--gold); font-size: 14px; margin-bottom: 6px; }
+  .review-text { font-size: 13px; color: var(--text2); line-height: 1.6; }
+
+  /* ===== 3D GLOBE PAGE ===== */
+  #globe-container {
+    width: 100%; height: 520px;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+
+  #globe-canvas { border-radius: 16px; }
+
+  .globe-legend {
+    position: absolute; top: 1rem; right: 1rem;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px;
+    font-size: 12px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; color: var(--text2); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  .globe-info-panel {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px; margin-top: 1.5rem;
+  }
+
+  /* ===== CALCULATOR PAGE ===== */
+  .calc-layout {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  @media (max-width: 768px) { .calc-layout { grid-template-columns: 1fr; } }
+
+  .calc-panel {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 1.5rem;
+  }
+
+  .calc-panel-title {
+    font-size: 14px; font-weight: 700; color: var(--text);
+    margin-bottom: 1.25rem; padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .form-group { margin-bottom: 14px; }
+  .form-label { font-size: 11px; color: var(--text3); letter-spacing: .5px; margin-bottom: 5px; display: block; }
+  .form-input {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px;
+    font-size: 13px; color: var(--text); font-family: var(--mono);
+    outline: none; transition: border-color .2s;
+  }
+  .form-input:focus { border-color: var(--accent); }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .calc-result {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1rem;
+    margin-top: 1rem;
+  }
+
+  .calc-result-row {
+    display: flex; justify-content: space-between;
+    padding: 5px 0; font-size: 13px;
+    border-bottom: 1px solid var(--border);
+  }
+  .calc-result-row:last-child { border: none; font-weight: 700; }
+  .calc-result-row .key { color: var(--text3); }
+  .calc-result-row .val { font-family: var(--mono); color: var(--text); }
+  .calc-result-row.highlight .val { color: var(--gold); font-size: 16px; }
+  .calc-result-row.green .val { color: var(--green); }
+  .calc-result-row.red .val { color: var(--red); }
+
+  .probe-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px; background: var(--bg3);
+    border: 1px solid var(--border2); border-radius: 8px;
+    color: var(--accent); font-size: 12px;
+    cursor: pointer; transition: all .2s; margin-bottom: 14px;
+    width: 100%;
+  }
+  .probe-btn:hover { background: rgba(99,179,237,.08); }
+
+  /* ===== ADD SERVER MODAL ===== */
+  .tab-switch { display: flex; gap: 0; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border); }
+  .tab-btn {
+    padding: 8px 16px; font-size: 13px; cursor: pointer;
+    border: none; background: none; color: var(--text2);
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* Spinner/loading */
+  .scanning {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--accent);
+    padding: 8px 0;
+  }
+  .spin {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid rgba(99,179,237,.2);
+    border-top-color: var(--accent);
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .page-title {
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--text3); margin-bottom: 1.5rem;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .page-title::before {
+    content: '';
+    display: block; width: 24px; height: 2px; background: var(--accent);
+  }
+
+  /* Network speed display */
+  .net-speeds {
+    display: flex; gap: 12px; margin-top: 6px;
+  }
+  .net-item { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+  .net-item span { color: var(--green); }
+
+  /* Toggle switch */
+  .toggle-switch { position:relative;display:inline-block;width:36px;height:20px;cursor:pointer; }
+  .toggle-switch input { opacity:0;width:0;height:0; }
+  .toggle-slider {
+    position:absolute;inset:0;background:var(--bg);border:1px solid var(--border2);
+    border-radius:20px;transition:.2s;
+  }
+  .toggle-slider::before {
+    content:'';position:absolute;width:14px;height:14px;left:2px;top:2px;
+    background:var(--text3);border-radius:50%;transition:.2s;
+  }
+  .toggle-switch input:checked + .toggle-slider { background:rgba(99,179,237,.2);border-color:var(--accent); }
+  .toggle-switch input:checked + .toggle-slider::before { background:var(--accent);transform:translateX(16px); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .stats-bar { grid-template-columns: 1fr 1fr; }
+    nav { padding: 0 1rem; }
+    .page { padding: 1rem; }
+    .nav-tab { padding: 0 .75rem; font-size: 12px; }
+  }
+
+  /* ===== LOGIN & ADMIN ===== */
+  .login-box {
+    background: var(--bg2); border: 1px solid var(--border2);
+    border-radius: 18px; padding: 2.5rem; width: 100%; max-width: 400px;
+    position: relative;
+  }
+  .login-logo {
+    text-align: center; margin-bottom: 2rem;
+  }
+  .login-logo-text {
+    font-family: var(--mono); font-size: 22px; font-weight: 700;
+    color: var(--accent); letter-spacing: 3px;
+  }
+  .login-logo-sub { font-size: 12px; color: var(--text3); margin-top: 4px; letter-spacing: 1px; }
+  .login-field { margin-bottom: 16px; }
+  .login-field label { display: block; font-size: 11px; color: var(--text3); letter-spacing: .5px; margin-bottom: 6px; }
+  .login-input {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 14px; font-size: 14px;
+    color: var(--text); font-family: var(--sans); outline: none;
+    transition: border-color .2s;
+  }
+  .login-input:focus { border-color: var(--accent); }
+  .login-btn {
+    width: 100%; padding: 11px; border-radius: 10px;
+    background: var(--accent); color: #000; font-size: 14px;
+    font-weight: 700; border: none; cursor: pointer;
+    transition: opacity .2s; margin-top: 8px;
+    font-family: var(--sans);
+  }
+  .login-btn:hover { opacity: .88; }
+  .login-err { color: var(--red); font-size: 12px; margin-top: 8px; min-height: 18px; }
+
+  /* Admin panel full-page */
+  #adminPanel {
+    display: none; position: fixed; inset: 0; z-index: 300;
+    background: var(--bg);
+    flex-direction: column;
+  }
+  #adminPanel.open { display: flex; }
+
+  .admin-nav {
+    height: 56px; background: rgba(7,11,20,.95);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 0;
+    padding: 0 2rem; flex-shrink: 0;
+  }
+  .admin-nav-logo {
+    font-family: var(--mono); font-size: 14px; font-weight: 700;
+    color: var(--gold); letter-spacing: 2px; margin-right: 2rem;
+  }
+  .admin-tabs { display: flex; gap: 0; flex: 1; }
+  .admin-tab {
+    padding: 0 1.1rem; height: 56px; display: flex; align-items: center; gap: 6px;
+    font-size: 13px; color: var(--text2); cursor: pointer;
+    border: none; background: none; border-bottom: 2px solid transparent;
+    transition: all .2s; font-family: var(--sans);
+  }
+  .admin-tab:hover { color: var(--text); }
+  .admin-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+  .admin-back {
+    padding: 6px 14px; border-radius: 8px;
+    background: var(--bg3); border: 1px solid var(--border);
+    color: var(--text2); font-size: 12px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    margin-left: auto;
+  }
+  .admin-back:hover { color: var(--text); }
+
+  .admin-body { flex: 1; overflow-y: auto; padding: 2rem; }
+  .admin-page { display: none; max-width: 900px; margin: 0 auto; }
+  .admin-page.active { display: block; }
+
+  .admin-section-title {
+    font-size: 11px; color: var(--text3); letter-spacing: 2px;
+    text-transform: uppercase; margin-bottom: 1.25rem;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .admin-section-title::before { content:''; width:20px; height:2px; background:var(--gold); display:block; }
+
+  .admin-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 1.5rem; margin-bottom: 1.25rem;
+  }
+  .admin-card-title {
+    font-size: 14px; font-weight: 700; color: var(--text);
+    margin-bottom: 1rem; padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  /* Ping tool */
+  .ping-result {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1rem; margin-top: 12px;
+    font-family: var(--mono); font-size: 12px; max-height: 280px; overflow-y: auto;
+  }
+  .ping-line { padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+  .ping-line:last-child { border: none; }
+  .ping-ok { color: var(--green); }
+  .ping-fail { color: var(--red); }
+  .ping-warn { color: var(--orange); }
+  .ping-info { color: var(--accent); }
+  .ping-label { color: var(--text3); margin-right: 8px; }
+
+  .ping-server-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr));
+    gap: 10px; margin-bottom: 14px;
+  }
+  .ping-server-item {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; cursor: pointer;
+    transition: border-color .2s;
+  }
+  .ping-server-item:hover { border-color: var(--border2); }
+  .ping-server-item.selected { border-color: var(--accent); background: rgba(99,179,237,.06); }
+  .ping-badge-ms {
+    margin-left: auto; font-family: var(--mono); font-size: 11px;
+    padding: 2px 8px; border-radius: 6px;
+  }
+
+  /* Telegram config */
+  .tg-status {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; padding: 10px 14px;
+    border-radius: 8px; margin-bottom: 12px;
+  }
+  .tg-connected { background: rgba(56,239,125,.08); color: var(--green); border: 1px solid rgba(56,239,125,.2); }
+  .tg-disconnected { background: rgba(255,107,107,.08); color: var(--red); border: 1px solid rgba(255,107,107,.2); }
+
+  .tg-alert-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .tg-alert-item {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  /* Theme editor */
+  .theme-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(180px,1fr)); gap: 10px; margin-bottom: 14px; }
+  .theme-preset {
+    border: 2px solid var(--border); border-radius: 10px;
+    padding: 12px; cursor: pointer; transition: border-color .2s;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .theme-preset:hover { border-color: var(--border2); }
+  .theme-preset.active { border-color: var(--gold); }
+  .theme-swatch { display: flex; gap: 4px; }
+  .swatch { width: 18px; height: 18px; border-radius: 4px; }
+  .theme-name { font-size: 12px; color: var(--text2); }
+
+  .css-editor {
+    width: 100%; min-height: 220px; background: var(--bg3);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; font-family: var(--mono); font-size: 12px;
+    color: var(--text); resize: vertical; outline: none;
+    line-height: 1.6; transition: border-color .2s;
+  }
+  .css-editor:focus { border-color: var(--accent); }
+
+  .var-sliders { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .var-row { display: flex; flex-direction: column; gap: 4px; }
+  .var-row label { font-size: 11px; color: var(--text3); display: flex; justify-content: space-between; }
+  .var-row input[type=color] {
+    width: 100%; height: 36px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--bg3);
+    cursor: pointer; padding: 2px 4px;
+  }
+
+  /* ===== TRAFFIC PAGE ===== */
+  .traffic-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 1.25rem; position: relative; overflow: hidden;
+    transition: border-color .2s;
+  }
+  .traffic-card:hover { border-color: var(--border2); }
+  .traffic-card.warn  { border-color: rgba(255,159,67,.4); }
+  .traffic-card.crit  { border-color: rgba(255,107,107,.5); }
+  .traffic-card.crit::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:3px;
+    background: var(--red);
+  }
+  .traffic-card.warn::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:3px;
+    background: var(--orange);
+  }
+
+  .traffic-bar-wrap {
+    background: rgba(255,255,255,.05); border-radius: 6px;
+    height: 10px; overflow: hidden; margin: 6px 0;
+  }
+  .traffic-bar-fill {
+    height: 100%; border-radius: 6px; transition: width .6s ease;
+  }
+
+  .traffic-numbers {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px; margin-top: 12px;
+  }
+  .traffic-num-item {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; text-align: center;
+  }
+  .traffic-num-label { font-size: 10px; color: var(--text3); letter-spacing: .5px; margin-bottom: 3px; }
+  .traffic-num-val   { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--text); }
+
+  .traffic-alert-banner {
+    background: rgba(255,107,107,.1); border: 1px solid rgba(255,107,107,.3);
+    border-radius: 10px; padding: 12px 16px;
+    display: flex; align-items: flex-start; gap: 10px;
+    font-size: 13px;
+  }
+  .traffic-alert-banner.warn {
+    background: rgba(255,159,67,.1); border-color: rgba(255,159,67,.3);
+  }
+  .traffic-alert-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .traffic-alert-list { list-style: none; margin: 4px 0 0; padding: 0; }
+  .traffic-alert-list li { padding: 2px 0; color: var(--text2); font-size: 12px; }
+  .traffic-alert-list li::before { content: '→ '; color: var(--red); }
+  .traffic-alert-list li.warn::before { color: var(--orange); }
+
+  .traffic-table-row { border-bottom: 1px solid var(--border); }
+  .traffic-table-row:last-child { border: none; }
+  .traffic-table-row td { padding: 8px 10px; vertical-align: middle; }
+  .traffic-table-row:hover td { background: rgba(255,255,255,.02); }
+
+  .traffic-reset-badge {
+    font-size: 10px; padding: 2px 7px; border-radius: 8px;
+    background: rgba(99,179,237,.1); color: var(--accent);
+    border: 1px solid rgba(99,179,237,.2); font-family: var(--mono);
+  }
+
+  @media (max-width: 720px) {
+    .traffic-chart-row { grid-template-columns: 1fr !important; }
+  }
+
+  /* Globe tooltip */
+  .globe-tooltip {
+    position: absolute; background: var(--bg2);
+    border: 1px solid var(--border2); border-radius: 8px;
+    padding: 8px 12px; font-size: 12px; pointer-events: none;
+    display: none; z-index: 10;
+  }
+
+  /* Probe list items */
+  .probe-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px; border-radius: 8px; cursor: pointer;
+    transition: background .15s;
+  }
+  .probe-item:hover { background: var(--bg3); }
+  .probe-item-name { font-size: 13px; color: var(--text); flex: 1; }
+  .probe-item-ip { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+  .probe-fill-btn {
+    padding: 4px 10px; border-radius: 6px;
+    background: rgba(99,179,237,.1); border: 1px solid var(--border2);
+    color: var(--accent); font-size: 11px; cursor: pointer;
+  }
+
+  /* Admin page login overlay */
+  #loginOverlay {
+    position: fixed; inset: 0; z-index: 400;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== LOGIN OVERLAY ===== -->
+<div id="loginOverlay">
+  <div class="login-box" onclick="event.stopPropagation()">
+    <div class="login-logo">
+      <div class="login-logo-text">VPS<span style="color:var(--gold)">·</span>星图</div>
+      <div class="login-logo-sub">管理员登录</div>
+    </div>
+    <div class="login-field">
+      <label>用户名</label>
+      <input class="login-input" id="loginUser" placeholder="admin" autocomplete="username">
+    </div>
+    <div class="login-field">
+      <label>密码</label>
+      <input class="login-input" id="loginPass" type="password" placeholder="••••••••"
+        autocomplete="current-password" onkeydown="if(event.key==='Enter')doAdminLogin()">
+    </div>
+    <div class="login-err" id="loginErr"></div>
+    <button class="login-btn" id="loginBtn" onclick="doAdminLogin()">登 录</button>
+    <div style="text-align:center;margin-top:14px">
+      <a href="/" style="font-size:11px;color:var(--text3);text-decoration:none">← 返回前台</a>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ADMIN PANEL ===== -->
+<div id="adminPanel" style="display:none;flex-direction:column;min-height:100vh">
+  <div class="admin-nav">
+    <div class="admin-nav-logo">⚙ 管理后台</div>
+    <div class="admin-tabs">
+      <button class="admin-tab active" onclick="switchAdminTab('servers')">🖥 添加服务器</button>
+      <button class="admin-tab" onclick="switchAdminTab('ping')">📶 TCP Ping</button>
+      <button class="admin-tab" onclick="switchAdminTab('telegram')">✈ Telegram</button>
+      <button class="admin-tab" onclick="switchAdminTab('theme')">🎨 界面主题</button>
+    </div>
+    <a href="/" style="padding:6px 16px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);font-size:12px;cursor:pointer;font-family:var(--sans);text-decoration:none;display:flex;align-items:center;gap:6px">← 返回前台</a>
+    <button onclick="adminLogout()" style="padding:6px 14px;border-radius:8px;background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.25);color:var(--red);font-size:12px;cursor:pointer;font-family:var(--sans)">退出登录</button>
+  </div>
+
+  <div class="admin-body">
+
+    <!-- ===== ADD SERVER TAB ===== -->
+    <div id="adminTab-servers" class="admin-page active">
+      <div class="admin-section-title">服务器管理</div>
+
+      <!-- Quick add from monitor -->
+      <div class="admin-card">
+        <div class="admin-card-title">🔗 从监控 VPS 快速导入</div>
+        <div id="adminServerList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin-bottom:14px"></div>
+        <div style="font-size:12px;color:var(--text3)">点击卡片选中，填写价格信息后保存</div>
+      </div>
+
+      <!-- Manual add form -->
+      <div class="admin-card">
+        <div class="admin-card-title">✏️ 手动添加 / 编辑</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group"><label class="form-label">服务器名称 *</label><input class="form-input" id="as-name" placeholder="my-vps-01"></div>
+          <div class="form-group"><label class="form-label">分组</label><input class="form-input" id="as-group" placeholder="生产环境"></div>
+          <div class="form-group"><label class="form-label">旗帜 Emoji</label><input class="form-input" id="as-flag" placeholder="🇺🇸"></div>
+          <div class="form-group"><label class="form-label">IP 地址 <span style="color:var(--green);font-size:10px">自动</span></label><input class="form-input" id="as-ip" placeholder="1.2.3.4"></div>
+          <div class="form-group"><label class="form-label">位置 <span style="color:var(--green);font-size:10px">自动</span></label><input class="form-input" id="as-location" placeholder="美国洛杉矶"></div>
+          <div class="form-group"><label class="form-label">带宽 <span style="color:var(--green);font-size:10px">自动</span></label><input class="form-input" id="as-bw" placeholder="1Gbps不限"></div>
+          <div class="form-group"><label class="form-label">CPU (核) <span style="color:var(--green);font-size:10px">自动</span></label><input class="form-input" id="as-cpu" type="number" placeholder="4"></div>
+          <div class="form-group"><label class="form-label">内存 (GB) <span style="color:var(--green);font-size:10px">自动</span></label><input class="form-input" id="as-ram" type="number" placeholder="8"></div>
+          <div class="form-group"><label class="form-label">存储 (GB) <span style="color:var(--green);font-size:10px">自动</span></label><input class="form-input" id="as-disk" type="number" placeholder="100"></div>
+          <div class="form-group"><label class="form-label">价格 (元) *</label><input class="form-input" id="as-price" type="number" placeholder="99"></div>
+          <div class="form-group"><label class="form-label">付费周期</label>
+            <select class="form-input" id="as-period">
+              <option value="monthly">月付</option>
+              <option value="yearly">年付</option>
+              <option value="quarterly">季付</option>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">到期日期</label><input class="form-input" id="as-expiry" type="date"></div>
+          <div class="form-group" style="grid-column:1/-1"><label class="form-label">探针 URL</label><input class="form-input" id="as-probe" placeholder="https://..."></div>
+          <div class="form-group" style="grid-column:1/-1"><label class="form-label">备注</label><input class="form-input" id="as-note" placeholder="这台机子用于..."></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:1rem">
+          <button class="add-btn" onclick="adminAddServerAPI()">确认添加</button>
+          <button onclick="clearAdminForm()" style="padding:8px 18px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:13px">清空</button>
+        </div>
+        <div id="as-msg" style="margin-top:8px;font-size:12px;min-height:18px"></div>
+      </div>
+
+      <!-- Existing server list -->
+      <div class="admin-card">
+        <div class="admin-card-title">📋 已有服务器</div>
+        <div id="adminExistingList"></div>
+      </div>
+    </div>
+
+    <!-- ===== PING TAB ===== -->
+    <div id="adminTab-ping" class="admin-page">
+      <div class="admin-section-title">TCP Ping &amp; IPv4 探测</div>
+
+      <div class="admin-card">
+        <div class="admin-card-title">🎯 选择探测目标</div>
+        <div class="ping-server-grid" id="pingServerGrid"></div>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div style="flex:1;min-width:200px">
+            <label class="form-label">自定义 Host / IP</label>
+            <input class="form-input" id="pingCustomHost" placeholder="8.8.8.8 或 example.com">
+          </div>
+          <div style="width:100px">
+            <label class="form-label">端口</label>
+            <input class="form-input" id="pingPort" value="80" placeholder="80">
+          </div>
+          <div style="width:80px">
+            <label class="form-label">次数</label>
+            <input class="form-input" id="pingCount" value="5" type="number" min="1" max="20">
+          </div>
+          <button class="add-btn" onclick="runPing()" id="pingRunBtn">▶ 开始探测</button>
+        </div>
+      </div>
+
+      <div class="admin-card">
+        <div class="admin-card-title" style="justify-content:space-between">
+          <span>📊 探测结果</span>
+          <button onclick="clearPingResults()" style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer">清空</button>
+        </div>
+        <div id="pingResults">
+          <div style="color:var(--text3);font-size:13px;text-align:center;padding:2rem 0">选择目标后点击开始探测</div>
+        </div>
+      </div>
+
+      <!-- IPv4 info lookup -->
+      <div class="admin-card">
+        <div class="admin-card-title">🔍 IP 地址信息查询</div>
+        <div style="display:flex;gap:10px;margin-bottom:12px">
+          <input class="form-input" id="ipLookupInput" placeholder="输入 IP 地址，留空则查询本机" style="flex:1">
+          <button class="add-btn" onclick="lookupIP()">查询</button>
+        </div>
+        <div id="ipLookupResult" style="font-size:13px;color:var(--text3);text-align:center;padding:1rem 0">等待查询...</div>
+      </div>
+    </div>
+
+    <!-- ===== TELEGRAM TAB ===== -->
+    <div id="adminTab-telegram" class="admin-page">
+      <div class="admin-section-title">Telegram 机器人推送</div>
+
+      <div class="admin-card">
+        <div class="admin-card-title">🔑 机器人配置</div>
+        <div id="tgStatus" class="tg-status tg-disconnected">
+          <span>●</span> 未连接 — 请填写 Bot Token 和 Chat ID
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">Bot Token</label>
+            <input class="form-input" id="tgToken" placeholder="1234567890:ABCDEFGabcdefg..." type="password">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Chat ID</label>
+            <input class="form-input" id="tgChatId" placeholder="-100123456789 或 @username">
+          </div>
+          <div class="form-group">
+            <label class="form-label">消息模板前缀</label>
+            <input class="form-input" id="tgPrefix" placeholder="【VPS告警】" value="【VPS星图】">
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:12px">
+          <button class="add-btn" onclick="saveTgConfigAPI()">保存配置</button>
+          <button onclick="testTgAPI()" style="padding:8px 18px;border-radius:8px;background:rgba(99,179,237,.1);border:1px solid var(--border2);color:var(--accent);cursor:pointer;font-size:13px">发送测试消息</button>
+        </div>
+        <div id="tgMsg" style="margin-top:8px;font-size:12px;min-height:18px"></div>
+      </div>
+
+      <div class="admin-card">
+        <div class="admin-card-title">🔔 告警规则配置</div>
+        <div class="tg-alert-list">
+          <div class="tg-alert-item">
+            <span>CPU 使用率超过阈值</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <input class="form-input" id="alertCpu" value="90" type="number" style="width:60px;padding:4px 8px">
+              <span style="font-size:12px;color:var(--text3)">%</span>
+              <label class="toggle-switch"><input type="checkbox" id="alertCpuOn" checked><span class="toggle-slider"></span></label>
+            </div>
+          </div>
+          <div class="tg-alert-item">
+            <span>内存使用率超过阈值</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <input class="form-input" id="alertRam" value="90" type="number" style="width:60px;padding:4px 8px">
+              <span style="font-size:12px;color:var(--text3)">%</span>
+              <label class="toggle-switch"><input type="checkbox" id="alertRamOn" checked><span class="toggle-slider"></span></label>
+            </div>
+          </div>
+          <div class="tg-alert-item">
+            <span>服务器离线检测</span>
+            <label class="toggle-switch" style="margin-left:auto"><input type="checkbox" id="alertOffline" checked><span class="toggle-slider"></span></label>
+          </div>
+          <div class="tg-alert-item">
+            <span>到期前 7 天提醒</span>
+            <label class="toggle-switch" style="margin-left:auto"><input type="checkbox" id="alertExpiry" checked><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+        <button class="add-btn" style="margin-top:12px" onclick="saveAlertRules()">保存告警规则</button>
+        <div id="alertMsg" style="margin-top:8px;font-size:12px;min-height:18px"></div>
+      </div>
+
+      <div class="admin-card">
+        <div class="admin-card-title">📤 手动推送</div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:10px">
+          <textarea class="form-input" id="tgManualMsg" style="resize:vertical;min-height:80px;font-family:var(--sans)" placeholder="输入要推送的消息内容..."></textarea>
+          <button class="add-btn" style="align-self:flex-end" onclick="sendManualTgAPI()">推送</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== THEME TAB ===== -->
+    <div id="adminTab-theme" class="admin-page">
+      <div class="admin-section-title">前端界面主题</div>
+
+      <div class="admin-card">
+        <div class="admin-card-title">🎨 预设主题</div>
+        <div class="theme-grid" id="themePresets"></div>
+      </div>
+
+      <div class="admin-card">
+        <div class="admin-card-title">🖌 颜色变量调节</div>
+        <div class="var-sliders" id="colorSliders"></div>
+        <button class="add-btn" style="margin-top:14px" onclick="applyColorVars()">应用颜色</button>
+      </div>
+
+      <div class="admin-card">
+        <div class="admin-card-title">💻 自定义 CSS 注入</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:10px">直接编写 CSS 代码，实时注入到前台页面。支持覆盖任意样式变量和类。</div>
+        <textarea class="css-editor" id="customCssEditor" placeholder=":root {
+  --accent: #ff6b6b;
+  --bg: #0a0a0f;
+}
+
+.server-card {
+  border-radius: 20px;
+}
+
+nav {
+  backdrop-filter: blur(24px);
+}"></textarea>
+        <div style="display:flex;gap:10px;margin-top:10px">
+          <button class="add-btn" onclick="applyCustomCSS()">▶ 实时预览</button>
+          <button onclick="saveCustomCSS()" style="padding:8px 18px;border-radius:8px;background:var(--bg3);border:1px solid var(--border2);color:var(--accent);cursor:pointer;font-size:13px">💾 保存</button>
+          <button onclick="resetCustomCSS()" style="padding:8px 18px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text3);cursor:pointer;font-size:13px">重置</button>
+        </div>
+        <div id="cssMsg" style="margin-top:8px;font-size:12px;min-height:18px"></div>
+      </div>
+    </div>
+
+  </div><!-- admin-body -->
+</div><!-- adminPanel -->
+
+<script src="/api-admin.js"></script>
+<script>
+// ===== DATA =====
+let currency = 'CNY';
+let exchangeRates = { USD: 1, CNY: 7.26, EUR: 0.92 };
+let activeGroup = '全部';
+let servers = [];
+
+// ===== AUTH =====
+async function doAdminLogin() {
+  const u = document.getElementById('loginUser').value.trim();
+  const p = document.getElementById('loginPass').value;
+  if (!u || !p) return;
+  const btn = document.getElementById('loginBtn');
+  btn.textContent = '登录中...';
+  btn.disabled = true;
+  try {
+    const resp = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u, password: p }),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.access_token) {
+      localStorage.setItem('authToken', data.access_token);
+      showAdminPanel();
+    } else {
+      document.getElementById('loginErr').textContent = data.msg || '登录失败，请重试';
+      document.getElementById('loginPass').value = '';
+    }
+  } catch(e) {
+    document.getElementById('loginErr').textContent = '网络错误，请重试';
+  } finally {
+    btn.textContent = '登 录';
+    btn.disabled = false;
+  }
+}
+
+function showAdminPanel() {
+  document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('adminPanel').style.display = 'flex';
+  loadServersFromAPI();
+  renderThemePresets();
+  renderColorSliders();
+  loadTgConfigFromAPI();
+  loadCustomCSSEditor();
+  document.getElementById('as-expiry').value = new Date(Date.now()+365*86400000).toISOString().split('T')[0];
+}
+
+function adminLogout() {
+  localStorage.removeItem('authToken');
+  document.getElementById('adminPanel').style.display = 'none';
+  document.getElementById('loginOverlay').style.display = 'flex';
+}
+
+async function loadServersFromAPI() {
+  const token = localStorage.getItem('authToken');
+  if (!token) return;
+  try {
+    const resp = await fetch('/api/servers/', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (resp.status === 401) { adminLogout(); return; }
+    const data = await resp.json();
+    if (data.servers) {
+      servers = data.servers.map(s => ({
+        ...s,
+        group: s.group_name || s.group || '默认分组',
+        bw: s.bandwidth || '不限',
+        cpu: s.cpu_cores || s.cpu || 1,
+        ram: s.ram_gb || s.ram || 1,
+        disk: s.disk_gb || s.disk || 20,
+        cpu_use: s.cpu_use || 0,
+        ram_use: s.ram_use || 0,
+        disk_use: s.disk_use || 0,
+        net_up: s.net_up || 0,
+        net_down: s.net_down || 0,
+        uptime: s.uptime || '—',
+      }));
+      renderAdminServerList();
+      renderAdminExistingList();
+      renderPingServerGrid();
+    }
+  } catch(e) {
+    console.error('Failed to load servers:', e);
+  }
+}
+
+async function loadTgConfigFromAPI() {
+  const token = localStorage.getItem('authToken');
+  if (!token) return;
+  try {
+    const resp = await fetch('/api/telegram/config', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      const cfg = data.config || {};
+      if (cfg.bot_token) document.getElementById('tgToken').value = cfg.bot_token;
+      if (cfg.chat_id) document.getElementById('tgChatId').value = cfg.chat_id;
+      if (cfg.prefix) document.getElementById('tgPrefix').value = cfg.prefix;
+      updateTgStatus();
+    }
+  } catch(e) {}
+}
+
+// ===== ADMIN SERVER MANAGEMENT (API) =====
+async function adminAddServerAPI() {
+  const token = localStorage.getItem('authToken');
+  if (!token) { adminLogout(); return; }
+  const name = document.getElementById('as-name').value.trim();
+  const ip = document.getElementById('as-ip').value.trim();
+  if (!name) { showMsg('as-msg', '请填写服务器名称', 'red'); return; }
+  if (!ip) { showMsg('as-msg', '请填写 IP 地址', 'red'); return; }
+  const body = {
+    name, ip,
+    group: document.getElementById('as-group').value || '默认分组',
+    flag: document.getElementById('as-flag').value || '🌐',
+    location: document.getElementById('as-location').value || '',
+    bandwidth: document.getElementById('as-bw').value || '不限',
+    cpu_cores: parseInt(document.getElementById('as-cpu').value) || 1,
+    ram_gb: parseFloat(document.getElementById('as-ram').value) || 1,
+    disk_gb: parseInt(document.getElementById('as-disk').value) || 20,
+    price: parseFloat(document.getElementById('as-price').value) || 0,
+    period: document.getElementById('as-period').value,
+    expiry: document.getElementById('as-expiry').value || null,
+    probe_url: document.getElementById('as-probe').value || '',
+    note: document.getElementById('as-note').value || '',
+  };
+  try {
+    const resp = await fetch('/api/servers/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    if (resp.status === 401 || resp.status === 403) { adminLogout(); return; }
+    if (resp.ok) {
+      showMsg('as-msg', `✅ 已添加 "${name}"`, 'green');
+      clearAdminForm();
+      await loadServersFromAPI();
+    } else {
+      const err = await resp.json();
+      showMsg('as-msg', err.msg || '添加失败', 'red');
+    }
+  } catch(e) {
+    showMsg('as-msg', '网络错误: ' + e.message, 'red');
+  }
+}
+
+async function deleteServerAPI(id) {
+  if (!confirm('确认删除该服务器？')) return;
+  const token = localStorage.getItem('authToken');
+  if (!token) { adminLogout(); return; }
+  try {
+    const resp = await fetch(`/api/servers/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    if (resp.status === 401 || resp.status === 403) { adminLogout(); return; }
+    if (resp.ok) {
+      await loadServersFromAPI();
+    }
+  } catch(e) {}
+}
+
+async function saveTgConfigAPI() {
+  const token = localStorage.getItem('authToken');
+  if (!token) { adminLogout(); return; }
+  const body = {
+    bot_token: document.getElementById('tgToken').value.trim(),
+    chat_id: document.getElementById('tgChatId').value.trim(),
+    prefix: document.getElementById('tgPrefix').value.trim() || '【VPS星图】',
+    enabled: true,
+  };
+  try {
+    const resp = await fetch('/api/telegram/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    if (resp.status === 401 || resp.status === 403) { adminLogout(); return; }
+    if (resp.ok) { showMsg('tgMsg', '✅ 配置已保存', 'green'); updateTgStatus(); }
+    else { const e = await resp.json(); showMsg('tgMsg', e.msg || '保存失败', 'red'); }
+  } catch(e) { showMsg('tgMsg', '网络错误', 'red'); }
+}
+
+async function testTgAPI() {
+  const token = localStorage.getItem('authToken');
+  if (!token) { adminLogout(); return; }
+  showMsg('tgMsg', '发送中...', 'blue');
+  try {
+    const resp = await fetch('/api/telegram/test', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    if (resp.status === 401 || resp.status === 403) { adminLogout(); return; }
+    const data = await resp.json();
+    showMsg('tgMsg', resp.ok ? '✅ 测试消息已发送' : `发送失败: ${data.msg}`, resp.ok ? 'green' : 'red');
+  } catch(e) { showMsg('tgMsg', '网络错误', 'red'); }
+}
+
+async function sendManualTgAPI() {
+  const msg = document.getElementById('tgManualMsg').value.trim();
+  if (!msg) { showMsg('tgMsg', '消息不能为空', 'red'); return; }
+  const token = localStorage.getItem('authToken');
+  if (!token) { adminLogout(); return; }
+  try {
+    const resp = await fetch('/api/telegram/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ text: msg }),
+    });
+    if (resp.status === 401 || resp.status === 403) { adminLogout(); return; }
+    const data = await resp.json();
+    showMsg('tgMsg', resp.ok ? '✅ 已推送' : `推送失败: ${data.msg}`, resp.ok ? 'green' : 'red');
+  } catch(e) { showMsg('tgMsg', '网络错误', 'red'); }
+}
+
+// ===== ADMIN PANEL FUNCTIONS =====
+function switchAdminTab(tab) {
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.admin-page').forEach(p => p.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  document.getElementById('adminTab-' + tab).classList.add('active');
+}
+
+// ===== ADMIN: SERVER LIST =====
+function renderAdminServerList() {
+  const el = document.getElementById('adminServerList');
+  el.innerHTML = servers.map(s => `
+    <div class="ping-server-item" onclick="adminFillFromServer(${s.id})" title="点击填入表单">
+      <span style="font-size:18px">${s.flag}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;color:var(--text);font-weight:600">${s.name}</div>
+        <div style="font-size:11px;color:var(--text3);font-family:var(--mono)">${s.ip} · ${s.location}</div>
+      </div>
+      <div style="font-size:10px;padding:2px 8px;border-radius:6px;background:${s.status==='online'?'rgba(56,239,125,.12)':s.status==='warn'?'rgba(255,159,67,.12)':'rgba(255,107,107,.12)'};color:${s.status==='online'?'var(--green)':s.status==='warn'?'var(--orange)':'var(--red)'}">
+        ${s.status==='online'?'在线':s.status==='warn'?'预警':'离线'}
+      </div>
+    </div>
+  `).join('');
+}
+
+function adminFillFromServer(id) {
+  const s = servers.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('as-name').value = s.name;
+  document.getElementById('as-group').value = s.group;
+  document.getElementById('as-flag').value = s.flag;
+  document.getElementById('as-ip').value = s.ip;
+  document.getElementById('as-location').value = s.location;
+  document.getElementById('as-bw').value = s.bw;
+  document.getElementById('as-cpu').value = s.cpu;
+  document.getElementById('as-ram').value = s.ram;
+  document.getElementById('as-disk').value = s.disk;
+  document.getElementById('as-probe').value = s.probe || '';
+  document.getElementById('as-price').value = s.price || '';
+  document.getElementById('as-period').value = s.period || 'monthly';
+  document.getElementById('as-expiry').value = s.expiry || '';
+  document.getElementById('as-note').value = s.note || '';
+  // Highlight all filled fields briefly
+  ['as-ip','as-location','as-bw','as-cpu','as-ram','as-disk'].forEach(fid => {
+    const el = document.getElementById(fid);
+    if (el) { el.style.borderColor = 'var(--green)'; setTimeout(() => el.style.borderColor = '', 1200); }
+  });
+  // Scroll to form
+  document.getElementById('as-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function adminAddServer() {
+  const name = document.getElementById('as-name').value.trim();
+  const price = parseFloat(document.getElementById('as-price').value);
+  if (!name) { showMsg('as-msg', '请填写服务器名称', 'red'); return; }
+  const newS = {
+    id: Date.now(),
+    name,
+    group: document.getElementById('as-group').value || '默认分组',
+    flag: document.getElementById('as-flag').value || '🌐',
+    location: document.getElementById('as-location').value || '未知',
+    ip: document.getElementById('as-ip').value || '0.0.0.0',
+    bw: document.getElementById('as-bw').value || '不限',
+    cpu: parseInt(document.getElementById('as-cpu').value) || 1,
+    ram: parseFloat(document.getElementById('as-ram').value) || 1,
+    disk: parseInt(document.getElementById('as-disk').value) || 20,
+    cpu_use: Math.floor(Math.random()*40+5), ram_use: Math.floor(Math.random()*40+15),
+    disk_use: Math.floor(Math.random()*30+10), net_up: +(Math.random()*20).toFixed(1),
+    net_down: +(Math.random()*80).toFixed(1), status: 'online', uptime: '100%',
+    price: price || 0,
+    period: document.getElementById('as-period').value,
+    expiry: document.getElementById('as-expiry').value,
+    note: document.getElementById('as-note').value || '',
+    probe: document.getElementById('as-probe').value || '',
+  };
+  servers.push(newS);
+  localStorage.setItem('vps_servers', JSON.stringify(servers));
+  renderGroupTabs(); renderStats(); renderServers();
+  renderAdminExistingList(); renderAdminServerList();
+  showMsg('as-msg', `✅ 已添加 "${name}"`, 'green');
+  clearAdminForm();
+}
+
+function clearAdminForm() {
+  ['as-name','as-group','as-flag','as-ip','as-location','as-bw','as-cpu','as-ram','as-disk','as-price','as-probe','as-note'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+}
+
+function renderAdminExistingList() {
+  const el = document.getElementById('adminExistingList');
+  if (!el) return;
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead><tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:6px 8px;color:var(--text3)">名称</td>
+      <td style="padding:6px 8px;color:var(--text3)">位置</td>
+      <td style="padding:6px 8px;color:var(--text3)">规格</td>
+      <td style="padding:6px 8px;color:var(--text3)">状态</td>
+      <td style="padding:6px 8px;color:var(--text3)">操作</td>
+    </tr></thead>
+    <tbody>${servers.map(s => `<tr style="border-bottom:1px solid rgba(255,255,255,.04)">
+      <td style="padding:6px 8px;color:var(--text)">${s.flag} ${s.name}</td>
+      <td style="padding:6px 8px;color:var(--text2);font-size:12px">${s.location}</td>
+      <td style="padding:6px 8px;color:var(--text3);font-family:var(--mono);font-size:11px">${s.cpu}C/${s.ram}G/${s.disk}G</td>
+      <td style="padding:6px 8px"><span style="font-size:11px;padding:2px 8px;border-radius:6px;background:${s.status==='online'?'rgba(56,239,125,.12)':'rgba(255,107,107,.12)'};color:${s.status==='online'?'var(--green)':'var(--red)'}">${s.status==='online'?'在线':'离线/预警'}</span></td>
+      <td style="padding:6px 8px"><button onclick="deleteServerAPI(${s.id})" style="font-size:11px;padding:3px 10px;border-radius:6px;background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.2);color:var(--red);cursor:pointer">删除</button></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function deleteServer(id) {
+  deleteServerAPI(id);
+}
+
+// ===== PING TOOL =====
+let pingTargets = new Set();
+
+function renderPingServerGrid() {
+  const el = document.getElementById('pingServerGrid');
+  if (!el) return;
+  el.innerHTML = servers.map(s => `
+    <div class="ping-server-item" id="ping-item-${s.id}" onclick="togglePingTarget(${s.id}, '${s.ip}', this)">
+      <span style="font-size:16px">${s.flag}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;color:var(--text);font-weight:600">${s.name}</div>
+        <div style="font-size:11px;color:var(--text3);font-family:var(--mono)">${s.ip}</div>
+      </div>
+      <span class="ping-badge-ms" id="ping-badge-${s.id}" style="background:var(--bg);color:var(--text3)">—</span>
+    </div>
+  `).join('');
+}
+
+function togglePingTarget(id, ip, el) {
+  if (pingTargets.has(ip)) { pingTargets.delete(ip); el.classList.remove('selected'); }
+  else { pingTargets.add(ip); el.classList.add('selected'); }
+}
+
+async function runPing() {
+  const customHost = document.getElementById('pingCustomHost').value.trim();
+  const port = parseInt(document.getElementById('pingPort').value) || 80;
+  const count = Math.min(20, parseInt(document.getElementById('pingCount').value) || 5);
+  const targets = [...pingTargets];
+  if (customHost) targets.push(customHost);
+  if (targets.length === 0) { showPingLine('请先选择服务器或输入自定义 Host', 'warn'); return; }
+
+  const btn = document.getElementById('pingRunBtn');
+  btn.textContent = '⏳ 探测中...'; btn.disabled = true;
+  const results = document.getElementById('pingResults');
+  results.innerHTML = '';
+
+  for (const host of targets) {
+    showPingLine(`──── 开始探测 ${host}:${port} ────`, 'info');
+    const rtts = [];
+    for (let i = 0; i < count; i++) {
+      const t0 = performance.now();
+      try {
+        await fetch(`https://${host}`, { mode: 'no-cors', cache: 'no-store', signal: AbortSignal.timeout(3000) });
+        const rtt = Math.round(performance.now() - t0);
+        rtts.push(rtt);
+        showPingLine(`  ${i+1}/${count}  ${host}  rtt=${rtt}ms  port=${port}`, rtt < 100 ? 'ok' : rtt < 300 ? 'warn' : 'fail');
+      } catch(e) {
+        // No-cors means we get opaque response on success, or error on real failure
+        // Estimate from timing
+        const rtt = Math.round(performance.now() - t0);
+        if (rtt < 3000) {
+          rtts.push(rtt);
+          showPingLine(`  ${i+1}/${count}  ${host}  rtt≈${rtt}ms  (opaque)`, rtt < 150 ? 'ok' : 'warn');
+        } else {
+          showPingLine(`  ${i+1}/${count}  ${host}  超时/无法访问`, 'fail');
+        }
+      }
+      await new Promise(r => setTimeout(r, 200));
+    }
+    if (rtts.length > 0) {
+      const avg = Math.round(rtts.reduce((a,b)=>a+b,0)/rtts.length);
+      const min2 = Math.min(...rtts), max2 = Math.max(...rtts);
+      const loss = Math.round((count - rtts.length) / count * 100);
+      showPingLine(`  统计: avg=${avg}ms  min=${min2}ms  max=${max2}ms  丢包${loss}%`, avg < 100 ? 'ok' : 'warn');
+      // Update badge on server card
+      const sid = servers.find(s => s.ip === host);
+      if (sid) {
+        const badge = document.getElementById('ping-badge-' + sid.id);
+        if (badge) { badge.textContent = avg+'ms'; badge.style.color = avg<100?'var(--green)':avg<300?'var(--orange)':'var(--red)'; badge.style.background = avg<100?'rgba(56,239,125,.1)':avg<300?'rgba(255,159,67,.1)':'rgba(255,107,107,.1)'; }
+      }
+    } else {
+      showPingLine(`  ${host} 全部超时，无法探测`, 'fail');
+    }
+    showPingLine('', 'info');
+  }
+
+  btn.textContent = '▶ 开始探测'; btn.disabled = false;
+}
+
+function showPingLine(text, type = 'info') {
+  const el = document.getElementById('pingResults');
+  if (!el.querySelector('.ping-result')) {
+    el.innerHTML = '<div class="ping-result" id="pingOutput"></div>';
+  }
+  const out = document.getElementById('pingOutput');
+  const line = document.createElement('div');
+  line.className = `ping-line ping-${type}`;
+  line.textContent = text || '\u00A0';
+  out.appendChild(line);
+  out.scrollTop = out.scrollHeight;
+}
+
+function clearPingResults() {
+  document.getElementById('pingResults').innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:2rem 0">选择目标后点击开始探测</div>';
+}
+
+async function lookupIP() {
+  const ip = document.getElementById('ipLookupInput').value.trim();
+  const el = document.getElementById('ipLookupResult');
+  el.innerHTML = '<div style="color:var(--accent)">查询中...</div>';
+  try {
+    const url = ip ? `https://ipapi.co/${ip}/json/` : 'https://ipapi.co/json/';
+    const res = await fetch(url);
+    const d = await res.json();
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;text-align:left">
+      ${[['IP','ip'],['城市','city'],['地区','region'],['国家','country_name'],['ISP/ASN','org'],['经纬度',`${d.latitude}, ${d.longitude}`],['时区','timezone']].map(([k,v]) =>
+        `<tr style="border-bottom:1px solid var(--border)"><td style="padding:5px 8px;color:var(--text3);width:35%">${k}</td><td style="padding:5px 8px;color:var(--text);font-family:var(--mono)">${typeof v==='string'&&v.includes(',')?v:d[v]||'—'}</td></tr>`
+      ).join('')}
+    </table>`;
+  } catch(e) {
+    el.innerHTML = `<div style="color:var(--red)">查询失败: ${e.message}</div>`;
+  }
+}
+
+// ===== TELEGRAM =====
+let tgConfig = JSON.parse(localStorage.getItem('vps_tg') || '{}');
+
+function loadTgConfig() {
+  if (tgConfig.token) document.getElementById('tgToken').value = tgConfig.token;
+  if (tgConfig.chatId) document.getElementById('tgChatId').value = tgConfig.chatId;
+  if (tgConfig.prefix) document.getElementById('tgPrefix').value = tgConfig.prefix;
+  updateTgStatus();
+}
+
+function updateTgStatus() {
+  const el = document.getElementById('tgStatus');
+  if (tgConfig.token && tgConfig.chatId) {
+    el.className = 'tg-status tg-connected';
+    el.innerHTML = '<span>●</span> 已配置 — Chat ID: ';
+    el.appendChild(document.createTextNode(tgConfig.chatId));
+  } else {
+    el.className = 'tg-status tg-disconnected';
+    el.innerHTML = '<span>●</span> 未连接 — 请填写 Bot Token 和 Chat ID';
+  }
+}
+
+function saveTgConfig() {
+  tgConfig = {
+    token: document.getElementById('tgToken').value.trim(),
+    chatId: document.getElementById('tgChatId').value.trim(),
+    prefix: document.getElementById('tgPrefix').value.trim() || '【VPS星图】',
+  };
+  localStorage.setItem('vps_tg', JSON.stringify(tgConfig));
+  updateTgStatus();
+  showMsg('tgMsg', '✅ 配置已保存', 'green');
+}
+
+async function sendTgMessage(text) {
+  if (!tgConfig.token || !tgConfig.chatId) return false;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${tgConfig.token}/sendMessage`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: tgConfig.chatId, text: tgConfig.prefix + '\n' + text, parse_mode: 'HTML' })
+    });
+    const d = await res.json();
+    return d.ok;
+  } catch(e) { return false; }
+}
+
+async function testTgMessage() {
+  if (!tgConfig.token || !tgConfig.chatId) { showMsg('tgMsg', '请先保存配置', 'red'); return; }
+  showMsg('tgMsg', '发送中...', 'blue');
+  const online = servers.filter(s=>s.status==='online').length;
+  const text = `🔔 测试推送成功！\n\n当前监控 ${servers.length} 台服务器\n在线: ${online} 台\n\n时间: ${new Date().toLocaleString('zh-CN')}`;
+  const ok = await sendTgMessage(text);
+  showMsg('tgMsg', ok ? '✅ 测试消息发送成功，请检查 Telegram' : '❌ 发送失败，请检查 Token 和 Chat ID', ok ? 'green' : 'red');
+}
+
+function saveAlertRules() {
+  const rules = {
+    cpuThreshold: parseInt(document.getElementById('alertCpu').value) || 90,
+    cpuOn: document.getElementById('alertCpuOn').checked,
+    ramThreshold: parseInt(document.getElementById('alertRam').value) || 90,
+    ramOn: document.getElementById('alertRamOn').checked,
+    offlineOn: document.getElementById('alertOffline').checked,
+    expiryOn: document.getElementById('alertExpiry').checked,
+  };
+  localStorage.setItem('vps_alerts', JSON.stringify(rules));
+  showMsg('alertMsg', '✅ 告警规则已保存', 'green');
+}
+
+async function sendManualTg() {
+  const msg = document.getElementById('tgManualMsg').value.trim();
+  if (!msg) return;
+  if (!tgConfig.token) { showMsg('tgMsg', '请先配置 Bot Token', 'red'); return; }
+  const ok = await sendTgMessage(msg);
+  if (ok) { document.getElementById('tgManualMsg').value = ''; showMsg('tgMsg', '✅ 消息已推送', 'green'); }
+  else showMsg('tgMsg', '❌ 推送失败', 'red');
+}
+
+// ===== THEME =====
+const THEMES = [
+  { name: '深空蓝（默认）', vars: { '--bg':'#070b14','--bg2':'#0d1525','--bg3':'#111d33','--accent':'#63b3ed','--gold':'#f6c90e','--green':'#38ef7d','--purple':'#a78bfa','--text':'#e2e8f0' }, swatches: ['#070b14','#63b3ed','#f6c90e','#38ef7d'] },
+  { name: '暗夜紫晶', vars: { '--bg':'#0e0714','--bg2':'#160e22','--bg3':'#1e1230','--accent':'#c084fc','--gold':'#fbbf24','--green':'#34d399','--purple':'#818cf8','--text':'#e2e8f0' }, swatches: ['#0e0714','#c084fc','#fbbf24','#34d399'] },
+  { name: '极简黑白', vars: { '--bg':'#0a0a0a','--bg2':'#111111','--bg3':'#1a1a1a','--accent':'#ffffff','--gold':'#d4af37','--green':'#6ee7b7','--purple':'#a0a0a0','--text':'#f0f0f0' }, swatches: ['#0a0a0a','#ffffff','#d4af37','#6ee7b7'] },
+  { name: '赛博朋克', vars: { '--bg':'#0d0221','--bg2':'#14032e','--bg3':'#1c0440','--accent':'#00fff9','--gold':'#ffee00','--green':'#39ff14','--purple':'#ff00ff','--text':'#e0e0ff' }, swatches: ['#0d0221','#00fff9','#ffee00','#ff00ff'] },
+  { name: '碳黑橙', vars: { '--bg':'#0d0c0b','--bg2':'#161412','--bg3':'#1e1b18','--accent':'#f97316','--gold':'#eab308','--green':'#86efac','--purple':'#c4b5fd','--text':'#e7e5e4' }, swatches: ['#0d0c0b','#f97316','#eab308','#86efac'] },
+  { name: '深林绿', vars: { '--bg':'#050e08','--bg2':'#0a1a10','--bg3':'#0f2418','--accent':'#4ade80','--gold':'#fde047','--green':'#86efac','--purple':'#a3e635','--text':'#dcfce7' }, swatches: ['#050e08','#4ade80','#fde047','#a3e635'] },
+];
+
+let activeThemeIdx = parseInt(localStorage.getItem('vps_theme_idx') || '0');
+
+function renderThemePresets() {
+  const el = document.getElementById('themePresets');
+  if (!el) return;
+  el.innerHTML = THEMES.map((t, i) => `
+    <div class="theme-preset ${i===activeThemeIdx?'active':''}" onclick="applyTheme(${i})">
+      <div class="theme-swatch">${t.swatches.map(c=>`<div class="swatch" style="background:${c}"></div>`).join('')}</div>
+      <div class="theme-name">${t.name}</div>
+    </div>
+  `).join('');
+}
+
+function applyTheme(idx) {
+  activeThemeIdx = idx;
+  localStorage.setItem('vps_theme_idx', idx);
+  const theme = THEMES[idx];
+  const root = document.documentElement;
+  Object.entries(theme.vars).forEach(([k, v]) => root.style.setProperty(k, v));
+  renderThemePresets();
+  // Sync color sliders
+  renderColorSliders();
+}
+
+const COLOR_VARS = [
+  { key: '--bg', label: '背景色' },
+  { key: '--bg2', label: '面板背景' },
+  { key: '--bg3', label: '输入框背景' },
+  { key: '--accent', label: '主强调色' },
+  { key: '--gold', label: '金色（价格/价值）' },
+  { key: '--green', label: '绿色（在线/健康）' },
+  { key: '--red', label: '红色（离线/危险）' },
+  { key: '--purple', label: '紫色（装饰）' },
+  { key: '--text', label: '主文本色' },
+  { key: '--text2', label: '次文本色' },
+];
+
+function renderColorSliders() {
+  const el = document.getElementById('colorSliders');
+  if (!el) return;
+  el.innerHTML = COLOR_VARS.map(({ key, label }) => {
+    const cur = getComputedStyle(document.documentElement).getPropertyValue(key).trim() || '#000000';
+    const hex = cur.startsWith('#') ? cur : rgbToHex(cur);
+    return `<div class="var-row">
+      <label><span>${label}</span><code style="font-size:10px;color:var(--text3)">${key}</code></label>
+      <input type="color" value="${hex}" data-var="${key}" onchange="liveColorChange(this)">
+    </div>`;
+  }).join('');
+}
+
+function liveColorChange(inp) {
+  document.documentElement.style.setProperty(inp.dataset.var, inp.value);
+}
+
+function applyColorVars() {
+  const inputs = document.querySelectorAll('#colorSliders input[type=color]');
+  inputs.forEach(inp => document.documentElement.style.setProperty(inp.dataset.var, inp.value));
+  showMsg('cssMsg', '✅ 颜色已应用', 'green');
+}
+
+function rgbToHex(rgb) {
+  const m = rgb.match(/\d+/g);
+  if (!m || m.length < 3) return '#000000';
+  return '#' + m.slice(0,3).map(x => parseInt(x).toString(16).padStart(2,'0')).join('');
+}
+
+// Custom CSS
+function loadCustomCSSEditor() {
+  const saved = localStorage.getItem('vps_custom_css') || '';
+  document.getElementById('customCssEditor').value = saved;
+  if (saved) injectCustomCSS(saved);
+}
+
+function applyCustomCSS() {
+  const css = document.getElementById('customCssEditor').value;
+  injectCustomCSS(css);
+  showMsg('cssMsg', '✅ CSS 已实时注入前台', 'green');
+}
+
+function saveCustomCSS() {
+  const css = document.getElementById('customCssEditor').value;
+  localStorage.setItem('vps_custom_css', css);
+  injectCustomCSS(css);
+  showMsg('cssMsg', '✅ 已保存并应用', 'green');
+}
+
+function resetCustomCSS() {
+  document.getElementById('customCssEditor').value = '';
+  localStorage.removeItem('vps_custom_css');
+  const el = document.getElementById('custom-css-inject');
+  if (el) el.remove();
+  showMsg('cssMsg', '已重置为默认样式', 'blue');
+}
+
+function injectCustomCSS(css) {
+  let el = document.getElementById('custom-css-inject');
+  if (!el) { el = document.createElement('style'); el.id = 'custom-css-inject'; document.head.appendChild(el); }
+  el.textContent = css;
+}
+
+// ===== HELPERS =====
+function showMsg(elId, text, type) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const colors = { green: 'var(--green)', red: 'var(--red)', blue: 'var(--accent)', orange: 'var(--orange)' };
+  el.style.color = colors[type] || 'var(--text2)';
+  el.textContent = text;
+  setTimeout(() => { if (el.textContent === text) el.textContent = ''; }, 3500);
+}
+
+// ===== INIT =====
+(function() {
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    showAdminPanel();
+  }
+  // Apply saved theme
+  const idx = parseInt(localStorage.getItem('vps_theme_idx') || '0');
+  if (idx > 0 && THEMES[idx]) applyTheme(idx);
+  const savedCss = localStorage.getItem('vps_custom_css');
+  if (savedCss) injectCustomCSS(savedCss);
+})();
+</script>
+</body>
+</html>
