@@ -414,9 +414,11 @@ def create_server():
     except ValidationError:
         raise
     except Exception as e:
-        db.session.rollback()
-        logger.error(f"❌ 创建服务器失败: {e}", exc_info=True)
-        raise InternalServerError("创建服务器失败", str(e))
+        from werkzeug.exceptions import HTTPException as WerkzeugHTTPException
+        if isinstance(e, WerkzeugHTTPException):
+            raise  # 让 404 正常透传给 Flask 错误处理器
+        logger.error(f"❌ 获取服务器信息失败: {e}")
+        raise InternalServerError("获取服务器信息失败", str(e))
 
 
 @servers_bp.put("/<int:sid>")
