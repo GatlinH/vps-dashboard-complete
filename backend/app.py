@@ -14,6 +14,8 @@ from api.telegram import telegram_bp
 from api.geo import geo_bp
 from api.traffic import traffic_bp
 from api.audit import audit_bp
+from api.aff import aff_bp
+from api.exchange import exchange_bp
 from config import Config
 from services.scheduler import create_scheduler
 
@@ -50,6 +52,8 @@ def create_app(config_class=Config, **config_overrides):
         (geo_bp, '/api/geo'),
         (traffic_bp, '/api/traffic'),
         (audit_bp, '/api/audit'),
+        (aff_bp, '/api/aff'),
+        (exchange_bp, '/api/exchange'),
     ]
     for bp, prefix in blueprints:
         app.register_blueprint(bp, url_prefix=prefix)
