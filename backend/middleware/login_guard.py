@@ -45,6 +45,9 @@ class LoginGuard:
                             user_agent: str, request_obj) -> dict:
         """记录登录尝试"""
         attempt_key = f"login:attempts:{username}"
+        # Default is 0 — on successful login the counter is deleted from Redis,
+        # so the effective count is 0. This is set explicitly here to prevent a
+        # potential NameError if the if/else branches were ever restructured.
         current = 0
         
         if not success:
