@@ -1,5 +1,7 @@
+import logging
+import time
 from datetime import datetime
-from flask import Flask
+from flask import Flask, g, request
 from flask_cors import CORS
 from flasgger import Swagger as Flasgger
 from extensions import db, jwt, redis_client, init_redis
@@ -18,6 +20,35 @@ from api.aff import aff_bp
 from api.exchange import exchange_bp
 from config import Config
 from services.scheduler import create_scheduler
+
+logger = logging.getLogger(__name__)
+
+
+def _register_request_logger(app: Flask):
+    """注册基础请求日志中间件（method/path/status/latency）。
+    不记录请求体，避免泄露敏感信息。"""
+
+    @app.before_request
+    def _before():
+        g._req_start = time.monotonic()
+
+    @app.after_request
+    def _after(response):
+        start = getattr(g, "_req_start", None)
+        if start is not None:
+            latency_ms = round((time.monotonic() - start) * 1000, 1)
+        else:
+            latency_ms = -1
+        # 跳过健康检查路径，减少日志噪声
+        if request.path != "/health":
+            logger.info(
+                "%s %s %s %.1fms",
+                request.method,
+                request.path,
+                response.status_code,
+                latency_ms,
+            )
+        return response
 
 
 def create_app(config_class=Config, **config_overrides):
@@ -38,6 +69,9 @@ def create_app(config_class=Config, **config_overrides):
     SecurityConfig.init_app(app)
     limiter = RateLimitConfig.init_app(app)
     app.limiter = limiter
+
+    # ===== 请求日志 =====
+    _register_request_logger(app)
 
     # ===== 错误处理与审计 =====
     ErrorHandler(app)
