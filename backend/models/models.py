@@ -7,6 +7,7 @@
 from datetime import datetime, date
 from extensions import db
 from sqlalchemy.dialects.mysql import BIGINT
+from models.audit_log import AuditLog  # re-export for backward compatibility
 
 class User(db.Model):
     __tablename__ = "users"
@@ -212,8 +213,6 @@ class TelegramConfig(db.Model):
             has_token=bool(self.bot_token),
         )
 
-
-from models.audit_log import AuditLog  # re-export for backward compatibility
 
 class AffProduct(db.Model):
     """AFF 市场商品"""
