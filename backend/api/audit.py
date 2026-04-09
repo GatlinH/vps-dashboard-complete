@@ -1,69 +1,56 @@
-# backend/api/auth.py - 修改
-
 """
-/api/auth  —  登录 / 刷新 / 登出 / 修改密码
+/api/audit - 操作审计日志 API
+需要管理员权限
 """
-from datetime import datetime
-from flask import Blueprint, request, jsonify, current_app
-from flask_jwt_extended import (
-    create_access_token, create_refresh_token,
-    jwt_required, get_jwt_identity, get_jwt,
-)
-from werkzeug.security import generate_password_hash, check_password_hash
+import logging
+from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required, get_jwt
 from extensions import db
-from models.models import User
-from middleware.login_guard import LoginGuard  # ✅ 新增
-from utils.errors import AuthenticationError    # ✅ 新增
+from models.models import AuditLog
 
-auth_bp = Blueprint("auth", __name__)
+logger = logging.getLogger(__name__)
+audit_bp = Blueprint("audit", __name__)
 
-# ... 保持现有代码 ...
 
-@auth_bp.post("/login")
-def login():
-    """登录端点 - 添加安全加固"""
-    data = request.get_json(silent=True) or {}
-    username = data.get("username", "").strip()
-    password = data.get("password", "")
-    
-    ip_address = request.remote_addr or 'unknown'
-    user_agent = request.user_agent.string or 'unknown'
+@audit_bp.get("/")
+@jwt_required()
+def list_audit_logs():
+    """获取审计日志列表（管理员）"""
+    claims = get_jwt()
+    if claims.get("role") != "admin":
+        return jsonify(msg="权限不足"), 403
 
-    if not username or not password:
-        return jsonify(msg="用户名和密码不能为空"), 400
+    page = request.args.get("page", 1, type=int)
+    per_page = min(request.args.get("per_page", 20, type=int), 100)
+    username = request.args.get("username")
+    action = request.args.get("action")
 
-    # ✅ 检查账户是否被锁定
-    try:
-        LoginGuard.check_login_allowed(username)
-    except AuthenticationError as e:
-        LoginGuard.record_login_attempt(username, False, ip_address, user_agent, request)
-        return jsonify(msg=str(e)), 429  # 429 = Too Many Requests
-    
-    _get_or_create_default_admin()
-    user = User.query.filter_by(username=username).first()
+    query = AuditLog.query.order_by(AuditLog.created_at.desc())
 
-    # 判断认证失败
-    if not user or not check_password_hash(user.password_hash, password):
-        # ✅ 记录失败尝试
-        LoginGuard.record_login_attempt(username, False, ip_address, user_agent, request)
-        return jsonify(msg="用户名或密码错误"), 401
+    if username:
+        query = query.filter(AuditLog.username.ilike(f"%{username}%"))
+    if action:
+        query = query.filter_by(action=action)
 
-    # ✅ 记录成功登录
-    LoginGuard.record_login_attempt(username, True, ip_address, user_agent, request)
-    
-    user.last_login = datetime.utcnow()
-    db.session.commit()
-
-    access = create_access_token(
-        identity=str(user.id),
-        additional_claims={"role": user.role}
-    )
-    refresh = create_refresh_token(identity=str(user.id))
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    logs = [log.to_dict() for log in pagination.items]
 
     return jsonify(
-        access_token=access,
-        refresh_token=refresh,
-        user=user.to_dict(),
-    ), 200  # ✅ 明确返回 200
+        logs=logs,
+        total=pagination.total,
+        page=page,
+        per_page=per_page,
+        pages=pagination.pages,
+    ), 200
 
-# ... 保持现有代码 ...
+
+@audit_bp.get("/<int:log_id>")
+@jwt_required()
+def get_audit_log(log_id):
+    """获取单条审计日志"""
+    claims = get_jwt()
+    if claims.get("role") != "admin":
+        return jsonify(msg="权限不足"), 403
+
+    log = AuditLog.query.get_or_404(log_id)
+    return jsonify(log=log.to_dict()), 200
