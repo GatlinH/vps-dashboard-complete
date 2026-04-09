@@ -34,7 +34,11 @@ def _register_request_logger(app: Flask):
 
     @app.after_request
     def _after(response):
-        latency_ms = round((time.monotonic() - getattr(g, "_req_start", time.monotonic())) * 1000, 1)
+        start = getattr(g, "_req_start", None)
+        if start is not None:
+            latency_ms = round((time.monotonic() - start) * 1000, 1)
+        else:
+            latency_ms = -1
         # 跳过健康检查路径，减少日志噪声
         if request.path != "/health":
             logger.info(

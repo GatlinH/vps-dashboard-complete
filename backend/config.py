@@ -29,7 +29,7 @@ def _validate_production_secrets():
     errors = []
 
     secret_key = os.getenv("SECRET_KEY", _WEAK_SECRET_KEY)
-    if secret_key in (_WEAK_SECRET_KEY, "", "change-me-in-production"):
+    if secret_key in (_WEAK_SECRET_KEY, "", "change-me-in-production", "change-me-in-production-32chars!"):
         errors.append(
             "SECRET_KEY 仍为弱默认值。请在 .env 中设置长度 ≥ 32 的随机字符串。"
         )
