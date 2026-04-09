@@ -5,6 +5,8 @@ import os
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+import fakeredis
+import extensions
 from app import create_app
 from extensions import db as _db
 from models.models import User, Server
@@ -25,6 +27,19 @@ _TEST_CONFIG = {
 def app():
     """创建测试应用实例"""
     application = create_app(**_TEST_CONFIG)
+
+    # 用 fakeredis 替换真实 Redis，避免测试环境依赖
+    fake_redis = fakeredis.FakeRedis(decode_responses=True)
+    extensions.redis_client = fake_redis
+
+    # 由于各模块用 `from extensions import redis_client` 在导入时绑定了局部引用，
+    # 需要同时更新这些模块中的局部引用，才能让缓存等功能在测试中正常工作。
+    import api.servers as _servers_mod
+    import api.probe as _probe_mod
+    import middleware.login_guard as _login_guard_mod
+    _servers_mod.redis_client = fake_redis
+    _probe_mod.redis_client = fake_redis
+    _login_guard_mod.redis_client = fake_redis
 
     with application.app_context():
         _db.create_all()
@@ -60,38 +75,36 @@ def reset_db(app):
 @pytest.fixture
 def test_user(app):
     """创建 testuser 测试用户"""
-    with app.app_context():
-        user = User(
-            username='testuser',
-            password_hash=generate_password_hash('password123'),
-            role='admin',
-        )
-        _db.session.add(user)
-        _db.session.commit()
-        return user
+    user = User(
+        username='testuser',
+        password_hash=generate_password_hash('password123'),
+        role='admin',
+    )
+    _db.session.add(user)
+    _db.session.commit()
+    return user
 
 
 @pytest.fixture
-def test_server(app, test_user):
+def test_server(app):
     """创建测试服务器"""
-    with app.app_context():
-        server = Server(
-            name='Test Server',
-            group_name='Test Group',
-            ip='192.168.1.1',
-            cpu_cores=4,
-            ram_gb=8.0,
-            disk_gb=100,
-            price=100.0,
-            period='monthly',
-            status='online',
-            cpu_use=50.0,
-            ram_use=60.0,
-            disk_use=70.0,
-        )
-        _db.session.add(server)
-        _db.session.commit()
-        return server
+    server = Server(
+        name='Test Server',
+        group_name='Test Group',
+        ip='192.168.1.1',
+        cpu_cores=4,
+        ram_gb=8.0,
+        disk_gb=100,
+        price=100.0,
+        period='monthly',
+        status='online',
+        cpu_use=50.0,
+        ram_use=60.0,
+        disk_use=70.0,
+    )
+    _db.session.add(server)
+    _db.session.commit()
+    return server
 
 
 @pytest.fixture

@@ -5,8 +5,8 @@
 添加关键索引和分区策略
 """
 from datetime import datetime, date
+from sqlalchemy import BigInteger, Integer
 from extensions import db
-from sqlalchemy.dialects.mysql import BIGINT
 from models.audit_log import AuditLog  # re-export for backward compatibility
 
 class User(db.Model):
@@ -135,7 +135,7 @@ class ProbeResult(db.Model):
     """探针结果历史 - 按日期分区"""
     __tablename__ = "probe_results"
     
-    id = db.Column(BIGINT, primary_key=True)
+    id = db.Column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
     server_id = db.Column(db.Integer, db.ForeignKey("servers.id", ondelete="CASCADE"), nullable=False, index=True)
     
     # 指标数据

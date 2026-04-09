@@ -2,12 +2,17 @@
 import logging
 from flask import jsonify
 from werkzeug.exceptions import HTTPException
+from utils.errors import APIException
 
 logger = logging.getLogger(__name__)
 
 
 class ErrorHandler:
     def __init__(self, app):
+        @app.errorhandler(APIException)
+        def handle_api_exception(e):
+            return jsonify(success=False, error_code=e.error_code, message=e.message, details=e.details), e.status_code
+
         @app.errorhandler(400)
         def bad_request(e):
             return jsonify(success=False, error_code='BAD_REQUEST', message=str(e)), 400

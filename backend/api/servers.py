@@ -19,6 +19,7 @@ import logging
 from datetime import date, datetime, timedelta
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
+from werkzeug.exceptions import HTTPException
 from extensions import db, redis_client
 from models.models import Server, ProbeResult
 from utils.errors import (
@@ -289,6 +290,8 @@ def get_server(sid):
         logger.info(f"✓ 获取服务器详情: {sid}")
         return jsonify(server=d), 200
     
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ 获取服务器信息失败: {e}")
         raise InternalServerError("获取服务器信息失败", str(e))
