@@ -126,7 +126,7 @@ class TestProbe:
             )
 
             assert response.status_code == 200
-            assert server_id in response.get_json()['updated']
+            assert str(server_id) in response.get_json()['updated']
 
 
 class TestAlerts:
