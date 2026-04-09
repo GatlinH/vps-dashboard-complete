@@ -5,7 +5,7 @@ def test_login_success(client):
     """测试管理员登录成功"""
     response = client.post('/api/auth/login', json={
         'username': 'admin',
-        'password': 'admin123',
+        'password': 'TestAdmin@123456',
     })
     assert response.status_code == 200
     data = response.get_json()

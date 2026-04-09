@@ -5,6 +5,8 @@ import os
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+import fakeredis
+import extensions
 from app import create_app
 from extensions import db as _db
 from models.models import User, Server
@@ -18,6 +20,7 @@ _TEST_CONFIG = {
     'REDIS_URL': 'redis://localhost:6379/15',
     'WTF_CSRF_ENABLED': False,
     'FORCE_HTTPS': False,
+    'ADMIN_DEFAULT_PASSWORD': 'TestAdmin@123456',
 }
 
 
@@ -25,6 +28,10 @@ _TEST_CONFIG = {
 def app():
     """创建测试应用实例"""
     application = create_app(**_TEST_CONFIG)
+
+    # 用 fakeredis 替换真实 Redis，避免测试环境依赖外部 Redis 服务
+    fake_redis = fakeredis.FakeRedis(decode_responses=True)
+    extensions.redis_client = fake_redis
 
     with application.app_context():
         _db.create_all()
@@ -41,13 +48,18 @@ def client(app):
 
 @pytest.fixture(autouse=True)
 def reset_db(app):
-    """每个测试前重置数据库，确保 admin 用户存在"""
+    """每个测试前重置数据库，确保 admin 用户存在；同时清空 Redis 缓存"""
     with app.app_context():
         _db.create_all()
+        # 清空 Redis 缓存，避免跨测试缓存污染
+        try:
+            extensions.redis_client.flushdb()
+        except Exception:
+            pass
         if not User.query.filter_by(username='admin').first():
             admin = User(
                 username='admin',
-                password_hash=generate_password_hash('admin123'),
+                password_hash=generate_password_hash('TestAdmin@123456'),
                 role='admin',
             )
             _db.session.add(admin)
@@ -68,14 +80,14 @@ def test_user(app):
         )
         _db.session.add(user)
         _db.session.commit()
-        # expunge 后对象可在 session 外安全访问（只读已加载的属性）
+        _db.session.refresh(user)
         _db.session.expunge(user)
         yield user
 
 
 @pytest.fixture
 def test_server(app, test_user):
-    """创建测试服务器"""
+    """创建测试服务器，返回服务器 ID（整数）"""
     with app.app_context():
         server = Server(
             name='Test Server',
@@ -93,10 +105,8 @@ def test_server(app, test_user):
         )
         _db.session.add(server)
         _db.session.commit()
-        # 刷新以确保所有列（包括 id）已加载，再 expunge
-        _db.session.refresh(server)
-        _db.session.expunge(server)
-        yield server
+        server_id = server.id
+        yield server_id
 
 
 @pytest.fixture

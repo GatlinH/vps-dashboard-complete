@@ -1,3 +1,12 @@
+"""扩展服务器 API 测试"""
+from datetime import datetime, timedelta
+from unittest.mock import patch, MagicMock
+
+from extensions import db
+from models.models import ProbeResult
+
+
+class TestServersExtended:
     def test_server_list_with_cache(self, client, auth_headers, test_server):
         """测试服务器列表缓存"""
         # test_server 现在是 int ID，直接使用
@@ -88,7 +97,7 @@ class TestProbe:
 
         assert response.status_code == 200
         data = response.get_json()
-        assert server_id in data['results']
+        assert str(server_id) in data['results']
 
     def test_probe_fetch(self, client, auth_headers, test_server, app):
         """测试探针数据抓取"""

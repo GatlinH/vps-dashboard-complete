@@ -6,7 +6,6 @@
 """
 from datetime import datetime, date
 from extensions import db
-from sqlalchemy.dialects.mysql import BIGINT
 from models.audit_log import AuditLog  # re-export for backward compatibility
 
 class User(db.Model):
@@ -86,7 +85,7 @@ class Server(db.Model):
         db.Index('idx_updated_at', 'updated_at'),
     )
     
-    def to_dict(self, include_metrics=True):
+    def to_dict(self, include_metrics=True, public_only=False):
         d = dict(
             id=self.id,
             name=self.name,
@@ -121,6 +120,12 @@ class Server(db.Model):
                 updated_at=self.updated_at.isoformat(),
             ))
         
+        if public_only:
+            for key in ("ip", "probe", "note", "price", "expiry",
+                        "traffic_limit_gb", "traffic_up_gb", "traffic_down_gb",
+                        "traffic_used_gb", "traffic_reset_day"):
+                d.pop(key, None)
+        
         return d
 
 
@@ -128,7 +133,7 @@ class ProbeResult(db.Model):
     """探针结果历史 - 按日期分区"""
     __tablename__ = "probe_results"
     
-    id = db.Column(BIGINT, primary_key=True)
+    id = db.Column(db.BigInteger().with_variant(db.Integer, 'sqlite'), primary_key=True, autoincrement=True)
     server_id = db.Column(db.Integer, db.ForeignKey("servers.id", ondelete="CASCADE"), nullable=False, index=True)
     
     # 指标数据
