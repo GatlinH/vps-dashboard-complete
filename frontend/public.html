@@ -2949,7 +2949,8 @@ setInterval(() => {
     renderTrafficTable();
   }
 }, 3000);
-//-- 新的：引入现代化模块 --
+</script>
+<!-- 引入现代化模块 -->
 <script type="module">
     import app from './app.js';
 
@@ -3029,7 +3030,7 @@ setInterval(() => {
   if (savedCss) injectCustomCSS(savedCss);
 })();
 </script>
-//-- index.html 末尾，</body> 前 --
+<!-- 模块初始化 -->
 <script type="module">
     import app from './app.js';
     import { ChartManager } from './charts.js';

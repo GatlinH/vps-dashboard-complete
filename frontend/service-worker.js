@@ -46,12 +46,15 @@ self.addEventListener('install', (event) => {
         caches.open(CACHE_NAME)
             .then(cache => {
                 console.log('[SW] Caching public static assets');
-                // 使用 addAll 批量预缓存；忽略单个资源的失败
                 return Promise.allSettled(
-                    STATIC_ASSETS.map(url => cache.add(url).catch(err => {
-                        console.warn(`[SW] Failed to cache ${url}:`, err);
-                    }))
-                );
+                    STATIC_ASSETS.map(url => cache.add(url))
+                ).then(results => {
+                    results.forEach((r, i) => {
+                        if (r.status === 'rejected') {
+                            console.warn(`[SW] Failed to cache ${STATIC_ASSETS[i]}:`, r.reason);
+                        }
+                    });
+                });
             })
             .then(() => self.skipWaiting())
     );

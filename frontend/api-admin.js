@@ -53,9 +53,7 @@ async function adminFetch(path, opts = {}) {
     if (resp.status === 401 || resp.status === 403) {
         // 令牌失效或权限不足 → 清理状态并跳转登录
         clearToken();
-        if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('admin:unauthorized', { detail: { status: resp.status } }));
-        }
+        window.dispatchEvent(new CustomEvent('admin:unauthorized', { detail: { status: resp.status } }));
         const err = new Error(`HTTP ${resp.status}`);
         err.status = resp.status;
         throw err;
