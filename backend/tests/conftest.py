@@ -1,31 +1,4 @@
 """测试配置和 fixtures"""
-# 在文件顶部添加
-from sqlalchemy.orm import make_transient
-
-@pytest.fixture
-def test_server(app, test_user):
-    """创建测试服务器"""
-    with app.app_context():
-        server = Server(
-            name='Test Server',
-            group_name='Test Group',
-            ip='192.168.1.1',
-            cpu_cores=4,
-            ram_gb=8.0,
-            disk_gb=100,
-            price=100.0,
-            period='monthly',
-            status='online',
-            cpu_use=50.0,
-            ram_use=60.0,
-            disk_use=70.0,
-        )
-        _db.session.add(server)
-        _db.session.commit()
-        _db.session.refresh(server)   # ← 强制立即加载所有列
-        _db.session.expunge(server)   # ← 从 Session 中分离
-        make_transient(server)        # ← 标记为 transient，允许离线访问属性
-        return server
 import pytest
 import sys
 import os
@@ -66,24 +39,27 @@ def client(app):
     return app.test_client()
 
 
-@pytest.fixture
-def auth_headers(client, reset_db):  # ← 明确依赖 reset_db，确保 admin 存在
-    """获取 admin 的认证头（使用 reset_db 已保证 admin 存在）"""
-    response = client.post('/api/auth/login', json={
-        'username': 'admin',        # ← 改用 reset_db 保证存在的 admin
-        'password': 'admin123',     # ← reset_db 中用的密码
-    })
-    json_data = response.get_json()
-    assert 'access_token' in json_data, (
-        f"登录失败，响应：{json_data}（状态码 {response.status_code}）"
-    )
-    token = json_data['access_token']
-    return {'Authorization': f'Bearer {token}'}
+@pytest.fixture(autouse=True)
+def reset_db(app):
+    """每个测试前重置数据库，确保 admin 用户存在"""
+    with app.app_context():
+        _db.create_all()
+        if not User.query.filter_by(username='admin').first():
+            admin = User(
+                username='admin',
+                password_hash=generate_password_hash('admin123'),
+                role='admin',
+            )
+            _db.session.add(admin)
+            _db.session.commit()
+        yield
+        _db.session.remove()
+        _db.drop_all()
 
 
 @pytest.fixture
 def test_user(app):
-    """创建 testuser 测试用户"""
+    """创建 testuser 测试用户，返回 ID"""
     with app.app_context():
         user = User(
             username='testuser',
@@ -92,12 +68,12 @@ def test_user(app):
         )
         _db.session.add(user)
         _db.session.commit()
-        return user
+        return user.id  # ✅ 只返回 ID，避免 DetachedInstanceError
 
 
 @pytest.fixture
 def test_server(app, test_user):
-    """创建测试服务器"""
+    """创建测试服务器，返回 ID"""
     with app.app_context():
         server = Server(
             name='Test Server',
@@ -115,15 +91,26 @@ def test_server(app, test_user):
         )
         _db.session.add(server)
         _db.session.commit()
-        return server
+        return server.id  # ✅ 只返回 ID，避免 DetachedInstanceError
 
 
 @pytest.fixture
-def auth_headers(client, test_user):
-    """获取 testuser 的认证头"""
+def auth_headers(client, app):
+    """获取 testuser 的认证头（在 fixture 内创建用户，避免依赖 test_user 生命周期）"""
+    with app.app_context():
+        if not User.query.filter_by(username='testuser').first():
+            user = User(
+                username='testuser',
+                password_hash=generate_password_hash('password123'),
+                role='admin',
+            )
+            _db.session.add(user)
+            _db.session.commit()
+
     response = client.post('/api/auth/login', json={
         'username': 'testuser',
         'password': 'password123',
     })
-    token = response.get_json()['access_token']
-    return {'Authorization': f'Bearer {token}'}
+    data = response.get_json()
+    assert 'access_token' in data, f"Login failed, response: {data}"  # ✅ 明确断言，方便调试
+    return {'Authorization': f'Bearer {data["access_token"]}'}
