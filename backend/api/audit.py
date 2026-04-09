@@ -28,7 +28,8 @@ def list_audit_logs():
     query = AuditLog.query.order_by(AuditLog.created_at.desc())
 
     if username:
-        query = query.filter(AuditLog.username.ilike(f"%{username}%"))
+        safe_username = username.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        query = query.filter(AuditLog.username.ilike(f"%{safe_username}%", escape="\\"))
     if action:
         query = query.filter_by(action=action)
 
