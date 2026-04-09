@@ -45,6 +45,7 @@ class LoginGuard:
                             user_agent: str, request_obj) -> dict:
         """记录登录尝试"""
         attempt_key = f"login:attempts:{username}"
+        current = 0
         
         if not success:
             # 记录失败尝试
@@ -84,7 +85,7 @@ class LoginGuard:
         
         return {
             'success': success,
-            'attempts': current if not success else 0,
+            'attempts': current,
             'locked': False,
         }
     

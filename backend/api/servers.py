@@ -18,7 +18,7 @@ import json
 import logging
 from datetime import date, datetime, timedelta
 from flask import Blueprint, request, jsonify, current_app
-from flask_jwt_extended import jwt_required, get_jwt
+from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from extensions import db, redis_client
 from models.models import Server, ProbeResult
 from utils.errors import (
@@ -89,6 +89,7 @@ def _set_cached_list(data, ttl=CACHE_TTL):
 # ===== API 路由 =====
 
 @servers_bp.get("/")
+@jwt_required(optional=True)
 def list_servers():
     """
     获取所有服务器列表
@@ -116,21 +117,28 @@ def list_servers():
         "timestamp": "2026-04-08T10:30:00"
       }
     
+    鉴权：
+      - 已登录用户：返回完整数据（含 ip、probe、note、price 等敏感字段）
+      - 未登录访客：返回脱敏数据（敏感字段已剔除）
+    
     缓存：
-      - 缓存命中时返回 from_cache=true
+      - 仅对已登录用户缓存
       - 15 秒过期
       - 修改操作后自动清除
     """
+    is_authenticated = get_jwt_identity() is not None
+    public_only = not is_authenticated
     try:
-        # 1️⃣ 尝试从缓存读取
-        cached = _get_cached_list()
-        if cached:
-            return jsonify(
-                servers=cached,
-                from_cache=True,
-                count=len(cached),
-                timestamp=datetime.utcnow().isoformat(),
-            ), 200
+        # 1️⃣ 尝试从缓存读取（仅限已登录用户）
+        if is_authenticated:
+            cached = _get_cached_list()
+            if cached:
+                return jsonify(
+                    servers=cached,
+                    from_cache=True,
+                    count=len(cached),
+                    timestamp=datetime.utcnow().isoformat(),
+                ), 200
         
         # 2️⃣ 从数据库查询
         query = Server.query
@@ -186,14 +194,19 @@ def list_servers():
         
         # 3️⃣ 构建响应数据
         for s in servers:
-            d = s.to_dict()
+            d = s.to_dict(public_only=public_only)
             
             # 尝试从 Redis 获取实时指标
             try:
                 metrics_json = redis_client.get(_metrics_key(s.id))
                 if metrics_json:
                     metrics = json.loads(metrics_json)
-                    # 合并实时指标到响应
+                    # 合并实时指标到响应（访客模式下过滤敏感指标字段）
+                    if public_only:
+                        sensitive = {'traffic_limit_gb', 'traffic_up_gb',
+                                     'traffic_down_gb', 'traffic_used_gb'}
+                        metrics = {k: v for k, v in metrics.items()
+                                   if k not in sensitive}
                     d.update(metrics)
                     d['has_realtime_metrics'] = True
             except Exception as e:
@@ -202,8 +215,9 @@ def list_servers():
             
             result.append(d)
         
-        # 4️⃣ 缓存结果
-        _set_cached_list(result)
+        # 4️⃣ 缓存结果（仅限已登录用户）
+        if is_authenticated:
+            _set_cached_list(result)
         
         logger.info(f"✓ 返回 {len(result)} 台服务器（从数据库）")
         
@@ -222,6 +236,7 @@ def list_servers():
 
 
 @servers_bp.get("/<int:sid>")
+@jwt_required(optional=True)
 def get_server(sid):
     """
     获取单个服务器详情
@@ -239,16 +254,27 @@ def get_server(sid):
           ...
         }
       }
+    
+    鉴权：
+      - 已登录用户：返回完整数据（含敏感字段）
+      - 未登录访客：返回脱敏数据
     """
+    is_authenticated = get_jwt_identity() is not None
+    public_only = not is_authenticated
     try:
         s = Server.query.get_or_404(sid)
-        d = s.to_dict()
+        d = s.to_dict(public_only=public_only)
         
         # 获取实时指标
         try:
             metrics_json = redis_client.get(_metrics_key(sid))
             if metrics_json:
                 metrics = json.loads(metrics_json)
+                if public_only:
+                    sensitive = {'traffic_limit_gb', 'traffic_up_gb',
+                                 'traffic_down_gb', 'traffic_used_gb'}
+                    metrics = {k: v for k, v in metrics.items()
+                               if k not in sensitive}
                 d.update(metrics)
                 d['has_realtime_metrics'] = True
         except Exception as e:

@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VPS 星图 · 管理后台</title>
+  <style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+  :root {
+    --bg: #070b14;
+    --bg2: #0d1525;
+    --bg3: #111d33;
+    --card: rgba(13,21,37,0.92);
+    --border: rgba(99,179,237,0.15);
+    --border2: rgba(99,179,237,0.3);
+    --accent: #63b3ed;
+    --accent2: #4fc3f7;
+    --gold: #f6c90e;
+    --green: #38ef7d;
+    --red: #ff6b6b;
+    --orange: #ff9f43;
+    --purple: #a78bfa;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --text3: #64748b;
+    --mono: 'Space Mono', monospace;
+    --sans: 'Noto Sans SC', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ===== ADMIN NAV ===== */
+  .admin-nav {
+    height: 56px; background: rgba(7,11,20,.95);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 0;
+    padding: 0 2rem; flex-shrink: 0;
+  }
+  .admin-nav-logo {
+    font-family: var(--mono); font-size: 14px; font-weight: 700;
+    color: var(--gold); letter-spacing: 2px; margin-right: 2rem;
+  }
+  .admin-tabs { display: flex; gap: 0; flex: 1; }
+  .admin-tab {
+    padding: 0 1.1rem; height: 56px; display: flex; align-items: center; gap: 6px;
+    font-size: 13px; color: var(--text2); cursor: pointer;
+    border: none; background: none; border-bottom: 2px solid transparent;
+    transition: all .2s; font-family: var(--sans);
+  }
+  .admin-tab:hover { color: var(--text); }
+  .admin-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+  .admin-back {
+    padding: 6px 14px; border-radius: 8px;
+    background: var(--bg3); border: 1px solid var(--border);
+    color: var(--text2); font-size: 12px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    margin-left: auto;
+  }
+  .admin-back:hover { color: var(--text); }
+
+  .admin-body { flex: 1; overflow-y: auto; padding: 2rem; }
+  .admin-page { display: none; max-width: 900px; margin: 0 auto; }
+  .admin-page.active { display: block; }
+
+  .admin-section-title {
+    font-size: 11px; color: var(--text3); letter-spacing: 2px;
+    text-transform: uppercase; margin-bottom: 1.25rem;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .admin-section-title::before { content:''; width:20px; height:2px; background:var(--gold); display:block; }
+
+  .admin-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 1.5rem; margin-bottom: 1.25rem;
+  }
+  .admin-card-title {
+    font-size: 14px; font-weight: 700; color: var(--text);
+    margin-bottom: 1rem; padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  /* ===== FORMS ===== */
+  .form-group { margin-bottom: 14px; }
+  .form-label { font-size: 11px; color: var(--text3); letter-spacing: .5px; margin-bottom: 5px; display: block; }
+  .form-input {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px;
+    font-size: 13px; color: var(--text); font-family: var(--mono);
+    outline: none; transition: border-color .2s;
+  }
+  .form-input:focus { border-color: var(--accent); }
+
+  .add-btn {
+    padding: 7px 18px; border-radius: 8px;
+    background: var(--accent); color: #000;
+    border: none; font-size: 13px; font-weight: 700;
+    cursor: pointer; white-space: nowrap;
+    transition: opacity .2s;
+  }
+  .add-btn:hover { opacity: .85; }
+
+  /* ===== TOGGLE ===== */
+  .toggle-switch { position:relative;display:inline-block;width:36px;height:20px;cursor:pointer; }
+  .toggle-switch input { opacity:0;width:0;height:0; }
+  .toggle-slider {
+    position:absolute;inset:0;background:var(--bg);border:1px solid var(--border2);
+    border-radius:20px;transition:.2s;
+  }
+  .toggle-slider::before {
+    content:'';position:absolute;width:14px;height:14px;left:2px;top:2px;
+    background:var(--text3);border-radius:50%;transition:.2s;
+  }
+  .toggle-switch input:checked + .toggle-slider { background:rgba(99,179,237,.2);border-color:var(--accent); }
+  .toggle-switch input:checked + .toggle-slider::before { background:var(--accent);transform:translateX(16px); }
+
+  /* ===== PING TOOL ===== */
+  .ping-server-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr));
+    gap: 10px; margin-bottom: 14px;
+  }
+  .ping-server-item {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; cursor: pointer;
+    transition: border-color .2s;
+  }
+  .ping-server-item:hover { border-color: var(--border2); }
+  .ping-server-item.selected { border-color: var(--accent); background: rgba(99,179,237,.06); }
+  .ping-badge-ms {
+    margin-left: auto; font-family: var(--mono); font-size: 11px;
+    padding: 2px 8px; border-radius: 6px;
+  }
+  .ping-result {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1rem; margin-top: 12px;
+    font-family: var(--mono); font-size: 12px; max-height: 280px; overflow-y: auto;
+  }
+  .ping-line { padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+  .ping-line:last-child { border: none; }
+  .ping-ok { color: var(--green); }
+  .ping-fail { color: var(--red); }
+  .ping-warn { color: var(--orange); }
+  .ping-info { color: var(--accent); }
+
+  /* ===== TELEGRAM ===== */
+  .tg-status {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; padding: 10px 14px;
+    border-radius: 8px; margin-bottom: 12px;
+  }
+  .tg-connected { background: rgba(56,239,125,.08); color: var(--green); border: 1px solid rgba(56,239,125,.2); }
+  .tg-disconnected { background: rgba(255,107,107,.08); color: var(--red); border: 1px solid rgba(255,107,107,.2); }
+  .tg-alert-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .tg-alert-item {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  /* ===== THEME ===== */
+  .theme-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(180px,1fr)); gap: 10px; margin-bottom: 14px; }
+  .theme-preset {
+    border: 2px solid var(--border); border-radius: 10px;
+    padding: 12px; cursor: pointer; transition: border-color .2s;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .theme-preset:hover { border-color: var(--border2); }
+  .theme-preset.active { border-color: var(--gold); }
+  .theme-swatch { display: flex; gap: 4px; }
+  .swatch { width: 18px; height: 18px; border-radius: 4px; }
+  .theme-name { font-size: 12px; color: var(--text2); }
+
+  /* ===== CSS EDITOR ===== */
+  .css-editor {
+    width: 100%; min-height: 220px; background: var(--bg3);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; font-family: var(--mono); font-size: 12px;
+    color: var(--text); resize: vertical; outline: none;
+    line-height: 1.6; transition: border-color .2s;
+  }
+  .css-editor:focus { border-color: var(--accent); }
+  .var-sliders { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .var-row { display: flex; flex-direction: column; gap: 4px; }
+  .var-row label { font-size: 11px; color: var(--text3); display: flex; justify-content: space-between; }
+  .var-row input[type=color] {
+    width: 100%; height: 36px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--bg3);
+    cursor: pointer; padding: 2px 4px;
+  }
+
+  /* ===== SCROLLBAR ===== */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* ===== AUTH LOADING OVERLAY ===== */
+  #authOverlay {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 999; font-family: var(--mono); color: var(--text3); font-size: 14px;
+  }
+  </style>
+</head>
+<body>
+
+<!-- Auth check overlay shown while verifying token -->
+<div id="authOverlay">验证登录状态...</div>
+
+<!-- ===== ADMIN NAV ===== -->
+<div class="admin-nav">
+  <div class="admin-nav-logo">⚙ 管理后台</div>
+  <div class="admin-tabs">
+    <button class="admin-tab active" onclick="switchAdminTab('servers')">🖥 添加服务器</button>
+    <button class="admin-tab" onclick="switchAdminTab('ping')">📶 TCP Ping</button>
+    <button class="admin-tab" onclick="switchAdminTab('telegram')">✈ Telegram</button>
+    <button class="admin-tab" onclick="switchAdminTab('theme')">🎨 界面主题</button>
+  </div>
+  <button class="admin-back" onclick="window.location.href='/'">← 返回前台</button>
+</div>
+
+<div class="admin-body">
+
+  <!-- ===== ADD SERVER TAB ===== -->
+  <div id="adminTab-servers" class="admin-page active">
+    <div class="admin-section-title">服务器管理</div>
+
+    <!-- Quick add from monitor -->
+    <div class="admin-card">
+      <div class="admin-card-title">🔗 从监控 VPS 快速导入</div>
+      <div id="adminServerList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin-bottom:14px"></div>
+      <div style="font-size:12px;color:var(--text3)">点击卡片选中，填写价格信息后保存</div>
+    </div>
+
+    <!-- Manual add form -->
+    <div class="admin-card">
+      <div class="admin-card-title">✏️ 手动添加 / 编辑</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group"><label class="form-label">服务器名称 *</label><input class="form-input" id="as-name" placeholder="my-vps-01"></div>
+        <div class="form-group"><label class="form-label">分组</label><input class="form-input" id="as-group" placeholder="生产环境"></div>
+        <div class="form-group"><label class="form-label">旗帜 Emoji</label><input class="form-input" id="as-flag" placeholder="🇺🇸"></div>
+        <div class="form-group"><label class="form-label">IP 地址</label><input class="form-input" id="as-ip" placeholder="1.2.3.4"></div>
+        <div class="form-group"><label class="form-label">位置</label><input class="form-input" id="as-location" placeholder="美国洛杉矶"></div>
+        <div class="form-group"><label class="form-label">带宽</label><input class="form-input" id="as-bw" placeholder="1Gbps不限"></div>
+        <div class="form-group"><label class="form-label">CPU (核)</label><input class="form-input" id="as-cpu" type="number" placeholder="4"></div>
+        <div class="form-group"><label class="form-label">内存 (GB)</label><input class="form-input" id="as-ram" type="number" placeholder="8"></div>
+        <div class="form-group"><label class="form-label">存储 (GB)</label><input class="form-input" id="as-disk" type="number" placeholder="100"></div>
+        <div class="form-group"><label class="form-label">价格 (元) *</label><input class="form-input" id="as-price" type="number" placeholder="99"></div>
+        <div class="form-group"><label class="form-label">付费周期</label>
+          <select class="form-input" id="as-period">
+            <option value="monthly">月付</option>
+            <option value="yearly">年付</option>
+            <option value="quarterly">季付</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">到期日期</label><input class="form-input" id="as-expiry" type="date"></div>
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">探针 URL</label><input class="form-input" id="as-probe" placeholder="https://..."></div>
+        <div class="form-group" style="grid-column:1/-1"><label class="form-label">备注</label><input class="form-input" id="as-note" placeholder="这台机子用于..."></div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:1rem">
+        <button class="add-btn" onclick="adminAddServer()">确认添加</button>
+        <button onclick="clearAdminForm()" style="padding:8px 18px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:13px">清空</button>
+      </div>
+      <div id="as-msg" style="margin-top:8px;font-size:12px;min-height:18px"></div>
+    </div>
+
+    <!-- Existing server list -->
+    <div class="admin-card">
+      <div class="admin-card-title">📋 已有服务器</div>
+      <div id="adminExistingList"></div>
+    </div>
+  </div>
+
+  <!-- ===== PING TAB ===== -->
+  <div id="adminTab-ping" class="admin-page">
+    <div class="admin-section-title">TCP Ping &amp; IPv4 探测</div>
+
+    <div class="admin-card">
+      <div class="admin-card-title">🎯 选择探测目标</div>
+      <div class="ping-server-grid" id="pingServerGrid"></div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <label class="form-label">自定义 Host / IP</label>
+          <input class="form-input" id="pingCustomHost" placeholder="8.8.8.8 或 example.com">
+        </div>
+        <div style="width:100px">
+          <label class="form-label">端口</label>
+          <input class="form-input" id="pingPort" value="80" placeholder="80">
+        </div>
+        <div style="width:80px">
+          <label class="form-label">次数</label>
+          <input class="form-input" id="pingCount" value="5" type="number" min="1" max="20">
+        </div>
+        <button class="add-btn" onclick="runPing()" id="pingRunBtn">▶ 开始探测</button>
+      </div>
+    </div>
+
+    <div class="admin-card">
+      <div class="admin-card-title" style="justify-content:space-between">
+        <span>📊 探测结果</span>
+        <button onclick="clearPingResults()" style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer">清空</button>
+      </div>
+      <div id="pingResults">
+        <div style="color:var(--text3);font-size:13px;text-align:center;padding:2rem 0">选择目标后点击开始探测</div>
+      </div>
+    </div>
+
+    <!-- IPv4 info lookup -->
+    <div class="admin-card">
+      <div class="admin-card-title">🔍 IP 地址信息查询</div>
+      <div style="display:flex;gap:10px;margin-bottom:12px">
+        <input class="form-input" id="ipLookupInput" placeholder="输入 IP 地址，留空则查询本机" style="flex:1">
+        <button class="add-btn" onclick="lookupIP()">查询</button>
+      </div>
+      <div id="ipLookupResult" style="font-size:13px;color:var(--text3);text-align:center;padding:1rem 0">等待查询...</div>
+    </div>
+  </div>
+
+  <!-- ===== TELEGRAM TAB ===== -->
+  <div id="adminTab-telegram" class="admin-page">
+    <div class="admin-section-title">Telegram 机器人推送</div>
+
+    <div class="admin-card">
+      <div class="admin-card-title">🔑 机器人配置</div>
+      <div id="tgStatus" class="tg-status tg-disconnected">
+        <span>●</span> 未连接 — 请填写 Bot Token 和 Chat ID
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">Bot Token</label>
+          <input class="form-input" id="tgToken" placeholder="1234567890:ABCDEFGabcdefg..." type="password">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Chat ID</label>
+          <input class="form-input" id="tgChatId" placeholder="-100123456789 或 @username">
+        </div>
+        <div class="form-group">
+          <label class="form-label">消息模板前缀</label>
+          <input class="form-input" id="tgPrefix" placeholder="【VPS告警】" value="【VPS星图】">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button class="add-btn" onclick="saveTgConfig()">保存配置</button>
+        <button onclick="testTgMessage()" style="padding:8px 18px;border-radius:8px;background:rgba(99,179,237,.1);border:1px solid var(--border2);color:var(--accent);cursor:pointer;font-size:13px">发送测试消息</button>
+      </div>
+      <div id="tgMsg" style="margin-top:8px;font-size:12px;min-height:18px"></div>
+    </div>
+
+    <div class="admin-card">
+      <div class="admin-card-title">🔔 告警规则配置</div>
+      <div class="tg-alert-list">
+        <div class="tg-alert-item">
+          <span>CPU 使用率超过阈值</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input class="form-input" id="alertCpu" value="90" type="number" style="width:60px;padding:4px 8px">
+            <span style="font-size:12px;color:var(--text3)">%</span>
+            <label class="toggle-switch"><input type="checkbox" id="alertCpuOn" checked><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+        <div class="tg-alert-item">
+          <span>内存使用率超过阈值</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input class="form-input" id="alertRam" value="90" type="number" style="width:60px;padding:4px 8px">
+            <span style="font-size:12px;color:var(--text3)">%</span>
+            <label class="toggle-switch"><input type="checkbox" id="alertRamOn" checked><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+        <div class="tg-alert-item">
+          <span>服务器离线检测</span>
+          <label class="toggle-switch" style="margin-left:auto"><input type="checkbox" id="alertOffline" checked><span class="toggle-slider"></span></label>
+        </div>
+        <div class="tg-alert-item">
+          <span>到期前 7 天提醒</span>
+          <label class="toggle-switch" style="margin-left:auto"><input type="checkbox" id="alertExpiry" checked><span class="toggle-slider"></span></label>
+        </div>
+      </div>
+      <button class="add-btn" style="margin-top:12px" onclick="saveAlertRules()">保存告警规则</button>
+      <div id="alertMsg" style="margin-top:8px;font-size:12px;min-height:18px"></div>
+    </div>
+
+    <div class="admin-card">
+      <div class="admin-card-title">📤 手动推送</div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:10px">
+        <textarea class="form-input" id="tgManualMsg" style="resize:vertical;min-height:80px;font-family:var(--sans)" placeholder="输入要推送的消息内容..."></textarea>
+        <button class="add-btn" style="align-self:flex-end" onclick="sendManualTg()">推送</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== THEME TAB ===== -->
+  <div id="adminTab-theme" class="admin-page">
+    <div class="admin-section-title">前端界面主题</div>
+
+    <div class="admin-card">
+      <div class="admin-card-title">🎨 预设主题</div>
+      <div class="theme-grid" id="themePresets"></div>
+    </div>
+
+    <div class="admin-card">
+      <div class="admin-card-title">🖌 颜色变量调节</div>
+      <div class="var-sliders" id="colorSliders"></div>
+      <button class="add-btn" style="margin-top:14px" onclick="applyColorVars()">应用颜色</button>
+    </div>
+
+    <div class="admin-card">
+      <div class="admin-card-title">💻 自定义 CSS 注入</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px">直接编写 CSS 代码，实时注入到前台页面。支持覆盖任意样式变量和类。</div>
+      <textarea class="css-editor" id="customCssEditor" placeholder=":root {
+  --accent: #ff6b6b;
+  --bg: #0a0a0f;
+}
+
+.server-card {
+  border-radius: 20px;
+}"></textarea>
+      <div style="display:flex;gap:10px;margin-top:10px">
+        <button class="add-btn" onclick="applyCustomCSS()">▶ 实时预览</button>
+        <button onclick="saveCustomCSS()" style="padding:8px 18px;border-radius:8px;background:var(--bg3);border:1px solid var(--border2);color:var(--accent);cursor:pointer;font-size:13px">💾 保存</button>
+        <button onclick="resetCustomCSS()" style="padding:8px 18px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text3);cursor:pointer;font-size:13px">重置</button>
+      </div>
+      <div id="cssMsg" style="margin-top:8px;font-size:12px;min-height:18px"></div>
+    </div>
+  </div>
+
+</div><!-- admin-body -->
+
+<script>
+// ===== AUTH CHECK =====
+(async function checkAuth() {
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    window.location.href = '/';
+    return;
+  }
+  try {
+    const res = await fetch('/api/auth/me', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) {
+      localStorage.removeItem('authToken');
+      window.location.href = '/';
+      return;
+    }
+  } catch (e) {
+    // Network error - still allow access if token exists
+    console.warn('Auth check failed:', e);
+  }
+  document.getElementById('authOverlay').style.display = 'none';
+  initAdmin();
+})();
+
+// ===== DATA =====
+let servers = JSON.parse(localStorage.getItem('vps_servers') || '[]');
+
+// ===== INIT =====
+function initAdmin() {
+  renderAdminServerList();
+  renderAdminExistingList();
+  renderPingServerGrid();
+  renderThemePresets();
+  renderColorSliders();
+  loadTgConfig();
+  loadCustomCSSEditor();
+  document.getElementById('as-expiry').value = new Date(Date.now()+365*86400000).toISOString().split('T')[0];
+  // Apply saved theme
+  const savedThemeIdx = parseInt(localStorage.getItem('vps_theme_idx') || '0');
+  if (THEMES[savedThemeIdx]) {
+    const root = document.documentElement;
+    Object.entries(THEMES[savedThemeIdx].vars).forEach(([k, v]) => root.style.setProperty(k, v));
+  }
+  // Apply saved custom CSS
+  const savedCSS = localStorage.getItem('vps_custom_css');
+  if (savedCSS) injectCustomCSS(savedCSS);
+}
+
+// ===== TAB SWITCHING =====
+function switchAdminTab(tab) {
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.admin-page').forEach(p => p.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  document.getElementById('adminTab-' + tab).classList.add('active');
+}
+
+// ===== SERVER LIST =====
+function renderAdminServerList() {
+  const el = document.getElementById('adminServerList');
+  el.innerHTML = servers.map(s => `
+    <div class="ping-server-item" onclick="adminFillFromServer(${s.id})" title="点击填入表单">
+      <span style="font-size:18px">${s.flag}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;color:var(--text);font-weight:600">${s.name}</div>
+        <div style="font-size:11px;color:var(--text3);font-family:var(--mono)">${s.ip || ''} · ${s.location}</div>
+      </div>
+      <div style="font-size:10px;padding:2px 8px;border-radius:6px;background:${s.status==='online'?'rgba(56,239,125,.12)':s.status==='warn'?'rgba(255,159,67,.12)':'rgba(255,107,107,.12)'};color:${s.status==='online'?'var(--green)':s.status==='warn'?'var(--orange)':'var(--red)'}">
+        ${s.status==='online'?'在线':s.status==='warn'?'预警':'离线'}
+      </div>
+    </div>
+  `).join('');
+}
+
+function adminFillFromServer(id) {
+  const s = servers.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('as-name').value = s.name;
+  document.getElementById('as-group').value = s.group;
+  document.getElementById('as-flag').value = s.flag;
+  document.getElementById('as-ip').value = s.ip || '';
+  document.getElementById('as-location').value = s.location;
+  document.getElementById('as-bw').value = s.bw;
+  document.getElementById('as-cpu').value = s.cpu;
+  document.getElementById('as-ram').value = s.ram;
+  document.getElementById('as-disk').value = s.disk;
+  document.getElementById('as-probe').value = s.probe || '';
+  document.getElementById('as-price').value = s.price || '';
+  document.getElementById('as-period').value = s.period || 'monthly';
+  document.getElementById('as-expiry').value = s.expiry || '';
+  document.getElementById('as-note').value = s.note || '';
+  ['as-ip','as-location','as-bw','as-cpu','as-ram','as-disk'].forEach(fid => {
+    const el = document.getElementById(fid);
+    if (el) { el.style.borderColor = 'var(--green)'; setTimeout(() => el.style.borderColor = '', 1200); }
+  });
+  document.getElementById('as-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function adminAddServer() {
+  const name = document.getElementById('as-name').value.trim();
+  const price = parseFloat(document.getElementById('as-price').value);
+  if (!name) { showMsg('as-msg', '请填写服务器名称', 'red'); return; }
+  const newS = {
+    id: Date.now(),
+    name,
+    group: document.getElementById('as-group').value || '默认分组',
+    flag: document.getElementById('as-flag').value || '🌐',
+    location: document.getElementById('as-location').value || '未知',
+    ip: document.getElementById('as-ip').value || '',
+    bw: document.getElementById('as-bw').value || '不限',
+    cpu: parseInt(document.getElementById('as-cpu').value) || 1,
+    ram: parseFloat(document.getElementById('as-ram').value) || 1,
+    disk: parseInt(document.getElementById('as-disk').value) || 20,
+    cpu_use: 0, ram_use: 0, disk_use: 0, net_up: 0, net_down: 0,
+    status: 'unknown', uptime: '—',
+    price: price || 0,
+    period: document.getElementById('as-period').value,
+    expiry: document.getElementById('as-expiry').value,
+    note: document.getElementById('as-note').value || '',
+    probe: document.getElementById('as-probe').value || '',
+    traffic_limit_gb: 0, traffic_used_gb: 0,
+    traffic_up_gb: 0, traffic_down_gb: 0,
+    traffic_reset_day: 1,
+  };
+  servers.push(newS);
+  localStorage.setItem('vps_servers', JSON.stringify(servers));
+  renderAdminExistingList();
+  renderAdminServerList();
+  showMsg('as-msg', `✅ 已添加 "${name}"`, 'green');
+  clearAdminForm();
+}
+
+function clearAdminForm() {
+  ['as-name','as-group','as-flag','as-ip','as-location','as-bw','as-cpu','as-ram','as-disk','as-price','as-probe','as-note'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+}
+
+function renderAdminExistingList() {
+  const el = document.getElementById('adminExistingList');
+  if (!el) return;
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead><tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:6px 8px;color:var(--text3)">名称</td>
+      <td style="padding:6px 8px;color:var(--text3)">位置</td>
+      <td style="padding:6px 8px;color:var(--text3)">规格</td>
+      <td style="padding:6px 8px;color:var(--text3)">状态</td>
+      <td style="padding:6px 8px;color:var(--text3)">操作</td>
+    </tr></thead>
+    <tbody>${servers.map(s => `<tr style="border-bottom:1px solid rgba(255,255,255,.04)">
+      <td style="padding:6px 8px;color:var(--text)">${s.flag} ${s.name}</td>
+      <td style="padding:6px 8px;color:var(--text2);font-size:12px">${s.location}</td>
+      <td style="padding:6px 8px;color:var(--text3);font-family:var(--mono);font-size:11px">${s.cpu}C/${s.ram}G/${s.disk}G</td>
+      <td style="padding:6px 8px"><span style="font-size:11px;padding:2px 8px;border-radius:6px;background:${s.status==='online'?'rgba(56,239,125,.12)':'rgba(255,107,107,.12)'};color:${s.status==='online'?'var(--green)':'var(--red)'}">${s.status==='online'?'在线':'离线/预警'}</span></td>
+      <td style="padding:6px 8px"><button onclick="deleteServer(${s.id})" style="font-size:11px;padding:3px 10px;border-radius:6px;background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.2);color:var(--red);cursor:pointer">删除</button></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function deleteServer(id) {
+  if (!confirm('确认删除该服务器？')) return;
+  servers = servers.filter(s => s.id !== id);
+  localStorage.setItem('vps_servers', JSON.stringify(servers));
+  renderAdminExistingList();
+  renderAdminServerList();
+}
+
+// ===== PING TOOL =====
+let pingTargets = new Set();
+
+function renderPingServerGrid() {
+  const el = document.getElementById('pingServerGrid');
+  if (!el) return;
+  el.innerHTML = servers.map(s => `
+    <div class="ping-server-item" id="ping-item-${s.id}" onclick="togglePingTarget(${s.id}, '${s.ip || ''}', this)">
+      <span style="font-size:16px">${s.flag}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;color:var(--text);font-weight:600">${s.name}</div>
+        <div style="font-size:11px;color:var(--text3);font-family:var(--mono)">${s.ip || '—'}</div>
+      </div>
+      <span class="ping-badge-ms" id="ping-badge-${s.id}" style="background:var(--bg);color:var(--text3)">—</span>
+    </div>
+  `).join('');
+}
+
+function togglePingTarget(id, ip, el) {
+  if (!ip) return;
+  if (pingTargets.has(ip)) { pingTargets.delete(ip); el.classList.remove('selected'); }
+  else { pingTargets.add(ip); el.classList.add('selected'); }
+}
+
+async function runPing() {
+  const customHost = document.getElementById('pingCustomHost').value.trim();
+  const port = parseInt(document.getElementById('pingPort').value) || 80;
+  const count = Math.min(20, parseInt(document.getElementById('pingCount').value) || 5);
+  const targets = [...pingTargets];
+  if (customHost) targets.push(customHost);
+  if (targets.length === 0) { showPingLine('请先选择服务器或输入自定义 Host', 'warn'); return; }
+
+  const btn = document.getElementById('pingRunBtn');
+  btn.textContent = '⏳ 探测中...'; btn.disabled = true;
+  const results = document.getElementById('pingResults');
+  results.innerHTML = '';
+
+  for (const host of targets) {
+    showPingLine(`──── 开始探测 ${host}:${port} ────`, 'info');
+    const rtts = [];
+    for (let i = 0; i < count; i++) {
+      const t0 = performance.now();
+      try {
+        await fetch(`https://${host}`, { mode: 'no-cors', cache: 'no-store', signal: AbortSignal.timeout(3000) });
+        const rtt = Math.round(performance.now() - t0);
+        rtts.push(rtt);
+        showPingLine(`  ${i+1}/${count}  ${host}  rtt=${rtt}ms  port=${port}`, rtt < 100 ? 'ok' : rtt < 300 ? 'warn' : 'fail');
+      } catch(e) {
+        const rtt = Math.round(performance.now() - t0);
+        if (rtt < 3000) {
+          rtts.push(rtt);
+          showPingLine(`  ${i+1}/${count}  ${host}  rtt≈${rtt}ms  (opaque)`, rtt < 150 ? 'ok' : 'warn');
+        } else {
+          showPingLine(`  ${i+1}/${count}  ${host}  超时/无法访问`, 'fail');
+        }
+      }
+      await new Promise(r => setTimeout(r, 200));
+    }
+    if (rtts.length > 0) {
+      const avg = Math.round(rtts.reduce((a,b)=>a+b,0)/rtts.length);
+      const min2 = Math.min(...rtts), max2 = Math.max(...rtts);
+      const loss = Math.round((count - rtts.length) / count * 100);
+      showPingLine(`  统计: avg=${avg}ms  min=${min2}ms  max=${max2}ms  丢包${loss}%`, avg < 100 ? 'ok' : 'warn');
+      const sid = servers.find(s => s.ip === host);
+      if (sid) {
+        const badge = document.getElementById('ping-badge-' + sid.id);
+        if (badge) { badge.textContent = avg+'ms'; badge.style.color = avg<100?'var(--green)':avg<300?'var(--orange)':'var(--red)'; badge.style.background = avg<100?'rgba(56,239,125,.1)':avg<300?'rgba(255,159,67,.1)':'rgba(255,107,107,.1)'; }
+      }
+    } else {
+      showPingLine(`  ${host} 全部超时，无法探测`, 'fail');
+    }
+    showPingLine('', 'info');
+  }
+
+  btn.textContent = '▶ 开始探测'; btn.disabled = false;
+}
+
+function showPingLine(text, type = 'info') {
+  const el = document.getElementById('pingResults');
+  if (!el.querySelector('.ping-result')) {
+    el.innerHTML = '<div class="ping-result" id="pingOutput"></div>';
+  }
+  const out = document.getElementById('pingOutput');
+  const line = document.createElement('div');
+  line.className = `ping-line ping-${type}`;
+  line.textContent = text || '\u00A0';
+  out.appendChild(line);
+  out.scrollTop = out.scrollHeight;
+}
+
+function clearPingResults() {
+  document.getElementById('pingResults').innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:2rem 0">选择目标后点击开始探测</div>';
+}
+
+async function lookupIP() {
+  const ip = document.getElementById('ipLookupInput').value.trim();
+  const el = document.getElementById('ipLookupResult');
+  el.innerHTML = '<div style="color:var(--accent)">查询中...</div>';
+  try {
+    const url = ip ? `https://ipapi.co/${ip}/json/` : 'https://ipapi.co/json/';
+    const res = await fetch(url);
+    const d = await res.json();
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;text-align:left">
+      ${[['IP','ip'],['城市','city'],['地区','region'],['国家','country_name'],['ISP/ASN','org'],['经纬度',`${d.latitude}, ${d.longitude}`],['时区','timezone']].map(([k,v]) =>
+        `<tr style="border-bottom:1px solid var(--border)"><td style="padding:5px 8px;color:var(--text3);width:35%">${k}</td><td style="padding:5px 8px;color:var(--text);font-family:var(--mono)">${typeof v==='string'&&v.includes(',')?v:d[v]||'—'}</td></tr>`
+      ).join('')}
+    </table>`;
+  } catch(e) {
+    el.innerHTML = `<div style="color:var(--red)">查询失败: ${e.message}</div>`;
+  }
+}
+
+// ===== TELEGRAM =====
+let tgConfig = JSON.parse(localStorage.getItem('vps_tg') || '{}');
+
+function loadTgConfig() {
+  if (tgConfig.token) document.getElementById('tgToken').value = tgConfig.token;
+  if (tgConfig.chatId) document.getElementById('tgChatId').value = tgConfig.chatId;
+  if (tgConfig.prefix) document.getElementById('tgPrefix').value = tgConfig.prefix;
+  updateTgStatus();
+}
+
+function updateTgStatus() {
+  const el = document.getElementById('tgStatus');
+  if (tgConfig.token && tgConfig.chatId) {
+    el.className = 'tg-status tg-connected';
+    el.innerHTML = `<span>●</span> 已配置 — Chat ID: ${tgConfig.chatId}`;
+  } else {
+    el.className = 'tg-status tg-disconnected';
+    el.innerHTML = '<span>●</span> 未连接 — 请填写 Bot Token 和 Chat ID';
+  }
+}
+
+function saveTgConfig() {
+  tgConfig = {
+    token: document.getElementById('tgToken').value.trim(),
+    chatId: document.getElementById('tgChatId').value.trim(),
+    prefix: document.getElementById('tgPrefix').value.trim() || '【VPS星图】',
+  };
+  localStorage.setItem('vps_tg', JSON.stringify(tgConfig));
+  updateTgStatus();
+  showMsg('tgMsg', '✅ 配置已保存', 'green');
+}
+
+async function sendTgMessage(text) {
+  if (!tgConfig.token || !tgConfig.chatId) return false;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${tgConfig.token}/sendMessage`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: tgConfig.chatId, text: tgConfig.prefix + '\n' + text, parse_mode: 'HTML' })
+    });
+    const d = await res.json();
+    return d.ok;
+  } catch(e) { return false; }
+}
+
+async function testTgMessage() {
+  if (!tgConfig.token || !tgConfig.chatId) { showMsg('tgMsg', '请先保存配置', 'red'); return; }
+  showMsg('tgMsg', '发送中...', 'blue');
+  const online = servers.filter(s=>s.status==='online').length;
+  const text = `🔔 测试推送成功！\n\n当前监控 ${servers.length} 台服务器\n在线: ${online} 台\n\n时间: ${new Date().toLocaleString('zh-CN')}`;
+  const ok = await sendTgMessage(text);
+  showMsg('tgMsg', ok ? '✅ 测试消息发送成功，请检查 Telegram' : '❌ 发送失败，请检查 Token 和 Chat ID', ok ? 'green' : 'red');
+}
+
+function saveAlertRules() {
+  const rules = {
+    cpuThreshold: parseInt(document.getElementById('alertCpu').value) || 90,
+    cpuOn: document.getElementById('alertCpuOn').checked,
+    ramThreshold: parseInt(document.getElementById('alertRam').value) || 90,
+    ramOn: document.getElementById('alertRamOn').checked,
+    offlineOn: document.getElementById('alertOffline').checked,
+    expiryOn: document.getElementById('alertExpiry').checked,
+  };
+  localStorage.setItem('vps_alerts', JSON.stringify(rules));
+  showMsg('alertMsg', '✅ 告警规则已保存', 'green');
+}
+
+async function sendManualTg() {
+  const msg = document.getElementById('tgManualMsg').value.trim();
+  if (!msg) return;
+  if (!tgConfig.token) { showMsg('tgMsg', '请先配置 Bot Token', 'red'); return; }
+  const ok = await sendTgMessage(msg);
+  if (ok) { document.getElementById('tgManualMsg').value = ''; showMsg('tgMsg', '✅ 消息已推送', 'green'); }
+  else showMsg('tgMsg', '❌ 推送失败', 'red');
+}
+
+// ===== THEME =====
+const THEMES = [
+  { name: '深空蓝（默认）', vars: { '--bg':'#070b14','--bg2':'#0d1525','--bg3':'#111d33','--accent':'#63b3ed','--gold':'#f6c90e','--green':'#38ef7d','--purple':'#a78bfa','--text':'#e2e8f0' }, swatches: ['#070b14','#63b3ed','#f6c90e','#38ef7d'] },
+  { name: '暗夜紫晶', vars: { '--bg':'#0e0714','--bg2':'#160e22','--bg3':'#1e1230','--accent':'#c084fc','--gold':'#fbbf24','--green':'#34d399','--purple':'#818cf8','--text':'#e2e8f0' }, swatches: ['#0e0714','#c084fc','#fbbf24','#34d399'] },
+  { name: '极简黑白', vars: { '--bg':'#0a0a0a','--bg2':'#111111','--bg3':'#1a1a1a','--accent':'#ffffff','--gold':'#d4af37','--green':'#6ee7b7','--purple':'#a0a0a0','--text':'#f0f0f0' }, swatches: ['#0a0a0a','#ffffff','#d4af37','#6ee7b7'] },
+  { name: '赛博朋克', vars: { '--bg':'#0d0221','--bg2':'#14032e','--bg3':'#1c0440','--accent':'#00fff9','--gold':'#ffee00','--green':'#39ff14','--purple':'#ff00ff','--text':'#e0e0ff' }, swatches: ['#0d0221','#00fff9','#ffee00','#ff00ff'] },
+  { name: '碳黑橙', vars: { '--bg':'#0d0c0b','--bg2':'#161412','--bg3':'#1e1b18','--accent':'#f97316','--gold':'#eab308','--green':'#86efac','--purple':'#c4b5fd','--text':'#e7e5e4' }, swatches: ['#0d0c0b','#f97316','#eab308','#86efac'] },
+  { name: '深林绿', vars: { '--bg':'#050e08','--bg2':'#0a1a10','--bg3':'#0f2418','--accent':'#4ade80','--gold':'#fde047','--green':'#86efac','--purple':'#a3e635','--text':'#dcfce7' }, swatches: ['#050e08','#4ade80','#fde047','#a3e635'] },
+];
+
+let activeThemeIdx = parseInt(localStorage.getItem('vps_theme_idx') || '0');
+
+function renderThemePresets() {
+  const el = document.getElementById('themePresets');
+  if (!el) return;
+  el.innerHTML = THEMES.map((t, i) => `
+    <div class="theme-preset ${i===activeThemeIdx?'active':''}" onclick="applyTheme(${i})">
+      <div class="theme-swatch">${t.swatches.map(c=>`<div class="swatch" style="background:${c}"></div>`).join('')}</div>
+      <div class="theme-name">${t.name}</div>
+    </div>
+  `).join('');
+}
+
+function applyTheme(idx) {
+  activeThemeIdx = idx;
+  localStorage.setItem('vps_theme_idx', idx);
+  const theme = THEMES[idx];
+  const root = document.documentElement;
+  Object.entries(theme.vars).forEach(([k, v]) => root.style.setProperty(k, v));
+  renderThemePresets();
+  renderColorSliders();
+}
+
+const COLOR_VARS = [
+  { key: '--bg', label: '背景色' },
+  { key: '--bg2', label: '面板背景' },
+  { key: '--bg3', label: '输入框背景' },
+  { key: '--accent', label: '主强调色' },
+  { key: '--gold', label: '金色（价格/价值）' },
+  { key: '--green', label: '绿色（在线/健康）' },
+  { key: '--red', label: '红色（离线/危险）' },
+  { key: '--purple', label: '紫色（装饰）' },
+  { key: '--text', label: '主文本色' },
+  { key: '--text2', label: '次文本色' },
+];
+
+function renderColorSliders() {
+  const el = document.getElementById('colorSliders');
+  if (!el) return;
+  el.innerHTML = COLOR_VARS.map(({ key, label }) => {
+    const cur = getComputedStyle(document.documentElement).getPropertyValue(key).trim() || '#000000';
+    const hex = cur.startsWith('#') ? cur : rgbToHex(cur);
+    return `<div class="var-row">
+      <label><span>${label}</span><code style="font-size:10px;color:var(--text3)">${key}</code></label>
+      <input type="color" value="${hex}" data-var="${key}" onchange="liveColorChange(this)">
+    </div>`;
+  }).join('');
+}
+
+function liveColorChange(inp) {
+  document.documentElement.style.setProperty(inp.dataset.var, inp.value);
+}
+
+function applyColorVars() {
+  const inputs = document.querySelectorAll('#colorSliders input[type=color]');
+  inputs.forEach(inp => document.documentElement.style.setProperty(inp.dataset.var, inp.value));
+  showMsg('cssMsg', '✅ 颜色已应用', 'green');
+}
+
+function rgbToHex(rgb) {
+  const m = rgb.match(/\d+/g);
+  if (!m || m.length < 3) return '#000000';
+  return '#' + m.slice(0,3).map(x => parseInt(x).toString(16).padStart(2,'0')).join('');
+}
+
+function loadCustomCSSEditor() {
+  const saved = localStorage.getItem('vps_custom_css') || '';
+  document.getElementById('customCssEditor').value = saved;
+  if (saved) injectCustomCSS(saved);
+}
+
+function applyCustomCSS() {
+  const css = document.getElementById('customCssEditor').value;
+  injectCustomCSS(css);
+  showMsg('cssMsg', '✅ CSS 已注入', 'green');
+}
+
+function saveCustomCSS() {
+  const css = document.getElementById('customCssEditor').value;
+  localStorage.setItem('vps_custom_css', css);
+  injectCustomCSS(css);
+  showMsg('cssMsg', '✅ 已保存并应用', 'green');
+}
+
+function resetCustomCSS() {
+  document.getElementById('customCssEditor').value = '';
+  localStorage.removeItem('vps_custom_css');
+  const el = document.getElementById('custom-css-inject');
+  if (el) el.remove();
+  showMsg('cssMsg', '已重置为默认样式', 'blue');
+}
+
+function injectCustomCSS(css) {
+  let el = document.getElementById('custom-css-inject');
+  if (!el) { el = document.createElement('style'); el.id = 'custom-css-inject'; document.head.appendChild(el); }
+  el.textContent = css;
+}
+
+// ===== HELPERS =====
+function showMsg(elId, text, type) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const colors = { green: 'var(--green)', red: 'var(--red)', blue: 'var(--accent)', orange: 'var(--orange)' };
+  el.style.color = colors[type] || 'var(--text2)';
+  el.textContent = text;
+  setTimeout(() => { if (el.textContent === text) el.textContent = ''; }, 3500);
+}
+</script>
+</body>
+</html>

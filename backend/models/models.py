@@ -86,24 +86,28 @@ class Server(db.Model):
         db.Index('idx_updated_at', 'updated_at'),
     )
     
-    def to_dict(self, include_metrics=True):
+    def to_dict(self, include_metrics=True, public_only=False):
         d = dict(
             id=self.id,
             name=self.name,
             group=self.group_name,
             flag=self.flag,
             location=self.location,
-            ip=self.ip,
             cpu=self.cpu_cores,
             ram=self.ram_gb,
             disk=self.disk_gb,
             bw=self.bandwidth,
-            probe=self.probe_url,
-            note=self.note,
-            price=self.price,
-            period=self.period,
-            expiry=self.expiry.isoformat() if self.expiry else None,
         )
+
+        if not public_only:
+            d.update(dict(
+                ip=self.ip,
+                probe=self.probe_url,
+                note=self.note,
+                price=self.price,
+                period=self.period,
+                expiry=self.expiry.isoformat() if self.expiry else None,
+            ))
         
         if include_metrics:
             d.update(dict(
@@ -114,12 +118,15 @@ class Server(db.Model):
                 net_down=round(self.net_down, 2),
                 status=self.status,
                 uptime=self.uptime,
-                traffic_limit_gb=self.traffic_limit_gb,
-                traffic_up_gb=round(self.traffic_up_gb, 4),
-                traffic_down_gb=round(self.traffic_down_gb, 4),
-                traffic_used_gb=round(self.traffic_used_gb, 4),
                 updated_at=self.updated_at.isoformat(),
             ))
+            if not public_only:
+                d.update(dict(
+                    traffic_limit_gb=self.traffic_limit_gb,
+                    traffic_up_gb=round(self.traffic_up_gb, 4),
+                    traffic_down_gb=round(self.traffic_down_gb, 4),
+                    traffic_used_gb=round(self.traffic_used_gb, 4),
+                ))
         
         return d
 
