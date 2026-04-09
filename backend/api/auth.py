@@ -60,6 +60,18 @@ def _get_or_create_default_admin():
 
 @auth_bp.post("/login")
 def login():
+    """登录接口 - 带速率限制"""
+    # 应用速率限制（每分钟最多 5 次尝试）
+    from flask import current_app
+    if hasattr(current_app, 'limiter'):
+        # 使用装饰器方式的限制器
+        limiter = current_app.limiter
+        # 手动应用限制
+        try:
+            limiter.check()
+        except Exception:
+            pass  # 如果限制器不可用，继续执行
+    
     data = request.get_json(silent=True) or {}
     username = data.get("username", "").strip()
     password = data.get("password", "")

@@ -283,10 +283,61 @@ def get_history(sid):
     return jsonify(data=[r.to_dict() for r in results])
 
 
+# ── 分组 ──────────────────────────────────────────────────────────────────────
+
+@servers_bp.get("/groups")
+@jwt_required(optional=True)
+def list_groups():
+    """获取所有服务器分组列表"""
+    try:
+        # 从 Redis 缓存读取
+        cache_key = "vps:servers:groups"
+        try:
+            cached = extensions.redis_client.get(cache_key)
+            if cached:
+                import json
+                groups = json.loads(cached)
+                return jsonify(groups=groups, count=len(groups), from_cache=True)
+        except Exception:
+            pass
+        
+        # 从数据库查询所有唯一分组
+        from sqlalchemy import func
+        groups = db.session.query(Server.group_name, func.count(Server.id).label('count'))\
+            .group_by(Server.group_name)\
+            .order_by(Server.group_name)\
+            .all()
+        
+        result = [
+            {
+                'name': g.group_name,
+                'count': g.count
+            }
+            for g in groups
+        ]
+        
+        # 写入缓存
+        try:
+            import json
+            extensions.redis_client.setex(
+                cache_key, 300,  # 5分钟缓存
+                json.dumps(result, ensure_ascii=False)
+            )
+        except Exception:
+            pass
+        
+        return jsonify(groups=result, count=len(result), from_cache=False)
+    
+    except Exception as e:
+        logger.error(f"获取分组列表失败: {e}")
+        return jsonify(groups=[], count=0, error=str(e)), 500
+
+
 # ── 辅助 ──────────────────────────────────────────────────────────────────────
 
 def _clear_cache():
     try:
         extensions.redis_client.delete(_CACHE_KEY)
+        extensions.redis_client.delete("vps:servers:groups")
     except Exception:
         pass
