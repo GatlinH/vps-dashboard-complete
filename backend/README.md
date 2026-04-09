@@ -70,48 +70,71 @@ docker compose logs -f api
 
 ## API 端点速览
 
-| 方法   | 路径                          | 说明                       |
-|--------|-------------------------------|----------------------------|
-| POST   | /api/auth/login               | 登录，返回 JWT             |
-| POST   | /api/auth/refresh             | 刷新 Access Token          |
-| GET    | /api/auth/me                  | 当前用户信息               |
-| GET    | /api/servers/                 | 服务器列表（Redis 缓存）    |
-| POST   | /api/servers/                 | 添加服务器 *               |
-| PUT    | /api/servers/<id>             | 更新服务器 *               |
-| DELETE | /api/servers/<id>             | 删除服务器 *               |
-| POST   | /api/servers/<id>/metrics     | 推送实时指标 *             |
-| GET    | /api/servers/<id>/history     | 历史探针数据 *             |
-| POST   | /api/probe/ping               | TCP Ping *                 |
-| POST   | /api/probe/ping/batch         | 批量 TCP Ping *            |
-| POST   | /api/probe/fetch-probe        | 抓取探针数据 *             |
-| GET    | /api/probe/ip-info?ip=x.x.x.x | IP 地理信息               |
-| GET    | /api/telegram/config          | Telegram 配置 *            |
-| POST   | /api/telegram/config          | 保存 Bot 配置 *            |
-| POST   | /api/telegram/test            | 发送测试消息 *             |
-| POST   | /api/telegram/send            | 手动推送消息 *             |
-| GET    | /api/geo/tile/<z>/<x>/<y>.png | 地图瓦片代理               |
-| GET    | /api/geo/countries            | TopoJSON 矢量地图          |
-| GET    | /api/geo/servers/coords       | 服务器经纬度列表           |
+### 权限说明
 
-*标记需要 JWT Authorization: Bearer <token> 请求头*
+| 标记 | 含义 |
+|------|------|
+| （公开） | 无需鉴权，匿名可访问 |
+| `*JWT*` | 需要 `Authorization: Bearer <token>` 头（任意登录用户） |
+| `**admin**` | 需要 JWT 且角色为 `admin` |
+
+### 端点列表
+
+| 方法   | 路径                          | 权限      | 说明                       |
+|--------|-------------------------------|-----------|----------------------------|
+| POST   | /api/auth/login               | 公开      | 登录，返回 JWT             |
+| POST   | /api/auth/refresh             | *JWT*     | 刷新 Access Token          |
+| GET    | /api/auth/me                  | *JWT*     | 当前用户信息               |
+| GET    | /api/servers/                 | 公开      | 服务器列表（未登录时过滤敏感字段） |
+| POST   | /api/servers/                 | **admin** | 添加服务器                 |
+| PUT    | /api/servers/\<id\>           | **admin** | 更新服务器                 |
+| DELETE | /api/servers/\<id\>           | **admin** | 删除服务器                 |
+| POST   | /api/servers/\<id\>/metrics   | **admin** | 推送实时指标               |
+| GET    | /api/servers/\<id\>/history   | **admin** | 历史探针数据               |
+| POST   | /api/probe/ping               | **admin** | TCP Ping                   |
+| POST   | /api/probe/ping/batch         | **admin** | 批量 TCP Ping              |
+| POST   | /api/probe/fetch-probe        | **admin** | 抓取探针数据               |
+| GET    | /api/probe/ip-info?ip=x.x.x.x | 公开     | IP 地理信息                |
+| GET    | /api/telegram/config          | **admin** | Telegram 配置              |
+| POST   | /api/telegram/config          | **admin** | 保存 Bot 配置              |
+| POST   | /api/telegram/test            | **admin** | 发送测试消息               |
+| POST   | /api/telegram/send            | **admin** | 手动推送消息               |
+| GET    | /api/telegram/alerts          | **admin** | 获取告警规则               |
+| POST   | /api/telegram/alerts          | **admin** | 保存告警规则               |
+| GET    | /api/geo/tile/\<z\>/\<x\>/\<y\>.png | 公开 | 地图瓦片代理          |
+| GET    | /api/geo/countries            | 公开      | TopoJSON 矢量地图          |
+| GET    | /api/geo/servers/coords       | 公开      | 服务器经纬度列表           |
+
+### 后台鉴权要求
+
+- 所有写操作（添加/更新/删除服务器、Telegram 配置、推送消息等）均需 JWT 且 `role == "admin"`
+- `backend/middleware/rbac.py` 中的 `@admin_required` 装饰器统一实现角色校验
+- 严禁仅依赖前端隐藏按钮实现"权限控制"——后端会独立校验每个请求的角色
+
+## Service Worker 缓存策略
+
+| 路径 | 策略 | 说明 |
+|------|------|------|
+| 公开静态资源（.html/.js/.css等） | 缓存优先 | public.html 及 JS 模块可离线访问 |
+| `/admin.html` | **network-only** | 管理页面不缓存，强制在线访问 |
+| `/api/auth/*` | **network-only** | 鉴权接口不缓存 |
+| `/api/servers/*` | **network-only** | 服务器数据不缓存 |
+| `/api/probe/*` | **network-only** | 探针数据不缓存 |
+| `/api/telegram/*` | **network-only** | Telegram 配置不缓存 |
 
 ## 前端对接
 
 ```js
-// 登录（password 替换为你在 .env 中设置的实际管理员密码）
-const { access_token } = await fetch('/api/auth/login', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ username: 'admin', password: '<your-admin-password>' })
-}).then(r => r.json());
+// 公开展示页使用 api-public.js（无鉴权）
+import { listServersPublic, getCountries } from './api-public.js';
+const { servers } = await listServersPublic();
 
-// 获取服务器列表
-const { servers } = await fetch('/api/servers/', {
-  headers: { Authorization: `Bearer ${access_token}` }
-}).then(r => r.json());
+// 管理后台使用 api-admin.js（自动携带 JWT）
+import { login, createServer } from './api-admin.js';
+await login('admin', '<your-admin-password>');
+await createServer({ name: 'my-vps', ip: '1.2.3.4', ... });
 
-// 3D 星图瓦片（直接替换 CARTO URL）
-// 将前端 fetch tile 的 URL 改为：
+// 3D 星图瓦片（公开接口）
 const tileUrl = `/api/geo/tile/${z}/${x}/${y}.png`;
 ```
 
