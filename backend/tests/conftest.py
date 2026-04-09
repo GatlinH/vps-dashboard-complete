@@ -59,7 +59,7 @@ def reset_db(app):
 
 @pytest.fixture
 def test_user(app):
-    """创建 testuser 测试用户，返回 ID"""
+    """创建 testuser 测试用户"""
     with app.app_context():
         user = User(
             username='testuser',
@@ -68,12 +68,14 @@ def test_user(app):
         )
         _db.session.add(user)
         _db.session.commit()
-        return user.id  # ✅ 只返回 ID，避免 DetachedInstanceError
+        # expunge 后对象可在 session 外安全访问（只读已加载的属性）
+        _db.session.expunge(user)
+        yield user
 
 
 @pytest.fixture
 def test_server(app, test_user):
-    """创建测试服务器，返回 ID"""
+    """创建测试服务器"""
     with app.app_context():
         server = Server(
             name='Test Server',
@@ -91,26 +93,22 @@ def test_server(app, test_user):
         )
         _db.session.add(server)
         _db.session.commit()
-        return server.id  # ✅ 只返回 ID，避免 DetachedInstanceError
+        # 刷新以确保所有列（包括 id）已加载，再 expunge
+        _db.session.refresh(server)
+        _db.session.expunge(server)
+        yield server
 
 
 @pytest.fixture
-def auth_headers(client, app):
-    """获取 testuser 的认证头（在 fixture 内创建用户，避免依赖 test_user 生命周期）"""
-    with app.app_context():
-        if not User.query.filter_by(username='testuser').first():
-            user = User(
-                username='testuser',
-                password_hash=generate_password_hash('password123'),
-                role='admin',
-            )
-            _db.session.add(user)
-            _db.session.commit()
-
+def auth_headers(client, test_user):
+    """获取 testuser 的认证头"""
     response = client.post('/api/auth/login', json={
         'username': 'testuser',
         'password': 'password123',
     })
     data = response.get_json()
-    assert 'access_token' in data, f"Login failed, response: {data}"  # ✅ 明确断言，方便调试
-    return {'Authorization': f'Bearer {data["access_token"]}'}
+    assert 'access_token' in data, (
+        f"登录失败，响应: {data}（状态码: {response.status_code}）"
+    )
+    token = data['access_token']
+    return {'Authorization': f'Bearer {token}'}
