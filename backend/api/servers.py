@@ -1,78 +1,114 @@
-# backend/api/servers.py - 完整版本
-# 服务器管理 API：CRUD + 实时指标 + 缓存 + 验证
+"""测试配置和 fixtures"""
+import pytest
+import sys
+import os
 
-"""
-/api/servers - 服务器管理 API
-支持：
-  - 列表查询（过滤、排序、缓存）
-  - 单体查询
-  - 创建服务器
-  - 更新服务器信息
-  - 删除服务器
-  - 推送实时指标
-  - 查询历史数据
-  - 获取分组列表
-"""
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-import json
-import logging
-from datetime import date, datetime, timedelta
-from flask import Blueprint, request, jsonify, current_app
-from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
-from werkzeug.exceptions import HTTPException  # ✅ 新增导入
-from extensions import db, redis_client
-from models.models import Server, ProbeResult
-from utils.errors import (
-    ValidationError, AuthorizationError, ResourceNotFoundError,
-    InternalServerError
-)
-from middleware.validators import RequestValidator
+from app import create_app
+from extensions import db as _db
+from models.models import User, Server
+from werkzeug.security import generate_password_hash
 
-# 初始化日志
-logger = logging.getLogger(__name__)
+_TEST_CONFIG = {
+    'TESTING': True,
+    'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
+    'JWT_SECRET_KEY': 'test-secret-key-for-testing-only',
+    'SECRET_KEY': 'test-secret-key-for-testing-only-32chars!',
+    'REDIS_URL': 'redis://localhost:6379/15',
+    'WTF_CSRF_ENABLED': False,
+    'FORCE_HTTPS': False,
+}
 
-# 创建蓝图
-servers_bp = Blueprint("servers", __name__)
 
-# ===== 常量定义 =====
+@pytest.fixture(scope='session')
+def app():
+    """创建测试应用实例"""
+    application = create_app(**_TEST_CONFIG)
 
-CACHE_KEY_LIST = "vps:servers:list"
-CACHE_TTL = 15  # 缓存 TTL（秒）
+    with application.app_context():
+        _db.create_all()
+        yield application
+        _db.session.remove()
+        _db.drop_all()
 
-_PUBLIC_SENSITIVE_METRIC_FIELDS = frozenset({
-    'traffic_limit_gb', 'traffic_up_gb',
-    'traffic_down_gb', 'traffic_used_gb',
-})
 
-def _metrics_key(server_id):
-    """获取服务器指标缓存键"""
-    return f"vps:server:{server_id}:metrics"
+@pytest.fixture
+def client(app):
+    """测试客户端"""
+    return app.test_client()
 
-def _groups_key():
-    """获取分组列表缓存键"""
-    return "vps:server:groups"
 
-# ===== 缓存管理函数 =====
+@pytest.fixture(autouse=True)
+def reset_db(app):
+    """每个测试前重置数据库，确保 admin 用户存在"""
+    with app.app_context():
+        _db.create_all()
+        if not User.query.filter_by(username='admin').first():
+            admin = User(
+                username='admin',
+                password_hash=generate_password_hash('admin123'),
+                role='admin',
+            )
+            _db.session.add(admin)
+            _db.session.commit()
+        yield
+        _db.session.remove()
+        _db.drop_all()
 
-def _invalidate_list_cache():
-    """清除服务器列表缓存"""
-    try:
-        redis_client.delete(CACHE_KEY_LIST)
-        logger.debug(f"✓ 已清除列表缓存")
-    except Exception as e:
-        logger.warning(f"⚠️ 缓存清除失败: {e}")
 
-def _invalidate_groups_cache():
-    """清除分组列表缓存"""
-    try:
-        redis_client.delete(_groups_key())
-        logger.debug(f"✓ 已清除分组缓存")
-    except Exception as e:
-        logger.warning(f"⚠️ 分组缓存清除失败: {e}")
+@pytest.fixture
+def test_user(app):
+    """创建 testuser 测试用户"""
+    with app.app_context():
+        user = User(
+            username='testuser',
+            password_hash=generate_password_hash('password123'),
+            role='admin',
+        )
+        _db.session.add(user)
+        _db.session.commit()
+        # expunge 后对象可在 session 外安全访问（只读已加载的属性）
+        _db.session.expunge(user)
+        yield user
 
-def _get_cached_list():
-    """从缓存获取服务器列表"""
-    try:
-        raw = redis_client.get(CACHE_KEY_LIST)
-        if raw:
-            return json.loads
+
+@pytest.fixture
+def test_server(app, test_user):
+    """创建测试服务器"""
+    with app.app_context():
+        server = Server(
+            name='Test Server',
+            group_name='Test Group',
+            ip='192.168.1.1',
+            cpu_cores=4,
+            ram_gb=8.0,
+            disk_gb=100,
+            price=100.0,
+            period='monthly',
+            status='online',
+            cpu_use=50.0,
+            ram_use=60.0,
+            disk_use=70.0,
+        )
+        _db.session.add(server)
+        _db.session.commit()
+        # 刷新以确保所有列（包括 id）已加载，再 expunge
+        _db.session.refresh(server)
+        _db.session.expunge(server)
+        yield server
+
+
+@pytest.fixture
+def auth_headers(client, test_user):
+    """获取 testuser 的认证头"""
+    response = client.post('/api/auth/login', json={
+        'username': 'testuser',
+        'password': 'password123',
+    })
+    data = response.get_json()
+    assert 'access_token' in data, (
+        f"登录失败，响应: {data}（状态码: {response.status_code}）"
+    )
+    token = data['access_token']
+    return {'Authorization': f'Bearer {token}'}
