@@ -3,7 +3,7 @@
  * 渐进式迁移：当前仅引入公共 API 模块和样式，供后续页面组件扩展使用
  */
 import './styles/main.css'
-import { listServersPublic, getCountries, getServerCoords } from './api/public.js'
+import { listServersPublic } from './api/public.js'
 
 // 应用入口 - 渐进式替换现有 public.html 的内联逻辑
 async function init() {

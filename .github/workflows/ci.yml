@@ -91,34 +91,37 @@ jobs:
           with open('frontend/i18n.js', encoding='utf-8') as f:
               content = f.read()
 
-          # Extract each language block between the language key and the closing }
-          lang_pattern = re.compile(r"'([\w-]+)'\s*:\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}", re.DOTALL)
-          key_pattern = re.compile(r"'([\w.]+)'\s*:")
+          # Find all quoted keys in each top-level language block.
+          # Strategy: find where each language object starts and extract keys line by line.
+          key_re = re.compile(r"^\s+'([\w.]+)'\s*:", re.MULTILINE)
+          # Find language markers like  'zh-CN': {
+          lang_re = re.compile(r"'([\w-]+)'\s*:\s*\{")
 
+          # Split content into segments between language markers
+          splits = list(lang_re.finditer(content))
           lang_keys = {}
-          for m in lang_pattern.finditer(content):
+          for i, m in enumerate(splits):
               lang = m.group(1)
-              block = m.group(2)
-              keys = set(key_pattern.findall(block))
+              start = m.end()
+              end = splits[i + 1].start() if i + 1 < len(splits) else len(content)
+              block = content[start:end]
+              keys = set(key_re.findall(block))
               if keys:
                   lang_keys[lang] = keys
 
           if len(lang_keys) < 2:
-              print(f"⚠️  只找到 {len(lang_keys)} 种语言，跳过检查")
+              print(f"⚠️  Only {len(lang_keys)} language(s) found, skipping")
               sys.exit(0)
 
-          all_keys = set()
-          for keys in lang_keys.values():
-              all_keys |= keys
-
+          all_keys = set().union(*lang_keys.values())
           has_missing = False
           for lang, keys in lang_keys.items():
               missing = all_keys - keys
               if missing:
-                  print(f"❌ [{lang}] 缺少 {len(missing)} 个 key: {sorted(missing)}")
+                  print(f"❌ [{lang}] missing {len(missing)} key(s): {sorted(missing)}")
                   has_missing = True
               else:
-                  print(f"✅ [{lang}] key 完整 ({len(keys)} 个)")
+                  print(f"✅ [{lang}] complete ({len(keys)} keys)")
 
           sys.exit(1 if has_missing else 0)
           EOF

@@ -112,10 +112,10 @@ export class SecureStorage {
   }
 
   _arrayBufferToBase64(buffer) {
-    let binary = ''
     const bytes = new Uint8Array(buffer)
-    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
-    return btoa(binary)
+    const chars = []
+    for (let i = 0; i < bytes.byteLength; i++) chars.push(String.fromCharCode(bytes[i]))
+    return btoa(chars.join(''))
   }
 
   _base64ToArrayBuffer(base64) {
