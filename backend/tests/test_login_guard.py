@@ -24,13 +24,13 @@ def test_username_lock_triggers_after_max_attempts(client):
     """连续 5 次失败后账户被锁定，返回 429"""
     _flush_redis()
     for _ in range(LoginGuard.MAX_ATTEMPTS):
-        resp = client.post('/api/auth/login', json={
+        resp = client.post('/api/v1/auth/login', json={
             'username': 'noexist',
             'password': 'wrongpass',
         })
         assert resp.status_code in (401, 429)
 
-    resp = client.post('/api/auth/login', json={
+    resp = client.post('/api/v1/auth/login', json={
         'username': 'noexist',
         'password': 'wrongpass',
     })
@@ -63,13 +63,13 @@ def test_successful_login_clears_attempt_count(client):
     _flush_redis()
     # 产生几次失败
     for _ in range(2):
-        client.post('/api/auth/login', json={
+        client.post('/api/v1/auth/login', json={
             'username': 'admin',
             'password': 'wrongpass',
         })
 
     # 成功登录
-    resp = client.post('/api/auth/login', json={
+    resp = client.post('/api/v1/auth/login', json={
         'username': 'admin',
         'password': 'TestAdmin@123456',
     })
@@ -150,7 +150,7 @@ def test_ip_lock_returns_429_via_login_endpoint(client):
     lock_key = "login:ip_lock:127.0.0.1"
     extensions.redis_client.setex(lock_key, 1800, "1")
 
-    resp = client.post('/api/auth/login', json={
+    resp = client.post('/api/v1/auth/login', json={
         'username': 'admin',
         'password': 'TestAdmin@123456',
     }, environ_base={'REMOTE_ADDR': '127.0.0.1'})

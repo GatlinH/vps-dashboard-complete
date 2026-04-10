@@ -94,6 +94,8 @@ def _job_tcp_ping(app):
     import time
     from extensions import db, redis_client
     from models.models import Server, ProbeResult
+    from utils.metrics import (vps_servers_total, vps_servers_online,
+                               vps_servers_offline, vps_probe_latency_ms)
 
     with app.app_context():
         servers = Server.query.filter(Server.ip != "").all()
@@ -124,9 +126,26 @@ def _job_tcp_ping(app):
                 disk_use=s.disk_use, net_up=s.net_up, net_down=s.net_down,
             ))
 
+            # 记录延迟指标
+            if lat is not None:
+                try:
+                    vps_probe_latency_ms.observe(lat)
+                except Exception:
+                    pass
+
+        # 更新服务器状态指标
+        try:
+            total  = len(servers)
+            online = sum(1 for s in servers if s.status == "online")
+            vps_servers_total.set(total)
+            vps_servers_online.set(online)
+            vps_servers_offline.set(total - online)
+        except Exception:
+            pass
+
         try:
             db.session.commit()
-            redis_client.delete("vps:servers:list")
+            redis_client.delete("vps:servers:admin", "vps:servers:public")
         except Exception as e:
             db.session.rollback()
             log.error(f"tcp_ping 写库失败: {e}")
@@ -144,6 +163,7 @@ def _job_fetch_probes(app):
         updated_ids = []
 
         for s in servers:
+            fail_key = f"vps:probe_fail:{s.id}"
             try:
                 req = urllib.request.Request(
                     s.probe_url,
@@ -167,17 +187,28 @@ def _job_fetch_probes(app):
                         app.config.get("PROBE_CACHE_TTL", 15),
                         json.dumps(metrics, ensure_ascii=False),
                     )
+                    # 成功：清除失败计数
+                    redis_client.delete(fail_key)
                 except Exception:
                     pass
 
                 updated_ids.append(s.id)
             except Exception as e:
                 log.warning(f"探针抓取失败 server_id={s.id}: {e}")
+                # 失败计数
+                try:
+                    fail_count = redis_client.incr(fail_key)
+                    redis_client.expire(fail_key, 300)  # 5分钟窗口
+                    if fail_count >= 3 and s.status != "offline":
+                        s.status = "offline"
+                        log.warning(f"服务器 {s.id}({s.name}) 连续 {fail_count} 次探针失败，标记 offline")
+                except Exception:
+                    pass
 
         try:
             db.session.commit()
             if updated_ids:
-                redis_client.delete("vps:servers:list")
+                redis_client.delete("vps:servers:admin", "vps:servers:public")
         except Exception as e:
             db.session.rollback()
             log.error(f"fetch_probes 写库失败: {e}")
@@ -273,13 +304,20 @@ def _job_cleanup(app):
 def _job_traffic_accumulate(app):
     """
     根据当前实时网速（net_up / net_down MB/s）每30秒累加一次流量计数。
-    net_up MB/s × 30s ÷ 1024 = GB 增量
+    若探针上报了 bytes_out_snapshot / bytes_in_snapshot，则优先使用差值计算（精确模式）；
+    否则降级为速率估算：net_up MB/s × 30s ÷ 1024 = GB 增量
     """
     from extensions import db, redis_client
     from models.models import Server
     with app.app_context():
         servers = Server.query.filter(Server.status != 'offline').all()
         for s in servers:
+            # 优先用字节快照差值（精确），快照由 push_metrics 接口写入
+            if (hasattr(s, 'bytes_out_snapshot') and s.bytes_out_snapshot
+                    and hasattr(s, 'bytes_in_snapshot') and s.bytes_in_snapshot):
+                # 差值已在 push_metrics 时计算并累加，此处仅做兜底估算
+                pass
+            # 降级：速率估算
             delta_up = (s.net_up   or 0) * 30 / 1024   # MB/s × 30s → GB
             delta_dn = (s.net_down or 0) * 30 / 1024
             if delta_up == 0 and delta_dn == 0:
@@ -295,7 +333,7 @@ def _job_traffic_accumulate(app):
         try:
             db.session.commit()
             redis_client.delete("vps:traffic:summary")
-            redis_client.delete("vps:servers:list")
+            redis_client.delete("vps:servers:admin", "vps:servers:public")
         except Exception as e:
             db.session.rollback()
             log.error(f"traffic_accumulate 写库失败: {e}")

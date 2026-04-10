@@ -1,0 +1,41 @@
+# 环境配置（绝不打包进镜像）
+.env
+.env.*
+!.env.example
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 测试文件
+tests/
+requirements-dev.txt
+
+# 文档
+*.md
+!README.md
+
+# Git
+.git/
+.gitignore
+
+# Docker 配置（避免递归）
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Nginx 配置（由 volume 挂载）
+nginx.conf
+nginx-logs/
+
+# 开发工具
+.vscode/
+.idea/
+*.egg-info/
+dist/
+build/

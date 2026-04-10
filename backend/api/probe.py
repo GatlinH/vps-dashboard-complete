@@ -4,6 +4,7 @@
 import socket
 import time
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required
 from extensions import db
@@ -43,7 +44,7 @@ def tcp_ping(host: str, port: int, timeout: float = 5.0) -> dict:
 def ping():
     """
     Body: { host, port, count }
-    返回每次 TCP ping 结果列表 + 统计
+    返回每次 TCP ping 结果列表 + 统计（并发执行）
     """
     data    = request.get_json(silent=True) or {}
     host    = data.get("host", "").strip()
@@ -54,12 +55,21 @@ def ping():
     if not host:
         return jsonify(msg="host 不能为空"), 400
 
-    results = []
-    for i in range(count):
+    def _ping_once(seq):
         r = tcp_ping(host, port, timeout)
-        r["seq"] = i + 1
-        results.append(r)
-        time.sleep(0.1)   # 避免请求过于密集
+        r["seq"] = seq + 1
+        return r
+
+    results = []
+    with ThreadPoolExecutor(max_workers=min(count, 10)) as pool:
+        futures = {pool.submit(_ping_once, i): i for i in range(count)}
+        for fut in as_completed(futures):
+            try:
+                results.append(fut.result())
+            except Exception as e:
+                results.append({"seq": futures[fut] + 1, "success": False, "error": str(e)})
+
+    results.sort(key=lambda r: r["seq"])
 
     latencies = [r["latency_ms"] for r in results if r["success"]]
     stats = {
@@ -116,7 +126,7 @@ def ping_batch():
 
     # 清 Redis 缓存
     try:
-        extensions.redis_client.delete("vps:servers:list")
+        extensions.redis_client.delete("vps:servers:admin", "vps:servers:public")
     except Exception:
         pass
 
@@ -182,7 +192,7 @@ def fetch_probe():
 
     db.session.commit()
     try:
-        extensions.redis_client.delete("vps:servers:list")
+        extensions.redis_client.delete("vps:servers:admin", "vps:servers:public")
     except Exception:
         pass
 

@@ -112,7 +112,7 @@ def test_server(app, test_user):
 @pytest.fixture
 def auth_headers(client, test_user):
     """获取 testuser 的认证头"""
-    response = client.post('/api/auth/login', json={
+    response = client.post('/api/v1/auth/login', json={
         'username': 'testuser',
         'password': 'password123',
     })

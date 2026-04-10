@@ -6,6 +6,7 @@
 from datetime import datetime, timezone, timedelta, date
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt
+from sqlalchemy.orm import load_only
 from extensions import db, redis_client
 from models.models import Server, ProbeResult
 from utils.errors import ValidationError, InternalServerError
@@ -18,7 +19,13 @@ traffic_bp = Blueprint("traffic", __name__)
 def get_traffic_summary():
     """获取流量总结"""
     try:
-        servers = Server.query.all()
+        servers = Server.query.options(
+            load_only(
+                Server.id, Server.traffic_limit_gb,
+                Server.traffic_used_gb, Server.traffic_up_gb,
+                Server.traffic_down_gb,
+            )
+        ).all()
         
         total_limit = sum(s.traffic_limit_gb for s in servers if s.traffic_limit_gb > 0)
         total_used = sum(s.traffic_used_gb for s in servers if s.traffic_used_gb > 0)
@@ -43,7 +50,14 @@ def get_traffic_summary():
 def list_traffic_servers():
     """获取所有服务器流量统计"""
     try:
-        servers = Server.query.all()
+        servers = Server.query.options(
+            load_only(
+                Server.id, Server.name, Server.traffic_limit_gb,
+                Server.traffic_used_gb, Server.traffic_up_gb,
+                Server.traffic_down_gb, Server.traffic_reset_day,
+                Server.updated_at,
+            )
+        ).all()
         
         result = []
         for s in servers:
@@ -184,3 +198,63 @@ def get_traffic_history(sid):
     
     except Exception as e:
         raise InternalServerError("获取流量历史失败", str(e))
+
+# ── 月度重置与告警辅助（供 scheduler.py 调用） ────────────────────────────────
+
+def check_monthly_resets():
+    """检查并重置到达重置日的服务器流量，返回被重置的 server_id 列表"""
+    today = date.today()
+    reset_ids = []
+    try:
+        servers = Server.query.filter(Server.traffic_reset_day > 0).all()
+        for s in servers:
+            if today.day == s.traffic_reset_day:
+                s.traffic_up_gb   = 0.0
+                s.traffic_down_gb = 0.0
+                s.traffic_used_gb = 0.0
+                reset_ids.append(s.id)
+        if reset_ids:
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
+    return reset_ids
+
+
+_TRAFFIC_ALERT_LEVELS = [
+    (95, "🔴严重", "流量已使用 {pct:.1f}%，即将耗尽！"),
+    (90, "⚠️警告", "流量已使用 {pct:.1f}%，请注意！"),
+    (80, "⚡提醒", "流量已使用 {pct:.1f}%。"),
+]
+_TRAFFIC_ALERT_COOLDOWN_S = 3600  # 1小时冷却
+
+
+def _check_and_fire_traffic_alert(server):
+    """检查单台服务器流量超限，触发 Telegram 告警（带冷却）"""
+    if not server.traffic_limit_gb or server.traffic_limit_gb <= 0:
+        return
+    pct = server.traffic_used_gb / server.traffic_limit_gb * 100
+
+    for threshold, label, tmpl in _TRAFFIC_ALERT_LEVELS:
+        if pct >= threshold:
+            cooldown_key = f"vps:traffic_alert:{server.id}:{threshold}"
+            try:
+                if redis_client.get(cooldown_key):
+                    break  # 冷却中，不重复告警
+                redis_client.setex(cooldown_key, _TRAFFIC_ALERT_COOLDOWN_S, "1")
+            except Exception:
+                pass
+
+            try:
+                from models.models import TelegramConfig
+                from api.telegram import send_message, _full_msg
+                cfg = TelegramConfig.query.first()
+                if cfg and cfg.enabled and cfg.bot_token:
+                    body = (
+                        f"{label} <b>{server.name}</b> 流量告警\n"
+                        + tmpl.format(pct=pct)
+                        + f"\n已用: {server.traffic_used_gb:.2f} GB / 限额: {server.traffic_limit_gb:.2f} GB"
+                    )
+                    send_message(_full_msg(cfg.prefix, body))
+            except Exception:
+                pass
+            break

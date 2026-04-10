@@ -119,3 +119,11 @@ class ProductionConfig(Config):
     DEBUG = False
     SQLALCHEMY_POOL_SIZE    = 20
     SQLALCHEMY_MAX_OVERFLOW = 10
+
+
+def get_config():
+    """根据 FLASK_ENV 环境变量返回对应的配置类"""
+    env = os.getenv("FLASK_ENV", "development")
+    if env == "production":
+        return ProductionConfig
+    return DevelopmentConfig

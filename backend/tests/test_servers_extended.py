@@ -10,11 +10,11 @@ class TestServersExtended:
     def test_server_list_with_cache(self, client, auth_headers, test_server):
         """测试服务器列表缓存"""
         # test_server 现在是 int ID，直接使用
-        response1 = client.get('/api/servers/', headers=auth_headers)
+        response1 = client.get('/api/v1/servers/', headers=auth_headers)
         assert response1.status_code == 200
         assert response1.get_json()['from_cache'] is False
 
-        response2 = client.get('/api/servers/', headers=auth_headers)
+        response2 = client.get('/api/v1/servers/', headers=auth_headers)
         assert response2.status_code == 200
         assert response2.get_json()['from_cache'] is True
 
@@ -24,7 +24,7 @@ class TestServersExtended:
         """测试推送实时指标"""
         server_id = test_server  # ✅ test_server 已是 int
         response = client.post(
-            f'/api/servers/{server_id}/metrics',
+            f'/api/v1/servers/{server_id}/metrics',
             headers=auth_headers,
             json={
                 'cpu_use': 75.5,
@@ -46,7 +46,7 @@ class TestServersExtended:
         """测试指标验证"""
         server_id = test_server  # ✅
         response = client.post(
-            f'/api/servers/{server_id}/metrics',
+            f'/api/v1/servers/{server_id}/metrics',
             headers=auth_headers,
             json={
                 'cpu_use': 150,  # 无效！
@@ -75,7 +75,7 @@ class TestServersExtended:
             db.session.commit()
 
         response = client.get(
-            f'/api/servers/{server_id}/history?days=1&limit=100',
+            f'/api/v1/servers/{server_id}/history?days=1&limit=100',
             headers=auth_headers,
         )
 
@@ -88,7 +88,7 @@ class TestProbe:
     def test_batch_ping(self, client, auth_headers, test_server):
         """测试批量 Ping"""
         server_id = test_server  # ✅
-        response = client.post('/api/probe/ping/batch',
+        response = client.post('/api/v1/probe/ping/batch',
             headers=auth_headers,
             json={
                 'server_ids': [server_id],
@@ -120,7 +120,7 @@ class TestProbe:
             }'''
             mock_urlopen.return_value.__enter__.return_value = mock_response
 
-            response = client.post('/api/probe/fetch-probe',
+            response = client.post('/api/v1/probe/fetch-probe',
                 headers=auth_headers,
                 json={'server_ids': [server_id]}
             )
@@ -134,7 +134,7 @@ class TestAlerts:
         """测试告警阈值检查"""
         server_id = test_server  # ✅
         client.post(
-            f'/api/servers/{server_id}/metrics',
+            f'/api/v1/servers/{server_id}/metrics',
             headers=auth_headers,
             json={'cpu_use': 95}
         )

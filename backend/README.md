@@ -18,6 +18,24 @@
 
 ---
 
+## 数据库迁移（Flask-Migrate）
+
+首次初始化（已有数据库时只需执行一次）：
+```bash
+flask db init
+flask db migrate -m "initial schema"
+flask db upgrade
+```
+
+新增字段时：
+```bash
+flask db migrate -m "描述变更内容"
+flask db upgrade    # 应用到数据库
+flask db downgrade  # 回滚（如需要）
+```
+
+---
+
 ## 目录结构
 
 ```

@@ -18,7 +18,9 @@ from api.traffic import traffic_bp
 from api.audit import audit_bp
 from api.aff import aff_bp
 from api.exchange import exchange_bp
-from config import Config
+from flask_migrate import Migrate
+from utils.logging_config import setup_logging
+from config import get_config
 from services.scheduler import create_scheduler
 
 logger = logging.getLogger(__name__)
@@ -51,10 +53,11 @@ def _register_request_logger(app: Flask):
         return response
 
 
-def create_app(config_class=Config, **config_overrides):
+def create_app(**config_overrides):
     """应用工厂"""
     app = Flask(__name__)
-    app.config.from_object(config_class)
+    setup_logging(app)  # 最先初始化日志
+    app.config.from_object(get_config())
     app.config.update(config_overrides)
 
     # Swagger 初始化
@@ -64,6 +67,7 @@ def create_app(config_class=Config, **config_overrides):
     db.init_app(app)
     jwt.init_app(app)
     init_redis(app)
+    migrate_ext = Migrate(app, db)  # noqa: F841
 
     # ===== JWT 令牌黑名单检查 =====
     @jwt.token_in_blocklist_loader
@@ -89,15 +93,15 @@ def create_app(config_class=Config, **config_overrides):
 
     # ===== 蓝图注册 =====
     blueprints = [
-        (auth_bp, '/api/auth'),
-        (servers_bp, '/api/servers'),
-        (probe_bp, '/api/probe'),
-        (telegram_bp, '/api/telegram'),
-        (geo_bp, '/api/geo'),
-        (traffic_bp, '/api/traffic'),
-        (audit_bp, '/api/audit'),
-        (aff_bp, '/api/aff'),
-        (exchange_bp, '/api/exchange'),
+        (auth_bp,     '/api/v1/auth'),
+        (servers_bp,  '/api/v1/servers'),
+        (probe_bp,    '/api/v1/probe'),
+        (telegram_bp, '/api/v1/telegram'),
+        (geo_bp,      '/api/v1/geo'),
+        (traffic_bp,  '/api/v1/traffic'),
+        (audit_bp,    '/api/v1/audit'),
+        (aff_bp,      '/api/v1/aff'),
+        (exchange_bp, '/api/v1/exchange'),
     ]
     for bp, prefix in blueprints:
         app.register_blueprint(bp, url_prefix=prefix)

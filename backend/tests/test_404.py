@@ -3,7 +3,7 @@
 
 def test_404_returns_json(client):
     """测试 404 返回 JSON 格式"""
-    response = client.get('/api/nonexistent-route-xyz')
+    response = client.get('/api/v1/nonexistent-route-xyz')
     assert response.status_code == 404
     data = response.get_json()
     assert data is not None

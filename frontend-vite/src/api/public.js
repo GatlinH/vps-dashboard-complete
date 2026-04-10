@@ -4,7 +4,7 @@
  * 从 frontend/api-public.js 迁移，改为 ES Module 标准导出格式
  */
 
-const BASE = '/api'
+const BASE = '/api/v1'
 
 /**
  * 通用 GET 请求（无鉴权头）
