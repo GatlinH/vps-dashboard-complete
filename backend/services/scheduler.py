@@ -20,7 +20,9 @@ log = logging.getLogger(__name__)
 
 def create_scheduler(app):
     # 防止 Gunicorn 多 worker 重复启动调度器
-    # 仅在非 Gunicorn 环境或 worker ID 为 0 的首个 worker 中启动
+    # 默认情况下 GUNICORN_WORKERS=1（见 Dockerfile），调度器只会启动一次。
+    # 若需要 workers>1，可在 Gunicorn post_fork hook 中为每个 worker 设置
+    # APP_WORKER_ID（"0" 为主 worker），本检查确保只有主 worker 启动调度器。
     worker_id = os.environ.get("APP_WORKER_ID")
     if worker_id is not None and worker_id != "0":
         log.info(f"Worker {worker_id}: 跳过调度器启动（避免重复）")
