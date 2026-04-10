@@ -14,6 +14,13 @@ from utils.errors import ValidationError, AuthorizationError, InternalServerErro
 logger = logging.getLogger(__name__)
 aff_bp = Blueprint("aff", __name__)
 
+_AFF_FIELD_MAX_LEN = {
+    "provider": 128, "stock": 16, "cpu": 64, "ram": 64,
+    "disk": 64, "bandwidth": 64, "location": 128,
+    "currency": 8, "period": 16, "buy_url": 512,
+    "review_url": 512, "note": 2000,
+}
+
 CACHE_KEY = "vps:aff:list"
 CACHE_TTL = 300  # 5 分钟缓存
 
@@ -75,6 +82,11 @@ def create_product():
     if not provider:
         raise ValidationError("服务商名称不能为空", field="provider")
 
+    for field, max_len in _AFF_FIELD_MAX_LEN.items():
+        val = data.get(field)
+        if val is not None and len(str(val)) > max_len:
+            raise ValidationError(f"{field} 超过最大长度 {max_len} 个字符", field=field)
+
     p = AffProduct(
         provider=provider,
         stock=data.get("stock", "avail"),
@@ -109,11 +121,12 @@ def update_product(pid):
     p = AffProduct.query.get_or_404(pid)
     data = request.get_json(silent=True) or {}
 
-    fields = ["provider", "stock", "cpu", "ram", "disk", "bandwidth", "location",
-              "currency", "period", "buy_url", "review_url", "note"]
-    for f in fields:
+    for f, max_len in _AFF_FIELD_MAX_LEN.items():
         if f in data:
-            setattr(p, f, data[f])
+            val = data[f]
+            if val is not None and len(str(val)) > max_len:
+                raise ValidationError(f"{f} 超过最大长度 {max_len} 个字符", field=f)
+            setattr(p, f, val)
     if "price" in data:
         p.price = float(data["price"])
     if "sort_order" in data:

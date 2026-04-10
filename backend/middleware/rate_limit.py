@@ -17,9 +17,7 @@ class RateLimitConfig:
             app=app,
             key_func=get_remote_address,
             default_limits=[
-                "1000 per day",
-                "100 per hour",
-                "20 per minute"
+                "200 per minute"
             ],
             storage_uri=app.config.get('REDIS_URL'),
             strategy="fixed-window",
@@ -47,8 +45,8 @@ def get_limiter():
     from flask import current_app
     return current_app.limiter
 
-# 使用示例：
-# @servers_bp.get('/')
-# @get_limiter().limit("30/minute")
-# def list_servers():
-#     pass
+# 预定义限速级别常量（供各蓝图通过 app.limiter.limit() 装饰器使用）
+LOGIN_LIMIT = "10 per minute"    # 登录接口：严格防暴力破解
+PING_LIMIT  = "5 per minute"     # Probe ping：防 TCP 探测滥用
+WRITE_LIMIT = "30 per minute"    # 写操作（POST/PUT/DELETE）
+READ_LIMIT  = "200 per minute"   # 只读接口

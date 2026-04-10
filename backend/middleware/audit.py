@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 from functools import wraps
 from extensions import db
 from models.audit_log import AuditLog
-from flask_jwt_extended import get_jwt_identity
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +23,7 @@ class AuditMiddleware:
     IGNORED_PATHS = {
         '/health',
         '/metrics',
-        '/api/auth/login',
+        '/api/v1/auth/login',
     }
     
     def __init__(self, app=None):
@@ -51,9 +50,11 @@ class AuditMiddleware:
                 
                 # 提取用户信息
                 try:
+                    from flask_jwt_extended import get_jwt_identity, get_jwt
                     user_id = get_jwt_identity()
-                    username = f"user_{user_id}"
-                except:
+                    claims = get_jwt() if user_id else {}
+                    username = claims.get("username") or (f"user_{user_id}" if user_id else "anonymous")
+                except Exception:
                     user_id = None
                     username = 'anonymous'
                 

@@ -37,8 +37,11 @@ class ErrorHandler:
                     message=str(e)
                 ), e.code
             logger.error(f'Unhandled exception: {e}', exc_info=True)
+            import os
+            is_debug = os.getenv("FLASK_DEBUG", "0") == "1"
+            safe_message = str(e) if is_debug else "服务器内部错误，请稍后重试"
             return jsonify(
                 success=False,
                 error_code='INTERNAL_ERROR',
-                message=str(e)
+                message=safe_message
             ), 500
