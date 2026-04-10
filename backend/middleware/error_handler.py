@@ -1,5 +1,6 @@
 """统一错误处理中间件"""
 import logging
+import os
 import traceback
 from flask import jsonify, request
 from werkzeug.exceptions import HTTPException
@@ -37,7 +38,6 @@ class ErrorHandler:
                     message=str(e)
                 ), e.code
             logger.error(f'Unhandled exception: {e}', exc_info=True)
-            import os
             is_debug = os.getenv("FLASK_DEBUG", "0") == "1"
             safe_message = str(e) if is_debug else "服务器内部错误，请稍后重试"
             return jsonify(

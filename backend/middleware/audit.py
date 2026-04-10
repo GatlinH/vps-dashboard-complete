@@ -53,7 +53,7 @@ class AuditMiddleware:
                     from flask_jwt_extended import get_jwt_identity, get_jwt
                     user_id = get_jwt_identity()
                     claims = get_jwt() if user_id else {}
-                    username = claims.get("username") or (f"user_{user_id}" if user_id else "anonymous")
+                    username = claims.get("username") or ("anonymous" if not user_id else f"user_{user_id}")
                 except Exception:
                     user_id = None
                     username = 'anonymous'

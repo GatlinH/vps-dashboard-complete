@@ -111,11 +111,11 @@ def create_app(**config_overrides):
     init_metrics(app)
 
     # ===== 数据库初始化 =====
-    import os as _os
+    import os
     with app.app_context():
         # 生产环境通过 `flask db upgrade` 管理 schema，避免与 Flask-Migrate 冲突
         # 非生产/测试环境保留 create_all 以便快速启动
-        if _os.getenv("FLASK_ENV") != "production":
+        if os.getenv("FLASK_ENV") != "production":
             db.create_all()
 
     # ===== 后台任务调度 =====
