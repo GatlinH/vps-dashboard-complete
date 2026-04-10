@@ -1,6 +1,6 @@
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import Flask, g, request
 from flask_cors import CORS
 from flasgger import Swagger as Flasgger
@@ -114,7 +114,7 @@ def create_app(config_class=Config, **config_overrides):
     def health():
         return {
             'status': 'ok',
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'version': '1.0.0',
         }, 200
 

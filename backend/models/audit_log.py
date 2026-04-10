@@ -1,7 +1,7 @@
 # backend/models/audit_log.py - 审计日志模型
 
 from extensions import db
-from datetime import datetime
+from datetime import datetime, timezone
 
 class AuditLog(db.Model):
     """审计日志"""
@@ -33,7 +33,7 @@ class AuditLog(db.Model):
     ip_address = db.Column(db.String(50))
     user_agent = db.Column(db.Text)
     
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     
     def to_dict(self):
         return {

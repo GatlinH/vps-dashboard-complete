@@ -6,7 +6,7 @@ import re
 import secrets
 import string
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import (
     create_access_token, create_refresh_token,
@@ -111,7 +111,7 @@ def login():
             logger.warning(f"⚠️ LoginGuard 记录失败: {e}")
         return jsonify(msg="用户名或密码错误"), 401
 
-    user.last_login = datetime.utcnow()
+    user.last_login = datetime.now(timezone.utc)
     db.session.commit()
 
     try:

@@ -4,7 +4,7 @@
 数据库模型 - 性能优化版本
 添加关键索引和分区策略
 """
-from datetime import datetime, date
+from datetime import datetime, timezone, date
 from extensions import db
 from models.audit_log import AuditLog  # re-export for backward compatibility
 
@@ -15,7 +15,7 @@ class User(db.Model):
     username = db.Column(db.String(64), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(16), default="admin", index=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     last_login = db.Column(db.DateTime)
     
     __table_args__ = (
@@ -74,8 +74,8 @@ class Server(db.Model):
     traffic_reset_day = db.Column(db.SmallInteger, default=1)
     
     # 时间戳
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), index=True)
     
     # 复合索引用于常见查询
     __table_args__ = (
@@ -146,7 +146,7 @@ class ProbeResult(db.Model):
     status = db.Column(db.String(16))
     
     # 时间戳
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
     
     # 关键复合索引
     __table_args__ = (
@@ -180,7 +180,7 @@ class AlertRule(db.Model):
     enabled = db.Column(db.Boolean, default=True, index=True)
     last_fired = db.Column(db.DateTime)
     cool_down_s = db.Column(db.Integer, default=300)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         db.Index('idx_server_type', 'server_id', 'rule_type'),
@@ -206,8 +206,8 @@ class TelegramConfig(db.Model):
     chat_id = db.Column(db.String(64), default="")
     prefix = db.Column(db.String(64), default="【VPS星图】")
     enabled = db.Column(db.Boolean, default=False, index=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     def to_dict(self):
         return dict(
@@ -239,8 +239,8 @@ class AffProduct(db.Model):
     note       = db.Column(db.Text, default="")
     sort_order = db.Column(db.Integer, default=100, index=True)
     enabled    = db.Column(db.Boolean, default=True, index=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     def to_dict(self):
         return {

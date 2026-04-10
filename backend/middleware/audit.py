@@ -5,7 +5,7 @@
 """
 import logging
 from flask import request, g
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 from extensions import db
 from models.audit_log import AuditLog
@@ -38,8 +38,8 @@ class AuditMiddleware:
         @app.before_request
         def before_request():
             """记录请求开始时间"""
-            g.start_time = datetime.utcnow()
-            g.request_id = request.headers.get('X-Request-ID', f"{datetime.utcnow().timestamp()}")
+            g.start_time = datetime.now(timezone.utc)
+            g.request_id = request.headers.get('X-Request-ID', f"{datetime.now(timezone.utc).timestamp()}")
         
         @app.after_request
         def after_request(response):

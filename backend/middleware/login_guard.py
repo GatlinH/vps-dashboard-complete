@@ -66,7 +66,8 @@ class LoginGuard:
                             user_agent: str, request_obj) -> dict:
         """记录登录尝试"""
         attempt_key = f"login:attempts:{username}"
-        
+        current = 0  # 确保任何代码路径都有定义
+
         if not success:
             # 记录用户名失败尝试
             current = extensions.redis_client.incr(attempt_key)

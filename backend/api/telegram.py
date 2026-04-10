@@ -3,7 +3,7 @@
 """
 import json
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt
 from extensions import db
@@ -187,7 +187,7 @@ def fire_alert():
         # 更新 last_fired
         rule = AlertRule.query.filter_by(server_id=sid, rule_type=rule_type).first()
         if rule:
-            rule.last_fired = datetime.utcnow()
+            rule.last_fired = datetime.now(timezone.utc)
             db.session.commit()
         return jsonify(msg="告警已推送")
     return jsonify(msg="推送失败", detail=result), 502

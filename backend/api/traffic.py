@@ -3,7 +3,7 @@
 """
 /api/traffic - 流量统计与管理
 """
-from datetime import datetime, timedelta, date
+from datetime import datetime, timezone, timedelta, date
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt
 from extensions import db, redis_client
@@ -31,7 +31,7 @@ def get_traffic_summary():
             total_up_gb=round(total_up, 2),
             total_down_gb=round(total_down, 2),
             server_count=len(servers),
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
         )
     
     except Exception as e:
@@ -159,7 +159,7 @@ def get_traffic_history(sid):
         server = Server.query.get_or_404(sid)
         
         # 查询历史数据
-        start_date = datetime.utcnow() - timedelta(days=days)
+        start_date = datetime.now(timezone.utc) - timedelta(days=days)
         
         results = ProbeResult.query.filter(
             ProbeResult.server_id == sid,

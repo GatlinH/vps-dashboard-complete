@@ -15,7 +15,7 @@
 
 import logging
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict
 from extensions import db, redis_client
 from models.models import Server, AlertRule, TelegramConfig, AuditLog
@@ -145,7 +145,7 @@ class AlertService:
                         f"服务器：{server.name}\n"
                         f"CPU 使用率：<b>{server.cpu_use}%</b>\n"
                         f"位置：{server.location}\n"
-                        f"时间：{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
+                        f"时间：{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}"
                     ):
                         alert_count += 1
                 
@@ -157,7 +157,7 @@ class AlertService:
                         f"服务器：{server.name}\n"
                         f"内存使用率：<b>{server.ram_use}%</b>\n"
                         f"位置：{server.location}\n"
-                        f"时间：{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
+                        f"时间：{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}"
                     ):
                         alert_count += 1
                 
@@ -169,7 +169,7 @@ class AlertService:
                         f"服务器：{server.name}\n"
                         f"磁盘使用率：<b>{server.disk_use}%</b>\n"
                         f"位置：{server.location}\n"
-                        f"时间：{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
+                        f"时间：{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}"
                     ):
                         alert_count += 1
                 
@@ -181,7 +181,7 @@ class AlertService:
                         f"服务器：{server.name}\n"
                         f"IP：{server.ip}\n"
                         f"位置：{server.location}\n"
-                        f"时间：{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}",
+                        f"时间：{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}",
                         cooldown=AlertConfig.OFFLINE_COOLDOWN
                     ):
                         alert_count += 1
@@ -196,7 +196,7 @@ class AlertService:
                             f"服务器：{server.name}\n"
                             f"剩余时间：<b>{days_left} 天</b>\n"
                             f"过期日期：{server.expiry}\n"
-                            f"时间：{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
+                            f"时间：{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}"
                         ):
                             alert_count += 1
                 
@@ -207,7 +207,7 @@ class AlertService:
                         f"💀 <b>服务器已过期</b>\n"
                         f"服务器：{server.name}\n"
                         f"过期日期：{server.expiry}\n"
-                        f"时间：{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
+                        f"时间：{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}"
                     ):
                         alert_count += 1
                 
@@ -289,7 +289,7 @@ class AlertService:
         # ⑧ 更新规则的最后触发时间
         if rule:
             try:
-                rule.last_fired = datetime.utcnow()
+                rule.last_fired = datetime.now(timezone.utc)
                 db.session.commit()
             except Exception as e:
                 logger.warning(f"⚠️ 更新告警规则失败: {e}")
@@ -334,7 +334,7 @@ class AlertService:
                         f"CPU：{server.cpu_use}%\n"
                         f"内存：{server.ram_use}%\n"
                         f"磁盘：{server.disk_use}%\n"
-                        f"时间：{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
+                        f"时间：{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}"
                     )
                     
                     success, _ = self.notifier.send_message(recovery_message)

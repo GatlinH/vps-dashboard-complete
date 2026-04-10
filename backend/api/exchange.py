@@ -36,7 +36,7 @@ def get_rates():
     try:
         resp = req.get(
             f"https://open.er-api.com/v6/latest/{base}",
-            timeout=5
+            timeout=10
         )
         resp.raise_for_status()
         upstream = resp.json()
