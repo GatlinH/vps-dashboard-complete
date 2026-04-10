@@ -3,7 +3,7 @@ import logging
 import traceback
 from flask import jsonify, request
 from werkzeug.exceptions import HTTPException
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class ErrorHandler:
             )
             return jsonify(
                 success=False,
-                timestamp=datetime.utcnow().isoformat(),
+                timestamp=datetime.now(timezone.utc).isoformat(),
                 message=error.message,
                 error_code=error.error_code,
                 details=error.details,

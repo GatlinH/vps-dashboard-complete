@@ -104,4 +104,29 @@
 
 ---
 
+## HTTPS 配置（Let's Encrypt）
+
+### 快速申请证书
+
+```bash
+# 安装 certbot
+apt install -y certbot python3-certbot-nginx
+
+# 申请证书（自动配置 Nginx）
+certbot --nginx -d your-domain.com
+
+# 验证自动续期
+certbot renew --dry-run
+```
+
+### 手动激活 nginx.conf 中的 HTTPS 配置
+
+1. 将 `backend/nginx.conf` 中 HTTP server 块内的功能配置（location、add_header、gzip）移至 HTTPS server 块
+2. HTTP server 块只保留 `return 301 https://$host$request_uri;`
+3. 取消 HTTPS server 块的注释
+4. 填入实际的 `server_name` 和证书路径
+5. `docker compose exec nginx nginx -s reload`
+
+---
+
 *最后更新：请在每次部署前更新此文件的完成状态。*

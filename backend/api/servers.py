@@ -3,7 +3,7 @@
 """
 import json
 import logging
-from datetime import datetime, date, timedelta
+from datetime import datetime, timezone, date, timedelta
 
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -271,7 +271,7 @@ def get_history(sid):
 
     days  = request.args.get("days",  1,   type=int)
     limit = min(request.args.get("limit", 100, type=int), 1000)
-    since = datetime.utcnow() - timedelta(days=days)
+    since = datetime.now(timezone.utc) - timedelta(days=days)
 
     results = (
         ProbeResult.query

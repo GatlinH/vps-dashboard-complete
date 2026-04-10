@@ -86,6 +86,21 @@ docker compose --profile production up -d
 docker compose logs -f api
 ```
 
+### 4. 并发配置说明
+
+本项目使用 APScheduler 运行后台定时任务（TCP Ping、数据清理、告警等），**Gunicorn workers 必须保持为 1**，否则多个 worker 会重复执行调度器任务。提升并发请使用线程模式：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `GUNICORN_WORKERS` | `1` | **不建议修改**，保持为 1 以避免调度器重复执行 |
+| `GUNICORN_THREADS` | `4` | 可按服务器 CPU 核心数调整（推荐 2×CPU+1） |
+
+```bash
+# .env 中调整线程数（例如 4 核服务器）
+GUNICORN_WORKERS=1
+GUNICORN_THREADS=9
+```
+
 ## API 端点速览
 
 ### 权限说明
@@ -167,3 +182,18 @@ const tileUrl = `/api/geo/tile/${z}/${x}/${y}.png`;
 | vps:ipgeo:{ip}              | IP 地理信息          | 1h     |
 | vps:ipinfo:{ip}             | IP 详细信息          | 1h     |
 | vps:coords:{ip}             | IP 经纬度            | 24h    |
+
+## HTTPS 配置（Let's Encrypt）
+
+```bash
+# 安装 certbot
+apt install -y certbot python3-certbot-nginx
+
+# 申请证书（自动配置 Nginx）
+certbot --nginx -d your-domain.com
+
+# 验证自动续期
+certbot renew --dry-run
+```
+
+详细步骤请参阅 [DEPLOY_CHECKLIST.md](../DEPLOY_CHECKLIST.md#https-配置lets-encrypt)。

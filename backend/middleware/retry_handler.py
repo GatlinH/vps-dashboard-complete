@@ -6,7 +6,7 @@
 import logging
 import time
 from functools import wraps
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ class CircuitBreaker:
     def _on_failure(self):
         """失败处理"""
         self.failures += 1
-        self.last_failure_time = datetime.utcnow()
+        self.last_failure_time = datetime.now(timezone.utc)
         if self.failures >= self.failure_threshold:
             self.state = 'open'
             logger.critical(f"🔥 熔断器打开！")
@@ -90,7 +90,7 @@ class CircuitBreaker:
         """检查是否应该尝试重置"""
         if self.last_failure_time is None:
             return False
-        return (datetime.utcnow() - self.last_failure_time).seconds >= self.timeout
+        return (datetime.now(timezone.utc) - self.last_failure_time).seconds >= self.timeout
 
 
 # 使用示例

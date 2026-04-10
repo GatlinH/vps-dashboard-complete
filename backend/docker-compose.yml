@@ -62,6 +62,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # 中国大陆服务器可取消注释加速安装：
+        # PIP_INDEX_URL: https://pypi.tsinghua.edu.cn/simple
     container_name: vps_api
     restart: unless-stopped
     depends_on:
@@ -90,6 +93,10 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       MASTER_ENCRYPTION_KEY: ${MASTER_ENCRYPTION_KEY:-}
+      # 调度器与多 worker 注意事项：
+      # 因使用 APScheduler，Workers 必须保持为 1，用 Threads 提升并发
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-1}
+      GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
     ports:
       # 仅绑定本地回环地址，防止 Flask API 直接对公网暴露（由 Nginx 反向代理）
       - "127.0.0.1:5000:5000"

@@ -10,7 +10,8 @@ services/scheduler.py
 """
 import json
 import logging
-from datetime import datetime, timedelta
+import os
+from datetime import datetime, timezone, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval     import IntervalTrigger
 
@@ -18,6 +19,13 @@ log = logging.getLogger(__name__)
 
 
 def create_scheduler(app):
+    # 防止 Gunicorn 多 worker 重复启动调度器
+    # 仅在非 Gunicorn 环境或 worker ID 为 0 的首个 worker 中启动
+    worker_id = os.environ.get("APP_WORKER_ID")
+    if worker_id is not None and worker_id != "0":
+        log.info(f"Worker {worker_id}: 跳过调度器启动（避免重复）")
+        return None
+
     scheduler = BackgroundScheduler(timezone="Asia/Shanghai")
 
     with app.app_context():
@@ -186,7 +194,7 @@ def _job_check_alerts(app):
 
         rules   = AlertRule.query.filter_by(enabled=True).all()
         servers = {s.id: s for s in Server.query.all()}
-        now     = datetime.utcnow()
+        now     = datetime.now(timezone.utc)
 
         for rule in rules:
             targets = [servers[rule.server_id]] if rule.server_id and rule.server_id in servers \
@@ -252,7 +260,7 @@ def _job_cleanup(app):
     """清理 30 天前的历史探针数据"""
     from extensions import db
     from models.models import ProbeResult
-    cutoff = datetime.utcnow() - timedelta(days=30)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
     with app.app_context():
         deleted = ProbeResult.query.filter(ProbeResult.created_at < cutoff).delete()
         db.session.commit()
@@ -320,7 +328,7 @@ def _job_audit_log_cleanup(app):
     from extensions import db
     from models.models import AuditLog
     retention_days = int(os.environ.get("AUDIT_LOG_RETENTION_DAYS", 90))
-    cutoff = datetime.utcnow() - timedelta(days=retention_days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
     with app.app_context():
         try:
             deleted = AuditLog.query.filter(AuditLog.created_at < cutoff).delete()
