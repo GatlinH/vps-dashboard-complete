@@ -61,13 +61,16 @@ def ping():
         return r
 
     results = []
-    with ThreadPoolExecutor(max_workers=min(count, 10)) as pool:
+    max_workers = current_app.config.get("PROBE_PING_MAX_WORKERS", 10)
+    with ThreadPoolExecutor(max_workers=min(count, max_workers)) as pool:
         futures = {pool.submit(_ping_once, i): i for i in range(count)}
         for fut in as_completed(futures):
             try:
                 results.append(fut.result())
             except Exception as e:
-                results.append({"seq": futures[fut] + 1, "success": False, "error": str(e)})
+                # Limit error message to avoid exposing internal details
+                err_msg = type(e).__name__
+                results.append({"seq": futures[fut] + 1, "success": False, "error": err_msg})
 
     results.sort(key=lambda r: r["seq"])
 

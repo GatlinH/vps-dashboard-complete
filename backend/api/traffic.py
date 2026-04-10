@@ -225,7 +225,9 @@ _TRAFFIC_ALERT_LEVELS = [
     (90, "⚠️警告", "流量已使用 {pct:.1f}%，请注意！"),
     (80, "⚡提醒", "流量已使用 {pct:.1f}%。"),
 ]
-_TRAFFIC_ALERT_COOLDOWN_S = 3600  # 1小时冷却
+# 默认 1 小时冷却，可通过 TRAFFIC_ALERT_COOLDOWN_S 环境变量覆盖
+import os as _os
+_TRAFFIC_ALERT_COOLDOWN_S = int(_os.getenv("TRAFFIC_ALERT_COOLDOWN_S", "3600"))
 
 
 def _check_and_fire_traffic_alert(server):
