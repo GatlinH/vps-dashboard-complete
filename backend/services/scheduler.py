@@ -315,8 +315,7 @@ def _job_traffic_accumulate(app):
             # 优先用字节快照差值（精确），快照由 push_metrics 接口写入，
             # traffic_up_gb/traffic_down_gb 已在 push_metrics 时更新；
             # 若无快照，则降级为速率估算。
-            if (hasattr(s, 'bytes_out_snapshot') and s.bytes_out_snapshot
-                    and hasattr(s, 'bytes_in_snapshot') and s.bytes_in_snapshot):
+            if s.bytes_out_snapshot and s.bytes_in_snapshot:
                 continue  # 精确模式：流量已由 push_metrics 实时累加，跳过估算
             # 降级：速率估算
             delta_up = (s.net_up   or 0) * 30 / 1024   # MB/s × 30s → GB

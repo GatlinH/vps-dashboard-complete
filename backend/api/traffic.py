@@ -3,6 +3,7 @@
 """
 /api/traffic - 流量统计与管理
 """
+import os as _os
 from datetime import datetime, timezone, timedelta, date
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt
@@ -226,7 +227,6 @@ _TRAFFIC_ALERT_LEVELS = [
     (80, "⚡提醒", "流量已使用 {pct:.1f}%。"),
 ]
 # 默认 1 小时冷却，可通过 TRAFFIC_ALERT_COOLDOWN_S 环境变量覆盖
-import os as _os
 _TRAFFIC_ALERT_COOLDOWN_S = int(_os.getenv("TRAFFIC_ALERT_COOLDOWN_S", "3600"))
 
 
