@@ -5,6 +5,7 @@ import logging
 import re
 import secrets
 import string
+import time
 from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import (
@@ -20,6 +21,20 @@ from utils.token_blocklist import revoke_token
 
 auth_bp = Blueprint("auth", __name__)
 logger = logging.getLogger(__name__)
+
+
+def _revoke_current_token() -> None:
+    """吊销当前请求中的 access token（写入 Redis 黑名单）。"""
+    claims = get_jwt()
+    jti = claims.get("jti")
+    exp = claims.get("exp")
+    if jti and exp:
+        expires_delta = int(exp - time.time())
+        if expires_delta > 0:
+            try:
+                revoke_token(jti, expires_delta)
+            except Exception as e:
+                logger.warning(f"⚠️ 吊销 token 失败: {e}")
 
 
 def _generate_random_password(length=20):
@@ -161,18 +176,7 @@ def change_password():
     db.session.commit()
 
     # 吊销当前 access token，强制重新登录
-    claims = get_jwt()
-    jti = claims.get("jti")
-    exp = claims.get("exp")
-    if jti and exp:
-        from datetime import timezone
-        import time
-        expires_delta = int(exp - time.time())
-        if expires_delta > 0:
-            try:
-                revoke_token(jti, expires_delta)
-            except Exception as e:
-                logger.warning(f"⚠️ 吊销 token 失败: {e}")
+    _revoke_current_token()
 
     return jsonify(msg="密码已更新")
 
@@ -181,16 +185,5 @@ def change_password():
 @jwt_required()
 def logout():
     """注销：吊销当前 access token"""
-    claims = get_jwt()
-    jti = claims.get("jti")
-    exp = claims.get("exp")
-    if jti and exp:
-        from datetime import timezone
-        import time
-        expires_delta = int(exp - time.time())
-        if expires_delta > 0:
-            try:
-                revoke_token(jti, expires_delta)
-            except Exception as e:
-                logger.warning(f"⚠️ 吊销 token 失败: {e}")
+    _revoke_current_token()
     return jsonify(msg="已登出")
