@@ -125,7 +125,7 @@ def login():
         logger.warning(f"⚠️ LoginGuard 记录失败: {e}")
 
     access = create_access_token(identity=str(user.id),
-                                  additional_claims={"role": user.role})
+                                  additional_claims={"role": user.role, "username": user.username})
     refresh = create_refresh_token(identity=str(user.id))
 
     return jsonify(
@@ -168,10 +168,11 @@ def change_password():
 
     if not check_password_hash(user.password_hash, old):
         return jsonify(msg="原密码错误"), 400
-    if len(new) < 8:
-        return jsonify(msg="新密码至少 8 位"), 400
-    if not re.search(r'[A-Za-z]', new) or not re.search(r'[0-9]', new):
-        return jsonify(msg="新密码需同时包含字母和数字"), 400
+
+    from utils.validators import validate_password_strength
+    ok, err_msg = validate_password_strength(new)
+    if not ok:
+        return jsonify(msg=err_msg), 400
 
     user.password_hash = generate_password_hash(new)
     db.session.commit()

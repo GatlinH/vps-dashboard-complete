@@ -98,8 +98,8 @@ class SecurityConfig:
             response.headers['X-DNS-Prefetch-Control'] = 'off'
             response.headers['X-Content-Type-Options'] = 'nosniff'
             
-            # ✅ 防缓存敏感数据
-            if 'Authorization' in request.headers or '/api/' in request.path:
+            # 只对写操作或含 Authorization 的请求禁缓存，保留公开只读接口的浏览器缓存
+            if request.method in ('POST', 'PUT', 'DELETE', 'PATCH') or 'Authorization' in request.headers:
                 response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
                 response.headers['Pragma'] = 'no-cache'
             

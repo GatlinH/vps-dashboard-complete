@@ -75,7 +75,7 @@ def test_user(app):
     with app.app_context():
         user = User(
             username='testuser',
-            password_hash=generate_password_hash('password123'),
+            password_hash=generate_password_hash('Password@123456'),
             role='admin',
         )
         _db.session.add(user)
@@ -114,7 +114,7 @@ def auth_headers(client, test_user):
     """获取 testuser 的认证头"""
     response = client.post('/api/v1/auth/login', json={
         'username': 'testuser',
-        'password': 'password123',
+        'password': 'Password@123456',
     })
     data = response.get_json()
     assert 'access_token' in data, (

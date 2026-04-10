@@ -10,6 +10,7 @@ from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy.orm import load_only
 from extensions import db, redis_client
 from models.models import Server, ProbeResult
+from werkzeug.exceptions import HTTPException
 from utils.errors import ValidationError, InternalServerError
 
 traffic_bp = Blueprint("traffic", __name__)
@@ -116,6 +117,8 @@ def get_server_traffic(sid):
             days_until_reset=days_until_reset,
         )
     
+    except HTTPException:
+        raise
     except Exception as e:
         raise InternalServerError("获取服务器流量详情失败", str(e))
 

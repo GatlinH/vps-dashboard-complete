@@ -9,6 +9,7 @@ from middleware.security import SecurityConfig
 from middleware.rate_limit import RateLimitConfig
 from middleware.error_handler import ErrorHandler
 from middleware.audit import AuditMiddleware
+from middleware.metrics_middleware import init_metrics
 from api.servers import servers_bp
 from api.auth import auth_bp
 from api.probe import probe_bp
@@ -106,9 +107,16 @@ def create_app(**config_overrides):
     for bp, prefix in blueprints:
         app.register_blueprint(bp, url_prefix=prefix)
 
+    # ===== Prometheus 指标端点 =====
+    init_metrics(app)
+
     # ===== 数据库初始化 =====
+    import os
     with app.app_context():
-        db.create_all()
+        # 生产环境通过 `flask db upgrade` 管理 schema，避免与 Flask-Migrate 冲突
+        # 非生产/测试环境保留 create_all 以便快速启动
+        if os.getenv("FLASK_ENV") != "production":
+            db.create_all()
 
     # ===== 后台任务调度 =====
     create_scheduler(app)
