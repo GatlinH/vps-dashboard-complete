@@ -189,7 +189,7 @@ def fetch_probe():
             except Exception:
                 pass
 
-            updated.append(str(s.id))
+            updated.append(s.id)
         except Exception as e:
             errors.append({"server_id": s.id, "error": str(e)})
 
