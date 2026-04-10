@@ -85,15 +85,16 @@ def login():
         return jsonify(msg="用户名和密码不能为空"), 400
 
     # ── 暴力破解防护 ──────────────────────────────────────────────────────
-    try:
-        LoginGuard.check_login_allowed(username)
-    except AuthenticationError as e:
-        return jsonify(msg=e.message), 429
-    except Exception as e:
-        logger.warning(f"⚠️ LoginGuard 检查失败 (Redis 不可用?): {e}")
-
     ip_address = request.remote_addr or ""
     user_agent = request.user_agent.string or ""
+
+    try:
+        LoginGuard.check_login_allowed(username, ip_address)
+    except AuthenticationError as e:
+        retry_after = getattr(e, 'retry_after', None)
+        return jsonify(msg=e.message, retry_after=retry_after), 429
+    except Exception as e:
+        logger.warning(f"⚠️ LoginGuard 检查失败 (Redis 不可用?): {e}")
 
     _get_or_create_default_admin()
     user = User.query.filter_by(username=username).first()

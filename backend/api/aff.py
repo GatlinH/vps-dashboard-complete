@@ -6,7 +6,8 @@ import json
 import logging
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
-from extensions import db, redis_client
+import extensions
+from extensions import db
 from models.models import AffProduct
 from utils.errors import ValidationError, AuthorizationError, InternalServerError
 
@@ -19,7 +20,7 @@ CACHE_TTL = 300  # 5 分钟缓存
 
 def _invalidate_cache():
     try:
-        redis_client.delete(CACHE_KEY)
+        extensions.redis_client.delete(CACHE_KEY)
     except Exception:
         pass
 
@@ -30,7 +31,7 @@ def list_products():
     try:
         cached = None
         try:
-            raw = redis_client.get(CACHE_KEY)
+            raw = extensions.redis_client.get(CACHE_KEY)
             if raw:
                 cached = json.loads(raw)
         except Exception:
@@ -50,7 +51,7 @@ def list_products():
 
         if not request.args:
             try:
-                redis_client.setex(CACHE_KEY, CACHE_TTL, json.dumps(result, ensure_ascii=False, default=str))
+                extensions.redis_client.setex(CACHE_KEY, CACHE_TTL, json.dumps(result, ensure_ascii=False, default=str))
             except Exception:
                 pass
 

@@ -1,0 +1,49 @@
+/**
+ * src/api/public.js
+ * 公开只读接口封装 —— 无需鉴权
+ * 从 frontend/api-public.js 迁移，改为 ES Module 标准导出格式
+ */
+
+const BASE = '/api'
+
+/**
+ * 通用 GET 请求（无鉴权头）
+ * @param {string} path
+ * @returns {Promise<any>}
+ */
+async function publicGet(path) {
+  const resp = await fetch(BASE + path, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+  })
+  if (!resp.ok) {
+    throw new Error(`HTTP ${resp.status}`)
+  }
+  return resp.json()
+}
+
+/** 获取服务器列表（公开视图，敏感字段已过滤） */
+export async function listServersPublic() {
+  return publicGet('/servers/')
+}
+
+/** 获取国家矢量地图数据 */
+export async function getCountries() {
+  return publicGet('/geo/countries')
+}
+
+/** 获取服务器经纬度列表（公开） */
+export async function getServerCoords() {
+  return publicGet('/geo/servers/coords')
+}
+
+/** 查询 IP 地理信息（公开，无需鉴权） */
+export async function getIPInfo(ip = '') {
+  const qs = ip ? `?ip=${encodeURIComponent(ip)}` : ''
+  return publicGet(`/probe/ip-info${qs}`)
+}
+
+/** 地图瓦片 URL 构造（直接在 <img> 或 canvas 中使用） */
+export function tileURL(z, x, y) {
+  return `${BASE}/geo/tile/${z}/${x}/${y}.png`
+}

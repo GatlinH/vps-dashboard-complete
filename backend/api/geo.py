@@ -11,7 +11,7 @@ import json
 import hashlib
 import requests
 from flask import Blueprint, Response, jsonify, request, current_app
-from extensions import redis_client
+import extensions
 
 geo_bp = Blueprint("geo", __name__)
 
@@ -36,7 +36,7 @@ def tile_proxy(z, x, y):
 
     # 尝试 Redis 缓存
     try:
-        cached = redis_client.get(cache_key)
+        cached = extensions.redis_client.get(cache_key)
         if cached:
             return Response(
                 cached,
@@ -59,7 +59,7 @@ def tile_proxy(z, x, y):
 
         # 写 Redis（二进制）
         try:
-            redis_client.setex(cache_key, ttl, img_bytes)
+            extensions.redis_client.setex(cache_key, ttl, img_bytes)
         except Exception:
             pass
 
@@ -85,7 +85,7 @@ def countries():
     ttl       = 7 * 86400
 
     try:
-        cached = redis_client.get(cache_key)
+        cached = extensions.redis_client.get(cache_key)
         if cached:
             return Response(
                 cached,
@@ -101,7 +101,7 @@ def countries():
         resp.raise_for_status()
         raw = resp.content
         try:
-            redis_client.setex(cache_key, ttl, raw)
+            extensions.redis_client.setex(cache_key, ttl, raw)
         except Exception:
             pass
         return Response(raw, status=200, mimetype="application/json",
@@ -123,7 +123,7 @@ def ip_geo(ip=None):
     cache_key = f"vps:ipgeo:{ip or 'self'}"
 
     try:
-        cached = redis_client.get(cache_key)
+        cached = extensions.redis_client.get(cache_key)
         if cached:
             return jsonify(json.loads(cached))
     except Exception:
@@ -134,7 +134,7 @@ def ip_geo(ip=None):
         resp = requests.get(url, timeout=6)
         data = resp.json()
         try:
-            redis_client.setex(cache_key, 3600, json.dumps(data, ensure_ascii=False))
+            extensions.redis_client.setex(cache_key, 3600, json.dumps(data, ensure_ascii=False))
         except Exception:
             pass
         return jsonify(data)
@@ -177,7 +177,7 @@ def _get_server_coords(server) -> tuple[float, float]:
 
     cache_key = f"vps:coords:{server.ip}"
     try:
-        cached = redis_client.get(cache_key)
+        cached = extensions.redis_client.get(cache_key)
         if cached:
             d = json.loads(cached)
             return d["lat"], d["lon"]
@@ -191,7 +191,7 @@ def _get_server_coords(server) -> tuple[float, float]:
         if d.get("status") == "success":
             coords = {"lat": d["lat"], "lon": d["lon"]}
             try:
-                redis_client.setex(cache_key, 86400, json.dumps(coords))
+                extensions.redis_client.setex(cache_key, 86400, json.dumps(coords))
             except Exception:
                 pass
             return d["lat"], d["lon"]

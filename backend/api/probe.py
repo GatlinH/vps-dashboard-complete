@@ -6,7 +6,8 @@ import time
 import json
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required
-from extensions import db, redis_client
+from extensions import db
+import extensions
 from models.models import Server, ProbeResult
 from middleware.rbac import admin_required
 
@@ -115,7 +116,7 @@ def ping_batch():
 
     # 清 Redis 缓存
     try:
-        redis_client.delete("vps:servers:list")
+        extensions.redis_client.delete("vps:servers:list")
     except Exception:
         pass
 
@@ -167,7 +168,7 @@ def fetch_probe():
 
             # 写 Redis
             try:
-                redis_client.setex(
+                extensions.redis_client.setex(
                     f"vps:server:{s.id}:metrics",
                     current_app.config.get("PROBE_CACHE_TTL", 15),
                     json.dumps(metrics, ensure_ascii=False),
@@ -181,7 +182,7 @@ def fetch_probe():
 
     db.session.commit()
     try:
-        redis_client.delete("vps:servers:list")
+        extensions.redis_client.delete("vps:servers:list")
     except Exception:
         pass
 
@@ -231,7 +232,7 @@ def ip_info():
     cache_k = f"vps:ipinfo:{ip or 'self'}"
 
     try:
-        cached = redis_client.get(cache_k)
+        cached = extensions.redis_client.get(cache_k)
         if cached:
             return jsonify(json.loads(cached))
     except Exception:
@@ -243,7 +244,7 @@ def ip_info():
         with urllib.request.urlopen(url, timeout=6) as resp:
             data = json.loads(resp.read().decode())
         try:
-            redis_client.setex(cache_k, 3600, json.dumps(data, ensure_ascii=False))
+            extensions.redis_client.setex(cache_k, 3600, json.dumps(data, ensure_ascii=False))
         except Exception:
             pass
         return jsonify(data)
