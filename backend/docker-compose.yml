@@ -43,6 +43,8 @@ services:
       --maxmemory-policy allkeys-lru
       --appendonly yes
       --appendfsync everysec
+      # 生产环境建议在 .env 中设置 REDIS_PASSWORD，并将上面命令替换为：
+      # redis-server --requirepass ${REDIS_PASSWORD} --maxmemory 512mb ...
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
@@ -89,9 +91,9 @@ services:
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       MASTER_ENCRYPTION_KEY: ${MASTER_ENCRYPTION_KEY:-}
     ports:
-      - "5000:5000"
+      # 仅绑定本地回环地址，防止 Flask API 直接对公网暴露（由 Nginx 反向代理）
+      - "127.0.0.1:5000:5000"
     volumes:
-      - ./:/app
       - /var/log/vps-dashboard:/var/log/vps-dashboard
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
