@@ -12,13 +12,13 @@ class TestServersExtended:
         # test_server 现在是 int ID，直接使用
         response1 = client.get('/api/v1/servers/', headers=auth_headers)
         assert response1.status_code == 200
-        assert response1.get_json()['from_cache'] is False
+        assert response1.get_json().get('from_cache') is False
 
         response2 = client.get('/api/v1/servers/', headers=auth_headers)
         assert response2.status_code == 200
-        assert response2.get_json()['from_cache'] is True
+        assert response2.get_json().get('from_cache') is True
 
-        assert response1.get_json()['count'] == response2.get_json()['count']
+        assert response1.get_json().get('count') == response2.get_json().get('count')
 
     def test_server_metrics_push(self, client, auth_headers, test_server):
         """测试推送实时指标"""
@@ -54,7 +54,7 @@ class TestServersExtended:
         )
 
         assert response.status_code == 400
-        assert 'VALIDATION_ERROR' in response.get_json()['error_code']
+        assert 'VALIDATION_ERROR' in response.get_json().get('error_code', '')
 
     def test_server_history_query(self, client, auth_headers, test_server, app):
         """测试历史数据查询"""
@@ -81,7 +81,7 @@ class TestServersExtended:
 
         assert response.status_code == 200
         data = response.get_json()
-        assert len(data['data']) >= 10
+        assert len(data.get('data', [])) >= 10
 
 
 class TestProbe:
@@ -96,8 +96,9 @@ class TestProbe:
         )
 
         assert response.status_code == 200
-        data = response.get_json()
-        assert str(server_id) in data['results']
+        data = response.get_json() or {}
+        # results 在 JSON 中作为对象返回，JSON object 的键都是字符串，故用 str 比较最保险
+        assert str(server_id) in list(data.get('results', {}).keys())
 
     def test_probe_fetch(self, client, auth_headers, test_server, app):
         """测试探针数据抓取"""
@@ -126,7 +127,10 @@ class TestProbe:
             )
 
             assert response.status_code == 200
-            assert str(server_id) in response.get_json()['updated']
+            resp_json = response.get_json() or {}
+            updated = resp_json.get('updated', [])
+            # 将后端返回的 id 全部转为字符串再比较，既兼容后端返回数字也兼容字符串
+            assert str(server_id) in [str(x) for x in updated]
 
 
 class TestAlerts:
