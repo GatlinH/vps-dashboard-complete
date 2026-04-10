@@ -65,6 +65,16 @@ def create_app(config_class=Config, **config_overrides):
     jwt.init_app(app)
     init_redis(app)
 
+    # ===== JWT 令牌黑名单检查 =====
+    @jwt.token_in_blocklist_loader
+    def check_if_token_revoked(jwt_header, jwt_payload):
+        from utils.token_blocklist import is_token_revoked
+        try:
+            return is_token_revoked(jwt_payload.get("jti", ""))
+        except Exception:
+            # Redis 不可用时放行，避免阻断正常请求
+            return False
+
     # ===== 安全中间件 =====
     SecurityConfig.init_app(app)
     limiter = RateLimitConfig.init_app(app)

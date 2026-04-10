@@ -4,7 +4,7 @@ services/scheduler.py
   - 每 20s  批量 TCP ping 所有服务器
   - 每 30s  抓取探针数据（probe_url）
   - 每 60s  检查告警规则，触发 Telegram 通知
-  - 每  1h  清理 30 天前的 probe_results 历史
+  - 每天凌晨 2 点  清理 30 天前的 probe_results 历史
 
 使用 APScheduler（无需 Celery），轻量部署。
 """
@@ -42,8 +42,8 @@ def create_scheduler(app):
         )
         scheduler.add_job(
             func=lambda: _job_cleanup(app),
-            trigger=IntervalTrigger(hours=1),
-            id="cleanup", name="历史数据清理",
+            trigger="cron", hour=2, minute=0,
+            id="cleanup", name="历史数据清理（每天凌晨 2 点）",
             replace_existing=True,
         )
         scheduler.add_job(
@@ -248,7 +248,7 @@ def _job_cleanup(app):
     from models.models import ProbeResult
     cutoff = datetime.utcnow() - timedelta(days=30)
     with app.app_context():
-        deleted = ProbeResult.query.filter(ProbeResult.probed_at < cutoff).delete()
+        deleted = ProbeResult.query.filter(ProbeResult.created_at < cutoff).delete()
         db.session.commit()
         if deleted:
             log.info(f"历史数据清理: 删除 {deleted} 条 probe_results")

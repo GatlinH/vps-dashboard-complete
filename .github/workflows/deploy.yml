@@ -53,7 +53,7 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           FORCE_HTTPS: "0"
-        run: pytest tests/ -v --tb=short
+        run: pytest tests/ -v --tb=short --cov=. --cov-report=term-missing --cov-fail-under=30
 
   deploy:
     name: Deploy to VPS
@@ -87,9 +87,21 @@ jobs:
             cd backend
             docker compose up -d --build --remove-orphans
 
-            # 等待健康检查
-            echo "等待服务启动..."
-            sleep 10
+            # 健康检查轮询，最多等待 60 秒（12 × 5s）
+            echo "等待服务健康检查..."
+            for i in $(seq 1 12); do
+              if curl -sf http://localhost:5000/health; then
+                echo "✅ 服务已就绪"
+                break
+              fi
+              echo "等待中... ($i/12)"
+              sleep 5
+              if [ $i -eq 12 ]; then
+                echo "❌ 服务启动超时"
+                docker compose logs api --tail=50
+                exit 1
+              fi
+            done
             docker compose ps
 
             echo "=== 部署完成 $(date) ==="

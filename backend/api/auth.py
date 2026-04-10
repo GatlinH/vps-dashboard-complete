@@ -2,6 +2,7 @@
 /api/auth  —  登录 / 刷新 / 登出 / 修改密码
 """
 import logging
+import re
 import secrets
 import string
 from datetime import datetime
@@ -15,6 +16,7 @@ from extensions import db
 from models.models import User
 from middleware.login_guard import LoginGuard
 from utils.errors import AuthenticationError
+from utils.token_blocklist import revoke_token
 
 auth_bp = Blueprint("auth", __name__)
 logger = logging.getLogger(__name__)
@@ -121,7 +123,7 @@ def login():
 @jwt_required(refresh=True)
 def refresh():
     uid = get_jwt_identity()
-    user = User.query.get(int(uid))
+    user = db.session.get(User, int(uid))
     if not user:
         return jsonify(msg="用户不存在"), 404
     access = create_access_token(identity=uid,
@@ -133,7 +135,7 @@ def refresh():
 @jwt_required()
 def me():
     uid = get_jwt_identity()
-    user = User.query.get(int(uid))
+    user = db.session.get(User, int(uid))
     if not user:
         return jsonify(msg="用户不存在"), 404
     return jsonify(user=user.to_dict())
@@ -143,16 +145,52 @@ def me():
 @jwt_required()
 def change_password():
     uid = get_jwt_identity()
-    user = User.query.get(int(uid))
+    user = db.session.get(User, int(uid))
     data = request.get_json(silent=True) or {}
     old = data.get("old_password", "")
     new = data.get("new_password", "")
 
     if not check_password_hash(user.password_hash, old):
         return jsonify(msg="原密码错误"), 400
-    if len(new) < 6:
-        return jsonify(msg="新密码至少 6 位"), 400
+    if len(new) < 8:
+        return jsonify(msg="新密码至少 8 位"), 400
+    if not re.search(r'[A-Za-z]', new) or not re.search(r'[0-9]', new):
+        return jsonify(msg="新密码需同时包含字母和数字"), 400
 
     user.password_hash = generate_password_hash(new)
     db.session.commit()
+
+    # 吊销当前 access token，强制重新登录
+    claims = get_jwt()
+    jti = claims.get("jti")
+    exp = claims.get("exp")
+    if jti and exp:
+        from datetime import timezone
+        import time
+        expires_delta = int(exp - time.time())
+        if expires_delta > 0:
+            try:
+                revoke_token(jti, expires_delta)
+            except Exception as e:
+                logger.warning(f"⚠️ 吊销 token 失败: {e}")
+
     return jsonify(msg="密码已更新")
+
+
+@auth_bp.post("/logout")
+@jwt_required()
+def logout():
+    """注销：吊销当前 access token"""
+    claims = get_jwt()
+    jti = claims.get("jti")
+    exp = claims.get("exp")
+    if jti and exp:
+        from datetime import timezone
+        import time
+        expires_delta = int(exp - time.time())
+        if expires_delta > 0:
+            try:
+                revoke_token(jti, expires_delta)
+            except Exception as e:
+                logger.warning(f"⚠️ 吊销 token 失败: {e}")
+    return jsonify(msg="已登出")
