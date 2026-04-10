@@ -1,0 +1,3216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VPS 星图 · 公开展示</title>
+    <link rel="stylesheet" href="/styles/main.css">
+    <style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+  :root {
+    --bg: #070b14;
+    --bg2: #0d1525;
+    --bg3: #111d33;
+    --card: rgba(13,21,37,0.92);
+    --border: rgba(99,179,237,0.15);
+    --border2: rgba(99,179,237,0.3);
+    --accent: #63b3ed;
+    --accent2: #4fc3f7;
+    --gold: #f6c90e;
+    --green: #38ef7d;
+    --red: #ff6b6b;
+    --orange: #ff9f43;
+    --purple: #a78bfa;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --text3: #64748b;
+    --mono: 'Space Mono', monospace;
+    --sans: 'Noto Sans SC', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Starfield */
+  #starfield {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 0;
+    background: radial-gradient(ellipse at 20% 50%, rgba(99,179,237,0.04) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 20%, rgba(167,139,250,0.04) 0%, transparent 60%),
+                var(--bg);
+  }
+
+  #app { position: relative; z-index: 1; }
+
+  /* NAV */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(7,11,20,0.9);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex; align-items: center; gap: 0;
+    height: 56px;
+  }
+
+  .nav-logo {
+    font-family: var(--mono);
+    font-size: 15px; font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 2px;
+    margin-right: 2rem;
+    white-space: nowrap;
+  }
+
+  .nav-logo span { color: var(--gold); }
+
+  .nav-tabs { display: flex; gap: 0; flex: 1; }
+
+  .nav-tab {
+    padding: 0 1.25rem;
+    height: 56px;
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13px; color: var(--text2);
+    cursor: pointer; border: none; background: none;
+    border-bottom: 2px solid transparent;
+    transition: all .2s; white-space: nowrap;
+    font-family: var(--sans);
+  }
+
+  .nav-tab:hover { color: var(--text); }
+  .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .nav-tab .tab-icon { font-size: 16px; }
+
+  .nav-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+
+  .currency-switch {
+    display: flex; gap: 4px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px; padding: 3px;
+  }
+
+  .currency-btn {
+    padding: 4px 10px; border-radius: 4px;
+    font-size: 12px; font-family: var(--mono);
+    cursor: pointer; border: none;
+    background: none; color: var(--text2);
+    transition: all .2s;
+  }
+  .currency-btn.active { background: var(--accent); color: #000; }
+
+  .rate-display {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--text3);
+  }
+
+  /* PAGES */
+  .page { display: none; padding: 2rem; max-width: 1400px; margin: 0 auto; }
+  .page.active { display: block; }
+
+  /* ===== STATS BAR ===== */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px; margin-bottom: 2rem;
+  }
+
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px; padding: 1rem 1.25rem;
+    position: relative; overflow: hidden;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  }
+  .stat-card.blue::before { background: linear-gradient(90deg, var(--accent), transparent); }
+  .stat-card.gold::before { background: linear-gradient(90deg, var(--gold), transparent); }
+  .stat-card.green::before { background: linear-gradient(90deg, var(--green), transparent); }
+  .stat-card.red::before { background: linear-gradient(90deg, var(--red), transparent); }
+  .stat-card.purple::before { background: linear-gradient(90deg, var(--purple), transparent); }
+
+  .stat-label { font-size: 11px; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+  .stat-val { font-family: var(--mono); font-size: 22px; font-weight: 700; color: var(--text); }
+  .stat-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+  .stat-val.green { color: var(--green); }
+  .stat-val.gold { color: var(--gold); }
+  .stat-val.red { color: var(--red); }
+
+  /* ===== SERVER GRID ===== */
+  .toolbar {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 1.5rem; flex-wrap: wrap;
+  }
+
+  .group-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+
+  .group-tab {
+    padding: 5px 14px; border-radius: 20px;
+    font-size: 12px; cursor: pointer;
+    border: 1px solid var(--border);
+    background: none; color: var(--text2);
+    transition: all .2s;
+  }
+  .group-tab.active { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 700; }
+
+  .search-box {
+    flex: 1; min-width: 200px;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 14px;
+    font-size: 13px; color: var(--text);
+    font-family: var(--sans);
+    outline: none;
+  }
+  .search-box:focus { border-color: var(--accent); }
+
+  .add-btn {
+    padding: 7px 18px; border-radius: 8px;
+    background: var(--accent); color: #000;
+    border: none; font-size: 13px; font-weight: 700;
+    cursor: pointer; white-space: nowrap;
+    transition: opacity .2s;
+  }
+  .add-btn:hover { opacity: .85; }
+
+  .server-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+  }
+
+  /* SERVER CARD */
+  .server-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px; padding: 1.25rem;
+    position: relative; overflow: hidden;
+    cursor: pointer;
+    transition: border-color .2s, transform .2s;
+  }
+  .server-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+
+  .card-status-line {
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    border-radius: 14px 14px 0 0;
+  }
+  .status-online { background: var(--green); }
+  .status-offline { background: var(--red); }
+  .status-warn { background: var(--orange); }
+
+  .card-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 10px;
+  }
+
+  .card-name {
+    font-size: 15px; font-weight: 700; color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .flag { font-size: 18px; }
+
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    display: inline-block;
+  }
+  .status-dot.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-dot.offline { background: var(--red); }
+  .status-dot.warn { background: var(--orange); }
+
+  .card-badges { display: flex; gap: 4px; flex-wrap: wrap; }
+
+  .badge {
+    padding: 2px 8px; border-radius: 10px;
+    font-size: 10px; font-family: var(--mono);
+    letter-spacing: .5px;
+  }
+  .badge-blue { background: rgba(99,179,237,.15); color: var(--accent); border: 1px solid rgba(99,179,237,.3); }
+  .badge-green { background: rgba(56,239,125,.12); color: var(--green); border: 1px solid rgba(56,239,125,.25); }
+  .badge-gold { background: rgba(246,201,14,.12); color: var(--gold); border: 1px solid rgba(246,201,14,.25); }
+  .badge-red { background: rgba(255,107,107,.12); color: var(--red); border: 1px solid rgba(255,107,107,.25); }
+  .badge-purple { background: rgba(167,139,250,.12); color: var(--purple); border: 1px solid rgba(167,139,250,.25); }
+
+  /* Metrics bars */
+  .metrics { margin: 12px 0; display: flex; flex-direction: column; gap: 8px; }
+
+  .metric-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px;
+  }
+  .metric-label { color: var(--text3); width: 32px; }
+  .metric-bar { flex: 1; height: 4px; background: rgba(255,255,255,.06); border-radius: 2px; overflow: hidden; }
+  .metric-fill {
+    height: 100%; border-radius: 2px;
+    transition: width .6s ease;
+  }
+  .fill-green { background: var(--green); }
+  .fill-blue { background: var(--accent); }
+  .fill-orange { background: var(--orange); }
+  .fill-red { background: var(--red); }
+  .metric-val { color: var(--text2); font-family: var(--mono); font-size: 11px; min-width: 52px; text-align: right; }
+
+  .card-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  .card-spec { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+
+  /* ===== RESIDUAL VALUE TAG ===== */
+  .rv-tag-wrapper { position: relative; display: inline-block; }
+
+  .rv-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 10px;
+    background: rgba(246,201,14,.1);
+    border: 1px solid rgba(246,201,14,.3);
+    font-size: 11px; color: var(--gold);
+    cursor: default;
+    font-family: var(--mono);
+  }
+
+  .rv-tooltip {
+    display: none;
+    position: absolute; bottom: calc(100% + 8px); right: 0;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 10px; padding: 12px;
+    min-width: 220px; z-index: 50;
+    box-shadow: 0 8px 32px rgba(0,0,0,.6);
+    font-size: 12px;
+  }
+
+  .rv-tag-wrapper:hover .rv-tooltip { display: block; }
+
+  .rv-tooltip-row {
+    display: flex; justify-content: space-between;
+    padding: 3px 0; border-bottom: 1px solid var(--border);
+    color: var(--text2);
+  }
+  .rv-tooltip-row:last-child { border-bottom: none; }
+  .rv-tooltip-row .key { color: var(--text3); }
+  .rv-tooltip-row .val { font-family: var(--mono); color: var(--text); }
+  .rv-tooltip-title {
+    font-size: 11px; color: var(--text3); letter-spacing: 1px;
+    text-transform: uppercase; margin-bottom: 8px;
+  }
+
+  /* ===== AFF CARD ===== */
+  .aff-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+  }
+
+  .aff-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px; overflow: hidden;
+    transition: border-color .2s;
+  }
+  .aff-card:hover { border-color: var(--border2); }
+
+  .aff-card-header {
+    padding: 1rem 1.25rem;
+    background: linear-gradient(135deg, rgba(99,179,237,.08), rgba(167,139,250,.05));
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  .aff-provider { font-size: 16px; font-weight: 700; color: var(--text); }
+  .aff-stock {
+    font-size: 11px; padding: 3px 8px; border-radius: 8px;
+    font-family: var(--mono);
+  }
+  .stock-avail { background: rgba(56,239,125,.1); color: var(--green); border: 1px solid rgba(56,239,125,.2); }
+  .stock-low { background: rgba(255,159,67,.1); color: var(--orange); border: 1px solid rgba(255,159,67,.2); }
+  .stock-out { background: rgba(255,107,107,.1); color: var(--red); border: 1px solid rgba(255,107,107,.2); }
+
+  .aff-card-body { padding: 1rem 1.25rem; }
+
+  .aff-spec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+  .aff-spec-item { font-size: 12px; }
+  .aff-spec-key { color: var(--text3); margin-bottom: 2px; }
+  .aff-spec-val { color: var(--text); font-family: var(--mono); font-size: 13px; }
+
+  .aff-price {
+    display: flex; align-items: baseline; gap: 6px;
+    margin-bottom: 10px;
+  }
+  .aff-price-main { font-family: var(--mono); font-size: 22px; font-weight: 700; color: var(--gold); }
+  .aff-price-period { font-size: 12px; color: var(--text3); }
+
+  .aff-note {
+    font-size: 12px; color: var(--text2);
+    background: rgba(255,255,255,.03);
+    border-left: 2px solid var(--accent);
+    padding: 6px 10px; border-radius: 0 6px 6px 0;
+    margin-bottom: 12px; line-height: 1.6;
+  }
+
+  .aff-links { display: flex; gap: 8px; }
+
+  .aff-link-btn {
+    flex: 1; padding: 8px; border-radius: 8px;
+    font-size: 12px; font-weight: 700; text-align: center;
+    text-decoration: none; cursor: pointer; border: none;
+    transition: opacity .2s;
+  }
+  .aff-link-btn:hover { opacity: .85; }
+  .aff-btn-buy { background: var(--accent); color: #000; }
+  .aff-btn-review { background: rgba(99,179,237,.1); color: var(--accent); border: 1px solid var(--border2); }
+
+  /* ===== DETAIL MODAL ===== */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; z-index: 200;
+    background: rgba(0,0,0,.8); backdrop-filter: blur(4px);
+    align-items: center; justify-content: center; padding: 2rem;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    width: 100%; max-width: 680px;
+    max-height: 85vh; overflow-y: auto;
+    padding: 1.5rem;
+  }
+
+  .modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 1.25rem; padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-title { font-size: 18px; font-weight: 700; color: var(--text); }
+  .modal-close {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--bg3); border: 1px solid var(--border);
+    color: var(--text2); cursor: pointer; font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .modal-section { margin-bottom: 1.25rem; }
+  .modal-section-title { font-size: 11px; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+
+  .spec-table { width: 100%; border-collapse: collapse; }
+  .spec-table td { padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
+  .spec-table td:first-child { color: var(--text3); width: 40%; }
+  .spec-table td:last-child { color: var(--text); font-family: var(--mono); text-align: right; }
+
+  /* Reviews */
+  .review-item {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px;
+    margin-bottom: 10px;
+  }
+  .review-author { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+  .review-stars { color: var(--gold); font-size: 14px; margin-bottom: 6px; }
+  .review-text { font-size: 13px; color: var(--text2); line-height: 1.6; }
+
+  /* ===== 3D GLOBE PAGE ===== */
+  #globe-container {
+    width: 100%; height: 520px;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+
+  #globe-canvas { border-radius: 16px; }
+
+  .globe-legend {
+    position: absolute; top: 1rem; right: 1rem;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px;
+    font-size: 12px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; color: var(--text2); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  .globe-info-panel {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px; margin-top: 1.5rem;
+  }
+
+  /* ===== CALCULATOR PAGE ===== */
+  .calc-layout {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  @media (max-width: 768px) { .calc-layout { grid-template-columns: 1fr; } }
+
+  .calc-panel {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 1.5rem;
+  }
+
+  .calc-panel-title {
+    font-size: 14px; font-weight: 700; color: var(--text);
+    margin-bottom: 1.25rem; padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .form-group { margin-bottom: 14px; }
+  .form-label { font-size: 11px; color: var(--text3); letter-spacing: .5px; margin-bottom: 5px; display: block; }
+  .form-input {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px;
+    font-size: 13px; color: var(--text); font-family: var(--mono);
+    outline: none; transition: border-color .2s;
+  }
+  .form-input:focus { border-color: var(--accent); }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .calc-result {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1rem;
+    margin-top: 1rem;
+  }
+
+  .calc-result-row {
+    display: flex; justify-content: space-between;
+    padding: 5px 0; font-size: 13px;
+    border-bottom: 1px solid var(--border);
+  }
+  .calc-result-row:last-child { border: none; font-weight: 700; }
+  .calc-result-row .key { color: var(--text3); }
+  .calc-result-row .val { font-family: var(--mono); color: var(--text); }
+  .calc-result-row.highlight .val { color: var(--gold); font-size: 16px; }
+  .calc-result-row.green .val { color: var(--green); }
+  .calc-result-row.red .val { color: var(--red); }
+
+  .probe-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px; background: var(--bg3);
+    border: 1px solid var(--border2); border-radius: 8px;
+    color: var(--accent); font-size: 12px;
+    cursor: pointer; transition: all .2s; margin-bottom: 14px;
+    width: 100%;
+  }
+  .probe-btn:hover { background: rgba(99,179,237,.08); }
+
+  /* ===== ADD SERVER MODAL ===== */
+  .tab-switch { display: flex; gap: 0; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border); }
+  .tab-btn {
+    padding: 8px 16px; font-size: 13px; cursor: pointer;
+    border: none; background: none; color: var(--text2);
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* Spinner/loading */
+  .scanning {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--accent);
+    padding: 8px 0;
+  }
+  .spin {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid rgba(99,179,237,.2);
+    border-top-color: var(--accent);
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .page-title {
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--text3); margin-bottom: 1.5rem;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .page-title::before {
+    content: '';
+    display: block; width: 24px; height: 2px; background: var(--accent);
+  }
+
+  /* Network speed display */
+  .net-speeds {
+    display: flex; gap: 12px; margin-top: 6px;
+  }
+  .net-item { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+  .net-item span { color: var(--green); }
+
+  /* Toggle switch */
+  .toggle-switch { position:relative;display:inline-block;width:36px;height:20px;cursor:pointer; }
+  .toggle-switch input { opacity:0;width:0;height:0; }
+  .toggle-slider {
+    position:absolute;inset:0;background:var(--bg);border:1px solid var(--border2);
+    border-radius:20px;transition:.2s;
+  }
+  .toggle-slider::before {
+    content:'';position:absolute;width:14px;height:14px;left:2px;top:2px;
+    background:var(--text3);border-radius:50%;transition:.2s;
+  }
+  .toggle-switch input:checked + .toggle-slider { background:rgba(99,179,237,.2);border-color:var(--accent); }
+  .toggle-switch input:checked + .toggle-slider::before { background:var(--accent);transform:translateX(16px); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .stats-bar { grid-template-columns: 1fr 1fr; }
+    nav { padding: 0 1rem; }
+    .page { padding: 1rem; }
+    .nav-tab { padding: 0 .75rem; font-size: 12px; }
+  }
+
+  /* ===== LOGIN & ADMIN ===== */
+  .login-box {
+    background: var(--bg2); border: 1px solid var(--border2);
+    border-radius: 18px; padding: 2.5rem; width: 100%; max-width: 400px;
+    position: relative;
+  }
+  .login-logo {
+    text-align: center; margin-bottom: 2rem;
+  }
+  .login-logo-text {
+    font-family: var(--mono); font-size: 22px; font-weight: 700;
+    color: var(--accent); letter-spacing: 3px;
+  }
+  .login-logo-sub { font-size: 12px; color: var(--text3); margin-top: 4px; letter-spacing: 1px; }
+  .login-field { margin-bottom: 16px; }
+  .login-field label { display: block; font-size: 11px; color: var(--text3); letter-spacing: .5px; margin-bottom: 6px; }
+  .login-input {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 14px; font-size: 14px;
+    color: var(--text); font-family: var(--sans); outline: none;
+    transition: border-color .2s;
+  }
+  .login-input:focus { border-color: var(--accent); }
+  .login-btn {
+    width: 100%; padding: 11px; border-radius: 10px;
+    background: var(--accent); color: #000; font-size: 14px;
+    font-weight: 700; border: none; cursor: pointer;
+    transition: opacity .2s; margin-top: 8px;
+    font-family: var(--sans);
+  }
+  .login-btn:hover { opacity: .88; }
+  .login-err { color: var(--red); font-size: 12px; margin-top: 8px; min-height: 18px; }
+
+  /* Admin panel full-page */
+  #adminPanel {
+    display: none; position: fixed; inset: 0; z-index: 300;
+    background: var(--bg);
+    flex-direction: column;
+  }
+  #adminPanel.open { display: flex; }
+
+  .admin-nav {
+    height: 56px; background: rgba(7,11,20,.95);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 0;
+    padding: 0 2rem; flex-shrink: 0;
+  }
+  .admin-nav-logo {
+    font-family: var(--mono); font-size: 14px; font-weight: 700;
+    color: var(--gold); letter-spacing: 2px; margin-right: 2rem;
+  }
+  .admin-tabs { display: flex; gap: 0; flex: 1; }
+  .admin-tab {
+    padding: 0 1.1rem; height: 56px; display: flex; align-items: center; gap: 6px;
+    font-size: 13px; color: var(--text2); cursor: pointer;
+    border: none; background: none; border-bottom: 2px solid transparent;
+    transition: all .2s; font-family: var(--sans);
+  }
+  .admin-tab:hover { color: var(--text); }
+  .admin-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+  .admin-back {
+    padding: 6px 14px; border-radius: 8px;
+    background: var(--bg3); border: 1px solid var(--border);
+    color: var(--text2); font-size: 12px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    margin-left: auto;
+  }
+  .admin-back:hover { color: var(--text); }
+
+  .admin-body { flex: 1; overflow-y: auto; padding: 2rem; }
+  .admin-page { display: none; max-width: 900px; margin: 0 auto; }
+  .admin-page.active { display: block; }
+
+  .admin-section-title {
+    font-size: 11px; color: var(--text3); letter-spacing: 2px;
+    text-transform: uppercase; margin-bottom: 1.25rem;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .admin-section-title::before { content:''; width:20px; height:2px; background:var(--gold); display:block; }
+
+  .admin-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 1.5rem; margin-bottom: 1.25rem;
+  }
+  .admin-card-title {
+    font-size: 14px; font-weight: 700; color: var(--text);
+    margin-bottom: 1rem; padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  /* Ping tool */
+  .ping-result {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1rem; margin-top: 12px;
+    font-family: var(--mono); font-size: 12px; max-height: 280px; overflow-y: auto;
+  }
+  .ping-line { padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+  .ping-line:last-child { border: none; }
+  .ping-ok { color: var(--green); }
+  .ping-fail { color: var(--red); }
+  .ping-warn { color: var(--orange); }
+  .ping-info { color: var(--accent); }
+  .ping-label { color: var(--text3); margin-right: 8px; }
+
+  .ping-server-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr));
+    gap: 10px; margin-bottom: 14px;
+  }
+  .ping-server-item {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; cursor: pointer;
+    transition: border-color .2s;
+  }
+  .ping-server-item:hover { border-color: var(--border2); }
+  .ping-server-item.selected { border-color: var(--accent); background: rgba(99,179,237,.06); }
+  .ping-badge-ms {
+    margin-left: auto; font-family: var(--mono); font-size: 11px;
+    padding: 2px 8px; border-radius: 6px;
+  }
+
+  /* Telegram config */
+  .tg-status {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; padding: 10px 14px;
+    border-radius: 8px; margin-bottom: 12px;
+  }
+  .tg-connected { background: rgba(56,239,125,.08); color: var(--green); border: 1px solid rgba(56,239,125,.2); }
+  .tg-disconnected { background: rgba(255,107,107,.08); color: var(--red); border: 1px solid rgba(255,107,107,.2); }
+
+  .tg-alert-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .tg-alert-item {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  /* Theme editor */
+  .theme-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(180px,1fr)); gap: 10px; margin-bottom: 14px; }
+  .theme-preset {
+    border: 2px solid var(--border); border-radius: 10px;
+    padding: 12px; cursor: pointer; transition: border-color .2s;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .theme-preset:hover { border-color: var(--border2); }
+  .theme-preset.active { border-color: var(--gold); }
+  .theme-swatch { display: flex; gap: 4px; }
+  .swatch { width: 18px; height: 18px; border-radius: 4px; }
+  .theme-name { font-size: 12px; color: var(--text2); }
+
+  .css-editor {
+    width: 100%; min-height: 220px; background: var(--bg3);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; font-family: var(--mono); font-size: 12px;
+    color: var(--text); resize: vertical; outline: none;
+    line-height: 1.6; transition: border-color .2s;
+  }
+  .css-editor:focus { border-color: var(--accent); }
+
+  .var-sliders { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .var-row { display: flex; flex-direction: column; gap: 4px; }
+  .var-row label { font-size: 11px; color: var(--text3); display: flex; justify-content: space-between; }
+  .var-row input[type=color] {
+    width: 100%; height: 36px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--bg3);
+    cursor: pointer; padding: 2px 4px;
+  }
+
+  /* ===== TRAFFIC PAGE ===== */
+  .traffic-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 1.25rem; position: relative; overflow: hidden;
+    transition: border-color .2s;
+  }
+  .traffic-card:hover { border-color: var(--border2); }
+  .traffic-card.warn  { border-color: rgba(255,159,67,.4); }
+  .traffic-card.crit  { border-color: rgba(255,107,107,.5); }
+  .traffic-card.crit::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:3px;
+    background: var(--red);
+  }
+  .traffic-card.warn::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:3px;
+    background: var(--orange);
+  }
+
+  .traffic-bar-wrap {
+    background: rgba(255,255,255,.05); border-radius: 6px;
+    height: 10px; overflow: hidden; margin: 6px 0;
+  }
+  .traffic-bar-fill {
+    height: 100%; border-radius: 6px; transition: width .6s ease;
+  }
+
+  .traffic-numbers {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px; margin-top: 12px;
+  }
+  .traffic-num-item {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; text-align: center;
+  }
+  .traffic-num-label { font-size: 10px; color: var(--text3); letter-spacing: .5px; margin-bottom: 3px; }
+  .traffic-num-val   { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--text); }
+
+  .traffic-alert-banner {
+    background: rgba(255,107,107,.1); border: 1px solid rgba(255,107,107,.3);
+    border-radius: 10px; padding: 12px 16px;
+    display: flex; align-items: flex-start; gap: 10px;
+    font-size: 13px;
+  }
+  .traffic-alert-banner.warn {
+    background: rgba(255,159,67,.1); border-color: rgba(255,159,67,.3);
+  }
+  .traffic-alert-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .traffic-alert-list { list-style: none; margin: 4px 0 0; padding: 0; }
+  .traffic-alert-list li { padding: 2px 0; color: var(--text2); font-size: 12px; }
+  .traffic-alert-list li::before { content: '→ '; color: var(--red); }
+  .traffic-alert-list li.warn::before { color: var(--orange); }
+
+  .traffic-table-row { border-bottom: 1px solid var(--border); }
+  .traffic-table-row:last-child { border: none; }
+  .traffic-table-row td { padding: 8px 10px; vertical-align: middle; }
+  .traffic-table-row:hover td { background: rgba(255,255,255,.02); }
+
+  .traffic-reset-badge {
+    font-size: 10px; padding: 2px 7px; border-radius: 8px;
+    background: rgba(99,179,237,.1); color: var(--accent);
+    border: 1px solid rgba(99,179,237,.2); font-family: var(--mono);
+  }
+
+  @media (max-width: 720px) {
+    .traffic-chart-row { grid-template-columns: 1fr !important; }
+  }
+
+  /* Globe tooltip */
+  .globe-tooltip {
+    position: absolute; background: var(--bg2);
+    border: 1px solid var(--border2); border-radius: 8px;
+    padding: 8px 12px; font-size: 12px; pointer-events: none;
+    display: none; z-index: 10;
+  }
+
+  /* Probe list items */
+  .probe-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px; border-radius: 8px; cursor: pointer;
+    transition: background .15s;
+  }
+  .probe-item:hover { background: var(--bg3); }
+  .probe-item-name { font-size: 13px; color: var(--text); flex: 1; }
+  .probe-item-ip { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+  .probe-fill-btn {
+    padding: 4px 10px; border-radius: 6px;
+    background: rgba(99,179,237,.1); border: 1px solid var(--border2);
+    color: var(--accent); font-size: 11px; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+    <!-- 第三方库 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@latest/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+    <!-- 应用脚本 -->
+    <script type="module" src="./init-enhanced.js"></script>
+
+
+<canvas id="starfield"></canvas>
+
+<div id="app">
+  <!-- NAV -->
+  <nav>
+    <div class="nav-logo">VPS<span>·</span>星图</div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="switchPage('dashboard')">
+        <span class="tab-icon">📡</span> 监控总览
+      </button>
+      <button class="nav-tab" onclick="switchPage('aff')">
+        <span class="tab-icon">🛒</span> AFF市场
+      </button>
+      <button class="nav-tab" onclick="switchPage('globe')">
+        <span class="tab-icon">🌍</span> 3D星图
+      </button>
+      <button class="nav-tab" onclick="switchPage('calc')">
+        <span class="tab-icon">💹</span> 交易计算
+      </button>
+      <button class="nav-tab" onclick="switchPage('traffic')">
+        <span class="tab-icon">📊</span> 流量统计
+      </button>
+    </div>
+    <div class="nav-right">
+      <div class="currency-switch">
+        <button class="currency-btn active" onclick="setCurrency('CNY')">CNY</button>
+        <button class="currency-btn" onclick="setCurrency('USD')">USD</button>
+        <button class="currency-btn" onclick="setCurrency('EUR')">EUR</button>
+      </div>
+      <div class="rate-display" id="rateDisplay">1 USD = 7.26 CNY</div>
+      <a href="/admin.html" style="display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text2);font-size:12px;cursor:pointer;transition:all .2s;font-family:var(--sans);text-decoration:none" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        管理后台
+      </a>
+    </div>
+  </nav>
+
+  <!-- ===== DASHBOARD PAGE ===== -->
+  <div id="page-dashboard" class="page active">
+    <div class="page-title">服务器监控总览</div>
+    <!-- 新增：实时性能图表 -->
+    <div style="margin-top: 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
+        <div style="background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem;">
+            <h3 style="margin-bottom: 1rem; color: var(--text);">📈 CPU 趋势</h3>
+            <canvas id="cpuChart" height="200"></canvas>
+        </div>
+        
+        <div style="background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem;">
+            <h3 style="margin-bottom: 1rem; color: var(--text);">📊 流量统计</h3>
+            <canvas id="trafficChart" height="200"></canvas>
+        </div>
+    </div>
+</div>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar" id="statsBar"></div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="group-tabs" id="groupTabs"></div>
+      <input class="search-box" id="searchBox" placeholder="搜索服务器、IP、位置..." oninput="filterServers()">
+      <button class="add-btn" onclick="window.location.href='/admin.html'">+ 添加服务器</button>
+    </div>
+
+    <!-- Server Grid -->
+    <div class="server-grid" id="serverGrid"></div>
+  </div>
+
+  <!-- ===== AFF PAGE ===== -->
+  <div id="page-aff" class="page">
+    <div class="page-title">AFF推荐市场</div>
+    <div class="aff-grid" id="affGrid"></div>
+  </div>
+
+  <!-- ===== GLOBE PAGE ===== -->
+  <div id="page-globe" class="page">
+    <div class="page-title">全球节点分布</div>
+
+    <!-- Globe controls toolbar -->
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:1rem">
+      <div style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 12px">
+        <span style="font-size:11px;color:var(--text3)">连线显示</span>
+        <label class="toggle-switch" title="显示/隐藏节点连线">
+          <input type="checkbox" id="toggleLines" checked onchange="globeState.showLines=this.checked">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 12px">
+        <span style="font-size:11px;color:var(--text3)">自动旋转</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="toggleSpin" checked onchange="globeState.autoSpin=this.checked">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 12px">
+        <span style="font-size:11px;color:var(--text3)">国家轮廓</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="toggleCountries" checked onchange="globeState.showCountries=this.checked">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 12px">
+        <span style="font-size:11px;color:var(--text3)">卫星地图</span>
+        <label class="toggle-switch" title="切换 CARTO 暗色底图（实况地图瓦片）">
+          <input type="checkbox" id="toggleTileMap" onchange="globeState.tileMode=this.checked; globeState.tileCache.clear(); prefetchGlobeTiles(globeState.zoom, globeState.rotY)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <!-- Zoom buttons -->
+      <div style="display:flex;align-items:center;gap:0;background:var(--bg3);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <button onclick="adjustZoom(-0.2)" style="padding:5px 10px;border:none;background:none;color:var(--text2);cursor:pointer;font-size:14px;border-right:1px solid var(--border)" title="缩小">−</button>
+        <span id="zoomLabel" style="padding:4px 10px;font-size:11px;font-family:var(--mono);color:var(--text3);min-width:44px;text-align:center">1.00×</span>
+        <button onclick="adjustZoom(+0.2)" style="padding:5px 10px;border:none;background:none;color:var(--text2);cursor:pointer;font-size:14px;border-left:1px solid var(--border)" title="放大">+</button>
+      </div>
+        <div class="spin" id="globeSpinner" style="display:none"></div>
+        <span id="globeStatusText">等待初始化...</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 12px">
+        <span style="font-size:11px;color:var(--text3)">定时抓取</span>
+        <label class="toggle-switch" title="开启后每20秒自动抓取一次探针数据">
+          <input type="checkbox" id="toggleFetch" checked onchange="onFetchToggleChange(this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <button onclick="manualGlobeFetch()" style="padding:5px 14px;border-radius:7px;background:var(--bg3);border:1px solid var(--border2);color:var(--accent);font-size:12px;cursor:pointer">↻ 立即刷新</button>
+    </div>
+
+    <div id="globe-container">
+      <canvas id="globe-canvas" width="860" height="520" style="cursor:grab;border-radius:16px;border:1px solid var(--border)"></canvas>
+      <div class="globe-legend">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;letter-spacing:1px">节点状态</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>在线</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>离线</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div>预警</div>
+        <div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px">
+          <div class="legend-item"><div style="width:20px;height:2px;background:var(--accent);opacity:.6;border-radius:1px"></div>连接链路</div>
+        </div>
+      </div>
+      <div class="globe-tooltip" id="globeTooltip"></div>
+    </div>
+
+    <div class="globe-info-panel" id="globeInfoPanel"></div>
+  </div>
+
+  <!-- ===== CALC PAGE ===== -->
+  <div id="page-calc" class="page">
+    <div class="page-title">交易计算器</div>
+    <div class="calc-layout">
+      <!-- Input Panel -->
+      <div class="calc-panel">
+        <div class="calc-panel-title">📥 数据输入</div>
+
+        <div class="tab-switch">
+          <button class="tab-btn active" onclick="switchCalcTab('probe')">一键导入探针</button>
+          <button class="tab-btn" onclick="switchCalcTab('manual')">手动输入</button>
+        </div>
+
+        <div id="calcTabProbe">
+          <div class="scanning" id="scanStatus">
+            <div class="spin"></div> 正在扫描服务器探针数据...
+          </div>
+          <div id="probeList"></div>
+        </div>
+
+        <div id="calcTabManual" style="display:none">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">服务器名称</label>
+              <input class="form-input" id="calcName" placeholder="my-vps-01">
+            </div>
+            <div class="form-group">
+              <label class="form-label">位置</label>
+              <input class="form-input" id="calcLocation" placeholder="美国洛杉矶">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">CPU (核)</label>
+              <input class="form-input" id="calcCpu" type="number" placeholder="4">
+            </div>
+            <div class="form-group">
+              <label class="form-label">内存 (GB)</label>
+              <input class="form-input" id="calcRam" type="number" placeholder="8">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">存储 (GB)</label>
+              <input class="form-input" id="calcDisk" type="number" placeholder="100">
+            </div>
+            <div class="form-group">
+              <label class="form-label">带宽 (Mbps)</label>
+              <input class="form-input" id="calcBw" type="number" placeholder="1000">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">购入价格</label>
+              <input class="form-input" id="calcBuyPrice" type="number" placeholder="99">
+            </div>
+            <div class="form-group">
+              <label class="form-label">购买周期</label>
+              <select class="form-input" id="calcPeriod">
+                <option value="12">年付</option>
+                <option value="1">月付</option>
+                <option value="3">季付</option>
+                <option value="24">两年付</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">购买日期</label>
+              <input class="form-input" id="calcBuyDate" type="date">
+            </div>
+            <div class="form-group">
+              <label class="form-label">期望溢价 (%)</label>
+              <input class="form-input" id="calcPremium" type="number" placeholder="20">
+            </div>
+          </div>
+          <button class="add-btn" style="width:100%;margin-top:8px" onclick="calculateFromManual()">计算</button>
+        </div>
+      </div>
+
+      <!-- Result Panel -->
+      <div class="calc-panel">
+        <div class="calc-panel-title">📊 计算结果</div>
+        <div id="calcResults">
+          <div style="color:var(--text3);font-size:13px;text-align:center;padding:3rem 0">
+            请选择或输入服务器信息进行计算
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+  <!-- ===== TRAFFIC PAGE ===== -->
+  <div id="page-traffic" class="page">
+    <div class="page-title">流量统计与超限预警</div>
+
+    <!-- Summary stats -->
+    <div class="stats-bar" id="trafficStatsBar"></div>
+
+    <!-- Controls bar -->
+    <div class="toolbar" style="margin-bottom:1.25rem;flex-wrap:wrap">
+      <div class="group-tabs" id="trafficGroupTabs"></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-left:auto;flex-wrap:wrap">
+        <span style="font-size:12px;color:var(--text3)">预警阈值</span>
+        <select id="trafficAlertThreshold" class="search-box" style="width:88px;min-width:0;flex:none" onchange="renderTrafficPage()">
+          <option value="70">70%</option>
+          <option value="80" selected>80%</option>
+          <option value="90">90%</option>
+          <option value="95">95%</option>
+        </select>
+        <button class="add-btn" onclick="openTrafficSettings()">⚙ 流量配置</button>
+      </div>
+    </div>
+
+    <!-- Alert banner -->
+    <div id="trafficAlertBanner" style="margin-bottom:1rem"></div>
+
+    <!-- Traffic cards grid -->
+    <div id="trafficGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;margin-bottom:2rem"></div>
+
+    <!-- Charts row -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:1.5rem" class="traffic-chart-row">
+      <div class="calc-panel">
+        <div class="calc-panel-title">📊 本月各服务器出入站流量</div>
+        <div style="position:relative;height:240px;margin-top:10px">
+          <canvas id="trafficBarChart"></canvas>
+        </div>
+      </div>
+      <div class="calc-panel">
+        <div class="calc-panel-title" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <span>📉 近30天流量趋势</span>
+          <select id="trafficTrendServer" class="search-box" style="width:150px;min-width:0;flex:none;font-size:12px;padding:4px 8px" onchange="renderTrafficTrend()"></select>
+        </div>
+        <div style="position:relative;height:210px;margin-top:10px">
+          <canvas id="trafficTrendChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detail table -->
+    <div class="calc-panel">
+      <div class="calc-panel-title">📋 流量明细表</div>
+      <div style="overflow-x:auto;margin-top:10px">
+        <table id="trafficTable" style="width:100%;border-collapse:collapse;font-size:13px"></table>
+      </div>
+    </div>
+  </div>
+
+<!-- Traffic settings modal -->
+<div class="modal-overlay" id="trafficSettingsModal" onclick="if(event.target.id==='trafficSettingsModal')document.getElementById('trafficSettingsModal').classList.remove('open')">
+  <div class="modal" onclick="event.stopPropagation()" style="max-width:560px">
+    <div class="modal-header">
+      <div class="modal-title">⚙ 流量配置</div>
+      <button class="modal-close" onclick="document.getElementById('trafficSettingsModal').classList.remove('open')">×</button>
+    </div>
+    <div id="trafficSettingsBody"></div>
+  </div>
+</div>
+
+<!-- SERVER DETAIL MODAL -->
+<div class="modal-overlay" id="detailModal" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">服务器详情</div>
+      <button class="modal-close" onclick="document.getElementById('detailModal').classList.remove('open')">×</button>
+    </div>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<!-- ADD SERVER MODAL -->
+<div class="modal-overlay" id="addModal" onclick="closeAddModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title">添加服务器</div>
+      <button class="modal-close" onclick="document.getElementById('addModal').classList.remove('open')">×</button>
+    </div>
+    <div>
+      <!-- VPS source selector -->
+      <div class="form-group">
+        <label class="form-label">从已有监控 VPS 导入配置</label>
+        <select class="form-input" id="addSourceSelect" onchange="autoFillFromMonitor()">
+          <option value="">— 选择一台 VPS 自动填入规格 —</option>
+        </select>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">选择后将自动填入 IP、位置、CPU、内存、存储、带宽</div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <span style="font-size:11px;color:var(--text3)">基本信息</span>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">服务器名称</label>
+          <input class="form-input" id="addName" placeholder="my-vps-01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">分组</label>
+          <input class="form-input" id="addGroup" placeholder="生产环境">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">旗帜 (Emoji)</label>
+          <input class="form-input" id="addFlag" placeholder="🇺🇸">
+        </div>
+        <div class="form-group">
+          <label class="form-label">IP 地址 <span style="color:var(--green);font-size:10px">自动</span></label>
+          <input class="form-input" id="addIp" placeholder="1.2.3.4" readonly style="opacity:.7">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">位置 <span style="color:var(--green);font-size:10px">自动</span></label>
+          <input class="form-input" id="addLocation" placeholder="美国洛杉矶" readonly style="opacity:.7">
+        </div>
+        <div class="form-group">
+          <label class="form-label">带宽 <span style="color:var(--green);font-size:10px">自动</span></label>
+          <input class="form-input" id="addBw" placeholder="1Gbps不限" readonly style="opacity:.7">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">CPU (核) <span style="color:var(--green);font-size:10px">自动</span></label>
+          <input class="form-input" id="addCpu" type="number" placeholder="4" readonly style="opacity:.7">
+        </div>
+        <div class="form-group">
+          <label class="form-label">内存 (GB) <span style="color:var(--green);font-size:10px">自动</span></label>
+          <input class="form-input" id="addRam" type="number" placeholder="8" readonly style="opacity:.7">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">存储 (GB) <span style="color:var(--green);font-size:10px">自动</span></label>
+          <input class="form-input" id="addDisk" type="number" placeholder="100" readonly style="opacity:.7">
+        </div>
+        <div class="form-group">
+          <label class="form-label">探针 URL</label>
+          <input class="form-input" id="addProbe" placeholder="https://...">
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <span style="font-size:11px;color:var(--text3)">价格与周期</span>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">价格 (元)</label>
+          <input class="form-input" id="addPrice" type="number" placeholder="99">
+        </div>
+        <div class="form-group">
+          <label class="form-label">周期</label>
+          <select class="form-input" id="addPeriod">
+            <option value="monthly">月付</option>
+            <option value="yearly">年付</option>
+            <option value="quarterly">季付</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">到期日期</label>
+          <input class="form-input" id="addExpiry" type="date">
+        </div>
+        <div class="form-group" style="display:flex;flex-direction:column;justify-content:flex-end">
+          <button class="probe-btn" style="margin:0" onclick="unlockSpecFields()">✏️ 手动修改规格字段</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">备注</label>
+        <input class="form-input" id="addNote" placeholder="用于...">
+      </div>
+      <div style="display:flex;gap:10px;margin-top:1rem">
+        <button class="add-btn" style="flex:1" onclick="addServer()">确认添加</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ===== DATA =====
+let currency = 'CNY';
+let exchangeRates = { USD: 1, CNY: 7.26, EUR: 0.92 };
+let activeGroup = '全部';
+let servers = JSON.parse(localStorage.getItem('vps_servers') || 'null') || [
+  {
+    id: 1, name: 'LA-Pro-01', group: '生产环境', flag: '🇺🇸',
+    location: '美国洛杉矶', ip: '104.21.45.67',
+    cpu: 4, ram: 8, disk: 100, bw: '1Gbps不限',
+    cpu_use: 34, ram_use: 62, disk_use: 45, net_up: 12.4, net_down: 89.2,
+    status: 'online', uptime: '99.98%',
+    price: 99, period: 'yearly', expiry: '2026-06-15',
+    note: '主力生产服务器，运行主站业务',
+    probe: 'https://probe.example.com/1',
+    traffic_limit_gb: 0, traffic_used_gb: 0,
+    traffic_up_gb: 342.5, traffic_down_gb: 1820.3,
+    traffic_reset_day: 1,
+  },
+  {
+    id: 2, name: 'HK-Node-02', group: '香港节点', flag: '🇭🇰',
+    location: '香港 CMI', ip: '43.155.88.12',
+    cpu: 2, ram: 2, disk: 40, bw: '200GB/月',
+    cpu_use: 78, ram_use: 88, disk_use: 72, net_up: 45.1, net_down: 120.5,
+    status: 'warn', uptime: '99.1%',
+    price: 68, period: 'monthly', expiry: '2026-04-10',
+    note: '香港中转节点，流量较高需注意',
+    probe: 'https://probe.example.com/2',
+    traffic_limit_gb: 200, traffic_used_gb: 187.4,
+    traffic_up_gb: 62.1, traffic_down_gb: 125.3,
+    traffic_reset_day: 1,
+  },
+  {
+    id: 3, name: 'JP-Sakura-03', group: '日本节点', flag: '🇯🇵',
+    location: '日本东京 SoftBank', ip: '27.0.234.55',
+    cpu: 8, ram: 16, disk: 200, bw: '10Gbps共享',
+    cpu_use: 22, ram_use: 41, disk_use: 38, net_up: 8.9, net_down: 56.3,
+    status: 'online', uptime: '100%',
+    price: 288, period: 'yearly', expiry: '2026-12-01',
+    note: 'Sakura云，延迟极低',
+    probe: 'https://probe.example.com/3',
+    traffic_limit_gb: 0, traffic_used_gb: 0,
+    traffic_up_gb: 128.7, traffic_down_gb: 534.2,
+    traffic_reset_day: 1,
+  },
+  {
+    id: 4, name: 'DE-Hetzner-04', group: '欧洲节点', flag: '🇩🇪',
+    location: '德国法兰克福', ip: '95.216.12.88',
+    cpu: 6, ram: 12, disk: 240, bw: '不限',
+    cpu_use: 15, ram_use: 33, disk_use: 61, net_up: 5.2, net_down: 30.1,
+    status: 'online', uptime: '99.99%',
+    price: 45, period: 'monthly', expiry: '2026-05-20',
+    note: 'Hetzner性价比神机',
+    probe: 'https://probe.example.com/4',
+    traffic_limit_gb: 0, traffic_used_gb: 0,
+    traffic_up_gb: 89.3, traffic_down_gb: 412.6,
+    traffic_reset_day: 1,
+  },
+  {
+    id: 5, name: 'SG-Linode-05', group: '东南亚', flag: '🇸🇬',
+    location: '新加坡', ip: '172.104.55.99',
+    cpu: 1, ram: 1, disk: 25, bw: '1TB/月',
+    cpu_use: 5, ram_use: 55, disk_use: 20, net_up: 2.1, net_down: 18.5,
+    status: 'offline', uptime: '95.2%',
+    price: 30, period: 'monthly', expiry: '2026-04-05',
+    note: '已到期，待续费',
+    probe: '',
+    traffic_limit_gb: 1024, traffic_used_gb: 634.8,
+    traffic_up_gb: 201.3, traffic_down_gb: 433.5,
+    traffic_reset_day: 15,
+  },
+  {
+    id: 6, name: 'US-OVH-06', group: '生产环境', flag: '🇺🇸',
+    location: '美国纽约 OVH', ip: '51.81.22.44',
+    cpu: 4, ram: 4, disk: 80, bw: '不限',
+    cpu_use: 48, ram_use: 71, disk_use: 55, net_up: 25.0, net_down: 180.0,
+    status: 'online', uptime: '99.5%',
+    price: 159, period: 'yearly', expiry: '2027-01-15',
+    note: 'OVH备份节点',
+    probe: 'https://probe.example.com/6',
+    traffic_limit_gb: 0, traffic_used_gb: 0,
+    traffic_up_gb: 445.2, traffic_down_gb: 2301.8,
+    traffic_reset_day: 1,
+  }
+];
+
+let affCards = [
+  {
+    provider: 'RackNerd', flag: '🇺🇸', location: '美国多机房',
+    cpu: 2, ram: 2.5, disk: 40, bw: '4TB/月', ip_count: 1,
+    price: 10.98, period: '年', currency_sym: '$',
+    stock: 'avail', stock_label: '有货',
+    note: 'AMD EPYC，年付不到 $11，超高性价比，洛杉矶/圣何塞可选',
+    buy_url: '#', review_url: '#',
+  },
+  {
+    provider: 'BandwagonHost', flag: '🇺🇸🇯🇵🇭🇰', location: '多节点可选',
+    cpu: 2, ram: 1, disk: 20, bw: '1TB/月', ip_count: 1,
+    price: 49.99, period: '年', currency_sym: '$',
+    stock: 'low', stock_label: '剩余少量',
+    note: '搬瓦工经典款，CN2 GIA线路，延迟低，限购注意使用规则',
+    buy_url: '#', review_url: '#',
+  },
+  {
+    provider: 'Vultr', flag: '🌍', location: '全球32机房',
+    cpu: 1, ram: 1, disk: 25, bw: '1TB/月', ip_count: 1,
+    price: 3.50, period: '月', currency_sym: '$',
+    stock: 'avail', stock_label: '有货',
+    note: '按小时计费，全球节点随意切换，新用户可领$100赠金',
+    buy_url: '#', review_url: '#',
+  },
+  {
+    provider: 'Hetzner', flag: '🇩🇪🇫🇮', location: '欧洲德国/芬兰',
+    cpu: 2, ram: 4, disk: 40, bw: '20TB/月', ip_count: 1,
+    price: 4.51, period: '月', currency_sym: '€',
+    stock: 'avail', stock_label: '有货',
+    note: '欧洲性价比之王，ARM架构价格更低，机器质量稳定',
+    buy_url: '#', review_url: '#',
+  },
+  {
+    provider: 'Bandwagon Special', flag: '🇭🇰', location: '香港 CN2 GIA',
+    cpu: 2, ram: 2, disk: 40, bw: '500GB/月', ip_count: 1,
+    price: 299.99, period: '年', currency_sym: '$',
+    stock: 'out', stock_label: '已售罄',
+    note: '香港CN2 GIA顶级线路，延迟<5ms，库存长期缺货',
+    buy_url: '#', review_url: '#',
+  },
+  {
+    provider: 'DMIT', flag: '🇺🇸🇯🇵🇭🇰', location: 'CN2 GIA多节点',
+    cpu: 1, ram: 1.5, disk: 20, bw: '500GB/月', ip_count: 1,
+    price: 28.88, period: '季', currency_sym: '$',
+    stock: 'avail', stock_label: '有货',
+    note: 'CN2 GIA Premium套餐，三网直连，iplc中继可选',
+    buy_url: '#', review_url: '#',
+  }
+];
+
+// ===== CURRENCY =====
+function setCurrency(c) {
+  currency = c;
+  document.querySelectorAll('.currency-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  updateRateDisplay();
+  renderStats();
+}
+
+function updateRateDisplay() {
+  const pairs = { CNY: `1 USD = ${exchangeRates.CNY} CNY`, USD: `基准货币 USD`, EUR: `1 USD = ${exchangeRates.EUR} EUR` };
+  document.getElementById('rateDisplay').textContent = pairs[currency];
+}
+
+function toDisplay(cnyAmount) {
+  if (currency === 'CNY') return `¥${cnyAmount.toFixed(0)}`;
+  if (currency === 'USD') return `$${(cnyAmount / exchangeRates.CNY).toFixed(2)}`;
+  if (currency === 'EUR') return `€${(cnyAmount / exchangeRates.CNY * exchangeRates.EUR).toFixed(2)}`;
+}
+
+// ===== RESIDUAL VALUE =====
+function calcResidualValue(server) {
+  const now = new Date();
+  const expiry = new Date(server.expiry);
+  const msLeft = expiry - now;
+  if (msLeft <= 0) return { pct: 0, daysLeft: 0, value: 0, monthsLeft: 0 };
+  const daysLeft = Math.ceil(msLeft / 86400000);
+  const monthsLeft = daysLeft / 30;
+  let totalDays = server.period === 'yearly' ? 365 : server.period === 'quarterly' ? 92 : 30;
+  const pct = Math.min(100, Math.max(0, (daysLeft / totalDays) * 100));
+  const dailyRate = server.price / totalDays;
+  const value = dailyRate * daysLeft;
+  return { pct: Math.round(pct), daysLeft, value: Math.round(value), monthsLeft: monthsLeft.toFixed(1) };
+}
+
+function getMonthlyPrice(server) {
+  if (server.period === 'monthly') return server.price;
+  if (server.period === 'yearly') return server.price / 12;
+  if (server.period === 'quarterly') return server.price / 3;
+  return server.price;
+}
+
+// ===== STATS =====
+function renderStats() {
+  const filtered = getFilteredServers();
+  const online = filtered.filter(s => s.status === 'online').length;
+  const warn = filtered.filter(s => s.status === 'warn').length;
+  const offline = filtered.filter(s => s.status === 'offline').length;
+
+  let totalValue = 0, residualValue = 0, monthlySpend = 0;
+  filtered.forEach(s => {
+    totalValue += s.price;
+    const rv = calcResidualValue(s);
+    residualValue += rv.value;
+    monthlySpend += getMonthlyPrice(s);
+  });
+
+  document.getElementById('statsBar').innerHTML = `
+    <div class="stat-card blue">
+      <div class="stat-label">总服务器</div>
+      <div class="stat-val">${filtered.length}</div>
+      <div class="stat-sub">在线 ${online} · 预警 ${warn} · 离线 ${offline}</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-label">剩余总价值</div>
+      <div class="stat-val green">${toDisplay(residualValue)}</div>
+      <div class="stat-sub">总投入 ${toDisplay(totalValue)}</div>
+    </div>
+    <div class="stat-card gold">
+      <div class="stat-label">每月支出</div>
+      <div class="stat-val gold">${toDisplay(monthlySpend)}</div>
+      <div class="stat-sub">约 ${toDisplay(monthlySpend * 12)}/年</div>
+    </div>
+    <div class="stat-card red">
+      <div class="stat-label">即将到期</div>
+      <div class="stat-val red">${filtered.filter(s => {
+        const d = (new Date(s.expiry) - new Date()) / 86400000;
+        return d > 0 && d <= 30;
+      }).length} 台</div>
+      <div class="stat-sub">30天内到期</div>
+    </div>
+    <div class="stat-card purple">
+      <div class="stat-label">平均在线率</div>
+      <div class="stat-val" style="color:var(--purple)">${(filtered.reduce((a,s) => a + parseFloat(s.uptime || 0), 0) / Math.max(filtered.length,1)).toFixed(2)}%</div>
+      <div class="stat-sub">SLA 统计</div>
+    </div>
+  `;
+}
+
+// ===== GROUPS =====
+function renderGroupTabs() {
+  const groups = ['全部', ...new Set(servers.map(s => s.group))];
+  document.getElementById('groupTabs').innerHTML = groups.map(g =>
+    `<button class="group-tab ${g===activeGroup?'active':''}" onclick="setGroup('${g}')">${g}</button>`
+  ).join('');
+}
+
+function setGroup(g) {
+  activeGroup = g;
+  renderGroupTabs();
+  renderStats();
+  renderServers();
+}
+
+function getFilteredServers() {
+  const q = (document.getElementById('searchBox')?.value || '').toLowerCase();
+  return servers.filter(s => {
+    const matchGroup = activeGroup === '全部' || s.group === activeGroup;
+    const matchSearch = !q || s.name.toLowerCase().includes(q) || s.location.toLowerCase().includes(q) || s.ip.includes(q);
+    return matchGroup && matchSearch;
+  });
+}
+
+function filterServers() { renderStats(); renderServers(); }
+
+// ===== SERVER CARD RENDER =====
+function getStatusClass(status) {
+  return { online: 'status-online', warn: 'status-warn', offline: 'status-offline' }[status] || 'status-offline';
+}
+
+function getStatusDot(status) {
+  return { online: 'online', warn: 'warn', offline: 'offline' }[status] || 'offline';
+}
+
+function renderMetricBar(label, pct) {
+  const v = parseFloat(pct);
+  const cls = v >= 90 ? 'fill-red' : v >= 70 ? 'fill-orange' : 'fill-green';
+  const display = isNaN(v) ? '0.00' : v.toFixed(2);
+  return `<div class="metric-row">
+    <div class="metric-label">${label}</div>
+    <div class="metric-bar"><div class="metric-fill ${cls}" style="width:${Math.min(100,v)}%"></div></div>
+    <div class="metric-val">${display}%</div>
+  </div>`;
+}
+
+function renderServerCard(s) {
+  const rv = calcResidualValue(s);
+  const expiry = new Date(s.expiry);
+  const daysLeft = Math.ceil((expiry - new Date()) / 86400000);
+  const periodText = { monthly: '月付', yearly: '年付', quarterly: '季付' }[s.period] || s.period;
+
+  // Traffic calc
+  const hasLimit = s.traffic_limit_gb > 0;
+  const usedGb   = s.traffic_used_gb || (s.traffic_up_gb + s.traffic_down_gb) || 0;
+  const limitGb  = s.traffic_limit_gb || 0;
+  const trafficPct = hasLimit ? Math.min(100, (usedGb / limitGb) * 100) : 0;
+  const trafficWarn = hasLimit && trafficPct >= 80;
+  const trafficCrit = hasLimit && trafficPct >= 95;
+  const trafficColor = trafficCrit ? 'var(--red)' : trafficWarn ? 'var(--orange)' : 'var(--accent)';
+  const trafficFillCls = trafficCrit ? 'fill-red' : trafficWarn ? 'fill-orange' : 'fill-blue';
+
+  const fmtGb = v => v >= 1024 ? (v/1024).toFixed(2)+'TB' : v.toFixed(1)+'GB';
+
+  return `<div class="server-card" onclick="openDetail(${s.id})">
+    <div class="card-status-line ${getStatusClass(s.status)}"></div>
+    <div class="card-header">
+      <div class="card-name">
+        <span class="flag">${s.flag}</span>
+        <span class="status-dot ${getStatusDot(s.status)}"></span>
+        ${s.name}
+      </div>
+      <div class="card-badges">
+        <span class="badge badge-blue">${s.group}</span>
+        ${s.status === 'warn' ? '<span class="badge badge-red">⚠ 预警</span>' : ''}
+        ${trafficCrit ? '<span class="badge badge-red">🔴 流量危急</span>' : trafficWarn ? '<span class="badge" style="background:rgba(255,159,67,.12);color:var(--orange);border:1px solid rgba(255,159,67,.3)">⚡ 流量预警</span>' : ''}
+      </div>
+    </div>
+
+    <div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-bottom:8px">
+      ${s.location} · ${s.ip}
+    </div>
+
+    <div class="metrics">
+      ${renderMetricBar('CPU', s.cpu_use)}
+      ${renderMetricBar('MEM', s.ram_use)}
+      ${renderMetricBar('DSK', s.disk_use)}
+    </div>
+
+    <div class="net-speeds">
+      <div class="net-item">↑ <span>${Number(s.net_up).toFixed(1)} MB/s</span></div>
+      <div class="net-item">↓ <span>${Number(s.net_down).toFixed(1)} MB/s</span></div>
+      <div class="net-item" style="margin-left:auto">SLA <span>${s.uptime}</span></div>
+    </div>
+
+    ${hasLimit ? `
+    <div style="margin:8px 0 4px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:${trafficColor};margin-bottom:3px">
+        <span>月流量 ${fmtGb(usedGb)} / ${fmtGb(limitGb)}</span>
+        <span>${trafficPct.toFixed(1)}%</span>
+      </div>
+      <div class="metric-bar" style="height:5px">
+        <div class="metric-fill ${trafficFillCls}" style="width:${trafficPct}%"></div>
+      </div>
+    </div>` : `
+    <div style="margin:6px 0 2px;font-size:11px;color:var(--text3)">
+      本月 ↑${fmtGb(s.traffic_up_gb||0)} ↓${fmtGb(s.traffic_down_gb||0)} · 不限流量
+    </div>`}
+
+    <div class="card-footer">
+      <div class="card-spec">${s.cpu}C / ${s.ram}G / ${s.disk}G · ${s.bw}</div>
+      <div class="rv-tag-wrapper" onclick="event.stopPropagation()">
+        <div class="rv-tag">
+          💰 剩余 ${rv.pct}%
+        </div>
+        <div class="rv-tooltip">
+          <div class="rv-tooltip-title">💰 剩余价值分析</div>
+          <div class="rv-tooltip-row">
+            <span class="key">购入价格</span>
+            <span class="val">${toDisplay(s.price)} / ${periodText}</span>
+          </div>
+          <div class="rv-tooltip-row">
+            <span class="key">到期日期</span>
+            <span class="val">${s.expiry}</span>
+          </div>
+          <div class="rv-tooltip-row">
+            <span class="key">剩余天数</span>
+            <span class="val">${daysLeft > 0 ? daysLeft + ' 天' : '已到期'}</span>
+          </div>
+          <div class="rv-tooltip-row">
+            <span class="key">剩余价值</span>
+            <span class="val" style="color:var(--green)">${toDisplay(rv.value)}</span>
+          </div>
+          <div class="rv-tooltip-row">
+            <span class="key">已消耗</span>
+            <span class="val" style="color:var(--red)">${toDisplay(s.price - rv.value)}</span>
+          </div>
+          <div class="rv-tooltip-row">
+            <span class="key">日均成本</span>
+            <span class="val">${toDisplay(s.price / (s.period==='yearly'?365:s.period==='quarterly'?92:30))}/天</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    ${s.note ? `<div style="margin-top:8px;font-size:11px;color:var(--text3);border-left:2px solid var(--border2);padding-left:8px">${s.note}</div>` : ''}
+  </div>`;
+}
+
+function renderServers() {
+  document.getElementById('serverGrid').innerHTML = getFilteredServers().map(renderServerCard).join('');
+}
+
+// ===== DETAIL MODAL =====
+function openDetail(id) {
+  const s = servers.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('modalTitle').textContent = `${s.flag} ${s.name}`;
+  const rv = calcResidualValue(s);
+
+  document.getElementById('modalContent').innerHTML = `
+    <div class="modal-section">
+      <div class="modal-section-title">基本规格</div>
+      <table class="spec-table">
+        <tr><td>位置</td><td>${s.location}</td></tr>
+        <tr><td>IP地址</td><td>${s.ip}</td></tr>
+        <tr><td>CPU</td><td>${s.cpu} 核</td></tr>
+        <tr><td>内存</td><td>${s.ram} GB</td></tr>
+        <tr><td>存储</td><td>${s.disk} GB</td></tr>
+        <tr><td>带宽</td><td>${s.bw}</td></tr>
+        <tr><td>运行时间</td><td>${s.uptime}</td></tr>
+      </table>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">价格与到期</div>
+      <table class="spec-table">
+        <tr><td>购入价格</td><td>${toDisplay(s.price)} / ${{monthly:'月',yearly:'年',quarterly:'季'}[s.period]}</td></tr>
+        <tr><td>到期时间</td><td>${s.expiry}</td></tr>
+        <tr><td>剩余天数</td><td>${Math.max(0, Math.ceil((new Date(s.expiry)-new Date())/86400000))} 天</td></tr>
+        <tr><td>剩余价值</td><td style="color:var(--green)">${toDisplay(rv.value)}</td></tr>
+        <tr><td>已使用价值</td><td style="color:var(--red)">${toDisplay(s.price - rv.value)}</td></tr>
+      </table>
+    </div>
+    ${s.probe ? `<div class="modal-section">
+      <div class="modal-section-title">探针链接</div>
+      <a href="${s.probe}" style="color:var(--accent);font-size:13px;word-break:break-all" target="_blank">${s.probe}</a>
+    </div>` : ''}
+    <div class="modal-section">
+      <div class="modal-section-title">用户评价</div>
+      <div class="review-item">
+        <div class="review-author">技术老司机</div>
+        <div class="review-stars">★★★★★</div>
+        <div class="review-text">稳定性非常好，跑了一年没出过问题。延迟正常，性价比高。</div>
+      </div>
+      <div class="review-item">
+        <div class="review-author">网络爱好者</div>
+        <div class="review-stars">★★★★☆</div>
+        <div class="review-text">速度不错，偶尔抖动，客服响应及时。总体推荐。</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:1rem">
+      ${s.probe ? `<a href="${s.probe}" target="_blank" class="aff-link-btn aff-btn-review" style="display:block;padding:8px;text-align:center">📡 查看探针</a>` : ''}
+      <button class="add-btn" onclick="document.getElementById('detailModal').classList.remove('open')">关闭</button>
+    </div>
+  `;
+  document.getElementById('detailModal').classList.add('open');
+}
+
+function closeModal(e) {
+  if (e.target.id === 'detailModal') document.getElementById('detailModal').classList.remove('open');
+}
+
+// ===== AFF PAGE =====
+function renderAff() {
+  document.getElementById('affGrid').innerHTML = affCards.map(a => {
+    const stockClass = { avail: 'stock-avail', low: 'stock-low', out: 'stock-out' }[a.stock];
+    return `<div class="aff-card">
+      <div class="aff-card-header">
+        <div>
+          <div class="aff-provider">${a.flag} ${a.provider}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${a.location}</div>
+        </div>
+        <div class="aff-stock ${stockClass}">${a.stock_label}</div>
+      </div>
+      <div class="aff-card-body">
+        <div class="aff-spec-grid">
+          <div class="aff-spec-item"><div class="aff-spec-key">CPU</div><div class="aff-spec-val">${a.cpu} 核</div></div>
+          <div class="aff-spec-item"><div class="aff-spec-key">内存</div><div class="aff-spec-val">${a.ram} GB</div></div>
+          <div class="aff-spec-item"><div class="aff-spec-key">存储</div><div class="aff-spec-val">${a.disk} GB</div></div>
+          <div class="aff-spec-item"><div class="aff-spec-key">流量</div><div class="aff-spec-val">${a.bw}</div></div>
+          <div class="aff-spec-item"><div class="aff-spec-key">IP数量</div><div class="aff-spec-val">${a.ip_count} 个</div></div>
+          <div class="aff-spec-item"><div class="aff-spec-key">付款周期</div><div class="aff-spec-val">/${a.period}</div></div>
+        </div>
+        <div class="aff-price">
+          <div class="aff-price-main">${a.currency_sym}${a.price}</div>
+          <div class="aff-price-period">/ ${a.period}</div>
+        </div>
+        <div class="aff-note">${a.note}</div>
+        <div class="aff-links">
+          ${a.stock !== 'out' ? `<a href="${a.buy_url}" class="aff-link-btn aff-btn-buy" target="_blank">🛒 一键购买</a>` : '<div class="aff-link-btn aff-btn-review" style="opacity:.5;cursor:not-allowed">已售罄</div>'}
+          <a href="${a.review_url}" class="aff-link-btn aff-btn-review" target="_blank">📝 测评报告</a>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ===== 3D GLOBE =====
+const globeState = {
+  showLines: true, autoSpin: true, showCountries: true,
+  rotY: 0.4, rotX: 0.25,
+  zoom: 1.0, minZoom: 0.45, maxZoom: 3.5,
+  dragging: false, lastX: 0, lastY: 0,
+  animFrame: null, fetchTimer: null,
+  geoFeatures: null, geoReady: false,
+  fetchCount: 0, lastFetch: null,
+  hovered: null,
+  tileCache: new Map(),   // key→ImageBitmap
+  tileMode: false,        // true = show OSM raster tiles projected onto sphere
+  tileLoadQueue: 0,
+};
+
+function setGlobeStatus(msg, spinning) {
+  const el = document.getElementById('globeStatusText');
+  const sp = document.getElementById('globeSpinner');
+  if (el) el.textContent = msg;
+  if (sp) sp.style.display = spinning ? 'inline-block' : 'none';
+}
+
+// ── Tile helpers (Slippy map / OSM) ────────────────────────────────────────
+function latLngToTile(lat, lng, zoom) {
+  const z = Math.floor(zoom);
+  const n = Math.pow(2, z);
+  const x = Math.floor((lng + 180) / 360 * n);
+  const latRad = lat * Math.PI / 180;
+  const y = Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n);
+  return { x: ((x % n) + n) % n, y: Math.max(0, Math.min(n - 1, y)), z };
+}
+
+async function fetchOSMTile(tx, ty, tz) {
+  const key = `${tz}/${tx}/${ty}`;
+  if (globeState.tileCache.has(key)) return globeState.tileCache.get(key);
+  // Use CARTO dark tiles (no API key needed, free for display)
+  const servers2 = ['a','b','c'];
+  const s = servers2[Math.abs(tx + ty) % 3];
+  const url = `https://${s}.basemaps.cartocdn.com/dark_all/${tz}/${tx}/${ty}.png`;
+  try {
+    const resp = await fetch(url);
+    const blob = await resp.blob();
+    const bmp = await createImageBitmap(blob);
+    globeState.tileCache.set(key, bmp);
+    if (globeState.tileCache.size > 300) {
+      // evict oldest
+      globeState.tileCache.delete(globeState.tileCache.keys().next().value);
+    }
+    return bmp;
+  } catch { return null; }
+}
+
+// Pre-fetch visible tiles for current view
+async function prefetchGlobeTiles(zoom, rotY) {
+  if (!globeState.tileMode) return;
+  const tileZoom = Math.max(0, Math.min(5, Math.floor(zoom * 2)));
+  // Sample a grid of lat/lng points that face the viewer
+  const tasks = [];
+  for (let lat = -75; lat <= 75; lat += 30) {
+    for (let dlng = -150; dlng <= 150; dlng += 30) {
+      const lng = ((rotY * 180 / Math.PI + dlng + 180) % 360) - 180;
+      const { x, y, z } = latLngToTile(lat, lng, tileZoom);
+      const key = `${z}/${x}/${y}`;
+      if (!globeState.tileCache.has(key)) tasks.push(fetchOSMTile(x, y, z));
+    }
+  }
+  await Promise.allSettled(tasks);
+}
+
+// ── TopoJSON / vector geodata ───────────────────────────────────────────────
+async function fetchGeoData() {
+  if (globeState.geoReady) return;
+  setGlobeStatus('正在加载矢量地图...', true);
+  try {
+    const res = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
+    const topo = await res.json();
+    globeState.topoData = topo;
+    globeState.geoFeatures = extractGeoArcs(topo);
+    globeState.geoReady = true;
+    setGlobeStatus('矢量地图就绪', false);
+  } catch(e) {
+    setGlobeStatus('矢量地图加载失败', false);
+  }
+}
+
+async function fetchProbeData() {
+  globeState.fetchCount++;
+  globeState.lastFetch = new Date();
+  setGlobeStatus(`第 ${globeState.fetchCount} 次抓取... ${globeState.lastFetch.toLocaleTimeString()}`, true);
+  // In production: replace with real fetch to /api/servers or probe endpoints
+  // e.g. const data = await fetch('/api/servers').then(r=>r.json());
+  // For now simulate realistic variance:
+  await new Promise(r => setTimeout(r, 400 + Math.random()*300));
+  servers.forEach(s => {
+    if (s.status !== 'offline') {
+      s.cpu_use = Math.max(1, Math.min(99, s.cpu_use + (Math.random()-0.5)*8));
+      s.ram_use = Math.max(1, Math.min(99, s.ram_use + (Math.random()-0.5)*4));
+      s.net_up  = Math.max(0, +(s.net_up  + (Math.random()-0.5)*5).toFixed(2));
+      s.net_down= Math.max(0, +(s.net_down + (Math.random()-0.5)*15).toFixed(2));
+    }
+  });
+  setGlobeStatus(`上次抓取: ${globeState.lastFetch.toLocaleTimeString()} · 第${globeState.fetchCount}次`, false);
+  renderGlobeInfoPanel();
+}
+
+function manualGlobeFetch() { fetchProbeData(); }
+
+function onFetchToggleChange(enabled) {
+  if (enabled) {
+    startGlobeFetchCycle();
+    setGlobeStatus('定时抓取已开启，每20秒自动刷新', false);
+  } else {
+    if (globeState.fetchTimer) { clearInterval(globeState.fetchTimer); globeState.fetchTimer = null; }
+    setGlobeStatus('定时抓取已关闭', false);
+  }
+}
+
+function startGlobeFetchCycle() {
+  fetchProbeData();
+  if (globeState.fetchTimer) clearInterval(globeState.fetchTimer);
+  globeState.fetchTimer = setInterval(() => {
+    const toggle = document.getElementById('toggleFetch');
+    if (toggle && !toggle.checked) { clearInterval(globeState.fetchTimer); globeState.fetchTimer = null; return; }
+    fetchProbeData();
+  }, 20000);
+}
+
+// ── Main init ───────────────────────────────────────────────────────────────
+function adjustZoom(delta) {
+  globeState.zoom = Math.max(globeState.minZoom, Math.min(globeState.maxZoom, globeState.zoom + delta));
+  const lbl = document.getElementById('zoomLabel');
+  if (lbl) lbl.textContent = globeState.zoom.toFixed(2) + '×';
+  prefetchGlobeTiles(globeState.zoom, globeState.rotY);
+}
+
+function initGlobe() {
+  if (globeState.animFrame) { cancelAnimationFrame(globeState.animFrame); globeState.animFrame = null; }
+
+  const canvas = document.getElementById('globe-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const cx = W/2, cy = H/2;
+  const BASE_R = 230;
+
+  // Derive actual radius from zoom
+  const getR = () => BASE_R * globeState.zoom;
+
+  const getLocations = () => servers.map(s => ({
+    id: s.id, name: s.name, flag: s.flag, status: s.status, group: s.group,
+    location: s.location, ip: s.ip, cpu_use: s.cpu_use, ram_use: s.ram_use,
+    lat: locationToLatLng(s.location).lat,
+    lng: locationToLatLng(s.location).lng,
+  }));
+
+  // ── Event listeners ────────────────────────────────────────────────────────
+  canvas.style.cursor = 'grab';
+
+  canvas.addEventListener('mousedown', e => {
+    globeState.dragging = true; globeState.lastX = e.clientX; globeState.lastY = e.clientY;
+    canvas.style.cursor = 'grabbing';
+  });
+  canvas.addEventListener('mouseup',    () => { globeState.dragging = false; canvas.style.cursor = 'grab'; });
+  canvas.addEventListener('mouseleave', () => { globeState.dragging = false; canvas.style.cursor = 'grab'; });
+
+  canvas.addEventListener('mousemove', e => {
+    if (globeState.dragging) {
+      globeState.rotY += (e.clientX - globeState.lastX) * 0.005 / globeState.zoom;
+      globeState.rotX += (e.clientY - globeState.lastY) * 0.003 / globeState.zoom;
+      globeState.rotX = Math.max(-Math.PI/2.2, Math.min(Math.PI/2.2, globeState.rotX));
+      globeState.lastX = e.clientX; globeState.lastY = e.clientY;
+    }
+
+    // Hover node detection
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (W / rect.width);
+    const my = (e.clientY - rect.top)  * (H / rect.height);
+    const r = getR();
+    let found = null;
+    getLocations().forEach(loc => {
+      const p = project3d(loc.lat, loc.lng, r, cx, cy, globeState.rotY, globeState.rotX);
+      if (!p.visible) return;
+      const dx = mx - p.px, dy = my - p.py;
+      if (Math.sqrt(dx*dx + dy*dy) < 14) found = { loc, px: e.clientX - rect.left, py: e.clientY - rect.top };
+    });
+    globeState.hovered = found;
+
+    const tip = document.getElementById('globeTooltip');
+    if (found) {
+      const col = {online:'#38ef7d',warn:'#ff9f43',offline:'#ff6b6b'}[found.loc.status] || '#aaa';
+      tip.style.display = 'block';
+      tip.style.left = (found.px + 16) + 'px';
+      tip.style.top  = (found.py - 10) + 'px';
+      tip.innerHTML = `
+        <div style="font-weight:700;color:var(--text);margin-bottom:3px;font-size:13px">${found.loc.flag} ${found.loc.name}</div>
+        <div style="font-size:12px;color:var(--accent);margin-bottom:5px">${found.loc.location}</div>
+        <div style="color:${col};font-size:11px;margin-bottom:5px">● ${found.loc.status==='online'?'在线':found.loc.status==='warn'?'预警':'离线'}</div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.8">
+          IP: ${found.loc.ip}<br>
+          CPU: ${Number(found.loc.cpu_use).toFixed(1)}% &nbsp; MEM: ${Number(found.loc.ram_use).toFixed(1)}%
+        </div>`;
+    } else {
+      tip.style.display = 'none';
+    }
+  });
+
+  // ── Zoom: mouse wheel ──────────────────────────────────────────────────────
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.12 : 0.12;
+    globeState.zoom = Math.max(globeState.minZoom, Math.min(globeState.maxZoom, globeState.zoom + delta));
+    const lbl = document.getElementById('zoomLabel');
+    if (lbl) lbl.textContent = globeState.zoom.toFixed(2) + '×';
+    prefetchGlobeTiles(globeState.zoom, globeState.rotY);
+  }, { passive: false });
+
+  // ── Zoom: pinch (touch) ────────────────────────────────────────────────────
+  let lastPinchDist = null;
+  canvas.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      lastPinchDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+    } else if (e.touches.length === 1) {
+      globeState.dragging = true;
+      globeState.lastX = e.touches[0].clientX;
+      globeState.lastY = e.touches[0].clientY;
+    }
+  }, { passive: true });
+  canvas.addEventListener('touchmove', e => {
+    if (e.touches.length === 2 && lastPinchDist !== null) {
+      const d = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      globeState.zoom = Math.max(globeState.minZoom, Math.min(globeState.maxZoom, globeState.zoom * (d / lastPinchDist)));
+      lastPinchDist = d;
+    } else if (e.touches.length === 1 && globeState.dragging) {
+      globeState.rotY += (e.touches[0].clientX - globeState.lastX) * 0.005 / globeState.zoom;
+      globeState.rotX += (e.touches[0].clientY - globeState.lastY) * 0.003 / globeState.zoom;
+      globeState.rotX = Math.max(-Math.PI/2.2, Math.min(Math.PI/2.2, globeState.rotX));
+      globeState.lastX = e.touches[0].clientX;
+      globeState.lastY = e.touches[0].clientY;
+    }
+  }, { passive: true });
+  canvas.addEventListener('touchend', () => { globeState.dragging = false; lastPinchDist = null; });
+
+  // ── Start geo + tile loading ───────────────────────────────────────────────
+  fetchGeoData();
+  prefetchGlobeTiles(globeState.zoom, globeState.rotY);
+
+  // ── Draw loop ──────────────────────────────────────────────────────────────
+  function drawGlobe() {
+    const r = getR();
+    const locations = getLocations();
+    ctx.clearRect(0, 0, W, H);
+
+    // Ocean sphere
+    const sphere = ctx.createRadialGradient(cx - r*0.35, cy - r*0.35, r*0.08, cx, cy, r);
+    sphere.addColorStop(0, 'rgba(18,38,68,0.98)');
+    sphere.addColorStop(1, 'rgba(5,9,18,0.99)');
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
+    ctx.fillStyle = sphere; ctx.fill();
+
+    // Glow border
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(99,179,237,0.32)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, r + 1, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(99,179,237,0.06)'; ctx.lineWidth = 7; ctx.stroke();
+
+    // Clip sphere
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, r - 0.5, 0, Math.PI*2); ctx.clip();
+
+    // ── Raster tiles projected onto sphere ────────────────────────────────
+    if (globeState.tileMode && globeState.tileCache.size > 0) {
+      const tileZoom = Math.max(0, Math.min(5, Math.floor(globeState.zoom * 2)));
+      const step = 3;  // degrees per sample
+      for (let lat = -85; lat < 85; lat += step) {
+        for (let dlng = -180; dlng < 180; dlng += step) {
+          const lng = dlng;
+          const p0 = project3d(lat,        lng,        r, cx, cy, globeState.rotY, globeState.rotX);
+          const p1 = project3d(lat + step, lng,        r, cx, cy, globeState.rotY, globeState.rotX);
+          const p2 = project3d(lat + step, lng + step, r, cx, cy, globeState.rotY, globeState.rotX);
+          const p3 = project3d(lat,        lng + step, r, cx, cy, globeState.rotY, globeState.rotX);
+          if (!p0.visible && !p1.visible && !p2.visible && !p3.visible) continue;
+
+          const { x: tx, y: ty, z: tz } = latLngToTile(lat + step/2, lng + step/2, tileZoom);
+          const bmp = globeState.tileCache.get(`${tz}/${tx}/${ty}`);
+          if (!bmp) { fetchOSMTile(tx, ty, tz); continue; }
+
+          // Map tile pixel coords for the center texel
+          const n = Math.pow(2, tz);
+          const u0 = (lng / 360 + 0.5) * n - tx;
+          const v0 = ((1 - Math.log(Math.tan((lat+step)*Math.PI/180) + 1/Math.cos((lat+step)*Math.PI/180))/Math.PI)/2) * n - ty;
+          const u1 = ((lng+step)/360 + 0.5) * n - tx;
+          const v1 = ((1 - Math.log(Math.tan(lat*Math.PI/180) + 1/Math.cos(lat*Math.PI/180))/Math.PI)/2) * n - ty;
+          const tW = bmp.width, tH = bmp.height;
+          const sx = Math.max(0, u0 * tW), sy = Math.max(0, v0 * tH);
+          const sw = Math.min(tW - sx, (u1-u0)*tW), sh = Math.min(tH - sy, (v1-v0)*tH);
+          if (sw <= 0 || sh <= 0) continue;
+          try {
+            // Use path quad + drawImage clip (approximate)
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(p0.px, p0.py);
+            ctx.lineTo(p1.px, p1.py);
+            ctx.lineTo(p2.px, p2.py);
+            ctx.lineTo(p3.px, p3.py);
+            ctx.closePath();
+            ctx.clip();
+            const pw = Math.abs(p3.px - p0.px) + Math.abs(p2.px - p1.px);
+            const ph = Math.abs(p1.py - p0.py) + Math.abs(p2.py - p3.py);
+            ctx.drawImage(bmp, sx, sy, Math.max(1,sw), Math.max(1,sh),
+              Math.min(p0.px,p3.px), Math.min(p0.py,p1.py), Math.max(4,pw), Math.max(4,ph));
+            ctx.restore();
+          } catch(_) {}
+        }
+      }
+    }
+
+    // ── Grid lines ────────────────────────────────────────────────────────
+    for (let lat = -60; lat <= 60; lat += 30) {
+      ctx.beginPath(); let f = true;
+      for (let lg = -180; lg <= 180; lg += 3) {
+        const p = project3d(lat, lg, r, cx, cy, globeState.rotY, globeState.rotX);
+        if (!p.visible) { f = true; continue; }
+        if (f) { ctx.moveTo(p.px, p.py); f = false; } else ctx.lineTo(p.px, p.py);
+      }
+      ctx.strokeStyle = lat===0 ? 'rgba(99,179,237,0.2)' : 'rgba(99,179,237,0.07)';
+      ctx.lineWidth = lat===0 ? 0.8 : 0.4; ctx.stroke();
+    }
+    for (let lg = -180; lg < 180; lg += 30) {
+      ctx.beginPath(); let f2 = true;
+      for (let la = -85; la <= 85; la += 3) {
+        const p = project3d(la, lg, r, cx, cy, globeState.rotY, globeState.rotX);
+        if (!p.visible) { f2 = true; continue; }
+        if (f2) { ctx.moveTo(p.px, p.py); f2 = false; } else ctx.lineTo(p.px, p.py);
+      }
+      ctx.strokeStyle = 'rgba(99,179,237,0.055)'; ctx.lineWidth = 0.35; ctx.stroke();
+    }
+
+    // ── Vector country outlines ───────────────────────────────────────────
+    if (globeState.showCountries && globeState.geoFeatures && !globeState.tileMode) {
+      ctx.strokeStyle = 'rgba(99,179,237,0.30)'; ctx.lineWidth = 0.7;
+      globeState.geoFeatures.forEach(arc => {
+        ctx.beginPath(); let fp = true;
+        arc.forEach(([lng2, lat2]) => {
+          const p = project3d(lat2, lng2, r, cx, cy, globeState.rotY, globeState.rotX);
+          if (!p.visible) { fp = true; return; }
+          if (fp) { ctx.moveTo(p.px, p.py); fp = false; } else ctx.lineTo(p.px, p.py);
+        });
+        ctx.stroke();
+      });
+    }
+
+    // ── Connection arcs ───────────────────────────────────────────────────
+    if (globeState.showLines) {
+      const connPairs = [];
+      for (let i = 0; i < locations.length; i++)
+        for (let j = i+1; j < locations.length; j++)
+          if (locations[i].status!=='offline' && locations[j].status!=='offline')
+            connPairs.push([i,j]);
+
+      const projLocs = locations.map(loc => ({
+        ...loc, p: project3d(loc.lat, loc.lng, r, cx, cy, globeState.rotY, globeState.rotX)
+      }));
+      connPairs.forEach(([i, j]) => {
+        const a = projLocs[i], b = projLocs[j];
+        if (!a.p.visible || !b.p.visible) return;
+        const mx2 = (a.p.px+b.p.px)/2, my2 = (a.p.py+b.p.py)/2;
+        const dist = Math.sqrt((b.p.px-a.p.px)**2+(b.p.py-a.p.py)**2);
+        const lift = Math.min(dist*0.38, 75);
+        const t = (Date.now() % 2400) / 2400;
+        const grad = ctx.createLinearGradient(a.p.px, a.p.py, b.p.px, b.p.py);
+        grad.addColorStop(0, 'rgba(99,179,237,0)');
+        grad.addColorStop(t, 'rgba(99,179,237,0.75)');
+        grad.addColorStop(Math.min(1, t+0.14), 'rgba(255,255,255,0.5)');
+        grad.addColorStop(Math.min(1, t+0.28), 'rgba(99,179,237,0)');
+        grad.addColorStop(1, 'rgba(99,179,237,0)');
+        ctx.beginPath(); ctx.moveTo(a.p.px, a.p.py);
+        ctx.quadraticCurveTo(mx2, my2-lift, b.p.px, b.p.py);
+        ctx.strokeStyle = grad; ctx.lineWidth = 1; ctx.stroke();
+      });
+    }
+
+    // ── Node markers ──────────────────────────────────────────────────────
+    locations.forEach(loc => {
+      const p = project3d(loc.lat, loc.lng, r, cx, cy, globeState.rotY, globeState.rotX);
+      if (!p.visible) return;
+      const col = {online:'#38ef7d',warn:'#ff9f43',offline:'#ff6b6b'}[loc.status] || '#aaa';
+      const isHovered = globeState.hovered && globeState.hovered.loc.id === loc.id;
+      const sz = isHovered ? 10 : 6.5;
+
+      // Pulse ring
+      const pingR = sz + 4 + Math.sin(Date.now()*0.004 + loc.lat)*2.5;
+      ctx.beginPath(); ctx.arc(p.px, p.py, pingR, 0, Math.PI*2);
+      ctx.strokeStyle = col + (loc.status==='online'?'55':'22'); ctx.lineWidth = 1; ctx.stroke();
+
+      // Core
+      ctx.beginPath(); ctx.arc(p.px, p.py, sz, 0, Math.PI*2);
+      ctx.fillStyle = col; ctx.fill();
+      if (isHovered) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke(); }
+
+      // Label (only show when not too zoomed out)
+      if (globeState.zoom > 0.6) {
+        ctx.fillStyle = 'rgba(226,232,240,0.9)';
+        ctx.font = `${isHovered ? 11 : 10}px Space Mono, monospace`;
+        ctx.fillText(loc.flag + ' ' + loc.name, p.px + sz + 4, p.py + 4);
+      }
+    });
+
+    ctx.restore();
+
+    // ── Zoom indicator ────────────────────────────────────────────────────
+    ctx.fillStyle = 'rgba(99,179,237,0.5)';
+    ctx.font = '10px Space Mono, monospace';
+    ctx.fillText(`${globeState.zoom.toFixed(2)}×`, W - 48, H - 10);
+
+    if (globeState.autoSpin && !globeState.dragging) globeState.rotY += 0.0018;
+    globeState.animFrame = requestAnimationFrame(drawGlobe);
+  }
+
+  drawGlobe();
+  renderGlobeInfoPanel();
+  if (!globeState.fetchTimer) startGlobeFetchCycle();
+}
+
+function project3d(lat, lng, r, cx, cy, rotY, rotX) {
+  const phi   = (90 - lat) * Math.PI / 180;
+  const theta = (lng + 180) * Math.PI / 180;
+  let x = -Math.sin(phi) * Math.cos(theta);
+  let y =  Math.cos(phi);
+  let z =  Math.sin(phi) * Math.sin(theta);
+  const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+  const x2 = x*cosY - z*sinY, z2 = x*sinY + z*cosY;
+  const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+  const y2 = y*cosX - z2*sinX, z3 = y*sinX + z2*cosX;
+  return { px: cx + x2*r, py: cy + y2*r, z: z3, visible: z3 < 0.18 };
+}
+
+function extractGeoArcs(topo) {
+  const scale = topo.transform ? topo.transform.scale : [1,1];
+  const translate = topo.transform ? topo.transform.translate : [0,0];
+  const decoded = topo.arcs.map(arc => {
+    let x=0, y=0;
+    return arc.map(pt => { x+=pt[0]; y+=pt[1]; return [x*scale[0]+translate[0], y*scale[1]+translate[1]]; });
+  });
+  const countries = topo.objects.countries;
+  if (!countries) return decoded.slice(0, 500);
+  const result = [];
+  function collectArcs(geom) {
+    if (!geom) return;
+    if (geom.type === 'GeometryCollection') { geom.geometries.forEach(collectArcs); return; }
+    const arcsRef = geom.arcs || [];
+    const rings = geom.type==='Polygon' ? arcsRef : geom.type==='MultiPolygon' ? arcsRef.flat() : [];
+    rings.forEach(ring => {
+      const pts = [];
+      ring.forEach(idx => { const a = idx<0?[...decoded[~idx]].reverse():decoded[idx]; pts.push(...a); });
+      if (pts.length > 1) result.push(pts);
+    });
+  }
+  if (countries.geometries) countries.geometries.forEach(collectArcs);
+  return result;
+}
+
+function renderGlobeInfoPanel() {
+  document.getElementById('globeInfoPanel').innerHTML = servers.map(s => `
+    <div class="stat-card ${s.status==='online'?'green':s.status==='warn'?'gold':'red'}" style="cursor:pointer" onclick="openDetail(${s.id})">
+      <div class="stat-label">${s.flag} ${s.name}</div>
+      <div class="stat-val" style="font-size:13px;color:var(--text)">${s.location}</div>
+      <div class="stat-sub" style="font-family:var(--mono)">CPU ${Number(s.cpu_use).toFixed(1)}% · MEM ${Number(s.ram_use).toFixed(1)}%</div>
+      <div class="stat-sub" style="font-family:var(--mono);margin-top:2px">↑${Number(s.net_up).toFixed(1)} ↓${Number(s.net_down).toFixed(1)} MB/s</div>
+    </div>
+  `).join('');
+}
+
+function locationToLatLng(loc) {
+  const map = {
+    '洛杉矶': { lat: 34.05, lng: -118.24 },
+    '纽约': { lat: 40.71, lng: -74.01 },
+    '芝加哥': { lat: 41.88, lng: -87.63 },
+    '西雅图': { lat: 47.61, lng: -122.33 },
+    '达拉斯': { lat: 32.78, lng: -96.80 },
+    '弗里蒙特': { lat: 37.55, lng: -121.99 },
+    '圣何塞': { lat: 37.34, lng: -121.89 },
+    '香港': { lat: 22.32, lng: 114.17 },
+    '东京': { lat: 35.69, lng: 139.69 },
+    '大阪': { lat: 34.69, lng: 135.50 },
+    '新加坡': { lat: 1.35, lng: 103.82 },
+    '首尔': { lat: 37.57, lng: 126.98 },
+    '台北': { lat: 25.03, lng: 121.56 },
+    '上海': { lat: 31.23, lng: 121.47 },
+    '北京': { lat: 39.90, lng: 116.41 },
+    '深圳': { lat: 22.54, lng: 114.06 },
+    '法兰克福': { lat: 50.11, lng: 8.68 },
+    '伦敦': { lat: 51.51, lng: -0.13 },
+    '阿姆斯特丹': { lat: 52.37, lng: 4.90 },
+    '巴黎': { lat: 48.86, lng: 2.35 },
+    '华沙': { lat: 52.23, lng: 21.01 },
+    '赫尔辛基': { lat: 60.17, lng: 24.94 },
+    '莫斯科': { lat: 55.75, lng: 37.62 },
+    '圣保罗': { lat: -23.55, lng: -46.63 },
+    '悉尼': { lat: -33.87, lng: 151.21 },
+    '孟买': { lat: 19.08, lng: 72.88 },
+    '班加罗尔': { lat: 12.97, lng: 77.59 },
+    '吉隆坡': { lat: 3.14, lng: 101.69 },
+    '雅加达': { lat: -6.21, lng: 106.85 },
+  };
+  for (const key in map) {
+    if (loc.includes(key)) return map[key];
+  }
+  // Fallback: try partial match on any word
+  for (const key in map) {
+    if (key.split('').some(c => loc.includes(c) && c.charCodeAt(0) > 127)) continue;
+  }
+  return { lat: 30 + Math.random()*10, lng: 100 + Math.random()*30 };
+}
+
+// ===== CALCULATOR =====
+function switchCalcTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('calcTabProbe').style.display = tab === 'probe' ? 'block' : 'none';
+  document.getElementById('calcTabManual').style.display = tab === 'manual' ? 'block' : 'none';
+}
+
+function initProbeList() {
+  setTimeout(() => {
+    document.getElementById('scanStatus').style.display = 'none';
+    document.getElementById('probeList').innerHTML = servers.map(s => `
+      <div class="probe-item">
+        <span class="flag" style="font-size:16px">${s.flag}</span>
+        <div style="flex:1">
+          <div class="probe-item-name">${s.name}</div>
+          <div class="probe-item-ip">${s.ip} · CPU ${s.cpu_use}% · MEM ${s.ram_use}%</div>
+        </div>
+        <button class="probe-fill-btn" onclick="fillFromProbe(${s.id})">填入</button>
+      </div>
+    `).join('');
+  }, 1800);
+}
+
+function fillFromProbe(id) {
+  const s = servers.find(x => x.id === id);
+  if (!s) return;
+  // Switch to manual tab
+  document.querySelectorAll('.tab-btn').forEach((b,i) => { if(i===1) b.classList.add('active'); else b.classList.remove('active'); });
+  document.getElementById('calcTabProbe').style.display = 'none';
+  document.getElementById('calcTabManual').style.display = 'block';
+  document.getElementById('calcName').value = s.name;
+  document.getElementById('calcLocation').value = s.location;
+  document.getElementById('calcCpu').value = s.cpu;
+  document.getElementById('calcRam').value = s.ram;
+  document.getElementById('calcDisk').value = s.disk;
+  document.getElementById('calcBuyPrice').value = s.price;
+  document.getElementById('calcBuyDate').value = new Date(new Date(s.expiry) - (s.period==='yearly'?365:s.period==='quarterly'?92:30)*86400000).toISOString().split('T')[0];
+  document.getElementById('calcPremium').value = 20;
+  document.getElementById('calcPeriod').value = s.period === 'yearly' ? '12' : s.period === 'quarterly' ? '3' : '1';
+  calculateFromManual();
+}
+
+function calculateFromManual() {
+  const name = document.getElementById('calcName').value || '未命名';
+  const price = parseFloat(document.getElementById('calcBuyPrice').value) || 0;
+  const period = parseInt(document.getElementById('calcPeriod').value) || 12;
+  const buyDate = document.getElementById('calcBuyDate').value;
+  const premium = parseFloat(document.getElementById('calcPremium').value) || 20;
+
+  if (!price || !buyDate) {
+    document.getElementById('calcResults').innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:2rem 0">请填写价格和购买日期</div>';
+    return;
+  }
+
+  const now = new Date();
+  const start = new Date(buyDate);
+  const end = new Date(start);
+  end.setMonth(end.getMonth() + period);
+  const totalDays = Math.ceil((end - start) / 86400000);
+  const daysLeft = Math.max(0, Math.ceil((end - now) / 86400000));
+  const daysPassed = totalDays - daysLeft;
+  const dailyRate = price / totalDays;
+  const residual = dailyRate * daysLeft;
+  const consumed = price - residual;
+  const sellPrice = residual * (1 + premium/100);
+  const pct = Math.round(daysLeft / totalDays * 100);
+
+  document.getElementById('calcResults').innerHTML = `
+    <div class="calc-result">
+      <div class="calc-result-row">
+        <span class="key">服务器</span><span class="val">${name}</span>
+      </div>
+      <div class="calc-result-row">
+        <span class="key">购入价格</span><span class="val">${toDisplay(price)}</span>
+      </div>
+      <div class="calc-result-row">
+        <span class="key">使用周期</span><span class="val">${period} 个月</span>
+      </div>
+      <div class="calc-result-row">
+        <span class="key">已用天数</span><span class="val">${daysPassed} 天</span>
+      </div>
+      <div class="calc-result-row">
+        <span class="key">剩余天数</span><span class="val">${daysLeft} 天 (${pct}%)</span>
+      </div>
+      <div class="calc-result-row">
+        <span class="key">日均成本</span><span class="val">${toDisplay(dailyRate)}/天</span>
+      </div>
+      <div class="calc-result-row red">
+        <span class="key">已消耗价值</span><span class="val">${toDisplay(consumed)}</span>
+      </div>
+      <div class="calc-result-row green">
+        <span class="key">剩余原价值</span><span class="val">${toDisplay(residual)}</span>
+      </div>
+      <div class="calc-result-row highlight">
+        <span class="key">建议售价 (+${premium}%)</span><span class="val">${toDisplay(sellPrice)}</span>
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px">价值消耗进度</div>
+      <div style="background:var(--bg3);border-radius:4px;height:8px;overflow:hidden">
+        <div style="width:${100-pct}%;height:100%;background:var(--red);border-radius:4px;transition:width .6s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-top:4px">
+        <span>已消耗 ${100-pct}%</span><span>剩余 ${pct}%</span>
+      </div>
+    </div>
+  `;
+}
+
+// ===== ADD SERVER =====
+function openAddModal(prefillId) {
+  // Populate source selector from current servers
+  const sel = document.getElementById('addSourceSelect');
+  sel.innerHTML = '<option value="">— 选择一台 VPS 自动填入规格 —</option>' +
+    servers.map(s => `<option value="${s.id}">${s.flag} ${s.name} · ${s.location} · ${s.ip}</option>`).join('');
+
+  // Reset all fields
+  ['addName','addGroup','addFlag','addIp','addLocation','addBw','addCpu','addRam','addDisk','addProbe','addNote','addPrice'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('addExpiry').value = new Date(Date.now()+365*86400000).toISOString().split('T')[0];
+  // Lock spec fields by default
+  ['addIp','addLocation','addBw','addCpu','addRam','addDisk'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.readOnly = true; el.style.opacity = '.7'; }
+  });
+
+  if (prefillId) {
+    sel.value = prefillId;
+    autoFillFromMonitor();
+  }
+  document.getElementById('addModal').classList.add('open');
+}
+
+function autoFillFromMonitor() {
+  const id = parseInt(document.getElementById('addSourceSelect').value);
+  if (!id) return;
+  const s = servers.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('addIp').value = s.ip;
+  document.getElementById('addLocation').value = s.location;
+  document.getElementById('addBw').value = s.bw;
+  document.getElementById('addCpu').value = s.cpu;
+  document.getElementById('addRam').value = s.ram;
+  document.getElementById('addDisk').value = s.disk;
+  document.getElementById('addFlag').value = s.flag;
+  document.getElementById('addName').value = s.name;
+  document.getElementById('addGroup').value = s.group;
+  if (s.probe) document.getElementById('addProbe').value = s.probe;
+  // Show confirmation flash
+  const fields = ['addIp','addLocation','addBw','addCpu','addRam','addDisk'];
+  fields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.style.borderColor = 'var(--green)';
+      setTimeout(() => { el.style.borderColor = ''; }, 1200);
+    }
+  });
+}
+
+function unlockSpecFields() {
+  ['addIp','addLocation','addBw','addCpu','addRam','addDisk'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.readOnly = false; el.style.opacity = '1'; }
+  });
+  event.target.textContent = '✅ 规格字段已解锁，可手动编辑';
+  event.target.style.color = 'var(--green)';
+}
+
+function closeAddModal(e) {
+  if (e.target.id === 'addModal') document.getElementById('addModal').classList.remove('open');
+}
+
+function addServer() {
+  const name = document.getElementById('addName').value;
+  if (!name) { alert('请填写服务器名称'); return; }
+  const newServer = {
+    id: Date.now(),
+    name, group: document.getElementById('addGroup').value || '默认分组',
+    flag: document.getElementById('addFlag').value || '🌐',
+    location: document.getElementById('addLocation').value || '未知位置',
+    ip: document.getElementById('addIp').value || '0.0.0.0',
+    cpu: parseInt(document.getElementById('addCpu').value) || 1,
+    ram: parseFloat(document.getElementById('addRam').value) || 1,
+    disk: parseInt(document.getElementById('addDisk').value) || 20,
+    bw: document.getElementById('addBw').value || '不限',
+    cpu_use: Math.floor(Math.random()*40+10),
+    ram_use: Math.floor(Math.random()*50+20),
+    disk_use: Math.floor(Math.random()*40+10),
+    net_up: +(Math.random()*20).toFixed(1),
+    net_down: +(Math.random()*100).toFixed(1),
+    status: 'online', uptime: '100%',
+    price: parseFloat(document.getElementById('addPrice').value) || 0,
+    period: document.getElementById('addPeriod').value,
+    expiry: document.getElementById('addExpiry').value,
+    note: document.getElementById('addNote').value || '',
+    probe: document.getElementById('addProbe').value || '',
+  };
+  servers.push(newServer);
+  localStorage.setItem('vps_servers', JSON.stringify(servers));
+  document.getElementById('addModal').classList.remove('open');
+  renderGroupTabs(); renderStats(); renderServers();
+}
+
+// ===== PAGE SWITCH =====
+function switchPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (page === 'globe') initGlobe();
+  if (page === 'calc')  initProbeList();
+  if (page === 'traffic') renderTrafficPage();
+}
+
+// ===== STARFIELD =====
+function initStars() {
+  const c = document.getElementById('starfield');
+  c.width = window.innerWidth; c.height = window.innerHeight;
+  const ctx = c.getContext('2d');
+  const stars = Array.from({length: 200}, () => ({
+    x: Math.random()*c.width, y: Math.random()*c.height,
+    r: Math.random()*1.2+.2, a: Math.random()
+  }));
+  function draw() {
+    ctx.clearRect(0,0,c.width,c.height);
+    stars.forEach(s => {
+      s.a += 0.003 * (Math.random()-.5);
+      s.a = Math.max(.1, Math.min(.8, s.a));
+      ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+      ctx.fillStyle = `rgba(255,255,255,${s.a})`; ctx.fill();
+    });
+    requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// ===== INIT =====
+initStars();
+renderGroupTabs();
+renderStats();
+renderServers();
+renderAff();
+updateRateDisplay();
+
+// Simulate live updates (dashboard only — globe uses its own cycle)
+setInterval(() => {
+  servers.forEach(s => {
+    if (s.status !== 'offline') {
+      s.cpu_use = Math.max(0.01, Math.min(99.99, parseFloat((s.cpu_use + (Math.random()-0.5)*5).toFixed(2))));
+      s.ram_use = Math.max(0.01, Math.min(99.99, parseFloat((s.ram_use + (Math.random()-0.5)*2).toFixed(2))));
+      s.net_up  = Math.max(0, parseFloat((s.net_up  + (Math.random()-0.5)*3).toFixed(2)));
+      s.net_down= Math.max(0, parseFloat((s.net_down + (Math.random()-0.5)*10).toFixed(2)));
+    }
+  });
+  renderServers();
+  renderStats();
+}, 3000);
+
+
+// ===== HELPERS =====
+function showMsg(elId, text, type) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const colors = { green: 'var(--green)', red: 'var(--red)', blue: 'var(--accent)', orange: 'var(--orange)' };
+  el.style.color = colors[type] || 'var(--text2)';
+  el.textContent = text;
+  setTimeout(() => { if (el.textContent === text) el.textContent = ''; }, 3500);
+}
+
+// ===== TRAFFIC STATISTICS =====
+
+let trafficActiveGroup = '全部';
+let trafficChartBar   = null;
+let trafficChartTrend = null;
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function fmtGb(v) {
+  v = Number(v) || 0;
+  if (v >= 1024) return (v / 1024).toFixed(2) + ' TB';
+  return v.toFixed(1) + ' GB';
+}
+
+function getTrafficPct(s) {
+  if (!s.traffic_limit_gb || s.traffic_limit_gb <= 0) return null;
+  const used = s.traffic_used_gb || ((s.traffic_up_gb || 0) + (s.traffic_down_gb || 0));
+  return Math.min(100, (used / s.traffic_limit_gb) * 100);
+}
+
+function getTrafficUsed(s) {
+  return s.traffic_used_gb || ((s.traffic_up_gb || 0) + (s.traffic_down_gb || 0));
+}
+
+function trafficColorForPct(pct, threshold) {
+  if (pct === null) return 'var(--accent)';
+  if (pct >= 95)        return 'var(--red)';
+  if (pct >= threshold) return 'var(--orange)';
+  return 'var(--green)';
+}
+
+function daysUntilReset(resetDay) {
+  const now   = new Date();
+  const next  = new Date(now.getFullYear(), now.getMonth(), resetDay);
+  if (next <= now) next.setMonth(next.getMonth() + 1);
+  return Math.ceil((next - now) / 86400000);
+}
+
+// ── Filter servers for traffic page ───────────────────────────────────────
+function getTrafficServers() {
+  if (trafficActiveGroup === '全部') return servers;
+  return servers.filter(s => s.group === trafficActiveGroup);
+}
+
+// ── Summary stats bar ─────────────────────────────────────────────────────
+function renderTrafficStats() {
+  const list      = getTrafficServers();
+  const threshold = parseInt(document.getElementById('trafficAlertThreshold')?.value || 80);
+  const withLimit = list.filter(s => s.traffic_limit_gb > 0);
+  const critCount = withLimit.filter(s => (getTrafficPct(s) || 0) >= 95).length;
+  const warnCount = withLimit.filter(s => {
+    const p = getTrafficPct(s) || 0; return p >= threshold && p < 95;
+  }).length;
+
+  const totalUp   = list.reduce((a, s) => a + (s.traffic_up_gb   || 0), 0);
+  const totalDown = list.reduce((a, s) => a + (s.traffic_down_gb  || 0), 0);
+  const totalUsed = list.reduce((a, s) => a + getTrafficUsed(s),         0);
+
+  document.getElementById('trafficStatsBar').innerHTML = `
+    <div class="stat-card blue">
+      <div class="stat-label">总出站流量</div>
+      <div class="stat-val" style="font-size:18px;color:var(--accent)">${fmtGb(totalUp)}</div>
+      <div class="stat-sub">${list.length} 台服务器</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="stat-label">总入站流量</div>
+      <div class="stat-val" style="font-size:18px;color:var(--accent)">${fmtGb(totalDown)}</div>
+      <div class="stat-sub">出入合计 ${fmtGb(totalUsed)}</div>
+    </div>
+    <div class="stat-card ${critCount > 0 ? 'red' : warnCount > 0 ? 'gold' : 'green'}">
+      <div class="stat-label">流量预警</div>
+      <div class="stat-val ${critCount > 0 ? 'red' : warnCount > 0 ? 'gold' : 'green'}">${critCount + warnCount} 台</div>
+      <div class="stat-sub">危急 ${critCount} · 预警 ${warnCount}</div>
+    </div>
+    <div class="stat-card purple">
+      <div class="stat-label">有流量限制</div>
+      <div class="stat-val" style="color:var(--purple)">${withLimit.length} 台</div>
+      <div class="stat-sub">无限制 ${list.length - withLimit.length} 台</div>
+    </div>
+  `;
+}
+
+// ── Alert banner ──────────────────────────────────────────────────────────
+function renderTrafficAlertBanner() {
+  const threshold = parseInt(document.getElementById('trafficAlertThreshold')?.value || 80);
+  const crits = getTrafficServers().filter(s => (getTrafficPct(s) || 0) >= 95);
+  const warns = getTrafficServers().filter(s => {
+    const p = getTrafficPct(s) || 0; return p >= threshold && p < 95;
+  });
+  const el = document.getElementById('trafficAlertBanner');
+  if (!crits.length && !warns.length) { el.innerHTML = ''; return; }
+
+  const items = [
+    ...crits.map(s => `<li>${s.flag} <b>${s.name}</b> — 已用 ${getTrafficPct(s).toFixed(1)}%，剩余仅 ${fmtGb(s.traffic_limit_gb - getTrafficUsed(s))}（危急）</li>`),
+    ...warns.map(s => `<li class="warn">${s.flag} <b>${s.name}</b> — 已用 ${getTrafficPct(s).toFixed(1)}%（预警）</li>`),
+  ].join('');
+
+  el.innerHTML = `
+    <div class="traffic-alert-banner ${crits.length ? '' : 'warn'}">
+      <div class="traffic-alert-icon">${crits.length ? '🔴' : '⚡'}</div>
+      <div>
+        <div style="font-weight:700;color:${crits.length ? 'var(--red)' : 'var(--orange)'};margin-bottom:4px">
+          ${crits.length ? `${crits.length} 台服务器流量危急（≥95%）` : `${warns.length} 台服务器流量预警（≥${threshold}%）`}
+        </div>
+        <ul class="traffic-alert-list">${items}</ul>
+      </div>
+    </div>`;
+}
+
+// ── Traffic card for each server ──────────────────────────────────────────
+function renderTrafficCard(s) {
+  const threshold = parseInt(document.getElementById('trafficAlertThreshold')?.value || 80);
+  const pct       = getTrafficPct(s);
+  const used      = getTrafficUsed(s);
+  const hasLimit  = s.traffic_limit_gb > 0;
+  const isCrit    = hasLimit && pct >= 95;
+  const isWarn    = hasLimit && pct >= threshold && !isCrit;
+  const barColor  = isCrit ? '#ff6b6b' : isWarn ? '#ff9f43' : '#63b3ed';
+  const cardCls   = isCrit ? 'crit' : isWarn ? 'warn' : '';
+  const resetIn   = daysUntilReset(s.traffic_reset_day || 1);
+  const upGb      = s.traffic_up_gb   || 0;
+  const downGb    = s.traffic_down_gb || 0;
+  const remaining = hasLimit ? Math.max(0, s.traffic_limit_gb - used) : null;
+
+  return `<div class="traffic-card ${cardCls}" onclick="openDetail(${s.id})" style="cursor:pointer">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px">
+          <span>${s.flag}</span> ${s.name}
+          ${isCrit ? '<span class="badge badge-red" style="font-size:10px">危急</span>' : isWarn ? '<span class="badge" style="background:rgba(255,159,67,.12);color:var(--orange);border:1px solid rgba(255,159,67,.3);font-size:10px">预警</span>' : ''}
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px;font-family:var(--mono)">${s.location} · ${s.ip}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="traffic-reset-badge">重置 ${resetIn}天后</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px">每月 ${s.traffic_reset_day || 1} 日</div>
+      </div>
+    </div>
+
+    ${hasLimit ? `
+    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+      <span style="color:${barColor};font-weight:700">${pct.toFixed(1)}% 已用</span>
+      <span style="color:var(--text3)">${fmtGb(used)} / ${fmtGb(s.traffic_limit_gb)}</span>
+    </div>
+    <div class="traffic-bar-wrap">
+      <div class="traffic-bar-fill" style="width:${pct}%;background:${barColor}"></div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:4px;text-align:right">
+      剩余 <span style="color:${isCrit?'var(--red)':isWarn?'var(--orange)':'var(--green)';font-weight:700">${fmtGb(remaining)}</span>
+    </div>` : `
+    <div style="display:flex;align-items:center;gap:6px;margin:8px 0">
+      <div class="traffic-bar-wrap" style="flex:1">
+        <div class="traffic-bar-fill" style="width:100%;background:rgba(99,179,237,.3)"></div>
+      </div>
+      <span style="font-size:11px;color:var(--text3);white-space:nowrap">不限流量</span>
+    </div>`}
+
+    <div class="traffic-numbers">
+      <div class="traffic-num-item">
+        <div class="traffic-num-label">↑ 出站</div>
+        <div class="traffic-num-val" style="color:var(--accent)">${fmtGb(upGb)}</div>
+      </div>
+      <div class="traffic-num-item">
+        <div class="traffic-num-label">↓ 入站</div>
+        <div class="traffic-num-val" style="color:var(--purple)">${fmtGb(downGb)}</div>
+      </div>
+      <div class="traffic-num-item">
+        <div class="traffic-num-label">实时速率</div>
+        <div class="traffic-num-val" style="color:var(--green);font-size:12px">
+          ↑${Number(s.net_up).toFixed(1)}<br>↓${Number(s.net_down).toFixed(1)} MB/s
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── Traffic cards grid ────────────────────────────────────────────────────
+function renderTrafficGrid() {
+  const list = getTrafficServers();
+  // Sort: crit first → warn → ok → no-limit
+  const threshold = parseInt(document.getElementById('trafficAlertThreshold')?.value || 80);
+  const sorted = [...list].sort((a, b) => {
+    const pa = getTrafficPct(a) || 0, pb = getTrafficPct(b) || 0;
+    if (pa >= 95 && pb < 95) return -1;
+    if (pb >= 95 && pa < 95) return 1;
+    if (pa >= threshold && pb < threshold) return -1;
+    if (pb >= threshold && pa < threshold) return 1;
+    return pb - pa;
+  });
+  document.getElementById('trafficGrid').innerHTML = sorted.map(renderTrafficCard).join('');
+}
+
+// ── Group tabs ────────────────────────────────────────────────────────────
+function renderTrafficGroupTabs() {
+  const groups = ['全部', ...new Set(servers.map(s => s.group))];
+  document.getElementById('trafficGroupTabs').innerHTML = groups.map(g =>
+    `<button class="group-tab ${g === trafficActiveGroup ? 'active' : ''}"
+      onclick="trafficActiveGroup='${g}';renderTrafficPage()">${g}</button>`
+  ).join('');
+}
+
+// ── Bar chart (Chart.js) ──────────────────────────────────────────────────
+function renderTrafficBarChart() {
+  const list   = getTrafficServers();
+  const labels = list.map(s => s.name);
+  const upData = list.map(s => parseFloat((s.traffic_up_gb   || 0).toFixed(1)));
+  const dnData = list.map(s => parseFloat((s.traffic_down_gb || 0).toFixed(1)));
+
+  if (trafficChartBar) { trafficChartBar.destroy(); trafficChartBar = null; }
+
+  const ctx = document.getElementById('trafficBarChart');
+  if (!ctx || typeof Chart === 'undefined') return;
+
+  trafficChartBar = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: '↑ 出站 (GB)', data: upData,  backgroundColor: 'rgba(99,179,237,0.75)', borderRadius: 4 },
+        { label: '↓ 入站 (GB)', data: dnData, backgroundColor: 'rgba(167,139,250,0.75)', borderRadius: 4 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: true, labels: { color: '#94a3b8', font: { size: 11 } } } },
+      scales: {
+        x: { stacked: false, ticks: { color: '#64748b', font: { size: 10 }, maxRotation: 30 }, grid: { color: 'rgba(255,255,255,.04)' } },
+        y: { ticks: { color: '#64748b', font: { size: 11 }, callback: v => v + ' GB' }, grid: { color: 'rgba(255,255,255,.06)' } },
+      },
+    },
+  });
+}
+
+// ── Trend chart ───────────────────────────────────────────────────────────
+function populateTrendSelect() {
+  const sel = document.getElementById('trafficTrendServer');
+  if (!sel) return;
+  sel.innerHTML = servers.map(s => `<option value="${s.id}">${s.flag} ${s.name}</option>`).join('');
+}
+
+function renderTrafficTrend() {
+  const sel = document.getElementById('trafficTrendServer');
+  const sid = parseInt(sel?.value);
+  const s   = servers.find(x => x.id === sid);
+  if (!s) return;
+
+  // Generate simulated 30-day history
+  const days   = 30;
+  const labels = [];
+  const upArr  = [], dnArr = [];
+  const baseUp = (s.traffic_up_gb   || 10) / 30;
+  const baseDn = (s.traffic_down_gb || 50) / 30;
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    labels.push(`${d.getMonth()+1}/${d.getDate()}`);
+    upArr.push(parseFloat((baseUp * (0.6 + Math.random() * 0.8)).toFixed(2)));
+    dnArr.push(parseFloat((baseDn * (0.6 + Math.random() * 0.8)).toFixed(2)));
+  }
+
+  if (trafficChartTrend) { trafficChartTrend.destroy(); trafficChartTrend = null; }
+
+  const ctx = document.getElementById('trafficTrendChart');
+  if (!ctx || typeof Chart === 'undefined') return;
+
+  trafficChartTrend = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: '出站 (GB)', data: upArr, borderColor: '#63b3ed', backgroundColor: 'rgba(99,179,237,.1)', borderWidth: 1.5, pointRadius: 0, tension: 0.4, fill: true },
+        { label: '入站 (GB)', data: dnArr, borderColor: '#a78bfa', backgroundColor: 'rgba(167,139,250,.1)', borderWidth: 1.5, pointRadius: 0, tension: 0.4, fill: true },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: true, labels: { color: '#94a3b8', font: { size: 11 } } } },
+      scales: {
+        x: { ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 10 }, grid: { color: 'rgba(255,255,255,.04)' } },
+        y: { ticks: { color: '#64748b', font: { size: 11 }, callback: v => v + ' GB' }, grid: { color: 'rgba(255,255,255,.06)' } },
+      },
+    },
+  });
+}
+
+// ── Detail table ──────────────────────────────────────────────────────────
+function renderTrafficTable() {
+  const list      = getTrafficServers();
+  const threshold = parseInt(document.getElementById('trafficAlertThreshold')?.value || 80);
+
+  const rows = list.map(s => {
+    const pct   = getTrafficPct(s);
+    const used  = getTrafficUsed(s);
+    const color = pct === null ? 'var(--text3)' : pct >= 95 ? 'var(--red)' : pct >= threshold ? 'var(--orange)' : 'var(--green)';
+    const pctStr = pct === null ? '不限' : `${pct.toFixed(1)}%`;
+    const remaining = s.traffic_limit_gb > 0 ? fmtGb(Math.max(0, s.traffic_limit_gb - used)) : '∞';
+    return `<tr class="traffic-table-row">
+      <td><span style="font-size:16px">${s.flag}</span></td>
+      <td style="color:var(--text);font-weight:600">${s.name}</td>
+      <td style="color:var(--text3);font-size:12px">${s.location}</td>
+      <td style="font-family:var(--mono);font-size:12px;color:var(--accent)">${fmtGb(s.traffic_up_gb||0)}</td>
+      <td style="font-family:var(--mono);font-size:12px;color:var(--purple)">${fmtGb(s.traffic_down_gb||0)}</td>
+      <td style="font-family:var(--mono);font-size:12px">${fmtGb(used)}</td>
+      <td style="font-family:var(--mono);font-size:12px;color:var(--text3)">${s.traffic_limit_gb > 0 ? fmtGb(s.traffic_limit_gb) : '不限'}</td>
+      <td style="font-family:var(--mono);font-size:13px;font-weight:700;color:${color}">${pctStr}</td>
+      <td style="font-family:var(--mono);font-size:12px;color:var(--green)">${remaining}</td>
+      <td><span class="traffic-reset-badge">${daysUntilReset(s.traffic_reset_day||1)}天后</span></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('trafficTable').innerHTML = `
+    <thead>
+      <tr style="border-bottom:2px solid var(--border)">
+        ${['','服务器','位置','↑ 出站','↓ 入站','已用','限额','使用率','剩余','重置'].map(h =>
+          `<th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--text3);letter-spacing:.5px;font-weight:400;white-space:nowrap">${h}</th>`
+        ).join('')}
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>`;
+}
+
+// ── Traffic settings modal ────────────────────────────────────────────────
+function openTrafficSettings() {
+  const body = document.getElementById('trafficSettingsBody');
+  body.innerHTML = `
+    <div style="font-size:12px;color:var(--text3);margin-bottom:14px">
+      为每台服务器设置月流量限额和重置日。限额为 0 表示不限流量。
+    </div>
+    ${servers.map(s => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:18px;flex-shrink:0">${s.flag}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:var(--text)">${s.name}</div>
+        <div style="font-size:11px;color:var(--text3)">${s.location}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        <label style="font-size:11px;color:var(--text3)">限额(GB)</label>
+        <input id="tl-limit-${s.id}" type="number" class="form-input"
+          value="${s.traffic_limit_gb||0}" style="width:80px;padding:5px 8px;font-size:12px" min="0">
+        <label style="font-size:11px;color:var(--text3)">重置日</label>
+        <input id="tl-day-${s.id}" type="number" class="form-input"
+          value="${s.traffic_reset_day||1}" style="width:56px;padding:5px 8px;font-size:12px" min="1" max="28">
+      </div>
+    </div>`).join('')}
+    <div style="display:flex;gap:10px;margin-top:1.25rem">
+      <button class="add-btn" onclick="saveTrafficSettings()">保存配置</button>
+      <button onclick="document.getElementById('trafficSettingsModal').classList.remove('open')"
+        style="padding:8px 18px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:13px">取消</button>
+    </div>
+    <div id="trafficSettingsMsg" style="margin-top:8px;font-size:12px;min-height:18px"></div>`;
+
+  document.getElementById('trafficSettingsModal').classList.add('open');
+}
+
+function saveTrafficSettings() {
+  servers.forEach(s => {
+    const limEl = document.getElementById(`tl-limit-${s.id}`);
+    const dayEl = document.getElementById(`tl-day-${s.id}`);
+    if (limEl) s.traffic_limit_gb  = parseFloat(limEl.value) || 0;
+    if (dayEl) s.traffic_reset_day = parseInt(dayEl.value) || 1;
+  });
+  localStorage.setItem('vps_servers', JSON.stringify(servers));
+  showMsg('trafficSettingsMsg', '✅ 流量配置已保存', 'green');
+  setTimeout(() => {
+    document.getElementById('trafficSettingsModal').classList.remove('open');
+    renderTrafficPage();
+  }, 800);
+}
+
+// ── Main render orchestrator ──────────────────────────────────────────────
+function renderTrafficPage() {
+  renderTrafficGroupTabs();
+  renderTrafficStats();
+  renderTrafficAlertBanner();
+  renderTrafficGrid();
+  // Charts need Chart.js loaded — load lazily
+  if (typeof Chart === 'undefined') {
+    const scr = document.createElement('script');
+    scr.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js';
+    scr.onload = () => {
+      renderTrafficBarChart();
+      populateTrendSelect();
+      renderTrafficTrend();
+    };
+    document.head.appendChild(scr);
+  } else {
+    renderTrafficBarChart();
+    populateTrendSelect();
+    renderTrafficTrend();
+  }
+  renderTrafficTable();
+}
+
+// ── Simulate periodic traffic accumulation ────────────────────────────────
+setInterval(() => {
+  servers.forEach(s => {
+    if (s.status === 'offline') return;
+    const addUp = (s.net_up   || 0) * 3 / 1024;  // MB/s × 3s → GB
+    const addDn = (s.net_down || 0) * 3 / 1024;
+    s.traffic_up_gb   = parseFloat(((s.traffic_up_gb   || 0) + addUp).toFixed(4));
+    s.traffic_down_gb = parseFloat(((s.traffic_down_gb || 0) + addDn).toFixed(4));
+    if (s.traffic_limit_gb > 0) {
+      s.traffic_used_gb = s.traffic_up_gb + s.traffic_down_gb;
+    }
+  });
+  // Refresh traffic page if active
+  if (document.getElementById('page-traffic')?.classList.contains('active')) {
+    renderTrafficStats();
+    renderTrafficAlertBanner();
+    renderTrafficGrid();
+    renderTrafficTable();
+  }
+}, 3000);
+</script>
+<!-- 引入现代化模块 -->
+<script type="module">
+    import app from './app.js';
+
+    // 等待应用初始化
+    app.eventBus.on('appReady', async () => {
+        console.log('✓ 应用已准备好');
+        
+        // 立即加载服务器列表
+        try {
+            await app.loadServers();
+            initDashboard();  // 现有的初始化函数
+        } catch (error) {
+            console.error('初始化失败:', error);
+        }
+    });
+
+    // 登录成功后启动实时更新
+    app.eventBus.on('loginSuccess', () => {
+        app.startMetricsPolling(15000);  // 15 秒更新一次
+    });
+
+    // 登出时停止更新
+    app.eventBus.on('logoutSuccess', () => {
+        app.stopMetricsPolling();
+    });
+
+    // 监听错误事件
+    app.eventBus.on('error', (error) => {
+        console.error('应用错误:', error.message);
+        // 可以显示到 UI
+    });
+
+    // 暴露全局函数供 HTML 调用
+    window.appLogin = async (username, password) => {
+        try {
+            await app.login(username, password);
+            showNotification('登录成功！');
+        } catch (error) {
+            showNotification('登录失败: ' + error.message, 'error');
+        }
+    };
+
+    window.appLogout = () => {
+        app.logout();
+        showNotification('已退出登录');
+    };
+
+    window.appAddServer = async (data) => {
+        try {
+            await app.createServer(data);
+            showNotification('服务器添加成功！');
+        } catch (error) {
+            showNotification('添加失败: ' + error.message, 'error');
+        }
+    };
+
+    window.appDeleteServer = async (id) => {
+        if (confirm('确定要删除该服务器吗？')) {
+            try {
+                await app.deleteServer(id);
+                showNotification('服务器已删除');
+            } catch (error) {
+                showNotification('删除失败: ' + error.message, 'error');
+            }
+        }
+    };
+
+    window.getAppState = () => app.store.getState();
+  
+// ===== INIT LOGIN STATE =====
+
+// Apply saved theme on load
+(function() {
+  const idx = parseInt(localStorage.getItem('vps_theme_idx') || '0');
+  if (idx > 0 && THEMES[idx]) applyTheme(idx);
+  const savedCss = localStorage.getItem('vps_custom_css');
+  if (savedCss) injectCustomCSS(savedCss);
+})();
+</script>
+<!-- 模块初始化 -->
+<script type="module">
+    import app from './app.js';
+    import { ChartManager } from './charts.js';
+    import { PerformanceOptimizer } from './performance.js';
+    import { Logger } from './logger.js';
+
+    // 初始化模块
+    const chartManager = new ChartManager(app);
+    const perfOptimizer = new PerformanceOptimizer(app);
+    const logger = new Logger('info');
+    
+    // 将 logger 暴露到全局
+    window.logger = logger;
+
+    // 应用就绪事件
+    app.eventBus.on('appReady', async () => {
+        logger.info('应用初始化开始');
+        
+        try {
+            // 加载服务器列表
+            await app.loadServers();
+            logger.info('服务器列表已加载');
+            
+            // 初始化图表
+            setTimeout(() => {
+                const servers = app.store.state.servers;
+                if (servers.length > 0) {
+                    chartManager.createCPUChart('cpuChart', servers[0]);
+                    chartManager.createTrafficChart('trafficChart', servers);
+                    chartManager.createCostTrendChart('costChart', servers);
+                }
+            }, 300);
+            
+            // 启用性能优化
+            perfOptimizer.enableRequestDeduplication(app.api);
+            
+        } catch (error) {
+            logger.error('应用初始化失败', error);
+        }
+    });
+
+    // 登录成功后启动实时更新
+    app.eventBus.on('loginSuccess', (user) => {
+        logger.info('用户已登录', { username: user.username });
+        app.startMetricsPolling(15000);
+    });
+
+    // 指标更新事件
+    app.eventBus.on('metricsUpdated', () => {
+        logger.debug('指标已更新');
+        // 可以在这里刷新图表
+    });
+
+    // 暴露全局 API
+    window.app = app;
+    window.chartManager = chartManager;
+    window.logger = logger;
+</script>
+<!-- ===== 模块初始化脚本 ===== -->
+<script type="module">
+    import app from './app.js';
+    import { ChartManager } from './charts.js';
+    import { PerformanceOptimizer } from './performance.js';
+    import { Logger } from './logger.js';
+
+    // ===== 初始化模块 =====
+    const chartManager = new ChartManager(app);
+    const perfOptimizer = new PerformanceOptimizer(app);
+    const logger = new Logger('info');
+    
+    // 暴露到全局作用域（便于调试）
+    window.logger = logger;
+    window.app = app;
+    window.chartManager = chartManager;
+    window.perfOptimizer = perfOptimizer;
+
+    logger.info('📦 模块初始化开始');
+
+    // ===== 应用就绪事件 =====
+    app.eventBus.on('appReady', async () => {
+        logger.info('🚀 应用初始化开始');
+        
+        try {
+            // 1. 加载服务器列表
+            await app.loadServers();
+            logger.info('✓ 服务器列表已加载', { count: app.store.state.servers.length });
+            
+            // 2. 初始化图表（延迟 300ms，确保 DOM 准备就绪）
+            setTimeout(() => {
+                const servers = app.store.state.servers;
+                if (servers.length > 0) {
+                    logger.info('📊 初始化图表...');
+                    try {
+                        chartManager.createCPUChart('cpuChart', servers[0]);
+                        logger.info('✓ CPU 趋势图已创建');
+                    } catch (e) {
+                        logger.warn('CPU 趋势图初始化失败', e);
+                    }
+                    
+                    try {
+                        chartManager.createTrafficChart('trafficChart', servers);
+                        logger.info('✓ 流量统计图已创建');
+                    } catch (e) {
+                        logger.warn('流量统计图初始化失败', e);
+                    }
+                    
+                    try {
+                        chartManager.createCostTrendChart('costTrendChart', servers);
+                        logger.info('✓ 成本趋势图已创建');
+                    } catch (e) {
+                        logger.warn('成本趋势图初始化失败', e);
+                    }
+                } else {
+                    logger.warn('⚠️ 没有可用的服务器数据');
+                }
+            }, 300);
+            
+            // 3. 启用性能优化
+            perfOptimizer.enableRequestDeduplication(app.api);
+            logger.info('✓ 请求去重已启用');
+            
+            // 4. 启用惰性加载（可选，取决于 HTML 中是否有 data-lazy 属性）
+            const lazyCharts = document.querySelectorAll('canvas[data-lazy]');
+            if (lazyCharts.length > 0) {
+                perfOptimizer.enableLazyChartLoading(chartManager);
+                logger.info('✓ 图表惰性加载已启用', { count: lazyCharts.length });
+            }
+            
+        } catch (error) {
+            logger.error('❌ 应用初始化失败', error);
+        }
+    });
+
+    // ===== 登录成功事件 =====
+    app.eventBus.on('loginSuccess', (user) => {
+        logger.info('👤 用户已登录', { username: user.username });
+        
+        // 启动实时轮询
+        app.startMetricsPolling(15000);
+        logger.info('✓ 实时轮询已启动 (15s 间隔)');
+    });
+
+    // ===== 指标更新事件 =====
+    app.eventBus.on('metricsUpdated', (metrics) => {
+        logger.debug('🔄 指标已更新', { count: metrics.size });
+        
+        // 可以在这里刷新图表等操作
+        try {
+            const servers = app.store.state.servers;
+            if (servers.length > 0 && window.chartManager) {
+                // 更新流量图表
+                window.chartManager.destroyChart('trafficChart');
+                window.chartManager.createTrafficChart('trafficChart', servers);
+            }
+        } catch (e) {
+            logger.warn('图表更新失败', e);
+        }
+    });
+
+    // ===== 登出事件 =====
+    app.eventBus.on('logoutSuccess', () => {
+        logger.info('👋 用户已登出');
+        app.stopMetricsPolling();
+        chartManager.destroyAll();
+    });
+
+    // ===== 错误处理 =====
+    app.eventBus.on('error', (errorObj) => {
+        logger.error('⚠️ 应用错误', errorObj);
+    });
+
+    // ===== 性能监测（可选） =====
+    if (window.performance) {
+        window.addEventListener('load', () => {
+            logger.info('📈 页面加载完成，性能指标：');
+            perfOptimizer.recordMetrics();
+        });
+    }
+
+    logger.info('✓ 所有模块初始化完成！');
+</script>
+</body>
+</html>

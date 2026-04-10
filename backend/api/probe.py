@@ -8,6 +8,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required
 from extensions import db, redis_client
 from models.models import Server, ProbeResult
+from middleware.rbac import admin_required
 
 probe_bp = Blueprint("probe", __name__)
 
@@ -37,7 +38,7 @@ def tcp_ping(host: str, port: int, timeout: float = 5.0) -> dict:
 
 
 @probe_bp.post("/ping")
-@jwt_required()
+@admin_required
 def ping():
     """
     Body: { host, port, count }
@@ -72,7 +73,7 @@ def ping():
 
 
 @probe_bp.post("/ping/batch")
-@jwt_required()
+@admin_required
 def ping_batch():
     """
     批量 ping 所有 servers 的 IP（80 端口）
@@ -124,7 +125,7 @@ def ping_batch():
 # ── AFFMAN 探针数据抓取 ───────────────────────────────────────────────────────
 
 @probe_bp.post("/fetch-probe")
-@jwt_required()
+@admin_required
 def fetch_probe():
     """
     从 server.probe_url 抓取 AFFMAN / 哪吒探针 JSON 数据并更新 metrics。

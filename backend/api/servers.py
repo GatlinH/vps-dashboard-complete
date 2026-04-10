@@ -13,6 +13,7 @@ from extensions import db
 import extensions
 from models.models import Server, ProbeResult
 from utils.errors import ValidationError, InternalServerError
+from middleware.rbac import admin_required
 
 servers_bp = Blueprint("servers", __name__)
 logger = logging.getLogger(__name__)
@@ -59,7 +60,7 @@ def list_servers():
 # ── 创建 ──────────────────────────────────────────────────────────────────────
 
 @servers_bp.post("/")
-@jwt_required()
+@admin_required
 def create_server():
     """创建服务器"""
     data = request.get_json(silent=True) or {}
@@ -133,7 +134,7 @@ def get_server(sid):
 
 
 @servers_bp.put("/<int:sid>")
-@jwt_required()
+@admin_required
 def update_server(sid):
     """更新服务器"""
     try:
@@ -190,7 +191,7 @@ def update_server(sid):
 
 
 @servers_bp.delete("/<int:sid>")
-@jwt_required()
+@admin_required
 def delete_server(sid):
     """删除服务器"""
     try:
@@ -209,7 +210,7 @@ def delete_server(sid):
 # ── 指标推送 ──────────────────────────────────────────────────────────────────
 
 @servers_bp.post("/<int:sid>/metrics")
-@jwt_required()
+@admin_required
 def push_metrics(sid):
     """推送实时指标"""
     try:
@@ -258,7 +259,7 @@ def push_metrics(sid):
 # ── 历史数据 ──────────────────────────────────────────────────────────────────
 
 @servers_bp.get("/<int:sid>/history")
-@jwt_required()
+@admin_required
 def get_history(sid):
     """获取服务器历史数据"""
     try:

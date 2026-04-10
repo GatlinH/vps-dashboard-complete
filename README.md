@@ -18,7 +18,13 @@
 ```
 vps-dashboard/
 ├── frontend/
-│   └── index.html          # 前端单页应用（纯 HTML/CSS/JS）
+│   ├── public.html         # 公开展示页（无需登录）
+│   ├── admin.html          # 管理后台页（需 JWT 登录）
+│   ├── index.html          # 兼容入口，自动跳转到 public.html
+│   ├── api-public.js       # 公开接口封装（无鉴权）
+│   ├── api-admin.js        # 管理接口封装（JWT + 401/403 处理）
+│   ├── service-worker.js   # PWA Service Worker（管理路径不缓存）
+│   └── ...                 # 其他模块脚本
 ├── backend/
 │   ├── app.py              # Flask 入口
 │   ├── config.py           # 配置（MySQL / Redis / JWT）
@@ -26,15 +32,17 @@ vps-dashboard/
 │   ├── requirements.txt    # Python 依赖
 │   ├── Dockerfile          # 容器镜像
 │   ├── docker-compose.yml  # 一键启动 MySQL + Redis + Flask + Nginx
-│   ├── nginx.conf          # 反向代理配置
+│   ├── nginx.conf          # 反向代理配置（含安全响应头）
 │   ├── init_db.sql         # 数据库初始化
 │   ├── .env.example        # 环境变量模板
 │   ├── api/                # Flask Blueprint
 │   │   ├── auth.py         # 登录 / JWT
-│   │   ├── servers.py      # 服务器 CRUD
-│   │   ├── probe.py        # TCP Ping / 探针
-│   │   ├── telegram.py     # Bot 配置 / 推送
-│   │   └── geo.py          # 地图瓦片代理
+│   │   ├── servers.py      # 服务器 CRUD（写操作需 admin 角色）
+│   │   ├── probe.py        # TCP Ping / 探针（需 admin 角色）
+│   │   ├── telegram.py     # Bot 配置 / 推送（需 admin 角色）
+│   │   └── geo.py          # 地图瓦片代理（公开）
+│   ├── middleware/
+│   │   └── rbac.py         # RBAC 角色校验装饰器
 │   ├── models/
 │   │   └── models.py       # SQLAlchemy 数据模型
 │   └── services/
@@ -43,6 +51,13 @@ vps-dashboard/
     └── workflows/
         └── deploy.yml      # GitHub Actions 自动部署
 ```
+
+## 访问方式
+
+| 页面 | URL | 说明 |
+|------|-----|------|
+| 公开展示页 | `http://服务器IP/` 或 `/public.html` | 无需登录，可公开访问 |
+| 管理后台 | `http://服务器IP/admin.html` 或 `/admin` | 需要管理员账号登录 |
 
 ## 快速开始
 
@@ -69,7 +84,8 @@ docker compose up -d
 
 ### 4. 访问
 
-- 前端：打开 `frontend/index.html` 或访问 `http://服务器IP`
+- 前端：打开 `frontend/public.html` 或访问 `http://服务器IP`（公开展示页）
+- 管理后台：访问 `http://服务器IP/admin.html` 或 `http://服务器IP/admin`（需登录）
 - API：`http://服务器IP:5000`
 - 默认账号：`admin`，密码在 `.env` 的 `ADMIN_DEFAULT_PASSWORD` 中设置（留空则首次启动时随机生成并打印到容器日志）
 

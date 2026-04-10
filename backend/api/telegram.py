@@ -8,6 +8,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt
 from extensions import db
 from models.models import TelegramConfig, AlertRule, Server
+from middleware.rbac import admin_required
 
 telegram_bp = Blueprint("telegram", __name__)
 
@@ -81,7 +82,7 @@ def save_config():
 
 
 @telegram_bp.post("/test")
-@jwt_required()
+@admin_required
 def test_send():
     cfg     = _get_config()
     online  = Server.query.filter_by(status="online").count()
@@ -97,7 +98,7 @@ def test_send():
 
 
 @telegram_bp.post("/send")
-@jwt_required()
+@admin_required
 def manual_send():
     data = request.get_json(silent=True) or {}
     text = data.get("text", "").strip()
@@ -113,7 +114,7 @@ def manual_send():
 # ── 告警规则 ──────────────────────────────────────────────────────────────────
 
 @telegram_bp.get("/alerts")
-@jwt_required()
+@admin_required
 def list_alerts():
     rules = AlertRule.query.all()
     return jsonify(rules=[r.to_dict() for r in rules])
@@ -150,7 +151,7 @@ def save_alerts():
 
 
 @telegram_bp.post("/alert/fire")
-@jwt_required()
+@admin_required
 def fire_alert():
     """
     由探针服务调用，触发告警消息
