@@ -5,7 +5,7 @@
  * 统一处理 Authorization 头、401/403 跳转
  */
 
-const BASE = '/api'
+const BASE = '/api/v1'
 const TOKEN_KEY = 'authToken'
 
 // ── 令牌管理 ──────────────────────────────────────────────────────────────────

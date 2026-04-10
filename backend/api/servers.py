@@ -18,8 +18,15 @@ from middleware.rbac import admin_required
 servers_bp = Blueprint("servers", __name__)
 logger = logging.getLogger(__name__)
 
-_CACHE_KEY = "vps:servers:list"
+_CACHE_KEY_ADMIN  = "vps:servers:admin"   # 全量字段（含 IP、价格等）
+_CACHE_KEY_PUBLIC = "vps:servers:public"  # 公开字段
 _CACHE_TTL = 30  # seconds
+
+FIELD_MAX_LEN = {
+    "name": 128, "ip": 45, "location": 128,
+    "flag": 8, "bandwidth": 64, "probe_url": 512,
+    "note": 2000, "period": 16, "status": 16, "uptime": 64,
+}
 
 
 # ── 列表 ──────────────────────────────────────────────────────────────────────
@@ -30,29 +37,28 @@ def list_servers():
     """列出所有服务器；未登录时过滤敏感字段"""
     uid = get_jwt_identity()
     is_auth = uid is not None
+    cache_key = _CACHE_KEY_ADMIN if is_auth else _CACHE_KEY_PUBLIC
 
-    # 尝试从 Redis 缓存读取（仅已认证请求才缓存完整数据）
-    if is_auth:
-        try:
-            cached = extensions.redis_client.get(_CACHE_KEY)
-            if cached:
-                data = json.loads(cached)
-                return jsonify(servers=data, from_cache=True, count=len(data))
-        except Exception:
-            pass
+    # 查缓存
+    try:
+        cached = extensions.redis_client.get(cache_key)
+        if cached:
+            data = json.loads(cached)
+            return jsonify(servers=data, from_cache=True, count=len(data))
+    except Exception:
+        pass
 
     servers = Server.query.order_by(Server.group_name, Server.name).all()
     data = [s.to_dict(public_only=not is_auth) for s in servers]
 
-    # 仅已认证请求写缓存
-    if is_auth:
-        try:
-            extensions.redis_client.setex(
-                _CACHE_KEY, _CACHE_TTL,
-                json.dumps(data, ensure_ascii=False, default=str),
-            )
-        except Exception:
-            pass
+    # 写缓存
+    try:
+        extensions.redis_client.setex(
+            cache_key, _CACHE_TTL,
+            json.dumps(data, ensure_ascii=False, default=str),
+        )
+    except Exception:
+        pass
 
     return jsonify(servers=data, from_cache=False, count=len(data))
 
@@ -72,6 +78,12 @@ def create_server():
         raise ValidationError("缺少必填字段: name", field="name")
     if not ip:
         raise ValidationError("缺少必填字段: ip", field="ip")
+
+    # 长度校验
+    for field, max_len in FIELD_MAX_LEN.items():
+        if field in data and data[field] is not None:
+            if len(str(data[field])) > max_len:
+                raise ValidationError(f"{field} 超过最大长度 {max_len} 个字符", field=field)
 
     price = data.get("price", 0)
     try:
@@ -159,7 +171,11 @@ def update_server(sid):
     for field in ["name", "ip", "location", "flag", "bandwidth",
                   "probe_url", "note", "period", "status", "uptime"]:
         if field in data:
-            setattr(server, field, data[field])
+            val = data[field]
+            max_len = FIELD_MAX_LEN.get(field)
+            if max_len and val is not None and len(str(val)) > max_len:
+                raise ValidationError(f"{field} 超过最大长度 {max_len} 个字符", field=field)
+            setattr(server, field, val)
 
     if "group" in data:
         server.group_name = data["group"]
@@ -240,6 +256,27 @@ def push_metrics(sid):
             setattr(server, field, data[field])
             metrics[field] = data[field]
 
+    # 精确流量：支持 bytes_out_total / bytes_in_total 差值计算
+    bytes_out = data.get("bytes_out_total")
+    bytes_in  = data.get("bytes_in_total")
+    if bytes_out is not None and bytes_in is not None:
+        try:
+            bytes_out = int(bytes_out)
+            bytes_in  = int(bytes_in)
+            prev_out  = server.bytes_out_snapshot or 0
+            prev_in   = server.bytes_in_snapshot  or 0
+            if prev_out > 0 and bytes_out >= prev_out:
+                delta_up_gb = (bytes_out - prev_out) / 1024 / 1024 / 1024
+                server.traffic_up_gb   = round((server.traffic_up_gb   or 0) + delta_up_gb, 6)
+            if prev_in > 0 and bytes_in >= prev_in:
+                delta_dn_gb = (bytes_in - prev_in) / 1024 / 1024 / 1024
+                server.traffic_down_gb = round((server.traffic_down_gb or 0) + delta_dn_gb, 6)
+            server.traffic_used_gb = server.traffic_up_gb + server.traffic_down_gb
+            server.bytes_out_snapshot = bytes_out
+            server.bytes_in_snapshot  = bytes_in
+        except (TypeError, ValueError):
+            pass
+
     # 写探针历史
     db.session.add(ProbeResult(
         server_id=server.id,
@@ -288,6 +325,6 @@ def get_history(sid):
 
 def _clear_cache():
     try:
-        extensions.redis_client.delete(_CACHE_KEY)
+        extensions.redis_client.delete(_CACHE_KEY_ADMIN, _CACHE_KEY_PUBLIC)
     except Exception:
         pass

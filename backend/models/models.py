@@ -72,6 +72,10 @@ class Server(db.Model):
     traffic_down_gb = db.Column(db.Float, default=0)
     traffic_used_gb = db.Column(db.Float, default=0)
     traffic_reset_day = db.Column(db.SmallInteger, default=1)
+
+    # 流量精确计算：存储上次探针快照字节数
+    bytes_out_snapshot = db.Column(db.BigInteger, default=0)
+    bytes_in_snapshot  = db.Column(db.BigInteger, default=0)
     
     # 时间戳
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)

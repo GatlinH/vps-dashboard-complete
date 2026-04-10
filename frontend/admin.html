@@ -1106,7 +1106,7 @@ async function doAdminLogin() {
   btn.textContent = '登录中...';
   btn.disabled = true;
   try {
-    const resp = await fetch('/api/auth/login', {
+    const resp = await fetch('/api/v1/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: u, password: p }),
@@ -1148,7 +1148,7 @@ async function loadServersFromAPI() {
   const token = localStorage.getItem('authToken');
   if (!token) return;
   try {
-    const resp = await fetch('/api/servers/', {
+    const resp = await fetch('/api/v1/servers/', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (resp.status === 401) { adminLogout(); return; }
@@ -1181,7 +1181,7 @@ async function loadTgConfigFromAPI() {
   const token = localStorage.getItem('authToken');
   if (!token) return;
   try {
-    const resp = await fetch('/api/telegram/config', {
+    const resp = await fetch('/api/v1/telegram/config', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (resp.ok) {
@@ -1219,7 +1219,7 @@ async function adminAddServerAPI() {
     note: document.getElementById('as-note').value || '',
   };
   try {
-    const resp = await fetch('/api/servers/', {
+    const resp = await fetch('/api/v1/servers/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify(body),
@@ -1264,7 +1264,7 @@ async function saveTgConfigAPI() {
     enabled: true,
   };
   try {
-    const resp = await fetch('/api/telegram/config', {
+    const resp = await fetch('/api/v1/telegram/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify(body),
@@ -1280,7 +1280,7 @@ async function testTgAPI() {
   if (!token) { adminLogout(); return; }
   showMsg('tgMsg', '发送中...', 'blue');
   try {
-    const resp = await fetch('/api/telegram/test', {
+    const resp = await fetch('/api/v1/telegram/test', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` },
     });
@@ -1296,7 +1296,7 @@ async function sendManualTgAPI() {
   const token = localStorage.getItem('authToken');
   if (!token) { adminLogout(); return; }
   try {
-    const resp = await fetch('/api/telegram/send', {
+    const resp = await fetch('/api/v1/telegram/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ text: msg }),

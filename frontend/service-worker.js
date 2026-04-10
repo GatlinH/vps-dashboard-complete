@@ -30,10 +30,10 @@ const STATIC_ASSETS = [
 function isAdminOrAuthPath(pathname) {
     const blocklist = [
         '/admin.html',
-        '/api/auth/',
-        '/api/servers/',
-        '/api/probe/',
-        '/api/telegram/',
+        '/api/v1/auth/',
+        '/api/v1/servers/',
+        '/api/v1/probe/',
+        '/api/v1/telegram/',
     ];
     return blocklist.some(p => pathname.startsWith(p));
 }

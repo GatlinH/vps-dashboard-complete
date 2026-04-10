@@ -34,6 +34,28 @@ cache_hit_rate = Gauge(
     ['cache_type']
 )
 
+# ── 业务指标 ───────────────────────────────────────────────────────────────────
+
+# 服务器在线率
+vps_servers_total   = Gauge('vps_servers_total',   '服务器总数')
+vps_servers_online  = Gauge('vps_servers_online',  '在线服务器数')
+vps_servers_offline = Gauge('vps_servers_offline', '离线服务器数')
+
+# 探针延迟分布
+vps_probe_latency_ms = Histogram(
+    'vps_probe_latency_ms', '探针 TCP 延迟(ms)',
+    buckets=[10, 50, 100, 200, 500, 1000, 2000, 5000]
+)
+
+# API 错误计数
+vps_api_errors_total = Counter(
+    'vps_api_errors_total', 'API 错误数',
+    ['endpoint', 'status_code']
+)
+
+# 流量超限服务器数
+vps_traffic_overused_count = Gauge('vps_traffic_overused_count', '流量超限服务器数')
+
 
 # backend/middleware/metrics.py - 集成到中间件
 

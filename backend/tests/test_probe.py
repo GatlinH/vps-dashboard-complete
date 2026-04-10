@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock
 
 def test_ping_requires_auth(client):
     """POST /api/probe/ping 未认证返回 401"""
-    resp = client.post('/api/probe/ping', json={'host': '1.2.3.4', 'port': 80})
+    resp = client.post('/api/v1/probe/ping', json={'host': '1.2.3.4', 'port': 80})
     assert resp.status_code == 401
 
 
@@ -12,7 +12,7 @@ def test_ping_with_admin_auth(client, auth_headers):
     """POST /api/probe/ping 需要 admin 权限，认证后可调用"""
     with patch('api.probe.tcp_ping') as mock_ping:
         mock_ping.return_value = {'success': True, 'latency_ms': 10.0, 'error': None}
-        resp = client.post('/api/probe/ping', json={
+        resp = client.post('/api/v1/probe/ping', json={
             'host': '1.2.3.4',
             'port': 80,
             'count': 1,
@@ -25,13 +25,13 @@ def test_ping_with_admin_auth(client, auth_headers):
 
 def test_ping_missing_host(client, auth_headers):
     """POST /api/probe/ping 缺少 host 参数返回 400"""
-    resp = client.post('/api/probe/ping', json={}, headers=auth_headers)
+    resp = client.post('/api/v1/probe/ping', json={}, headers=auth_headers)
     assert resp.status_code == 400
 
 
 def test_ping_batch_requires_auth(client):
     """POST /api/probe/ping/batch 未认证返回 401"""
-    resp = client.post('/api/probe/ping/batch', json={})
+    resp = client.post('/api/v1/probe/ping/batch', json={})
     assert resp.status_code == 401
 
 
@@ -39,7 +39,7 @@ def test_ping_batch_with_admin_auth(client, auth_headers):
     """POST /api/probe/ping/batch 认证后可调用"""
     with patch('api.probe.tcp_ping') as mock_ping:
         mock_ping.return_value = {'success': True, 'latency_ms': 5.0, 'error': None}
-        resp = client.post('/api/probe/ping/batch', json={}, headers=auth_headers)
+        resp = client.post('/api/v1/probe/ping/batch', json={}, headers=auth_headers)
     assert resp.status_code == 200
     data = resp.get_json()
     assert 'results' in data
@@ -53,7 +53,7 @@ def test_ip_info_public(client):
     mock_resp.__exit__ = MagicMock(return_value=False)
 
     with patch('urllib.request.urlopen', return_value=mock_resp):
-        resp = client.get('/api/probe/ip-info?ip=1.2.3.4')
+        resp = client.get('/api/v1/probe/ip-info?ip=1.2.3.4')
     assert resp.status_code == 200
     data = resp.get_json()
     assert 'status' in data
@@ -67,6 +67,6 @@ def test_ip_info_public_no_auth_required(client):
     mock_resp.__exit__ = MagicMock(return_value=False)
 
     with patch('urllib.request.urlopen', return_value=mock_resp):
-        resp = client.get('/api/probe/ip-info?ip=8.8.8.8')
+        resp = client.get('/api/v1/probe/ip-info?ip=8.8.8.8')
     # 公开接口，不需要认证
     assert resp.status_code != 401

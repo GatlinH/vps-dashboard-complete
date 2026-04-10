@@ -1837,7 +1837,7 @@ async function fetchProbeData() {
   globeState.lastFetch = new Date();
   setGlobeStatus(`第 ${globeState.fetchCount} 次抓取... ${globeState.lastFetch.toLocaleTimeString()}`, true);
   // In production: replace with real fetch to /api/servers or probe endpoints
-  // e.g. const data = await fetch('/api/servers').then(r=>r.json());
+  // e.g. const data = await fetch('/api/v1/servers').then(r=>r.json());
   // For now simulate realistic variance:
   await new Promise(r => setTimeout(r, 400 + Math.random()*300));
   servers.forEach(s => {
