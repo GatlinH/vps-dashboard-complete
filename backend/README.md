@@ -1,5 +1,23 @@
 # VPS 星图 · Flask 后端
 
+## 依赖管理
+
+本项目使用 `pip-tools` 管理 Python 依赖版本：
+
+- **`requirements.in`**：直接依赖的宽松约束（`>=`），是人工维护的源文件
+- **`requirements.txt`**：精确版本锁定（`==`），由 `pip-compile` 自动生成，不应手动修改
+
+如需添加或升级依赖：
+1. 修改 `requirements.in`
+2. 运行以下命令重新生成 `requirements.txt`：
+   ```bash
+   pip install pip-tools
+   pip-compile requirements.in -o requirements.txt
+   ```
+3. 提交 `requirements.in` 和 `requirements.txt` 的变更
+
+---
+
 ## 目录结构
 
 ```

@@ -35,3 +35,8 @@ logs/
 dist/
 build/
 *.egg-info/
+frontend-dist/
+
+# ── Node.js ──────────────────────────────────────────────────
+node_modules/
+

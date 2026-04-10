@@ -1,0 +1,23 @@
+# backend/requirements.in
+# 直接依赖的 >= 约束，供 pip-compile 使用。
+# 修改此文件后，运行以下命令重新生成 requirements.txt：
+#   pip install pip-tools
+#   pip-compile requirements.in -o requirements.txt
+flask>=2.3.0
+flask-sqlalchemy>=3.0.0
+flask-jwt-extended>=4.5.0
+flask-cors>=4.0.0
+flask-limiter>=3.3.0
+flask-talisman>=1.1.0
+flasgger>=0.9.7
+PyMySQL>=1.1.0
+redis>=5.0.0
+APScheduler>=3.10.0
+gunicorn>=21.0.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+werkzeug>=2.3.0
+cryptography>=46.0.5
+prometheus-client>=0.17.0
+fakeredis>=2.0
+pytest-cov>=4.0.0

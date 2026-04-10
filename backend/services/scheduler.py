@@ -64,6 +64,12 @@ def create_scheduler(app):
             id="traffic_alerts", name="流量超限告警",
             replace_existing=True, misfire_grace_time=30,
         )
+        scheduler.add_job(
+            func=lambda: _job_audit_log_cleanup(app),
+            trigger="cron", day_of_week="sun", hour=3, minute=0,
+            id="audit_log_cleanup", name="审计日志归档（每周日凌晨 3 点）",
+            replace_existing=True,
+        )
 
     scheduler.start()
     log.info("后台调度器已启动")
@@ -306,3 +312,20 @@ def _job_traffic_alerts(app):
         servers = Server.query.filter(Server.traffic_limit_gb > 0).all()
         for s in servers:
             _check_and_fire_traffic_alert(s)
+
+
+def _job_audit_log_cleanup(app):
+    """每周日凌晨 3 点清理 90 天前的审计日志"""
+    import os
+    from extensions import db
+    from models.models import AuditLog
+    retention_days = int(os.environ.get("AUDIT_LOG_RETENTION_DAYS", 90))
+    cutoff = datetime.utcnow() - timedelta(days=retention_days)
+    with app.app_context():
+        try:
+            deleted = AuditLog.query.filter(AuditLog.created_at < cutoff).delete()
+            db.session.commit()
+            log.info(f"审计日志归档: 删除 {deleted} 条 {retention_days} 天前的记录")
+        except Exception as e:
+            db.session.rollback()
+            log.error(f"审计日志归档失败: {e}")
