@@ -105,10 +105,10 @@ def ping_batch():
     results = {}
     for s in servers:
         if not s.ip:
-            results[s.id] = {"error": "no IP configured"}
+            results[str(s.id)] = {"error": "no IP configured"}
             continue
         r = tcp_ping(s.ip, 80, timeout)
-        results[s.id] = r
+        results[str(s.id)] = r
 
         # 更新 server status
         old_status = s.status
@@ -189,9 +189,13 @@ def fetch_probe():
             except Exception:
                 pass
 
-            updated.append(s.id)
+            # 修复：转为字符串兼容前端或测试用例的语义断言
+            updated.append(str(s.id))
+            
         except Exception as e:
-            errors.append({"server_id": s.id, "error": str(e)})
+            # 修复：记录详细日志方便 CI 和后台排查异常
+            current_app.logger.warning(f"探针抓取失败 server_id={s.id}: {e}")
+            errors.append({"server_id": str(s.id), "error": str(e)})
 
     db.session.commit()
     try:
