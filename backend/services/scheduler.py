@@ -192,7 +192,7 @@ def _job_fetch_probes(app):
                 except Exception:
                     pass
 
-                updated_ids.append(s.id)
+                updated_ids.append(str(s.id)) # 也统一转为 string 处理
             except Exception as e:
                 log.warning(f"探针抓取失败 server_id={s.id}: {e}")
                 # 失败计数
