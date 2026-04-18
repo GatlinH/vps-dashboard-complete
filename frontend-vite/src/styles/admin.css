@@ -1,0 +1,137 @@
+/* ===== Admin-only styles ===== */
+/* 与 main.css 共享 variables / base / dashboard，此文件只放后台专属规则 */
+
+/* ── Login ─────────────────────────────────────────────────────────────────── */
+.login-box {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 18px; padding: 2.5rem; width: 100%; max-width: 400px;
+}
+.login-logo { text-align: center; margin-bottom: 2rem; }
+.login-logo-text {
+  font-family: var(--mono); font-size: 22px; font-weight: 700;
+  color: var(--accent); letter-spacing: 3px;
+}
+.login-logo-sub { font-size: 12px; color: var(--text3); margin-top: 4px; letter-spacing: 1px; }
+.login-field { margin-bottom: 16px; }
+.login-field label { display: block; font-size: 11px; color: var(--text3); letter-spacing: .5px; margin-bottom: 6px; }
+.login-input {
+  width: 100%; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 14px; font-size: 14px;
+  color: var(--text); font-family: var(--sans); outline: none; transition: border-color .2s;
+}
+.login-input:focus { border-color: var(--accent); }
+.login-btn {
+  width: 100%; padding: 11px; border-radius: 10px;
+  background: var(--accent); color: #000; font-size: 14px; font-weight: 700;
+  border: none; cursor: pointer; transition: opacity .2s; margin-top: 8px; font-family: var(--sans);
+}
+.login-btn:hover { opacity: .88; }
+.login-err { color: var(--red); font-size: 12px; margin-top: 8px; min-height: 18px; }
+
+/* ── Admin Nav ─────────────────────────────────────────────────────────────── */
+.admin-nav {
+  height: 56px; background: rgba(7,11,20,.95);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 0;
+  padding: 0 2rem; flex-shrink: 0;
+}
+.admin-nav-logo {
+  font-family: var(--mono); font-size: 14px; font-weight: 700;
+  color: var(--gold); letter-spacing: 2px; margin-right: 2rem;
+}
+.admin-tabs { display: flex; gap: 0; flex: 1; }
+.admin-tab {
+  padding: 0 1.1rem; height: 56px; display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--text2); cursor: pointer;
+  border: none; background: none; border-bottom: 2px solid transparent;
+  transition: all .2s; font-family: var(--sans);
+}
+.admin-tab:hover  { color: var(--text); }
+.admin-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+/* ── Admin Page / Card ─────────────────────────────────────────────────────── */
+.admin-body { flex: 1; overflow-y: auto; padding: 2rem; }
+.admin-page { display: none; max-width: 900px; margin: 0 auto; }
+.admin-page.active { display: block; }
+.admin-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 14px; padding: 1.5rem; margin-bottom: 1.25rem;
+}
+.admin-card-title {
+  font-size: 14px; font-weight: 700; color: var(--text);
+  margin-bottom: 1rem; padding-bottom: 10px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px;
+}
+.admin-section-title {
+  font-size: 11px; color: var(--text3); letter-spacing: 2px; text-transform: uppercase;
+  margin-bottom: 1.25rem; display: flex; align-items: center; gap: 8px;
+}
+.admin-section-title::before { content:''; width:20px; height:2px; background:var(--gold); display:block; }
+
+/* ── Ping ──────────────────────────────────────────────────────────────────── */
+.ping-server-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(260px,1fr)); gap: 10px; margin-bottom: 14px; }
+.ping-server-item {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 12px; cursor: pointer; transition: border-color .2s;
+}
+.ping-server-item:hover    { border-color: var(--border2); }
+.ping-server-item.selected { border-color: var(--accent); background: rgba(99,179,237,.06); }
+.ping-badge-ms {
+  margin-left: auto; font-family: var(--mono); font-size: 11px;
+  padding: 2px 8px; border-radius: 6px;
+}
+.ping-result {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 10px;
+  padding: 1rem; margin-top: 12px; font-family: var(--mono);
+  font-size: 12px; max-height: 280px; overflow-y: auto;
+}
+.ping-line { padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+.ping-line:last-child { border: none; }
+.ping-ok   { color: var(--green);  }
+.ping-fail { color: var(--red);    }
+.ping-warn { color: var(--orange); }
+.ping-info { color: var(--accent); }
+
+/* ── Telegram ──────────────────────────────────────────────────────────────── */
+.tg-status {
+  display: flex; align-items: center; gap: 8px; font-size: 13px;
+  padding: 10px 14px; border-radius: 8px; margin-bottom: 12px;
+}
+.tg-connected    { background: rgba(56,239,125,.08); color: var(--green); border: 1px solid rgba(56,239,125,.2); }
+.tg-disconnected { background: rgba(255,107,107,.08); color: var(--red);   border: 1px solid rgba(255,107,107,.2); }
+.tg-alert-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.tg-alert-item {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 12px; font-size: 13px;
+}
+
+/* ── Theme Editor ──────────────────────────────────────────────────────────── */
+.theme-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(180px,1fr)); gap: 10px; margin-bottom: 14px; }
+.theme-preset {
+  border: 2px solid var(--border); border-radius: 10px;
+  padding: 12px; cursor: pointer; transition: border-color .2s;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.theme-preset:hover  { border-color: var(--border2); }
+.theme-preset.active { border-color: var(--gold); }
+.theme-swatch { display: flex; gap: 4px; }
+.swatch { width: 18px; height: 18px; border-radius: 4px; }
+.theme-name { font-size: 12px; color: var(--text2); }
+.var-sliders { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.var-row { display: flex; flex-direction: column; gap: 4px; }
+.var-row label { font-size: 11px; color: var(--text3); display: flex; justify-content: space-between; }
+.var-row input[type=color] {
+  width: 100%; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg3);
+  cursor: pointer; padding: 2px 4px;
+}
+.css-editor {
+  width: 100%; min-height: 220px; background: var(--bg3);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px; font-family: var(--mono); font-size: 12px;
+  color: var(--text); resize: vertical; outline: none;
+  line-height: 1.6; transition: border-color .2s;
+}
+.css-editor:focus { border-color: var(--accent); }
