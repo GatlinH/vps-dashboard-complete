@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VPS 星图 · 管理后台</title>
+  <!-- CSS & JS 由 Vite 通过 admin-main.js 注入，生产构建后自动替换为带 hash 的文件 -->
+</head>
+<body>
+
+<!-- 登录面板挂载点（LoginPanel 动态渲染） -->
+<div id="login-mount"></div>
+
+<!-- 管理后台主面板 -->
+<div id="admin-panel" style="display:none;flex-direction:column;min-height:100vh">
+
+  <!-- 顶部导航 -->
+  <div class="admin-nav">
+    <div class="admin-nav-logo">⚙ 管理后台</div>
+    <div class="admin-tabs">
+      <button class="admin-tab active" data-tab="servers" onclick="switchTab('servers')">🖥 添加服务器</button>
+      <button class="admin-tab"        data-tab="ping"    onclick="switchTab('ping')">📶 TCP Ping</button>
+      <button class="admin-tab"        data-tab="telegram" onclick="switchTab('telegram')">✈ Telegram</button>
+      <button class="admin-tab"        data-tab="theme"   onclick="switchTab('theme')">🎨 界面主题</button>
+    </div>
+    <a href="/"
+       style="padding:6px 16px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);
+              color:var(--text2);font-size:12px;font-family:var(--sans);text-decoration:none;
+              display:flex;align-items:center;gap:6px">
+      ← 返回前台
+    </a>
+    <button onclick="adminLogout()"
+            style="padding:6px 14px;border-radius:8px;background:rgba(255,107,107,.1);
+                   border:1px solid rgba(255,107,107,.25);color:var(--red);
+                   font-size:12px;cursor:pointer;font-family:var(--sans)">
+      退出登录
+    </button>
+  </div>
+
+  <!-- 页面内容区（各组件动态渲染） -->
+  <div class="admin-body">
+    <div id="tab-servers"  class="admin-page active"></div>
+    <div id="tab-ping"     class="admin-page"></div>
+    <div id="tab-telegram" class="admin-page"></div>
+    <div id="tab-theme"    class="admin-page"></div>
+  </div>
+
+</div>
+
+<!-- Vite 入口：生产构建后替换为带 hash 的 <script> -->
+<script type="module" src="/src/admin-main.js"></script>
+</body>
+</html>
