@@ -1,0 +1,23 @@
+/* ===== Design Tokens ===== */
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+:root {
+  --bg:      #070b14;
+  --bg2:     #0d1525;
+  --bg3:     #111d33;
+  --card:    rgba(13,21,37,0.92);
+  --border:  rgba(99,179,237,0.15);
+  --border2: rgba(99,179,237,0.3);
+  --accent:  #63b3ed;
+  --accent2: #4fc3f7;
+  --gold:    #f6c90e;
+  --green:   #38ef7d;
+  --red:     #ff6b6b;
+  --orange:  #ff9f43;
+  --purple:  #a78bfa;
+  --text:    #e2e8f0;
+  --text2:   #94a3b8;
+  --text3:   #64748b;
+  --mono:    'Space Mono', monospace;
+  --sans:    'Noto Sans SC', sans-serif;
+}
