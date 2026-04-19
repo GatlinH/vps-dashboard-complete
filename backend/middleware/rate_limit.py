@@ -46,8 +46,12 @@ class RateLimitConfig:
         # 验证 Redis 配置，若无配置则使用内存存储（如测试环境）
         storage_uri = app.config.get('REDIS_URL', 'memory://')
         
-        # 将 limiter 与 app 绑定
-        limiter.init_app(app, storage_uri=storage_uri)
+        # 将 limiter 与 app 绑定（兼容不同 flask-limiter 版本）
+        app.config.setdefault("RATELIMIT_STORAGE_URI", storage_uri)
+        try:
+            limiter.init_app(app, storage_uri=storage_uri)
+        except TypeError:
+            limiter.init_app(app)
         app.limiter = limiter
         
         # 自定义全局限流错误处理

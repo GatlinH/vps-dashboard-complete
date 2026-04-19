@@ -1,6 +1,6 @@
 import pytest
 from flask import Flask, jsonify
-from backend.middleware.rate_limit import RateLimitConfig, limiter, LOGIN_LIMIT
+from middleware.rate_limit import RateLimitConfig, limiter, LOGIN_LIMIT
 from flask_jwt_extended import JWTManager, create_access_token
 
 @pytest.fixture
