@@ -20,6 +20,19 @@ _WEAK_SECRET_KEY     = "change-me-in-production-32chars!"
 _WEAK_JWT_SECRET_KEY = "change-me-jwt-secret"
 
 
+def _parse_cors_origins(raw: str) -> list[str]:
+    """解析并清洗 CORS 白名单。"""
+    origins = []
+    for item in (raw or '').split(','):
+        origin = item.strip().rstrip('/')
+        if not origin:
+            continue
+        if origin.startswith('http://') or origin.startswith('https://'):
+            origins.append(origin)
+    # 去重并保持顺序
+    return list(dict.fromkeys(origins))
+
+
 def _validate_production_secrets():
     """在生产环境中检查关键密钥，若仍为弱默认值则终止启动。"""
     flask_env = os.getenv("FLASK_ENV", "development")
@@ -45,6 +58,12 @@ def _validate_production_secrets():
         errors.append(
             "MYSQL_PASSWORD 仍为弱默认值 (vps_pass)。请在 .env 中设置强密码。"
         )
+
+    cors_origins = _parse_cors_origins(os.getenv('CORS_ORIGINS', ''))
+    if not cors_origins:
+        errors.append("CORS_ORIGINS 未配置有效白名单（必须为 http(s) 源列表）。")
+    if '*' in os.getenv('CORS_ORIGINS', ''):
+        errors.append("生产环境禁止在 CORS_ORIGINS 使用通配符 *。")
 
     if errors:
         for msg in errors:
@@ -98,7 +117,54 @@ class Config:
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
 
     # ── CORS ─────────────────────────────────────────────────────────────────
-    CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
+    CORS_ORIGINS = _parse_cors_origins(
+        os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173')
+    )
+    CORS_ALLOW_HEADERS = ['Content-Type', 'Authorization', 'X-Request-ID']
+    CORS_EXPOSE_HEADERS = ['X-Total-Count', 'X-Page-Number', 'X-Request-ID']
+    CORS_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
+    CORS_SUPPORTS_CREDENTIALS = True
+    CORS_MAX_AGE = int(os.getenv('CORS_MAX_AGE', '3600'))
+
+    # ── Talisman / 安全头 ───────────────────────────────────────────────────
+    FORCE_HTTPS = os.getenv('FORCE_HTTPS', '1') == '1'
+    HSTS_ENABLED = os.getenv('HSTS_ENABLED', '1') == '1'
+    HSTS_MAX_AGE = int(os.getenv('HSTS_MAX_AGE', '31536000'))
+    HSTS_INCLUDE_SUBDOMAINS = os.getenv('HSTS_INCLUDE_SUBDOMAINS', '1') == '1'
+    HSTS_PRELOAD = os.getenv('HSTS_PRELOAD', '1') == '1'
+
+    SECURITY_CSP = {
+        'default-src': "'self'",
+        'script-src': [
+            "'self'",
+            'https://cdn.jsdelivr.net',
+            'https://unpkg.com',
+        ],
+        'style-src': [
+            "'self'",
+            "'unsafe-inline'",
+            'https://fonts.googleapis.com',
+        ],
+        'img-src': [
+            "'self'",
+            'data:',
+            'https:',
+        ],
+        'font-src': [
+            "'self'",
+            'https://fonts.gstatic.com',
+        ],
+        'connect-src': [
+            "'self'",
+            'https://api.telegram.org',
+            'https://ip-api.com',
+        ],
+        'frame-ancestors': "'none'",
+        'base-uri': "'self'",
+        'form-action': "'self'",
+        'object-src': "'none'",
+    }
+    SECURITY_CSP_NONCE_IN = ['script-src', 'style-src']
 
     # ── Telegram ─────────────────────────────────────────────────────────────
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
@@ -114,6 +180,7 @@ class Config:
 
 class DevelopmentConfig(Config):
     DEBUG = True
+
 
 class ProductionConfig(Config):
     DEBUG = False
