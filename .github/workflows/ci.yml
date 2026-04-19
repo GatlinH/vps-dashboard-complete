@@ -43,6 +43,10 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements-dev.txt
 
+      - name: Backend lint (syntax)
+        working-directory: backend
+        run: python -m compileall -q .
+
       - name: Run tests
         working-directory: backend
         env:

@@ -1,16 +1,95 @@
 """测试配置和 fixtures"""
-import pytest
-import sys
+import fnmatch
 import os
+import sys
+import time
+
+import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-import fakeredis
 import extensions
 from app import create_app
 from extensions import db as _db
 from models.models import User, Server
 from werkzeug.security import generate_password_hash
+
+try:
+    import fakeredis  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - fallback for restricted envs
+    fakeredis = None
+
+
+class _InMemoryRedis:
+    """用于测试的极简 Redis 替身（覆盖本项目测试会用到的方法）。"""
+
+    def __init__(self):
+        self._store = {}
+
+    def _cleanup_expired(self):
+        now = time.time()
+        expired = [k for k, (_, exp) in self._store.items() if exp is not None and exp <= now]
+        for k in expired:
+            self._store.pop(k, None)
+
+    def setex(self, key, ttl, value):
+        exp = time.time() + max(int(ttl), 0)
+        self._store[key] = (str(value), exp)
+        return True
+
+    def get(self, key):
+        self._cleanup_expired()
+        item = self._store.get(key)
+        return None if item is None else item[0]
+
+    def delete(self, *keys):
+        removed = 0
+        for key in keys:
+            if key in self._store:
+                self._store.pop(key, None)
+                removed += 1
+        return removed
+
+    def exists(self, key):
+        self._cleanup_expired()
+        return 1 if key in self._store else 0
+
+    def ttl(self, key):
+        self._cleanup_expired()
+        item = self._store.get(key)
+        if item is None:
+            return -2
+        _, exp = item
+        if exp is None:
+            return -1
+        return max(int(exp - time.time()), 0)
+
+    def expire(self, key, ttl):
+        self._cleanup_expired()
+        if key not in self._store:
+            return 0
+        value, _ = self._store[key]
+        self._store[key] = (value, time.time() + max(int(ttl), 0))
+        return 1
+
+    def incr(self, key):
+        self._cleanup_expired()
+        value = self.get(key)
+        n = int(value) if value is not None else 0
+        n += 1
+        self._store[key] = (str(n), self._store.get(key, (None, None))[1])
+        return n
+
+    def scan_iter(self, pattern):
+        self._cleanup_expired()
+        for key in list(self._store.keys()):
+            if fnmatch.fnmatch(key, pattern):
+                yield key
+
+    def flushdb(self):
+        self._store.clear()
+        return True
+
 
 _TEST_CONFIG = {
     'TESTING': True,
@@ -29,8 +108,8 @@ def app():
     """创建测试应用实例"""
     application = create_app(**_TEST_CONFIG)
 
-    # 用 fakeredis 替换真实 Redis，避免测试环境依赖外部 Redis 服务
-    fake_redis = fakeredis.FakeRedis(decode_responses=True)
+    # 优先使用 fakeredis；受限环境下回退到内存实现，避免依赖外部服务
+    fake_redis = fakeredis.FakeRedis(decode_responses=True) if fakeredis else _InMemoryRedis()
     extensions.redis_client = fake_redis
 
     with application.app_context():
@@ -50,7 +129,12 @@ def client(app):
 def reset_db(app):
     """每个测试前重置数据库，确保 admin 用户存在；同时清空 Redis 缓存"""
     with app.app_context():
-        _db.create_all()
+        try:
+            _db.create_all()
+        except RuntimeError:
+            # 某些独立测试会自建最小 Flask app（未绑定 SQLAlchemy），直接跳过 DB 处理
+            yield
+            return
         # 清空 Redis 缓存，避免跨测试缓存污染
         try:
             extensions.redis_client.flushdb()
