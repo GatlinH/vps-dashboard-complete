@@ -1,5 +1,15 @@
 """Metrics 端点与关键计数测试。"""
 
+from middleware.metrics_middleware import (
+    record_alert_fired,
+    record_auth_login,
+    record_email_sent,
+    record_probe_latency,
+    record_token_revocation,
+    record_traffic_limit_exceeded,
+    set_server_counts,
+)
+
 
 def _get_metric_value(client, metric_name: str) -> float:
     text = client.get('/metrics').data.decode()
@@ -46,3 +56,24 @@ def test_business_gauges_exist(client):
     assert 'vps_servers_total' in body
     assert 'vps_servers_online' in body
     assert 'vps_servers_offline' in body
+
+
+def test_business_metrics_helpers_are_exposed_in_metrics(client):
+    set_server_counts(total=3, online=2, offline=1)
+    record_auth_login("success")
+    record_token_revocation("access")
+    record_alert_fired("traffic", "telegram")
+    record_traffic_limit_exceeded()
+    record_probe_latency(88.2)
+    record_email_sent("welcome", "success")
+
+    body = client.get('/metrics').data.decode()
+    assert 'vps_servers_total 3.0' in body
+    assert 'vps_servers_online 2.0' in body
+    assert 'vps_servers_offline 1.0' in body
+    assert 'vps_auth_logins_total{status="success"}' in body
+    assert 'vps_auth_token_revocations_total{token_type="access"}' in body
+    assert 'vps_alerts_fired_total{alert_type="traffic",channel="telegram"}' in body
+    assert 'vps_traffic_limit_exceeded_total' in body
+    assert 'vps_probe_latency_ms_bucket' in body
+    assert 'vps_email_sent_total{status="success",template="welcome"}' in body

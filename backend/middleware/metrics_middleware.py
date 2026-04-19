@@ -222,6 +222,42 @@ def init_metrics(app: Flask) -> None:
 
 # ── 对外暴露常用业务指标，方便其他模块 import ─────────────────────────────────
 
+def record_auth_login(status: str) -> None:
+    """记录登录结果（success/failure/locked）。"""
+    vps_auth_logins.labels(status=status).inc()
+
+
+def record_token_revocation(token_type: str) -> None:
+    """记录 token 吊销事件（access/refresh）。"""
+    vps_auth_token_revocations.labels(token_type=token_type).inc()
+
+
+def record_alert_fired(alert_type: str, channel: str) -> None:
+    """记录告警触发（按类型和渠道）。"""
+    vps_alerts_fired.labels(alert_type=alert_type, channel=channel).inc()
+
+
+def record_traffic_limit_exceeded() -> None:
+    """记录流量超限事件。"""
+    vps_traffic_limit_exceeded.inc()
+
+
+def record_probe_latency(latency_ms: float) -> None:
+    """记录探针延迟（毫秒）。"""
+    vps_probe_latency_ms.observe(latency_ms)
+
+
+def record_email_sent(template: str, status: str) -> None:
+    """记录邮件发送结果。"""
+    vps_email_sent.labels(template=template, status=status).inc()
+
+
+def set_server_counts(total: int, online: int, offline: int) -> None:
+    """设置服务器总量/在线/离线 Gauge。"""
+    vps_servers_total.set(total)
+    vps_servers_online.set(online)
+    vps_servers_offline.set(offline)
+
 __all__ = [
     "init_metrics",
     "vps_servers_total",
@@ -233,4 +269,11 @@ __all__ = [
     "vps_alerts_fired",
     "vps_traffic_limit_exceeded",
     "vps_email_sent",
+    "record_auth_login",
+    "record_token_revocation",
+    "record_alert_fired",
+    "record_traffic_limit_exceeded",
+    "record_probe_latency",
+    "record_email_sent",
+    "set_server_counts",
 ]
