@@ -186,11 +186,41 @@ def fire_alert():
             threshold:
               type: number
               example: 90
+        examples:
+          application/json:
+            server_id: 12
+            rule_type: cpu
+            current_value: 96.2
+            threshold: 90
     responses:
       200:
         description: 告警已推送或 Telegram 未启用
+        schema:
+          type: object
+          properties:
+            msg:
+              type: string
+              example: 告警已推送
+      403:
+        description: 权限不足（仅管理员可触发）
+        schema:
+          type: object
+          properties:
+            msg:
+              type: string
+              example: 权限不足
       502:
         description: 推送失败
+        schema:
+          type: object
+          properties:
+            msg:
+              type: string
+              example: 推送失败
+            detail:
+              type: object
+      500:
+        description: 服务内部错误（例如参数缺失导致模板拼接失败）
     """
     data      = request.get_json(silent=True) or {}
     sid       = data.get("server_id")
