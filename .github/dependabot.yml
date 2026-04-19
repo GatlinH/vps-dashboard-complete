@@ -1,10 +1,10 @@
 version: 2
+
 updates:
   - package-ecosystem: "pip"
     directory: "/backend"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "daily"
       time: "03:00"
       timezone: "Etc/UTC"
     open-pull-requests-limit: 10
@@ -16,12 +16,17 @@ updates:
       include: "scope"
     allow:
       - dependency-type: "direct"
+    groups:
+      pip-security-and-patch:
+        applies-to: security-updates
+        update-types:
+          - "patch"
+          - "minor"
 
   - package-ecosystem: "npm"
     directory: "/frontend-vite"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "daily"
       time: "03:00"
       timezone: "Etc/UTC"
     open-pull-requests-limit: 10
@@ -31,6 +36,12 @@ updates:
     commit-message:
       prefix: "deps"
       include: "scope"
+    groups:
+      npm-security-and-patch:
+        applies-to: security-updates
+        update-types:
+          - "patch"
+          - "minor"
 
   - package-ecosystem: "github-actions"
     directory: "/"
