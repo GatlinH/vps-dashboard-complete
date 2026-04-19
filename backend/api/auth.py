@@ -417,13 +417,44 @@ def signup():
             password:
               type: string
               example: "StrongPassword!123"
+        examples:
+          application/json:
+            username: demo_user
+            email: demo@example.com
+            password: "StrongPassword!123"
     responses:
       201:
         description: 注册成功
+        schema:
+          type: object
+          properties:
+            msg:
+              type: string
+              example: 注册成功，请检查邮箱进行验证
       400:
         description: 参数校验失败
+        schema:
+          type: object
+          properties:
+            msg:
+              type: string
+              example: 用户名、邮箱和密码不能为空
       409:
         description: 用户名或邮箱已存在
+        schema:
+          type: object
+          properties:
+            msg:
+              type: string
+              example: 用户名已被占用
+      429:
+        description: 请求过于频繁（触发注册限流）
+        schema:
+          type: object
+          properties:
+            msg:
+              type: string
+              example: Too many requests
     """
     data     = request.get_json(silent=True) or {}
     username = data.get("username", "").strip()

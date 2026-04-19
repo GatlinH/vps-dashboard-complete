@@ -54,6 +54,22 @@ curl -X POST 'http://localhost:5000/api/v1/auth/signup' \
   }'
 ```
 
+成功响应（`201`）示例：
+
+```json
+{
+  "msg": "注册成功，请检查邮箱进行验证"
+}
+```
+
+冲突响应（`409`）示例：
+
+```json
+{
+  "msg": "用户名已被占用"
+}
+```
+
 ### 3.2 刷新令牌
 
 ```bash
@@ -108,6 +124,25 @@ curl -X POST 'http://localhost:5000/api/v1/telegram/alert/fire' \
   }'
 ```
 
+成功响应（`200`）示例：
+
+```json
+{
+  "msg": "告警已推送"
+}
+```
+
+失败响应（`502`）示例：
+
+```json
+{
+  "msg": "推送失败",
+  "detail": {
+    "ok": false
+  }
+}
+```
+
 ### 4.2 主动抓取探针数据（采集触发）
 
 端点：`POST /api/v1/probe/fetch-probe`
@@ -117,6 +152,20 @@ curl -X POST 'http://localhost:5000/api/v1/probe/fetch-probe' \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer <access_token>' \
   -d '{"server_ids": [1, 2, 3]}'
+```
+
+响应（`200`）示例：
+
+```json
+{
+  "updated": ["1", "2"],
+  "errors": [
+    {
+      "server_id": "3",
+      "error": "timed out"
+    }
+  ]
+}
 ```
 
 ---
@@ -134,3 +183,43 @@ curl -X POST 'http://localhost:5000/api/v1/probe/fetch-probe' \
 2. 将 checkout/session、subscription、billing portal、webhook 事件处理写入 Flasgger docstring
 3. 在本文件补充真实示例（成功/失败响应）
 
+### 5.1 Payment 建议的 Swagger 合约示例（预留）
+
+> 以下为建议文档模板，便于后续在 `payment.py` 中直接落地为 Flasgger docstring。
+
+#### POST `/api/v1/payment/checkout/session`
+
+请求示例：
+
+```json
+{
+  "plan": "pro-monthly",
+  "success_url": "https://example.com/billing/success",
+  "cancel_url": "https://example.com/billing/cancel"
+}
+```
+
+响应（`200`）示例：
+
+```json
+{
+  "checkout_url": "https://checkout.stripe.com/c/pay/cs_test_xxx",
+  "session_id": "cs_test_xxx"
+}
+```
+
+#### POST `/api/v1/payment/webhook`
+
+请求头示例：
+
+```http
+Stripe-Signature: t=1718888888,v1=abcdef123456
+```
+
+响应（`200`）示例：
+
+```json
+{
+  "received": true
+}
+```

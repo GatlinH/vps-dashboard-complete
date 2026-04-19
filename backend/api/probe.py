@@ -168,9 +168,39 @@ def fetch_probe():
               items:
                 type: integer
               example: [1, 2, 3]
+        examples:
+          application/json:
+            server_ids: [1, 2, 3]
     responses:
       200:
         description: 返回 updated 与 errors 列表
+        schema:
+          type: object
+          properties:
+            updated:
+              type: array
+              items:
+                type: string
+              example: ["1", "2"]
+            errors:
+              type: array
+              items:
+                type: object
+                properties:
+                  server_id:
+                    type: string
+                    example: "3"
+                  error:
+                    type: string
+                    example: timed out
+      403:
+        description: 权限不足（仅管理员可调用）
+        schema:
+          type: object
+          properties:
+            msg:
+              type: string
+              example: 权限不足
     """
     data       = request.get_json(silent=True) or {}
     server_ids = data.get("server_ids")
