@@ -62,7 +62,7 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           FORCE_HTTPS: "0"
-        run: pytest tests/ -v --tb=short --cov=. --cov-report=term-missing --cov-fail-under=30
+        run: pytest tests/ -v --tb=short --cov=. --cov-report=term-missing --cov-fail-under=45
 
   lint:
     name: Frontend Lint Check
