@@ -35,8 +35,13 @@ logs/
 dist/
 build/
 *.egg-info/
-frontend-dist/
+frontend-dist/          # Vite 构建输出，由 CI/CD 生成，不进 Git
 
 # ── Node.js ──────────────────────────────────────────────────
 node_modules/
 
+# ── Vite 缓存 ─────────────────────────────────────────────────
+frontend-vite/.vite/    # Vite 本地缓存目录
+
+# ── PWA 构建中间产物 ──────────────────────────────────────────
+sw.mjs                  # vite-plugin-pwa injectManifest 模式的中间文件
