@@ -156,6 +156,41 @@ def fire_alert():
     """
     由探针服务调用，触发告警消息
     Body: { server_id, rule_type, current_value, threshold }
+    ---
+    tags:
+      - Webhook
+      - Telegram
+    summary: 触发 Telegram 告警推送
+    description: 可由内部任务/探针服务调用，按规则推送告警消息到 Telegram。
+    security:
+      - Bearer: []
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required: [server_id, rule_type]
+          properties:
+            server_id:
+              type: integer
+              example: 12
+            rule_type:
+              type: string
+              enum: [cpu, ram, disk, offline, expiry]
+            current_value:
+              type: number
+              example: 96.2
+            threshold:
+              type: number
+              example: 90
+    responses:
+      200:
+        description: 告警已推送或 Telegram 未启用
+      502:
+        description: 推送失败
     """
     data      = request.get_json(silent=True) or {}
     sid       = data.get("server_id")
