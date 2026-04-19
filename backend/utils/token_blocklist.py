@@ -16,6 +16,20 @@ logger = logging.getLogger(__name__)
 
 _PREFIX_ACCESS  = "revoked:access:"
 _PREFIX_REFRESH = "revoked:refresh:"
+_TOKEN_PREFIX_MAP = {
+    "access": _PREFIX_ACCESS,
+    "refresh": _PREFIX_REFRESH,
+}
+
+
+def _resolve_prefix(token_type: str) -> str:
+    """根据 token_type 返回对应的 Redis key 前缀。"""
+    normalized = (token_type or "access").strip().lower()
+    prefix = _TOKEN_PREFIX_MAP.get(normalized)
+    if prefix:
+        return prefix
+    logger.warning("未知 token_type=%s，回退为 access 黑名单前缀", token_type)
+    return _PREFIX_ACCESS
 
 
 # ── 吊销 ─────────────────────────────────────────────────────────────────────
@@ -32,7 +46,7 @@ def revoke_token(jti: str, expires_delta: int, token_type: str = "access") -> No
         logger.debug(f"Token 已过期，无需吊销: jti={jti}")
         return
 
-    prefix = _PREFIX_ACCESS if token_type == "access" else _PREFIX_REFRESH
+    prefix = _resolve_prefix(token_type)
     key    = f"{prefix}{jti}"
     extensions.redis_client.setex(key, expires_delta, "1")
     logger.debug(f"Token 已吊销: type={token_type} jti={jti} ttl={expires_delta}s")
@@ -60,7 +74,7 @@ def is_token_revoked(jti: str, token_type: str = "access") -> bool:
     Returns:
         True 表示已吊销，False 表示有效。
     """
-    prefix = _PREFIX_ACCESS if token_type == "access" else _PREFIX_REFRESH
+    prefix = _resolve_prefix(token_type)
     key    = f"{prefix}{jti}"
     return extensions.redis_client.exists(key) == 1
 
