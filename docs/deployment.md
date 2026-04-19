@@ -8,17 +8,18 @@
 > - **必需（Required）** = 不配置会导致启动失败、功能不可用或存在明显安全风险。
 > - **可选（Optional）** = 未配置时功能退化或默认关闭。
 
-### 核心运行与安全
+### 核心运行与安全（必须）
 
 | 变量 | Required | 说明 | 示例 |
 |---|---|---|---|
 | `FLASK_ENV` | 是 | 运行环境（`development`/`production`） | `production` |
 | `SECRET_KEY` | 是 | Flask 会话签名密钥（>=32位） | `a3f...` |
 | `JWT_SECRET_KEY` | 是 | JWT 签名密钥（>=32位，且不同于 `SECRET_KEY`） | `c9b...` |
+| `JWT_SECRET` | 建议同步 | 兼容旧字段；建议与 `JWT_SECRET_KEY` 保持一致策略 | `c9b...` |
 | `MASTER_ENCRYPTION_KEY` | 是 | 敏感信息加密密钥 | `9d1...` |
 | `CORS_ORIGINS` | 是 | 前端允许来源，逗号分隔 | `https://app.example.com` |
 
-### 数据与缓存
+### 数据与缓存（必须）
 
 | 变量 | Required | 说明 | 示例 |
 |---|---|---|---|
@@ -26,14 +27,14 @@
 | `MYSQL_ROOT_PASSWORD` | 是（Docker 场景） | MySQL root 密码 | `strong-root-pass` |
 | `REDIS_HOST` `REDIS_PORT` `REDIS_DB` | 是 | Redis 连接参数 | `redis` `6379` `0` |
 | `REDIS_PASSWORD` | 生产强烈建议 | Redis 访问密码 | `redis-pass` |
-| `REDIS_URL` | 可选（兼容） | 连接串形式（当前代码由 `REDIS_*` 组装） | `redis://redis:6379/0` |
-| `DATABASE_URL` / `DB_URL` | 可选（兼容） | 数据库连接串保留位（当前代码由 `MYSQL_*` 组装） | `mysql+pymysql://...` |
+| `REDIS_URL` | 建议配置 | 连接串形式（限流等组件直接读取） | `redis://redis:6379/0` |
+| `DATABASE_URL` / `DB_URL` | 建议配置 | 数据库连接串保留位（便于迁移与第三方工具） | `mysql+pymysql://...` |
 
 ### 观测与外部服务
 
 | 变量 | Required | 说明 | 示例 |
 |---|---|---|---|
-| `SENTRY_DSN` | 可选 | Sentry DSN，空则禁用 | `https://...@sentry.io/...` |
+| `SENTRY_DSN` | 建议生产开启 | Sentry DSN，空则禁用 | `https://...@sentry.io/...` |
 | `SENTRY_TRACES_RATE` | 可选 | Sentry tracing 采样率 | `0.1` |
 | `SENTRY_PROFILES_RATE` | 可选 | Sentry profiling 采样率 | `0.1` |
 | `APP_VERSION` | 可选 | 版本号（Sentry release） | `2026.04.19` |
@@ -45,7 +46,17 @@
 
 | 变量 | Required | 说明 |
 |---|---|---|
-| `STRIPE_SECRET` / `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | 可选 | 预留给未来 Stripe 接入；当前后端代码未启用 Stripe SDK。 |
+| `STRIPE_SECRET` / `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | 可选（建议先预留） | 预留给未来 Stripe 接入；当前后端代码未启用 Stripe SDK。 |
+
+### 重点核对项（上线前）
+
+以下变量已在 `backend/.env.example` 中提供模板，部署前请逐项确认已替换真实值：
+
+- `JWT_SECRET_KEY`（以及兼容字段 `JWT_SECRET`）
+- `DATABASE_URL` / `DB_URL`（如你的部署流程或外部工具依赖连接串）
+- `REDIS_URL`（建议显式填写，便于限流/中间件与外部组件复用）
+- `SENTRY_DSN`（生产建议开启）
+- `STRIPE_SECRET`（如暂未接入支付，允许留空但建议保留字段）
 
 ---
 
@@ -152,3 +163,21 @@ curl http://localhost:5000/health
 ```
 
 若 `FLASK_ENV=production` 且关键变量仍为弱默认值，后端会直接拒绝启动（预期行为）。
+
+---
+
+## 5) 生产部署建议流程（简版）
+
+1. **准备配置**
+   - `cp backend/.env.example backend/.env`
+   - 替换所有 `CHANGE_ME` 项，尤其是 `SECRET_KEY`、`JWT_SECRET_KEY`、`MYSQL_PASSWORD`。
+2. **执行预检查**
+   - 运行 `backend/scripts/pre-deploy.sh`，提前发现缺失项。
+3. **拉起服务**
+   - `cd backend && docker compose up -d`
+4. **健康检查**
+   - `curl http://127.0.0.1:5000/health`
+   - 检查 `docker compose logs -f api` 无 FATAL/Traceback。
+5. **上线后观测**
+   - 若已配置 `SENTRY_DSN`，确认 Sentry 能接收到错误事件。
+   - 若配置 `LOKI_URL`，确认日志可检索。
