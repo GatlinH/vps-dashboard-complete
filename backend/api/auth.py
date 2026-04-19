@@ -582,9 +582,7 @@ def resend_verification():
 # 密码重置
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@auth_bp.post("/forgot-password")
-@limiter.limit(LOGIN_LIMIT)  # 极严格防邮件轰炸(Email Bombing)
-def forgot_password():
+def _request_password_reset_impl():
     """
     忘记密码：发送重置邮件
     Body: { email }
@@ -626,6 +624,20 @@ def forgot_password():
             logger.warning(f"⚠️ 重置邮件发送失败: user_id={user.id} email={email}")
 
     return jsonify(msg="如果该邮箱已注册，重置链接将在几分钟内送达"), 200
+
+
+@auth_bp.post("/request-password-reset")
+@limiter.limit(LOGIN_LIMIT)  # 极严格防邮件轰炸(Email Bombing)
+def request_password_reset():
+    """忘记密码（推荐新路径）"""
+    return _request_password_reset_impl()
+
+
+@auth_bp.post("/forgot-password")
+@limiter.limit(LOGIN_LIMIT)  # 兼容旧路径
+def forgot_password():
+    """忘记密码（兼容旧路径）"""
+    return _request_password_reset_impl()
 
 
 @auth_bp.post("/reset-password")
