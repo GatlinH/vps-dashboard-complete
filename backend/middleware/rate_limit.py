@@ -1,4 +1,4 @@
-from flask import Flask, request, current_app
+from flask import Flask, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_limiter.errors import RateLimitExceeded
@@ -6,6 +6,21 @@ from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
 import logging
 
 log = logging.getLogger(__name__)
+
+def _resolve_user_rate_limit_key(user_identity):
+    """将 JWT identity 规范化为可读且稳定的 user key 片段。"""
+    if user_identity is None:
+        return None
+
+    if isinstance(user_identity, dict):
+        for field in ("user_id", "id", "sub", "uid"):
+            value = user_identity.get(field)
+            if value is not None:
+                return str(value)
+        return None
+
+    return str(user_identity)
+
 
 def custom_key_func():
     """
@@ -17,7 +32,7 @@ def custom_key_func():
         # 尝试在不强制要求 token 的情况下验证 JWT
         # 这样不会拦截非登录接口，但能获取到已登录用户的身份
         verify_jwt_in_request(optional=True)
-        user_identity = get_jwt_identity()
+        user_identity = _resolve_user_rate_limit_key(get_jwt_identity())
         if user_identity:
             return f"user:{user_identity}"
     except Exception:
