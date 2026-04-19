@@ -129,7 +129,7 @@ jobs:
           sys.exit(1 if has_missing else 0)
           EOF
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
