@@ -146,6 +146,31 @@ def fetch_probe():
     支持的探针格式：
       - 哪吒探针 v0 API: { servers: [{ id, cpu, mem_used, mem_total, ... }] }
       - 自定义 JSON:      { cpu_use, ram_use, disk_use, net_up, net_down, status }
+    ---
+    tags:
+      - Webhook
+      - Probe
+    summary: 主动抓取探针数据
+    description: 后端主动轮询探针 URL；常用于运维侧 webhook/采集任务触发。
+    security:
+      - Bearer: []
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: false
+        schema:
+          type: object
+          properties:
+            server_ids:
+              type: array
+              items:
+                type: integer
+              example: [1, 2, 3]
+    responses:
+      200:
+        description: 返回 updated 与 errors 列表
     """
     data       = request.get_json(silent=True) or {}
     server_ids = data.get("server_ids")

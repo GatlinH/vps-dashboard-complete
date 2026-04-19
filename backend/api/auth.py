@@ -100,6 +100,41 @@ def _get_or_create_default_admin():
 @auth_bp.post("/login")
 @limiter.limit(LOGIN_LIMIT)  # 严格防爆破
 def login():
+    """
+    用户登录并签发 JWT Token。
+    ---
+    tags:
+      - Auth
+    summary: 用户登录
+    description: 使用用户名和密码登录，返回 access_token、refresh_token 与用户信息。
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required: [username, password]
+          properties:
+            username:
+              type: string
+              example: admin
+            password:
+              type: string
+              example: "StrongPassword!123"
+    responses:
+      200:
+        description: 登录成功
+      400:
+        description: 参数缺失
+      401:
+        description: 用户名或密码错误
+      403:
+        description: 邮箱未验证
+      429:
+        description: 触发登录风控
+    """
     data     = request.get_json(silent=True) or {}
     username = data.get("username", "").strip()
     password = data.get("password", "")
@@ -167,6 +202,22 @@ def login():
 @limiter.limit(WRITE_LIMIT)  # 防止高频刷新 Token 耗尽资源
 @jwt_required(refresh=True)
 def refresh():
+    """
+    使用 refresh token 换发新的 access/refresh token。
+    ---
+    tags:
+      - Auth
+    summary: 刷新令牌
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: 刷新成功
+      401:
+        description: refresh token 已失效或被吊销
+      404:
+        description: 用户不存在
+    """
     claims = get_jwt()
     jti    = claims.get("jti")
     exp    = claims.get("exp")
@@ -204,6 +255,20 @@ def refresh():
 @limiter.limit(READ_LIMIT)  # 宽松限制，允许正常刷新的页面请求
 @jwt_required()
 def me():
+    """
+    获取当前登录用户信息。
+    ---
+    tags:
+      - Auth
+    summary: 当前用户
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: 返回用户信息
+      404:
+        description: 用户不存在
+    """
     uid  = get_jwt_identity()
     user = db.session.get(User, int(uid))
     if not user:
@@ -217,6 +282,35 @@ def me():
 @limiter.limit(WRITE_LIMIT)
 @jwt_required()
 def change_password():
+    """
+    修改当前用户密码并吊销当前 access token。
+    ---
+    tags:
+      - Auth
+    summary: 修改密码
+    security:
+      - Bearer: []
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required: [old_password, new_password]
+          properties:
+            old_password:
+              type: string
+            new_password:
+              type: string
+              example: "NewStrongPass!2026"
+    responses:
+      200:
+        description: 密码修改成功
+      400:
+        description: 原密码错误或新密码强度不达标
+    """
     uid  = get_jwt_identity()
     user = db.session.get(User, int(uid))
     data = request.get_json(silent=True) or {}
@@ -246,7 +340,32 @@ def change_password():
 @limiter.limit(WRITE_LIMIT)
 @jwt_required()
 def logout():
-    """注销：同时吊销 access token；refresh token 由客户端在 body 传入"""
+    """
+    注销：吊销当前 access token，可选吊销 refresh token。
+    ---
+    tags:
+      - Auth
+    summary: 用户登出
+    security:
+      - Bearer: []
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: false
+        schema:
+          type: object
+          properties:
+            refresh_jti:
+              type: string
+            refresh_exp:
+              type: integer
+              description: refresh token 的 Unix 时间戳（秒）
+    responses:
+      200:
+        description: 已登出
+    """
     _revoke_current_access_token()
 
     # 可选：吊销 refresh token（客户端传 refresh_token 字段）
@@ -275,6 +394,36 @@ def signup():
     用户注册
     Body: { username, email, password }
     流程：创建用户（email_verified=False）→ 发送验证邮件
+    ---
+    tags:
+      - Auth
+    summary: 用户注册
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required: [username, email, password]
+          properties:
+            username:
+              type: string
+              example: demo_user
+            email:
+              type: string
+              example: demo@example.com
+            password:
+              type: string
+              example: "StrongPassword!123"
+    responses:
+      201:
+        description: 注册成功
+      400:
+        description: 参数校验失败
+      409:
+        description: 用户名或邮箱已存在
     """
     data     = request.get_json(silent=True) or {}
     username = data.get("username", "").strip()
@@ -339,6 +488,22 @@ def verify_email():
     """
     邮箱验证
     Query: ?token=xxxx
+    ---
+    tags:
+      - Auth
+    summary: 邮箱验证
+    parameters:
+      - in: query
+        name: token
+        required: true
+        type: string
+    responses:
+      200:
+        description: 邮箱验证成功
+      400:
+        description: token 缺失、无效或过期
+      404:
+        description: 用户不存在
     """
     token = request.args.get("token", "").strip()
     if not token:
@@ -372,6 +537,27 @@ def resend_verification():
     """
     重新发送验证邮件
     Body: { email }
+    ---
+    tags:
+      - Auth
+    summary: 重发验证邮件
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required: [email]
+          properties:
+            email:
+              type: string
+    responses:
+      200:
+        description: 已受理（始终返回 200，避免邮箱枚举）
+      400:
+        description: 参数缺失
     """
     data  = request.get_json(silent=True) or {}
     email = data.get("email", "").strip().lower()
@@ -402,6 +588,27 @@ def forgot_password():
     """
     忘记密码：发送重置邮件
     Body: { email }
+    ---
+    tags:
+      - Auth
+    summary: 忘记密码
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required: [email]
+          properties:
+            email:
+              type: string
+    responses:
+      200:
+        description: 已受理（避免邮箱枚举）
+      400:
+        description: 参数缺失
     """
     data  = request.get_json(silent=True) or {}
     email = data.get("email", "").strip().lower()
@@ -427,6 +634,32 @@ def reset_password():
     """
     重置密码
     Body: { token, new_password }
+    ---
+    tags:
+      - Auth
+    summary: 重置密码
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required: [token, new_password]
+          properties:
+            token:
+              type: string
+            new_password:
+              type: string
+              example: "NewStrongPass!2026"
+    responses:
+      200:
+        description: 密码重置成功
+      400:
+        description: token 无效/过期，或密码不合法
+      404:
+        description: 用户不存在
     """
     data         = request.get_json(silent=True) or {}
     token        = data.get("token", "").strip()
