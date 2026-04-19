@@ -9,7 +9,6 @@ from middleware.security import SecurityConfig
 from middleware.rate_limit import RateLimitConfig
 from middleware.error_handler import ErrorHandler
 from middleware.audit import AuditMiddleware
-from middleware.metrics_middleware import init_metrics
 from api.servers import servers_bp
 from api.auth import auth_bp
 from api.probe import probe_bp
@@ -20,7 +19,7 @@ from api.audit import audit_bp
 from api.aff import aff_bp
 from api.exchange import exchange_bp
 from flask_migrate import Migrate
-from utils.logging_config import setup_logging
+from services.observability import init_observability
 from config import get_config
 from services.scheduler import create_scheduler
 
@@ -57,7 +56,7 @@ def _register_request_logger(app: Flask):
 def create_app(**config_overrides):
     """应用工厂"""
     app = Flask(__name__)
-    setup_logging(app)  # 最先初始化日志
+    init_observability(app)  # 最先初始化日志/Sentry/Metrics
     app.config.from_object(get_config())
     app.config.update(config_overrides)
 
@@ -106,9 +105,6 @@ def create_app(**config_overrides):
     ]
     for bp, prefix in blueprints:
         app.register_blueprint(bp, url_prefix=prefix)
-
-    # ===== Prometheus 指标端点 =====
-    init_metrics(app)
 
     # ===== 数据库初始化 =====
     import os
