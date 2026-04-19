@@ -29,6 +29,9 @@ from utils.token_blocklist import (
     is_refresh_token_revoked,
 )
 
+# 引入全局限流器和预设常量
+from middleware.rate_limit import limiter, LOGIN_LIMIT, WRITE_LIMIT, READ_LIMIT
+
 auth_bp = Blueprint("auth", __name__)
 logger  = logging.getLogger(__name__)
 
@@ -95,6 +98,7 @@ def _get_or_create_default_admin():
 # ── 登录 ─────────────────────────────────────────────────────────────────────
 
 @auth_bp.post("/login")
+@limiter.limit(LOGIN_LIMIT)  # 严格防爆破
 def login():
     data     = request.get_json(silent=True) or {}
     username = data.get("username", "").strip()
@@ -160,6 +164,7 @@ def login():
 # ── 刷新 ─────────────────────────────────────────────────────────────────────
 
 @auth_bp.post("/refresh")
+@limiter.limit(WRITE_LIMIT)  # 防止高频刷新 Token 耗尽资源
 @jwt_required(refresh=True)
 def refresh():
     claims = get_jwt()
@@ -196,6 +201,7 @@ def refresh():
 # ── 当前用户信息 ──────────────────────────────────────────────────────────────
 
 @auth_bp.get("/me")
+@limiter.limit(READ_LIMIT)  # 宽松限制，允许正常刷新的页面请求
 @jwt_required()
 def me():
     uid  = get_jwt_identity()
@@ -208,6 +214,7 @@ def me():
 # ── 修改密码 ──────────────────────────────────────────────────────────────────
 
 @auth_bp.post("/change-password")
+@limiter.limit(WRITE_LIMIT)
 @jwt_required()
 def change_password():
     uid  = get_jwt_identity()
@@ -236,6 +243,7 @@ def change_password():
 # ── 登出 ─────────────────────────────────────────────────────────────────────
 
 @auth_bp.post("/logout")
+@limiter.limit(WRITE_LIMIT)
 @jwt_required()
 def logout():
     """注销：同时吊销 access token；refresh token 由客户端在 body 传入"""
@@ -261,6 +269,7 @@ def logout():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @auth_bp.post("/signup")
+@limiter.limit(LOGIN_LIMIT)  # 严格防机器批量注册滥用
 def signup():
     """
     用户注册
@@ -325,6 +334,7 @@ def signup():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @auth_bp.get("/verify-email")
+@limiter.limit(WRITE_LIMIT)  # 验证链接防恶意高频访问
 def verify_email():
     """
     邮箱验证
@@ -357,6 +367,7 @@ def verify_email():
 
 
 @auth_bp.post("/resend-verification")
+@limiter.limit(LOGIN_LIMIT)  # 极严格防邮件轰炸(Email Bombing)
 def resend_verification():
     """
     重新发送验证邮件
@@ -386,6 +397,7 @@ def resend_verification():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @auth_bp.post("/forgot-password")
+@limiter.limit(LOGIN_LIMIT)  # 极严格防邮件轰炸(Email Bombing)
 def forgot_password():
     """
     忘记密码：发送重置邮件
@@ -410,6 +422,7 @@ def forgot_password():
 
 
 @auth_bp.post("/reset-password")
+@limiter.limit(WRITE_LIMIT)  # 防恶意爆破验证 token
 def reset_password():
     """
     重置密码
