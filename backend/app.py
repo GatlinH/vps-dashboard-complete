@@ -18,6 +18,7 @@ from api.traffic import traffic_bp
 from api.audit import audit_bp
 from api.aff import aff_bp
 from api.exchange import exchange_bp
+from api.payment import payment_bp
 from flask_migrate import Migrate
 from services.observability import init_observability
 from config import get_config
@@ -102,6 +103,7 @@ def create_app(**config_overrides):
         (audit_bp,    '/api/v1/audit'),
         (aff_bp,      '/api/v1/aff'),
         (exchange_bp, '/api/v1/exchange'),
+        (payment_bp,  '/api/v1/payment'),
     ]
     for bp, prefix in blueprints:
         app.register_blueprint(bp, url_prefix=prefix)

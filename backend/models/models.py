@@ -7,6 +7,7 @@
 from datetime import datetime, timezone, date
 from extensions import db
 from models.audit_log import AuditLog  # re-export for backward compatibility
+from models.payment import PaymentOrder, PaymentTransaction  # re-export for payment models
 
 class User(db.Model):
     __tablename__ = "users"
