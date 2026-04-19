@@ -1,5 +1,6 @@
 import pytest
 from flask import Flask, jsonify
+from middleware import rate_limit
 from middleware.rate_limit import RateLimitConfig, limiter, LOGIN_LIMIT
 from flask_jwt_extended import JWTManager, create_access_token
 
@@ -70,3 +71,52 @@ def test_rate_limit_user_based(app, client):
     res3 = client.get('/api/v1/user/profile', headers=headers)
     assert res3.status_code == 429
     assert res3.get_json()['error_code'] == 'RATE_LIMIT_EXCEEDED'
+
+def test_rate_limit_isolated_between_users(app, client):
+    """不同用户应使用不同限流桶，不互相影响。"""
+
+    with app.app_context():
+        user_a_token = create_access_token(identity="user_a")
+        user_b_token = create_access_token(identity={"user_id": "user_b"})
+
+    user_a_headers = {"Authorization": f"Bearer {user_a_token}"}
+    user_b_headers = {"Authorization": f"Bearer {user_b_token}"}
+
+    # user_a 打满额度
+    assert client.get('/api/v1/user/profile', headers=user_a_headers).status_code == 200
+    assert client.get('/api/v1/user/profile', headers=user_a_headers).status_code == 200
+    assert client.get('/api/v1/user/profile', headers=user_a_headers).status_code == 429
+
+    # user_b 应仍可正常访问（拥有独立桶）
+    response = client.get('/api/v1/user/profile', headers=user_b_headers)
+    assert response.status_code == 200
+
+def test_custom_key_func_falls_back_to_ip_when_jwt_unavailable(app):
+    """JWT 不可用或验证异常时，应自动回退到 IP 维度限流键。"""
+
+    with app.test_request_context('/', environ_base={'REMOTE_ADDR': '10.9.8.7'}):
+        fallback_key = rate_limit.custom_key_func()
+        assert fallback_key == "ip:10.9.8.7"
+
+def test_rate_limit_degrades_gracefully_when_storage_unavailable():
+    """
+    Redis/存储不可用时，限流中间件不应导致接口 500。
+    这里通过不可达 redis:// URI 验证 swallow_errors 的降级路径。
+    """
+
+    app = Flask(__name__)
+    app.config['TESTING'] = True
+    app.config['JWT_SECRET_KEY'] = 'test-secret-key-for-rate-limit'
+    app.config['REDIS_URL'] = 'redis://127.0.0.1:1/0'
+
+    JWTManager(app)
+    RateLimitConfig.init_app(app)
+
+    @app.route('/degrade-check')
+    @limiter.limit("1 per minute")
+    def degrade_check():
+        return jsonify({"success": True})
+
+    client = app.test_client()
+    response = client.get('/degrade-check')
+    assert response.status_code == 200
