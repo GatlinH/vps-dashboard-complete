@@ -29,6 +29,24 @@ def test_ping_missing_host(client, auth_headers):
     assert resp.status_code == 400
 
 
+def test_ping_rejects_invalid_port(client, auth_headers):
+    """POST /api/probe/ping 非法端口返回 400"""
+    resp = client.post('/api/v1/probe/ping', json={
+        'host': '1.2.3.4',
+        'port': 70000,
+    }, headers=auth_headers)
+    assert resp.status_code == 400
+
+
+def test_ping_rejects_invalid_host(client, auth_headers):
+    """POST /api/probe/ping 非法 host 返回 400"""
+    resp = client.post('/api/v1/probe/ping', json={
+        'host': 'bad host',
+        'port': 80,
+    }, headers=auth_headers)
+    assert resp.status_code == 400
+
+
 def test_ping_batch_requires_auth(client):
     """POST /api/probe/ping/batch 未认证返回 401"""
     resp = client.post('/api/v1/probe/ping/batch', json={})
@@ -70,3 +88,9 @@ def test_ip_info_public_no_auth_required(client):
         resp = client.get('/api/v1/probe/ip-info?ip=8.8.8.8')
     # 公开接口，不需要认证
     assert resp.status_code != 401
+
+
+def test_ip_info_rejects_invalid_ip(client):
+    """GET /api/probe/ip-info 非法 IP 返回 400"""
+    resp = client.get('/api/v1/probe/ip-info?ip=example.com')
+    assert resp.status_code == 400
