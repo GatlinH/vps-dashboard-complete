@@ -1,7 +1,49 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
+import { brotliCompress, gzip } from 'node:zlib';
+import { promisify } from 'node:util';
 import { VitePWA } from 'vite-plugin-pwa';
-import { compression } from 'vite-plugin-compression2';
+
+const brotliCompressAsync = promisify(brotliCompress);
+const gzipAsync = promisify(gzip);
+
+function precompressAssets() {
+  const include = /\.(js|css|html|svg|json)$/i;
+  const minSize = 1024;
+
+  return {
+    name: 'precompress-assets',
+    apply: 'build',
+    async generateBundle(_, bundle) {
+      const entries = Object.entries(bundle);
+      for (const [fileName, output] of entries) {
+        const source = output.type === 'asset' ? output.source : output.code;
+        if (!source || !include.test(fileName)) continue;
+
+        const sourceBuffer = Buffer.isBuffer(source)
+          ? source
+          : Buffer.from(String(source));
+        if (sourceBuffer.byteLength < minSize) continue;
+
+        const [br, gz] = await Promise.all([
+          brotliCompressAsync(sourceBuffer),
+          gzipAsync(sourceBuffer),
+        ]);
+
+        this.emitFile({
+          type: 'asset',
+          fileName: `${fileName}.br`,
+          source: br,
+        });
+        this.emitFile({
+          type: 'asset',
+          fileName: `${fileName}.gz`,
+          source: gz,
+        });
+      }
+    },
+  };
+}
 
 export default defineConfig({
   // ── 开发服务器 ────────────────────────────────────────────────────────────
@@ -115,19 +157,8 @@ export default defineConfig({
       },
     }),
 
-    // ② Brotli 预压缩（构建时生成 .br 文件，Nginx 直接 serve，无需实时压缩）
-    compression({
-      algorithm: 'brotliCompress',
-      include: /\.(js|css|html|svg|json)$/,
-      threshold: 1024, // 仅压缩 >1KB 的文件
-    }),
-
-    // ③ Gzip 预压缩（兜底，不支持 Brotli 的场景）
-    compression({
-      algorithm: 'gzip',
-      include: /\.(js|css|html|svg|json)$/,
-      threshold: 1024,
-    }),
+    // ② 构建后预压缩（生成 .br/.gz，供 Nginx 直接 serve）
+    precompressAssets(),
 
   ],
 });
