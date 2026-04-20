@@ -9,6 +9,7 @@ def app():
     """创建一个用于测试限流的 Flask 最小应用"""
     app = Flask(__name__)
     app.config['TESTING'] = True
+    app.config['RATELIMIT_ENABLED'] = True
     app.config['JWT_SECRET_KEY'] = 'test-secret-key-for-rate-limit'
     app.config['REDIS_URL'] = 'memory://'  # 测试环境强制使用内存，避免依赖 Redis 实例
     
