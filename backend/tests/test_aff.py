@@ -42,7 +42,6 @@ def test_create_product_with_admin(client, auth_headers):
     assert resp.status_code == 201
     data = resp.get_json()
     assert data.get('product', {}).get('provider') == 'TestVPS'
-    return data['product']['id']
 
 
 def test_create_product_missing_provider(client, auth_headers):
