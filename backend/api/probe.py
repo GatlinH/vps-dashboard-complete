@@ -6,11 +6,11 @@ import time
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, request, jsonify, current_app
-from flask_jwt_extended import jwt_required
 from extensions import db
 import extensions
 from models.models import Server, ProbeResult
 from middleware.rbac import admin_required
+from utils.validators import validate_port, validate_ip_or_hostname, is_safe_outbound_url
 
 probe_bp = Blueprint("probe", __name__)
 
@@ -48,12 +48,21 @@ def ping():
     """
     data    = request.get_json(silent=True) or {}
     host    = data.get("host", "").strip()
-    port    = int(data.get("port", 80))
+    port_raw = data.get("port", 80)
     count   = min(int(data.get("count", 5)), 20)
     timeout = float(current_app.config.get("PROBE_TIMEOUT_S", 5))
 
     if not host:
         return jsonify(msg="host 不能为空"), 400
+    if not validate_ip_or_hostname(host):
+        return jsonify(msg="host 格式不合法"), 400
+
+    try:
+        port = int(port_raw)
+    except (TypeError, ValueError):
+        return jsonify(msg="port 必须是数字"), 400
+    if not validate_port(port):
+        return jsonify(msg="port 必须在 1-65535"), 400
 
     def _ping_once(seq):
         r = tcp_ping(host, port, timeout)
@@ -215,6 +224,10 @@ def fetch_probe():
 
     for s in servers:
         try:
+            if not is_safe_outbound_url(s.probe_url):
+                errors.append({"server_id": str(s.id), "error": "probe_url 非法或存在安全风险"})
+                continue
+
             import urllib.request, urllib.error
             req = urllib.request.Request(
                 s.probe_url,
@@ -250,7 +263,7 @@ def fetch_probe():
         except Exception as e:
             # 修复：记录详细日志方便 CI 和后台排查异常
             current_app.logger.warning(f"探针抓取失败 server_id={s.id}: {e}")
-            errors.append({"server_id": str(s.id), "error": str(e)})
+            errors.append({"server_id": str(s.id), "error": "probe fetch failed"})
 
     db.session.commit()
     try:
@@ -303,6 +316,12 @@ def ip_info():
     ip      = request.args.get("ip", "").strip()
     cache_k = f"vps:ipinfo:{ip or 'self'}"
 
+    if ip:
+        try:
+            socket.inet_pton(socket.AF_INET, ip)
+        except OSError:
+            return jsonify(error="仅支持合法 IPv4 地址"), 400
+
     try:
         cached = extensions.redis_client.get(cache_k)
         if cached:
@@ -320,5 +339,5 @@ def ip_info():
         except Exception:
             pass
         return jsonify(data)
-    except Exception as e:
-        return jsonify(error=str(e)), 502
+    except Exception:
+        return jsonify(error="上游 IP 服务不可用"), 502

@@ -157,6 +157,7 @@ def _job_fetch_probes(app):
     from extensions import db, redis_client
     from models.models import Server, ProbeResult
     from api.probe import _parse_probe_payload
+    from utils.validators import is_safe_outbound_url
 
     with app.app_context():
         servers = Server.query.filter(Server.probe_url != "").all()
@@ -165,6 +166,9 @@ def _job_fetch_probes(app):
         for s in servers:
             fail_key = f"vps:probe_fail:{s.id}"
             try:
+                if not is_safe_outbound_url(s.probe_url):
+                    raise ValueError("unsafe probe_url")
+
                 req = urllib.request.Request(
                     s.probe_url,
                     headers={"User-Agent": "VPS-Dashboard/1.0"},
