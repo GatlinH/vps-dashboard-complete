@@ -181,3 +181,26 @@ curl http://localhost:5000/health
 5. **上线后观测**
    - 若已配置 `SENTRY_DSN`，确认 Sentry 能接收到错误事件。
    - 若配置 `LOKI_URL`，确认日志可检索。
+
+---
+
+## 6) 前端（Vite）构建与部署核对
+
+本仓库已移除 legacy `frontend/` 目录，部署时必须使用 `frontend-vite` 构建产物。
+
+### 本地/服务器构建
+
+```bash
+cd frontend-vite
+npm ci
+npm run build
+```
+
+构建完成后会生成 `frontend-dist/`，并由 `backend/docker-compose.yml` 的 Nginx 挂载到 `/usr/share/nginx/html`。
+
+### 上线前核对
+
+- `frontend-dist/index.html` 存在
+- `frontend-dist/admin.html` 存在
+- `frontend-dist/sw.js` 存在
+- CI 的 Frontend Build Check 通过

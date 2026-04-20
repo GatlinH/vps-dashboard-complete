@@ -55,6 +55,7 @@
 ### 🧪 测试与 CI
 
 - [ ] `pytest tests/ -v` 在本地全部通过
+- [ ] `frontend-vite` 已执行 `npm ci && npm run build`，并确认 `frontend-dist/index.html`、`frontend-dist/admin.html`、`frontend-dist/sw.js` 存在
 - [ ] CI 流水线（GitHub Actions）正常，`deploy` Job 的 `needs: test` 已生效
 - [ ] 测试覆盖核心模块：auth、servers、probe（建议覆盖率 ≥ 60%）
 

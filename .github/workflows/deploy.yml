@@ -12,7 +12,7 @@ jobs:
 
   deploy:
     name: Deploy to VPS
-    needs: test          # ← 测试失败则阻断部署
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -35,11 +35,13 @@ jobs:
             cd /opt/vps-dashboard
             git pull origin main
 
-            # 复制最新前端文件
-            cp frontend/index.html /usr/share/nginx/html/index.html
+            # 构建前端产物到 frontend-dist/
+            cd frontend-vite
+            npm ci
+            npm run build
 
-            # 重启后端服务（仅重建有变更的镜像）
-            cd backend
+            # 重启后端服务（Nginx 挂载 frontend-dist，自动读取最新静态资源）
+            cd ../backend
             docker compose up -d --build --remove-orphans
 
             # 健康检查轮询，最多等待 60 秒（12 × 5s）
