@@ -61,6 +61,8 @@ jobs:
           MYSQL_DB: vps_test
           REDIS_HOST: localhost
           REDIS_PORT: 6379
+          REDIS_URL: redis://localhost:6379/0
+          RATELIMIT_STORAGE_URI: memory://
           FORCE_HTTPS: "0"
         run: pytest tests/ -v --tb=short --cov=. --cov-report=term-missing --cov-fail-under=45
 

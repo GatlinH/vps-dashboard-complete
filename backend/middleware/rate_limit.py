@@ -4,6 +4,7 @@ from flask_limiter.util import get_remote_address
 from flask_limiter.errors import RateLimitExceeded
 from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
 import logging
+from urllib.parse import urlparse
 
 log = logging.getLogger(__name__)
 
@@ -53,16 +54,68 @@ limiter = Limiter(
 
 class RateLimitConfig:
     """速率限制配置"""
-    
+
+    @staticmethod
+    def _is_valid_storage_uri(storage_uri: str) -> bool:
+        """验证 limiter storage URI，避免空串/非法 URI 导致连接异常。"""
+        if not storage_uri or not isinstance(storage_uri, str):
+            return False
+        raw = storage_uri.strip()
+        if not raw:
+            return False
+
+        parsed = urlparse(raw)
+        if parsed.scheme == "memory":
+            return True
+        if parsed.scheme in {"redis", "rediss"}:
+            # redis URI 至少要有 hostname。port 可缺省（redis-py 会用默认端口）
+            return bool(parsed.hostname)
+        return False
+
+    @staticmethod
+    def _resolve_storage_uri(app: Flask) -> str:
+        """
+        解析 limiter 存储地址：
+        1) 显式 RATELIMIT_STORAGE_URI / RATELIMIT_STORAGE_URL
+        2) 测试环境默认 memory://（避免 CI 对外部 Redis 的硬依赖）
+        3) 回退 REDIS_URL
+        4) 最终回退 memory://
+        """
+        explicit_uri = (
+            app.config.get("RATELIMIT_STORAGE_URI")
+            or app.config.get("RATELIMIT_STORAGE_URL")
+        )
+        if RateLimitConfig._is_valid_storage_uri(explicit_uri):
+            return explicit_uri.strip()
+
+        if app.config.get("TESTING"):
+            return "memory://"
+
+        redis_uri = app.config.get("REDIS_URL")
+        if RateLimitConfig._is_valid_storage_uri(redis_uri):
+            return redis_uri.strip()
+
+        if explicit_uri or redis_uri:
+            log.warning(
+                "Invalid rate limit storage uri detected. "
+                "RATELIMIT_STORAGE_URI=%r REDIS_URL=%r. Fallback to memory://",
+                explicit_uri,
+                redis_uri,
+            )
+        return "memory://"
+
     @staticmethod
     def init_app(app: Flask):
         """初始化速率限制"""
-        
-        # 验证 Redis 配置，若无配置则使用内存存储（如测试环境）
-        storage_uri = app.config.get('REDIS_URL', 'memory://')
-        
+
+        # 测试环境默认关闭限流；如需验证限流行为，可在测试里显式设置 RATELIMIT_ENABLED=True
+        if app.config.get("TESTING"):
+            app.config.setdefault("RATELIMIT_ENABLED", False)
+
+        storage_uri = RateLimitConfig._resolve_storage_uri(app)
+
         # 将 limiter 与 app 绑定（兼容不同 flask-limiter 版本）
-        app.config.setdefault("RATELIMIT_STORAGE_URI", storage_uri)
+        app.config["RATELIMIT_STORAGE_URI"] = storage_uri
         try:
             limiter.init_app(app, storage_uri=storage_uri)
         except TypeError:
