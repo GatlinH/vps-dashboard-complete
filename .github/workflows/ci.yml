@@ -8,9 +8,6 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  # workflow_call 允许其他 workflow 通过 uses: ./.github/workflows/ci.yml 调用本文件。
-  # 若需要在调用方传递 secrets，在调用方的 job 中写 secrets: inherit，
-  # 而不是在此处定义。
   workflow_call:
 
 jobs:
@@ -69,76 +66,40 @@ jobs:
           FORCE_HTTPS: "0"
         run: pytest tests/ -v --tb=short --cov=. --cov-report=term-missing --cov-fail-under=45
 
-  lint:
-    name: Frontend Lint Check
+  frontend:
+    name: Frontend Build Check
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v6
-      - name: Check HTML syntax (DOCTYPE)
+
+      - name: Verify legacy frontend has been removed
         run: |
-          if grep -q '<<!DOCTYPE' frontend/index.html; then
-            echo "❌ DOCTYPE 错误: 发现 '<<!DOCTYPE'"
+          if [ -d frontend ]; then
+            echo "❌ 检测到遗留 frontend/ 目录，请改为 frontend-vite 构建产物部署"
             exit 1
-          else
-            echo "✅ DOCTYPE 正确"
           fi
-      - name: Check script path
-        run: |
-          if grep -q '"/frontend/init-enhanced.js"' frontend/index.html; then
-            echo "❌ 脚本路径错误: 应使用相对路径 ./init-enhanced.js"
-            exit 1
-          else
-            echo "✅ 脚本路径正确"
-          fi
-      - name: Check i18n key completeness
-        run: |
-          python3 - <<'EOF'
-          import re, sys
+          echo "✅ 已移除 legacy frontend/ 目录"
 
-          with open('frontend/i18n.js', encoding='utf-8') as f:
-              content = f.read()
-
-          key_re = re.compile(r"^\s+'([\w.]+)'\s*:", re.MULTILINE)
-          lang_re = re.compile(r"'([\w-]+)'\s*:\s*\{")
-
-          splits = list(lang_re.finditer(content))
-          lang_keys = {}
-          for i, m in enumerate(splits):
-              lang = m.group(1)
-              start = m.end()
-              end = splits[i + 1].start() if i + 1 < len(splits) else len(content)
-              block = content[start:end]
-              keys = set(key_re.findall(block))
-              if keys:
-                  lang_keys[lang] = keys
-
-          if len(lang_keys) < 2:
-              print(f"⚠️  Only {len(lang_keys)} language(s) found, skipping")
-              sys.exit(0)
-
-          all_keys = set().union(*lang_keys.values())
-          has_missing = False
-          for lang, keys in lang_keys.items():
-              missing = all_keys - keys
-              if missing:
-                  print(f"❌ [{lang}] missing {len(missing)} key(s): {sorted(missing)}")
-                  has_missing = True
-              else:
-                  print(f"✅ [{lang}] complete ({len(keys)} keys)")
-
-          sys.exit(1 if has_missing else 0)
-          EOF
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: 'npm'
-          cache-dependency-path: frontend-vite/package.json
+          cache-dependency-path: frontend-vite/package-lock.json
+
       - name: Install frontend deps
         working-directory: frontend-vite
-        run: npm install
+        run: npm ci
+
       - name: Build frontend
         working-directory: frontend-vite
         run: npm run build
+
+      - name: Verify build artifacts
+        run: |
+          test -f frontend-dist/index.html
+          test -f frontend-dist/admin.html
+          test -f frontend-dist/sw.js
+          echo "✅ frontend-dist 构建产物完整"
