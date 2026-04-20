@@ -9,7 +9,7 @@ flasgger==0.9.7.1
 PyMySQL==1.1.2
 redis==7.4.0
 APScheduler==3.11.2
-fakeredis>=2.35.0,<2.36
+fakeredis>=2.35.0
 gunicorn==25.3.0
 python-dotenv==1.2.2
 requests==2.31.0
