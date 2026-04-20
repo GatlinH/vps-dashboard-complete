@@ -3,11 +3,13 @@
 """
 import json
 import logging
+import secrets
 from datetime import datetime, timezone, date, timedelta
 
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.exceptions import HTTPException
+from werkzeug.security import generate_password_hash
 
 from extensions import db
 import extensions
@@ -221,6 +223,51 @@ def delete_server(sid):
     db.session.commit()
     _clear_cache()
     return jsonify(msg="已删除")
+
+
+@servers_bp.post("/<int:sid>/agent-key/generate")
+@admin_required
+def generate_agent_key(sid):
+    server = Server.query.get_or_404(sid)
+    raw_key = secrets.token_urlsafe(32)
+    server.agent_key_hash = generate_password_hash(raw_key)
+    server.agent_key_prev_hash = None
+    server.agent_key_prev_expires_at = None
+    now = datetime.now(timezone.utc)
+    server.agent_key_created_at = now
+    server.agent_key_last_used = None
+    db.session.commit()
+    return jsonify({"server_id": sid, "agent_key": raw_key, "created_at": now.isoformat()})
+
+
+@servers_bp.post("/<int:sid>/agent-key/rotate")
+@admin_required
+def rotate_agent_key(sid):
+    server = Server.query.get_or_404(sid)
+    raw_key = secrets.token_urlsafe(32)
+    if server.agent_key_hash:
+        server.agent_key_prev_hash = server.agent_key_hash
+        server.agent_key_prev_expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
+    server.agent_key_hash = generate_password_hash(raw_key)
+    server.agent_key_created_at = datetime.now(timezone.utc)
+    db.session.commit()
+    return jsonify({
+        "server_id": sid,
+        "agent_key": raw_key,
+        "overlap_until": server.agent_key_prev_expires_at.isoformat() if server.agent_key_prev_expires_at else None,
+    })
+
+
+@servers_bp.put("/<int:sid>/agent-config")
+@admin_required
+def update_agent_config(sid):
+    server = Server.query.get_or_404(sid)
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        raise ValidationError("agent_config 必须是 JSON 对象", field="agent_config")
+    server.agent_config = data
+    db.session.commit()
+    return jsonify({"server_id": sid, "agent_config": server.agent_config})
 
 
 # ── 指标推送 ──────────────────────────────────────────────────────────────────

@@ -45,6 +45,7 @@ class Server(db.Model):
     flag = db.Column(db.String(8), default="🌐")
     location = db.Column(db.String(128), default="")
     ip = db.Column(db.String(45), default="", unique=True, index=True)
+    uuid = db.Column(db.String(64), unique=True, index=True, nullable=True)
     
     # 硬件配置
     cpu_cores = db.Column(db.SmallInteger, default=1)
@@ -55,6 +56,12 @@ class Server(db.Model):
     # 探针信息
     probe_url = db.Column(db.String(512), default="")
     note = db.Column(db.Text, default="")
+    agent_key_hash = db.Column(db.String(256), nullable=True)
+    agent_key_prev_hash = db.Column(db.String(256), nullable=True)
+    agent_key_created_at = db.Column(db.DateTime, nullable=True)
+    agent_key_prev_expires_at = db.Column(db.DateTime, nullable=True)
+    agent_key_last_used = db.Column(db.DateTime, nullable=True)
+    agent_config = db.Column(db.JSON, nullable=False, default=dict)
     
     # 定价信息
     price = db.Column(db.Float, default=0)
@@ -110,6 +117,8 @@ class Server(db.Model):
             price=self.price,
             period=self.period,
             expiry=self.expiry.isoformat() if self.expiry else None,
+            uuid=self.uuid,
+            agent_config=self.agent_config or {},
         )
         
         if include_metrics:
@@ -135,6 +144,34 @@ class Server(db.Model):
                 d.pop(key, None)
         
         return d
+
+
+class AgentCommand(db.Model):
+    __tablename__ = "agent_commands"
+
+    id = db.Column(db.BigInteger().with_variant(db.Integer, 'sqlite'), primary_key=True, autoincrement=True)
+    server_id = db.Column(db.Integer, db.ForeignKey("servers.id", ondelete="CASCADE"), nullable=False, index=True)
+    command_type = db.Column(db.String(32), nullable=False, index=True)
+    payload = db.Column(db.JSON, nullable=False, default=dict)
+    status = db.Column(db.String(16), nullable=False, default="pending", index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    expires_at = db.Column(db.DateTime, nullable=True, index=True)
+    executed_at = db.Column(db.DateTime, nullable=True)
+
+    __table_args__ = (
+        db.Index('idx_agent_command_server_status', 'server_id', 'status'),
+    )
+
+    def to_dict(self):
+        return dict(
+            id=self.id,
+            server_id=self.server_id,
+            command_type=self.command_type,
+            payload=self.payload or {},
+            status=self.status,
+            created_at=self.created_at.isoformat() if self.created_at else None,
+            expires_at=self.expires_at.isoformat() if self.expires_at else None,
+        )
 
 
 class ProbeResult(db.Model):
