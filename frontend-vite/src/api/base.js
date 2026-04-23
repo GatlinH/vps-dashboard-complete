@@ -29,7 +29,12 @@ export async function request(path, opts = {}, auth = true) {
     if (token) headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(BASE + path, { ...opts, headers });
+  let res;
+  try {
+    res = await fetch(BASE + path, { ...opts, headers });
+  } catch (error) {
+    throw new ApiError(0, '网络异常，请稍后重试', { error_type: 'NETWORK_ERROR', raw: String(error) });
+  }
 
   // 已登录请求在 401/403 时触发全局登出；未登录请求（如登录接口）交由业务层处理原始错误
   if (auth && (res.status === 401 || res.status === 403)) {
@@ -39,15 +44,16 @@ export async function request(path, opts = {}, auth = true) {
   }
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(res.status, data.msg || data.message || `请求失败 (${res.status})`);
+  if (!res.ok) throw new ApiError(res.status, data.msg || data.message || `请求失败 (${res.status})`, data);
   return data;
 }
 
 /** 自定义错误类，便于业务层识别 */
 export class ApiError extends Error {
-  constructor(status, message) {
+  constructor(status, message, payload = null) {
     super(message);
     this.status = status;
     this.name = 'ApiError';
+    this.payload = payload;
   }
 }

@@ -9,6 +9,7 @@ from flask_jwt_extended import jwt_required, get_jwt
 from extensions import db
 from models.models import TelegramConfig, AlertRule, Server
 from middleware.rbac import admin_required
+from middleware.rate_limit import limiter
 
 telegram_bp = Blueprint("telegram", __name__)
 
@@ -40,9 +41,22 @@ def send_message(text: str, token: str = None, chat_id: str = None,
             "text":    text,
             "parse_mode": parse_mode,
         }, timeout=8)
-        return resp.json()
+        data = resp.json()
+        if data.get("ok"):
+            return data
+
+        desc = (data.get("description") or "").lower()
+        if resp.status_code == 401 or "unauthorized" in desc:
+            return {"ok": False, "error_type": "TG_TOKEN_INVALID", "error": "token非法", "detail": data}
+        if "chat not found" in desc:
+            return {"ok": False, "error_type": "TG_CHAT_INVALID", "error": "chat id 非法", "detail": data}
+        return {"ok": False, "error_type": "TG_API_ERROR", "error": data.get("description") or "telegram接口异常", "detail": data}
+    except requests.exceptions.Timeout:
+        return {"ok": False, "error_type": "TG_TIMEOUT", "error": "telegram 接口超时"}
+    except requests.exceptions.ConnectionError:
+        return {"ok": False, "error_type": "NETWORK_ERROR", "error": "网络异常"}
     except Exception as e:
-        return {"ok": False, "error": str(e)}
+        return {"ok": False, "error_type": "UNKNOWN_ERROR", "error": str(e)}
 
 
 def _full_msg(prefix: str, body: str) -> str:
@@ -68,10 +82,18 @@ def save_config():
     data = request.get_json(silent=True) or {}
     cfg  = _get_config()
 
-    if "bot_token" in data and data["bot_token"]:
-        cfg.bot_token = data["bot_token"].strip()
-    if "chat_id" in data:
-        cfg.chat_id = data["chat_id"].strip()
+    token = (data.get("bot_token") or "").strip() if "bot_token" in data else None
+    chat_id = (data.get("chat_id") or "").strip() if "chat_id" in data else None
+
+    if token is not None and not token:
+        return jsonify(msg="Bot Token 不能为空"), 400
+    if chat_id is not None and not chat_id:
+        return jsonify(msg="Chat ID 不能为空"), 400
+
+    if token:
+        cfg.bot_token = token
+    if chat_id is not None:
+        cfg.chat_id = chat_id
     if "prefix" in data:
         cfg.prefix = data["prefix"].strip() or "【VPS星图】"
     if "enabled" in data:
@@ -83,6 +105,7 @@ def save_config():
 
 @telegram_bp.post("/test")
 @admin_required
+@limiter.limit("3 per minute")
 def test_send():
     cfg     = _get_config()
     online  = Server.query.filter_by(status="online").count()
@@ -94,7 +117,7 @@ def test_send():
     result  = send_message(_full_msg(cfg.prefix, body))
     if result.get("ok"):
         return jsonify(msg="测试消息已发送")
-    return jsonify(msg="发送失败", detail=result), 502
+    return jsonify(msg="发送失败", error_type=result.get("error_type"), detail=result), 502
 
 
 @telegram_bp.post("/send")
@@ -108,7 +131,7 @@ def manual_send():
     result = send_message(_full_msg(cfg.prefix, text))
     if result.get("ok"):
         return jsonify(msg="消息已发送")
-    return jsonify(msg="发送失败", detail=result), 502
+    return jsonify(msg="发送失败", error_type=result.get("error_type"), detail=result), 502
 
 
 # ── 告警规则 ──────────────────────────────────────────────────────────────────
@@ -118,6 +141,33 @@ def manual_send():
 def list_alerts():
     rules = AlertRule.query.all()
     return jsonify(rules=[r.to_dict() for r in rules])
+
+
+@telegram_bp.get("/export")
+@admin_required
+def export_telegram_bundle():
+    cfg = _get_config()
+    rules = AlertRule.query.order_by(AlertRule.created_at.desc()).all()
+    payload = {
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "config": cfg.to_dict(),
+        "rules": [
+            {
+                **r.to_dict(),
+                "last_fired": r.last_fired.isoformat() if r.last_fired else None,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in rules
+        ],
+    }
+    filename = f"telegram-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+    response = current_app.response_class(
+        response=json.dumps(payload, ensure_ascii=False, indent=2),
+        status=200,
+        mimetype="application/json",
+    )
+    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 @telegram_bp.post("/alerts")
@@ -255,4 +305,4 @@ def fire_alert():
             rule.last_fired = datetime.now(timezone.utc)
             db.session.commit()
         return jsonify(msg="告警已推送")
-    return jsonify(msg="推送失败", detail=result), 502
+    return jsonify(msg="推送失败", error_type=result.get("error_type"), detail=result), 502
