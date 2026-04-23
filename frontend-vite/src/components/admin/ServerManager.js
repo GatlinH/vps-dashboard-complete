@@ -16,6 +16,7 @@ export class ServerManager {
     this._servers = [];
     this._render();
     this._bind();
+    this._busy = false;
   }
 
   // ── 公开 ─────────────────────────────────────────────────────────────────
@@ -181,12 +182,15 @@ export class ServerManager {
   // ── 添加 ─────────────────────────────────────────────────────────────────
 
   async _submit() {
+    if (this._busy) return;
     const v = id => this._el.querySelector(`#${id}`)?.value?.trim();
     if (!v('sm-name')) { this._msg('请填写服务器名称', 'red'); return; }
     if (!v('sm-ip'))   { this._msg('请填写 IP 地址',   'red'); return; }
 
     try {
-      await createServer({
+      this._busy = true;
+      this._toggleSubmit(true);
+      const created = await createServer({
         name: v('sm-name'), ip: v('sm-ip'), group: v('sm-group'), flag: v('sm-flag'),
         location: v('sm-location'), bw: v('sm-bw'),
         cpu: v('sm-cpu'), ram: v('sm-ram'), disk: v('sm-disk'),
@@ -194,22 +198,34 @@ export class ServerManager {
         expiry: v('sm-expiry'), probe: v('sm-probe'), note: v('sm-note'),
       });
       this._msg(`✅ 已添加 "${v('sm-name')}"`, 'green');
+      this._servers.unshift(created);
+      this._renderExistingTable();
+      this._renderMonitorList();
       this._clearForm();
-      await this.reload();
     } catch (e) {
       this._msg(e.message, 'red');
+    } finally {
+      this._busy = false;
+      this._toggleSubmit(false);
     }
   }
 
   // ── 删除 ─────────────────────────────────────────────────────────────────
 
   async _delete(id) {
+    if (this._busy) return;
     if (!confirm('确认删除该服务器？')) return;
     try {
+      this._busy = true;
       await deleteServer(id);
-      await this.reload();
+      this._servers = this._servers.filter(s => String(s.id) !== String(id));
+      this._renderExistingTable();
+      this._renderMonitorList();
+      this._msg('🗑️ 删除成功，列表已更新', 'blue');
     } catch (e) {
       this._msg(e.message, 'red');
+    } finally {
+      this._busy = false;
     }
   }
 
@@ -228,5 +244,13 @@ export class ServerManager {
     el.style.color = colors[type] || 'var(--text2)';
     el.textContent = text;
     setTimeout(() => { if (el.textContent === text) el.textContent = ''; }, 3500);
+  }
+
+  _toggleSubmit(disabled) {
+    const btn = this._el.querySelector('#sm-submit');
+    if (!btn) return;
+    btn.disabled = disabled;
+    btn.textContent = disabled ? '提交中...' : '确认添加';
+    btn.style.opacity = disabled ? '0.7' : '1';
   }
 }

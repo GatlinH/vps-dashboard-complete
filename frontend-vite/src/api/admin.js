@@ -139,9 +139,15 @@ export async function pushMetrics(id, metrics) {
   return adminFetch(`/servers/${id}/metrics`, { method: 'POST', body: metrics })
 }
 
-/** 获取历史探针数据 */
-export async function getHistory(id, days = 1, limit = 100) {
-  return adminFetch(`/servers/${id}/history?days=${days}&limit=${limit}`)
+/** 获取历史探针数据（支持 offset 分页与 CSV 导出） */
+export async function getHistory(id, days = 1, limit = 100, offset = 0, exportType = '') {
+  const params = new URLSearchParams({
+    days: String(days),
+    limit: String(limit),
+    offset: String(offset),
+  })
+  if (exportType) params.set('export', exportType)
+  return adminFetch(`/servers/${id}/history?${params.toString()}`)
 }
 
 // ── 探针 ──────────────────────────────────────────────────────────────────────

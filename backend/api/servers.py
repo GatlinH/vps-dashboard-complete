@@ -16,6 +16,7 @@ import extensions
 from models.models import Server, ProbeResult, AgentCommand
 from utils.errors import ValidationError, InternalServerError
 from middleware.rbac import admin_required
+from utils.validators import validate_server_name, validate_server_ip
 
 servers_bp = Blueprint("servers", __name__)
 logger = logging.getLogger(__name__)
@@ -29,6 +30,19 @@ FIELD_MAX_LEN = {
     "flag": 8, "bandwidth": 64, "probe_url": 512,
     "note": 2000, "period": 16, "status": 16, "uptime": 64,
 }
+
+
+def _parse_history_pagination():
+    days = request.args.get("days", 1, type=int)
+    limit = request.args.get("limit", 100, type=int)
+    offset = request.args.get("offset", 0, type=int)
+    if days is None or days <= 0 or days > 365:
+        raise ValidationError("days 取值范围为 1-365", field="days")
+    if limit is None or limit <= 0 or limit > 1000:
+        raise ValidationError("limit 取值范围为 1-1000", field="limit")
+    if offset is None or offset < 0:
+        raise ValidationError("offset 不能为负数", field="offset")
+    return days, limit, offset
 
 
 # ── 列表 ──────────────────────────────────────────────────────────────────────
@@ -80,6 +94,10 @@ def create_server():
         raise ValidationError("缺少必填字段: name", field="name")
     if not ip:
         raise ValidationError("缺少必填字段: ip", field="ip")
+    if not validate_server_name(name):
+        raise ValidationError("name 格式无效（2-64 字符，支持中英文/数字/._- 空格）", field="name")
+    if not validate_server_ip(ip):
+        raise ValidationError("ip 格式无效（仅支持 IP 或主机名，且不能包含 URL）", field="ip")
 
     # 长度校验
     for field, max_len in FIELD_MAX_LEN.items():
@@ -102,15 +120,31 @@ def create_server():
         except (ValueError, TypeError):
             raise ValidationError("到期日格式无效（应为 YYYY-MM-DD）", field="expiry")
 
+    try:
+        cpu_cores = int(data.get("cpu_cores", 1))
+        ram_gb = float(data.get("ram_gb", 1.0))
+        disk_gb = int(data.get("disk_gb", 20))
+        traffic_reset_day = int(data.get("traffic_reset_day", 1))
+    except (TypeError, ValueError):
+        raise ValidationError("CPU/内存/磁盘/流量重置日参数格式错误")
+    if cpu_cores <= 0 or cpu_cores > 1024:
+        raise ValidationError("cpu_cores 取值范围为 1-1024", field="cpu_cores")
+    if ram_gb <= 0 or ram_gb > 16384:
+        raise ValidationError("ram_gb 取值范围为 0-16384", field="ram_gb")
+    if disk_gb <= 0 or disk_gb > 1048576:
+        raise ValidationError("disk_gb 取值范围为 1-1048576", field="disk_gb")
+    if traffic_reset_day < 1 or traffic_reset_day > 31:
+        raise ValidationError("traffic_reset_day 取值范围为 1-31", field="traffic_reset_day")
+
     server = Server(
         name=name,
         ip=ip,
         group_name=data.get("group") or data.get("group_name") or "默认分组",
         location=data.get("location", ""),
         flag=data.get("flag", "🌐"),
-        cpu_cores=int(data.get("cpu_cores", 1)),
-        ram_gb=float(data.get("ram_gb", 1.0)),
-        disk_gb=int(data.get("disk_gb", 20)),
+        cpu_cores=cpu_cores,
+        ram_gb=ram_gb,
+        disk_gb=disk_gb,
         bandwidth=data.get("bandwidth", "不限"),
         probe_url=data.get("probe_url", ""),
         note=data.get("note", ""),
@@ -119,7 +153,7 @@ def create_server():
         expiry=expiry,
         status=data.get("status", "unknown"),
         traffic_limit_gb=data.get("traffic_limit_gb", 0),
-        traffic_reset_day=int(data.get("traffic_reset_day", 1)),
+        traffic_reset_day=traffic_reset_day,
     )
     db.session.add(server)
     db.session.commit()
@@ -159,6 +193,10 @@ def update_server(sid):
         raise InternalServerError(error_detail=str(e))
 
     data = request.get_json(silent=True) or {}
+    if "name" in data and data["name"] is not None and not validate_server_name(str(data["name"])):
+        raise ValidationError("name 格式无效（2-64 字符，支持中英文/数字/._- 空格）", field="name")
+    if "ip" in data and data["ip"] is not None and not validate_server_ip(str(data["ip"])):
+        raise ValidationError("ip 格式无效（仅支持 IP 或主机名，且不能包含 URL）", field="ip")
 
     price = data.get("price")
     if price is not None:
@@ -184,11 +222,20 @@ def update_server(sid):
     if "group_name" in data:
         server.group_name = data["group_name"]
     if "cpu_cores" in data:
-        server.cpu_cores = int(data["cpu_cores"])
+        cpu = int(data["cpu_cores"])
+        if cpu <= 0 or cpu > 1024:
+            raise ValidationError("cpu_cores 取值范围为 1-1024", field="cpu_cores")
+        server.cpu_cores = cpu
     if "ram_gb" in data:
-        server.ram_gb = float(data["ram_gb"])
+        ram = float(data["ram_gb"])
+        if ram <= 0 or ram > 16384:
+            raise ValidationError("ram_gb 取值范围为 0-16384", field="ram_gb")
+        server.ram_gb = ram
     if "disk_gb" in data:
-        server.disk_gb = int(data["disk_gb"])
+        disk = int(data["disk_gb"])
+        if disk <= 0 or disk > 1048576:
+            raise ValidationError("disk_gb 取值范围为 1-1048576", field="disk_gb")
+        server.disk_gb = disk
     if "traffic_limit_gb" in data:
         server.traffic_limit_gb = float(data["traffic_limit_gb"])
     if "traffic_reset_day" in data:
@@ -415,19 +462,45 @@ def get_history(sid):
     except Exception as e:
         raise InternalServerError(error_detail=str(e))
 
-    days  = request.args.get("days",  1,   type=int)
-    limit = min(request.args.get("limit", 100, type=int), 1000)
+    days, limit, offset = _parse_history_pagination()
+    export = (request.args.get("export", "") or "").strip().lower()
     since = datetime.now(timezone.utc) - timedelta(days=days)
 
-    results = (
+    base_query = (
         ProbeResult.query
         .filter(ProbeResult.server_id == sid, ProbeResult.created_at >= since)
         .order_by(ProbeResult.created_at.desc())
+    )
+    total = base_query.count()
+    results = (
+        base_query
+        .offset(offset)
         .limit(limit)
         .all()
     )
 
-    return jsonify(data=[r.to_dict() for r in results])
+    rows = [r.to_dict() for r in results]
+    if export == "csv":
+        import csv
+        from io import StringIO
+        csv_buffer = StringIO()
+        writer = csv.DictWriter(csv_buffer, fieldnames=[
+            "id", "server_id", "cpu_use", "ram_use", "disk_use",
+            "net_up", "net_down", "status", "latency_ms", "created_at"
+        ])
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({key: row.get(key) for key in writer.fieldnames})
+        return (
+            csv_buffer.getvalue(),
+            200,
+            {
+                "Content-Type": "text/csv; charset=utf-8",
+                "Content-Disposition": f'attachment; filename="server-{sid}-history.csv"',
+            },
+        )
+
+    return jsonify(data=rows, total=total, days=days, limit=limit, offset=offset)
 
 
 # ── 辅助 ──────────────────────────────────────────────────────────────────────
