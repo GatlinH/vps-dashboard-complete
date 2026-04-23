@@ -63,3 +63,25 @@ def test_agent_push_rate_limit_per_agent(client, app, auth_headers, test_server)
     headers = _agent_headers(agent_key, raw, agent_uuid, nonce="nonce-over")
     blocked = client.post("/api/v1/agent/push", data=raw, headers={**headers, "Content-Type": "application/json"})
     assert blocked.status_code == 429
+
+
+def test_agent_push_rate_limit_takes_effect_immediately_after_enable(client, app, auth_headers, test_server):
+    app.config["RATELIMIT_ENABLED"] = True
+    app.config["AGENT_PUSH_RATE_LIMIT"] = "1 per minute"
+
+    # 模拟前序测试将 limiter 状态留在 disabled。
+    app.limiter.enabled = False
+
+    agent_key, agent_uuid = _provision_agent(client, auth_headers, test_server)
+
+    payload = {"uuid": agent_uuid, "cpu_use": 30, "status": "online"}
+    raw = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    headers = _agent_headers(agent_key, raw, agent_uuid, nonce="enable-now-0")
+    first = client.post("/api/v1/agent/push", data=raw, headers={**headers, "Content-Type": "application/json"})
+    assert first.status_code == 202
+
+    payload = {"uuid": agent_uuid, "cpu_use": 31, "status": "online"}
+    raw = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    headers = _agent_headers(agent_key, raw, agent_uuid, nonce="enable-now-1")
+    blocked = client.post("/api/v1/agent/push", data=raw, headers={**headers, "Content-Type": "application/json"})
+    assert blocked.status_code == 429

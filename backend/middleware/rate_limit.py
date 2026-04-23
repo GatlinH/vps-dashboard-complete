@@ -141,6 +141,12 @@ class RateLimitConfig:
         def _apply_runtime_rate_limit_toggle():
             _sync_limiter_enabled_state()
 
+        # 确保该同步钩子先于 flask-limiter 的 before_request 执行。
+        # 否则当测试/运行时动态切换 RATELIMIT_ENABLED 时，当前请求可能仍沿用旧状态。
+        before_request_funcs = app.before_request_funcs.setdefault(None, [])
+        if before_request_funcs and before_request_funcs[-1] is _apply_runtime_rate_limit_toggle:
+            before_request_funcs.insert(0, before_request_funcs.pop())
+
         app.limiter = limiter
 
         # 自定义全局限流错误处理
