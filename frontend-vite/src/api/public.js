@@ -55,6 +55,16 @@ export async function getIPInfo(ip = '') {
   return publicGet(`/probe/ip-info${qs}`)
 }
 
+/** 获取 AFF 列表 */
+export async function listAffProducts(params = {}) {
+  const qs = new URLSearchParams();
+  if (params.stock) qs.set('stock', params.stock);
+  if (params.provider) qs.set('provider', params.provider);
+  if (params.group_name) qs.set('group_name', params.group_name);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return publicGet(`/aff/${suffix}`);
+}
+
 /** 地图瓦片 URL 构造（直接在 <img> 或 canvas 中使用） */
 export function tileURL(z, x, y) {
   return `${BASE}/geo/tile/${z}/${x}/${y}.png`

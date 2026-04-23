@@ -44,6 +44,16 @@ def _parse_cors_origins(raw: str) -> list[str]:
     return list(dict.fromkeys(origins))
 
 
+def _parse_csv(raw: str) -> list[str]:
+    """解析逗号分隔配置并去重。"""
+    items = []
+    for item in (raw or "").split(","):
+        val = item.strip()
+        if val:
+            items.append(val)
+    return list(dict.fromkeys(items))
+
+
 def _validate_production_secrets():
     """在生产环境中检查关键密钥，若仍为弱默认值则终止启动。"""
     flask_env = os.getenv("FLASK_ENV", "development")
@@ -213,6 +223,16 @@ class Config:
 
     # ── API Schema 版本同步 ──────────────────────────────────────────────────
     API_SCHEMA_VERSION = os.getenv("API_SCHEMA_VERSION", "2026-04-23")
+
+    # ── AFF 外链域名安全策略 ─────────────────────────────────────────────────
+    AFF_TRUSTED_DOMAINS = _parse_csv(
+        os.getenv(
+            "AFF_TRUSTED_DOMAINS",
+            "racknerd.com,bandwagonhost.com,vultr.com,hetzner.com,dmit.io",
+        )
+    )
+    # strict: 非白名单直接拒绝保存；warn: 允许保存但前端/接口会给强警告
+    AFF_DOMAIN_POLICY = os.getenv("AFF_DOMAIN_POLICY", "strict").strip().lower()
 
     # ── Scheduler 任务监控 ───────────────────────────────────────────────────
     SCHEDULER_ALERT_ON_FAILURE = os.getenv("SCHEDULER_ALERT_ON_FAILURE", "1") == "1"

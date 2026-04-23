@@ -140,3 +140,24 @@ def is_safe_outbound_url(url: str) -> bool:
         except ValueError:
             return False
     return True
+
+
+def match_domain_whitelist(url: str, whitelist_domains: list[str]) -> tuple[bool, str]:
+    """
+    校验 URL 的域名是否命中白名单（支持子域名）。
+    返回 (is_matched, hostname)。
+    """
+    parsed = urlparse((url or "").strip())
+    hostname = (parsed.hostname or "").lower()
+    if not hostname:
+        return False, ""
+
+    allowed = [
+        d.strip().lower().lstrip(".")
+        for d in (whitelist_domains or [])
+        if d and d.strip()
+    ]
+    for domain in allowed:
+        if hostname == domain or hostname.endswith(f".{domain}"):
+            return True, hostname
+    return False, hostname

@@ -287,33 +287,40 @@ class AffProduct(db.Model):
     disk       = db.Column(db.String(32), default="")
     bandwidth  = db.Column(db.String(64), default="")
     location   = db.Column(db.String(64), default="")
+    group_name = db.Column(db.String(64), default="默认分组", index=True)
     price      = db.Column(db.Float, default=0.0)
     currency   = db.Column(db.String(8), default="CNY")
     period     = db.Column(db.String(16), default="monthly")
     buy_url    = db.Column(db.String(256), default="")
     review_url = db.Column(db.String(256), default="")
     note       = db.Column(db.Text, default="")
+    i18n       = db.Column(db.JSON, nullable=False, default=dict)  # 如 {"en": {"note": "...", "provider": "..."}}
     sort_order = db.Column(db.Integer, default=100, index=True)
     enabled    = db.Column(db.Boolean, default=True, index=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    def to_dict(self):
+    def to_dict(self, lang: str = "zh"):
+        i18n_map = self.i18n or {}
+        i18n_entry = i18n_map.get(lang) if isinstance(i18n_map, dict) else {}
         return {
             "id":         self.id,
-            "provider":   self.provider,
+            "provider":   (i18n_entry or {}).get("provider") or self.provider,
             "stock":      self.stock,
             "cpu":        self.cpu,
             "ram":        self.ram,
             "disk":       self.disk,
             "bandwidth":  self.bandwidth,
             "location":   self.location,
+            "group_name": self.group_name,
             "price":      self.price,
             "currency":   self.currency,
             "period":     self.period,
             "buy_url":    self.buy_url,
             "review_url": self.review_url,
-            "note":       self.note,
+            "note":       (i18n_entry or {}).get("note") or self.note,
+            "lang":       lang,
+            "i18n":       i18n_map,
             "sort_order": self.sort_order,
             "enabled":    self.enabled,
             "created_at": self.created_at.isoformat() if self.created_at else None,

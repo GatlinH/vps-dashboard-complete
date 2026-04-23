@@ -17,6 +17,7 @@ import { state, subscribe, persistServers } from './store/state.js';
 import { toDisplay, calcResidualValue, getMonthlyPrice, updateRateDisplay } from './utils/currency.js';
 import { fmtGb, getTrafficPct, getTrafficUsed, daysUntilReset, trafficColor } from './utils/traffic.js';
 import { renderCard, renderDetailModal, bindGridEvents } from './components/ServerCard.js';
+import { listAffProducts } from './api/public.js';
 
 // ─── 懒加载句柄 ───────────────────────────────────────────────────────────────
 let _starMap      = null;  // StarMap 实例
@@ -169,41 +170,176 @@ window.closeModal = (e) => {
 
 // ─── AFF 渲染 ────────────────────────────────────────────────────────────────
 
+const affView = {
+  sortBy: 'default',
+  group: '全部',
+};
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function sanitizeRichText(html) {
+  const raw = String(html || '');
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(`<div>${raw}</div>`, 'text/html');
+  const root = doc.body.firstElementChild;
+  const allowedTags = new Set(['B', 'STRONG', 'I', 'EM', 'P', 'BR', 'UL', 'OL', 'LI', 'A', 'CODE']);
+  const allowedAttrs = new Set(['href', 'target', 'rel']);
+
+  const walk = (node) => {
+    [...node.children].forEach((child) => {
+      if (!allowedTags.has(child.tagName)) {
+        child.replaceWith(...child.childNodes);
+        return;
+      }
+      [...child.attributes].forEach((attr) => {
+        if (!allowedAttrs.has(attr.name.toLowerCase())) child.removeAttribute(attr.name);
+      });
+      if (child.tagName === 'A') {
+        const href = (child.getAttribute('href') || '').trim();
+        if (!href.startsWith('http://') && !href.startsWith('https://')) {
+          child.removeAttribute('href');
+        } else {
+          child.setAttribute('rel', 'noopener noreferrer nofollow');
+          child.setAttribute('target', '_blank');
+        }
+      }
+      walk(child);
+    });
+  };
+  if (root) walk(root);
+  return root?.innerHTML || '';
+}
+
+function affLinkMeta(card, kind) {
+  const key = kind === 'buy' ? 'is_trusted_buy_url' : 'is_trusted_review_url';
+  return {
+    trusted: card[key] !== false,
+    href: card[kind === 'buy' ? 'buy_url' : 'review_url'],
+  };
+}
+
+function buildAffLink(card, kind, label, className) {
+  const meta = affLinkMeta(card, kind);
+  if (!meta.href) return '';
+  if (meta.trusted) {
+    return `<a href="${escapeHtml(meta.href)}" class="aff-link-btn ${className}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+  }
+  return `<a href="${escapeHtml(meta.href)}" class="aff-link-btn ${className}" target="_blank" rel="noopener noreferrer"
+            onclick="return affUntrustedWarn(event, '${escapeHtml(meta.href)}')">${label} ⚠️</a>`;
+}
+
+window.affUntrustedWarn = (e, href) => {
+  const ok = window.confirm(`⚠️ 该链接域名不在白名单：${href}\n可能存在钓鱼或跳转风险，确认继续访问吗？`);
+  if (!ok) e.preventDefault();
+  return ok;
+};
+
+function currentAffCards() {
+  const byGroup = affView.group === '全部'
+    ? [...state.affCards]
+    : state.affCards.filter(c => (c.group_name || '默认分组') === affView.group);
+  const sorter = {
+    default: (a, b) => (a.sort_order || 100) - (b.sort_order || 100),
+    price_asc: (a, b) => (a.price || 0) - (b.price || 0),
+    price_desc: (a, b) => (b.price || 0) - (a.price || 0),
+    provider: (a, b) => String(a.provider || '').localeCompare(String(b.provider || '')),
+  }[affView.sortBy] || ((a, b) => 0);
+  return byGroup.sort(sorter);
+}
+
 function renderAff() {
-  document.getElementById('affGrid').innerHTML = state.affCards.map(a => {
+  const groups = ['全部', ...new Set(state.affCards.map(a => a.group_name || '默认分组'))];
+  const groupEl = document.getElementById('affGroupTabs');
+  if (groupEl) {
+    groupEl.innerHTML = groups.map(g => (
+      `<button class="group-tab ${g === affView.group ? 'active' : ''}" onclick='setAffGroup(${JSON.stringify(g)})'>${escapeHtml(g)}</button>`
+    )).join('');
+  }
+  document.getElementById('affGrid').innerHTML = currentAffCards().map(a => {
     const cls = { avail: 'stock-avail', low: 'stock-low', out: 'stock-out' }[a.stock];
     return /* html */`
       <div class="aff-card">
         <div class="aff-card-header">
           <div>
-            <div class="aff-provider">${a.flag} ${a.provider}</div>
-            <div style="font-size:11px;color:var(--text3);margin-top:2px">${a.location}</div>
+            <div class="aff-provider">${escapeHtml(a.flag || '🌐')} ${escapeHtml(a.provider)}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">${escapeHtml(a.location || '')}</div>
           </div>
-          <div class="aff-stock ${cls}">${a.stock_label}</div>
+          <div class="aff-stock ${cls}">${escapeHtml(a.stock_label || '')}</div>
         </div>
         <div class="aff-card-body">
           <div class="aff-spec-grid">
-            <div class="aff-spec-item"><div class="aff-spec-key">CPU</div><div class="aff-spec-val">${a.cpu} 核</div></div>
-            <div class="aff-spec-item"><div class="aff-spec-key">内存</div><div class="aff-spec-val">${a.ram} GB</div></div>
-            <div class="aff-spec-item"><div class="aff-spec-key">存储</div><div class="aff-spec-val">${a.disk} GB</div></div>
-            <div class="aff-spec-item"><div class="aff-spec-key">流量</div><div class="aff-spec-val">${a.bw}</div></div>
-            <div class="aff-spec-item"><div class="aff-spec-key">IP数量</div><div class="aff-spec-val">${a.ip_count} 个</div></div>
-            <div class="aff-spec-item"><div class="aff-spec-key">付款周期</div><div class="aff-spec-val">/${a.period}</div></div>
+            <div class="aff-spec-item"><div class="aff-spec-key">CPU</div><div class="aff-spec-val">${escapeHtml(a.cpu)} </div></div>
+            <div class="aff-spec-item"><div class="aff-spec-key">内存</div><div class="aff-spec-val">${escapeHtml(a.ram)} </div></div>
+            <div class="aff-spec-item"><div class="aff-spec-key">存储</div><div class="aff-spec-val">${escapeHtml(a.disk)} </div></div>
+            <div class="aff-spec-item"><div class="aff-spec-key">流量</div><div class="aff-spec-val">${escapeHtml(a.bandwidth || '')}</div></div>
+            <div class="aff-spec-item"><div class="aff-spec-key">分组</div><div class="aff-spec-val">${escapeHtml(a.group_name || '默认分组')}</div></div>
+            <div class="aff-spec-item"><div class="aff-spec-key">付款周期</div><div class="aff-spec-val">/${escapeHtml(a.period)}</div></div>
           </div>
           <div class="aff-price">
-            <div class="aff-price-main">${a.currency_sym}${a.price}</div>
-            <div class="aff-price-period">/ ${a.period}</div>
+            <div class="aff-price-main">${escapeHtml(a.currency_sym || '')}${escapeHtml(a.price)}</div>
+            <div class="aff-price-period">/ ${escapeHtml(a.period)}</div>
           </div>
-          <div class="aff-note">${a.note}</div>
+          <div class="aff-note">${sanitizeRichText(a.note)}</div>
           <div class="aff-links">
             ${a.stock !== 'out'
-              ? `<a href="${a.buy_url}" class="aff-link-btn aff-btn-buy" target="_blank">🛒 一键购买</a>`
+              ? buildAffLink(a, 'buy', '🛒 一键购买', 'aff-btn-buy')
               : `<div class="aff-link-btn aff-btn-review" style="opacity:.5;cursor:not-allowed">已售罄</div>`}
-            <a href="${a.review_url}" class="aff-link-btn aff-btn-review" target="_blank">📝 测评报告</a>
+            ${buildAffLink(a, 'review', '📝 测评报告', 'aff-btn-review')}
           </div>
         </div>
       </div>`;
   }).join('');
+}
+
+window.setAffGroup = (group) => {
+  affView.group = group;
+  renderAff();
+};
+
+window.setAffSort = (sortBy) => {
+  affView.sortBy = sortBy;
+  renderAff();
+};
+
+async function loadAffProducts() {
+  try {
+    const data = await listAffProducts();
+    const rows = Array.isArray(data?.products) ? data.products : [];
+    if (!rows.length) return;
+    state.affCards = rows.map((p, idx) => ({
+      id: p.id,
+      provider: p.provider || '',
+      flag: p.flag || '🌐',
+      location: p.location || '',
+      cpu: p.cpu || '',
+      ram: p.ram || '',
+      disk: p.disk || '',
+      bandwidth: p.bandwidth || '',
+      price: p.price ?? 0,
+      period: p.period || 'monthly',
+      currency_sym: p.currency === 'USD' ? '$' : p.currency === 'EUR' ? '€' : '¥',
+      stock: p.stock || 'avail',
+      stock_label: { avail: '有货', low: '剩余少量', out: '已售罄' }[p.stock] || '未知',
+      note: p.note || '',
+      buy_url: p.buy_url || '',
+      review_url: p.review_url || '',
+      group_name: p.group_name || '默认分组',
+      sort_order: p.sort_order ?? (idx + 1) * 10,
+      is_trusted_buy_url: p.is_trusted_buy_url !== false,
+      is_trusted_review_url: p.is_trusted_review_url !== false,
+      i18n: p.i18n || {},
+      lang: p.lang || 'zh',
+    }));
+  } catch (e) {
+    console.warn('[AFF] 拉取接口失败，降级为本地默认卡片：', e);
+  }
 }
 
 // ─── 星图（Globe）───────────────────────────────────────────────────────────
@@ -664,8 +800,9 @@ function startLiveUpdates() {
 
 // ─── 启动 ────────────────────────────────────────────────────────────────────
 
-function boot() {
+async function boot() {
   initStarfield();
+  await loadAffProducts();
   renderGroupTabs();
   renderStats();
   renderServers();

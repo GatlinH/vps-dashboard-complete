@@ -70,6 +70,18 @@
   <!-- ===== AFF MARKET ===== -->
   <div id="page-aff" class="page">
     <div class="page-title">AFF推荐市场</div>
+    <div class="toolbar" style="margin-bottom:1rem;flex-wrap:wrap">
+      <div class="group-tabs" id="affGroupTabs"></div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+        <span style="font-size:12px;color:var(--text3)">排序</span>
+        <select class="search-box" style="width:150px;min-width:0" onchange="setAffSort(this.value)">
+          <option value="default">默认排序</option>
+          <option value="price_asc">价格升序</option>
+          <option value="price_desc">价格降序</option>
+          <option value="provider">商家名称</option>
+        </select>
+      </div>
+    </div>
     <div class="aff-grid" id="affGrid"></div>
   </div>
 
