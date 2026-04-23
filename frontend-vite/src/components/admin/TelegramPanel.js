@@ -2,11 +2,12 @@
  * components/admin/TelegramPanel.js
  * Telegram 机器人推送配置面板
  */
-import { fetchTgConfig, saveTgConfig, testTg, sendTgMessage } from '../../api/telegram.js';
+import { fetchTgConfig, saveTgConfig, testTg, sendTgMessage, exportTgBundle } from '../../api/telegram.js';
 
 export class TelegramPanel {
   constructor(mountId) {
     this._el = document.getElementById(mountId);
+    this._maskedToken = '';
     this._render();
     this._bind();
   }
@@ -16,8 +17,9 @@ export class TelegramPanel {
   async load() {
     try {
       const cfg = await fetchTgConfig();
-      if (cfg.bot_token) this._q('#tp-token').value  = cfg.bot_token;
-      if (cfg.chat_id)   this._q('#tp-chat').value   = cfg.chat_id;
+      this._maskedToken = cfg.bot_token || '';
+      if (cfg.bot_token) this._q('#tp-token').placeholder = cfg.bot_token;
+      if (cfg.chat_id)   this._q('#tp-chat').value = cfg.chat_id;
       if (cfg.prefix)    this._q('#tp-prefix').value = cfg.prefix;
       this._updateStatus();
     } catch (_) { /* 未配置时静默忽略 */ }
@@ -52,6 +54,7 @@ export class TelegramPanel {
         <div style="display:flex;gap:10px;margin-top:12px">
           <button class="add-btn" id="tp-save">保存配置</button>
           <button id="tp-test" style="padding:8px 18px;border-radius:8px;background:rgba(99,179,237,.1);border:1px solid var(--border2);color:var(--accent);cursor:pointer;font-size:13px">发送测试消息</button>
+          <button id="tp-export" style="padding:8px 18px;border-radius:8px;background:rgba(72,187,120,.12);border:1px solid var(--border2);color:var(--green);cursor:pointer;font-size:13px">导出配置/规则</button>
         </div>
         <div id="tp-msg" style="margin-top:8px;font-size:12px;min-height:18px"></div>
       </div>
@@ -104,6 +107,7 @@ export class TelegramPanel {
   _bind() {
     this._q('#tp-save').addEventListener('click',        () => this._save());
     this._q('#tp-test').addEventListener('click',        () => this._test());
+    this._q('#tp-export').addEventListener('click',      () => this._exportBundle());
     this._q('#tp-save-rules').addEventListener('click',  () => this._saveRules());
     this._q('#tp-manual-send').addEventListener('click', () => this._manualSend());
   }
@@ -112,7 +116,7 @@ export class TelegramPanel {
 
   _updateStatus() {
     const el    = this._q('#tp-status');
-    const token = this._q('#tp-token').value.trim();
+    const token = this._q('#tp-token').value.trim() || this._maskedToken;
     const chat  = this._q('#tp-chat').value.trim();
     if (token && chat) {
       el.className = 'tg-status tg-connected';
@@ -126,10 +130,12 @@ export class TelegramPanel {
   // ── 保存配置 ─────────────────────────────────────────────────────────────
 
   async _save() {
+    const valid = this._validateConfig({ allowStoredToken: true });
+    if (!valid.ok) return this._msg('tp-msg', valid.message, 'red');
     try {
       await saveTgConfig({
-        bot_token: this._q('#tp-token').value.trim(),
-        chat_id:   this._q('#tp-chat').value.trim(),
+        ...(valid.token ? { bot_token: valid.token } : {}),
+        chat_id:   valid.chatId,
         prefix:    this._q('#tp-prefix').value.trim() || '【VPS星图】',
         enabled:   true,
       });
@@ -141,11 +147,30 @@ export class TelegramPanel {
   // ── 测试 ─────────────────────────────────────────────────────────────────
 
   async _test() {
+    const valid = this._validateConfig({ allowStoredToken: true });
+    if (!valid.ok) return this._msg('tp-msg', valid.message, 'red');
     this._msg('tp-msg', '发送中...', 'blue');
     try {
       await testTg();
       this._msg('tp-msg', '✅ 测试消息已发送', 'green');
     } catch (e) { this._msg('tp-msg', e.message, 'red'); }
+  }
+
+  async _exportBundle() {
+    try {
+      const blob = await exportTgBundle();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `telegram-export-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      this._msg('tp-msg', '✅ 已导出配置与规则', 'green');
+    } catch (e) {
+      this._msg('tp-msg', e.message || '导出失败', 'red');
+    }
   }
 
   // ── 告警规则 ─────────────────────────────────────────────────────────────
@@ -178,6 +203,23 @@ export class TelegramPanel {
   // ── 工具 ─────────────────────────────────────────────────────────────────
 
   _q(sel) { return this._el.querySelector(sel); }
+
+  _validateConfig(options = {}) {
+    const token = this._q('#tp-token').value.trim();
+    const chatId = this._q('#tp-chat').value.trim();
+    const tokenPattern = /^\d{6,12}:[A-Za-z0-9_-]{20,80}$/;
+    const chatPattern = /^(-\d{5,20}|@[A-Za-z0-9_]{5,32})$/;
+
+    const effectiveToken = token || (options.allowStoredToken ? this._maskedToken : '');
+    if (!effectiveToken) return { ok: false, message: 'BotToken 为必填项' };
+    if (!chatId) return { ok: false, message: 'ChannelID/ChatID 为必填项' };
+    if (token && token.length > 128) return { ok: false, message: 'BotToken 长度不能超过 128' };
+    if (chatId.length > 64) return { ok: false, message: 'ChannelID/ChatID 长度不能超过 64' };
+    if (token && !tokenPattern.test(token)) return { ok: false, message: 'BotToken 格式不正确（示例：123456789:AA...）' };
+    if (!chatPattern.test(chatId)) return { ok: false, message: 'ChannelID/ChatID 格式不正确（示例：-100123456789 或 @channel）' };
+
+    return { ok: true, token, chatId };
+  }
 
   _msg(elId, text, type) {
     const el = this._el.querySelector(`#${elId}`);

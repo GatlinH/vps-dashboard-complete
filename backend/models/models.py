@@ -253,14 +253,25 @@ class TelegramConfig(db.Model):
     enabled = db.Column(db.Boolean, default=False, index=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    @staticmethod
+    def _mask_sensitive(value: str, head: int = 3, tail: int = 3) -> str:
+        value = (value or "").strip()
+        if not value:
+            return ""
+        if len(value) <= head + tail:
+            return "*" * len(value)
+        return f"{value[:head]}****{value[-tail:]}"
     
     def to_dict(self):
         return dict(
             id=self.id,
             chat_id=self.chat_id,
+            chat_id_masked=self._mask_sensitive(self.chat_id, head=2, tail=2),
             prefix=self.prefix,
             enabled=self.enabled,
             has_token=bool(self.bot_token),
+            bot_token=self._mask_sensitive(self.bot_token, head=3, tail=3),
         )
 
 
