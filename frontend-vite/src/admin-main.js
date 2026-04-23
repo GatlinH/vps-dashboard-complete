@@ -13,6 +13,7 @@ import { ServerManager }  from './components/admin/ServerManager.js';
 import { PingTool }       from './components/admin/PingTool.js';
 import { TelegramPanel }  from './components/admin/TelegramPanel.js';
 import { ThemeEditor }    from './components/admin/ThemeEditor.js';
+import { AgentPanel }     from './components/admin/AgentPanel.js';
 
 // ── 全局 401 事件 → 强制回到登录页 ──────────────────────────────────────────
 window.addEventListener('admin:logout', () => {
@@ -25,6 +26,7 @@ let _serverMgr;
 let _pingTool;
 let _tgPanel;
 let _themeEditor;
+let _agentPanel;
 let _activeTab = 'servers';
 
 // ── 初始化 ───────────────────────────────────────────────────────────────────
@@ -79,12 +81,14 @@ async function showAdminPanel() {
     _pingTool    = new PingTool('tab-ping');
     _tgPanel     = new TelegramPanel('tab-telegram');
     _themeEditor = new ThemeEditor('tab-theme');
+    _agentPanel  = new AgentPanel('tab-agent');
   }
 
   // 加载数据
   await _serverMgr.reload();
   _pingTool.setServers(_serverMgr.servers);
   await _tgPanel.load();
+  await _agentPanel.load();
 
   switchTab(_activeTab);
 }
