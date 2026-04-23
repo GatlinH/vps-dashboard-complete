@@ -141,6 +141,13 @@ def client(app):
 def reset_db(app):
     """每个测试前重置数据库，确保 admin 用户存在；同时清空 Redis 缓存"""
     with app.app_context():
+        # 测试间隔离：默认关闭限流；若测试显式设为 True 则尊重该配置
+        app.config.setdefault('RATELIMIT_ENABLED', False)
+        try:
+            app.limiter.enabled = bool(app.config.get('RATELIMIT_ENABLED', False))
+        except Exception:
+            pass
+
         try:
             _db.create_all()
         except RuntimeError:
