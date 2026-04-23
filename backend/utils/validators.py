@@ -51,6 +51,40 @@ def validate_ip_or_hostname(value: str) -> bool:
     return bool(hostname_re.match(value))
 
 
+def validate_server_name(value: str) -> bool:
+    """
+    服务器名称校验：
+    - 2~64 字符
+    - 允许中英文、数字、空格、下划线、横线、点
+    - 不允许连续空格和首尾空格
+    """
+    if not isinstance(value, str):
+        return False
+    if value != value.strip():
+        return False
+    if len(value) < 2 or len(value) > 64:
+        return False
+    if "  " in value:
+        return False
+    return bool(re.match(r"^[\w\-. \u4e00-\u9fff]+$", value))
+
+
+def validate_server_ip(value: str) -> bool:
+    """
+    服务器 IP/主机名校验：
+    - 不允许 URL（禁止包含 scheme/path/query）
+    - 允许 IPv4/IPv6 或 hostname
+    """
+    if not isinstance(value, str):
+        return False
+    raw = value.strip()
+    if not raw:
+        return False
+    if "://" in raw or "/" in raw or "?" in raw or "#" in raw:
+        return False
+    return validate_ip_or_hostname(raw)
+
+
 def is_safe_outbound_url(url: str) -> bool:
     """
     SSRF 防护：

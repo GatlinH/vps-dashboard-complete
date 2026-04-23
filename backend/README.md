@@ -141,7 +141,7 @@ GUNICORN_THREADS=9
 | PUT    | /api/servers/\<id\>           | **admin** | 更新服务器                 |
 | DELETE | /api/servers/\<id\>           | **admin** | 删除服务器                 |
 | POST   | /api/servers/\<id\>/metrics   | **admin** | 推送实时指标               |
-| GET    | /api/servers/\<id\>/history   | **admin** | 历史探针数据               |
+| GET    | /api/servers/\<id\>/history   | **admin** | 历史探针数据（`days/limit/offset`，支持 `export=csv`） |
 | POST   | /api/probe/ping               | **admin** | TCP Ping                   |
 | POST   | /api/probe/ping/batch         | **admin** | 批量 TCP Ping              |
 | POST   | /api/probe/fetch-probe        | **admin** | 抓取探针数据               |
@@ -176,14 +176,16 @@ GUNICORN_THREADS=9
 ## 前端对接
 
 ```js
-// 公开展示页使用 api-public.js（无鉴权）
+// 公开展示页使用 frontend-vite/src/api/public.js（无鉴权）
 import { listServersPublic, getCountries } from './api-public.js';
 const { servers } = await listServersPublic();
 
-// 管理后台使用 api-admin.js（自动携带 JWT）
-import { login, createServer } from './api-admin.js';
+// 管理后台使用 frontend-vite/src/api/admin.js（自动携带 JWT）
+import { login, createServer, getHistory } from './admin.js';
 await login('admin', '<your-admin-password>');
 await createServer({ name: 'my-vps', ip: '1.2.3.4', ... });
+await getHistory(1, 7, 200, 0);           // 分页
+await getHistory(1, 7, 500, 0, 'csv');    // 导出
 
 // 3D 星图瓦片（公开接口）
 const tileUrl = `/api/geo/tile/${z}/${x}/${y}.png`;

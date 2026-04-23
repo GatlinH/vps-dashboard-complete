@@ -38,3 +38,19 @@ def test_get_server_not_found(client, auth_headers):
     """测试获取不存在的服务器返回 404"""
     response = client.get('/api/v1/servers/99999', headers=auth_headers)
     assert response.status_code == 404
+
+
+def test_create_server_rejects_invalid_name_and_ip(client, auth_headers):
+    resp_name = client.post(
+        '/api/v1/servers/',
+        json={'name': 'a', 'ip': '1.2.3.4'},
+        headers=auth_headers,
+    )
+    assert resp_name.status_code == 400
+
+    resp_ip = client.post(
+        '/api/v1/servers/',
+        json={'name': 'valid-name', 'ip': 'http://1.2.3.4/path'},
+        headers=auth_headers,
+    )
+    assert resp_ip.status_code == 400

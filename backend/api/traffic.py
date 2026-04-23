@@ -173,16 +173,20 @@ def get_traffic_history(sid):
     try:
         days = min(max(1, int(request.args.get('days', 7))), 30)
         limit = min(max(1, int(request.args.get('limit', 1000))), 10000)
+        offset = max(0, int(request.args.get('offset', 0)))
+        export = (request.args.get('export', '') or '').strip().lower()
         
         server = Server.query.get_or_404(sid)
         
         # 查询历史数据
         start_date = datetime.now(timezone.utc) - timedelta(days=days)
         
-        results = ProbeResult.query.filter(
+        base_query = ProbeResult.query.filter(
             ProbeResult.server_id == sid,
             ProbeResult.created_at >= start_date
-        ).order_by(ProbeResult.created_at).limit(limit).all()
+        ).order_by(ProbeResult.created_at)
+        total = base_query.count()
+        results = base_query.offset(offset).limit(limit).all()
         
         # 格式化数据
         data = []
@@ -193,9 +197,28 @@ def get_traffic_history(sid):
                 'net_down': float(r.net_down) if r.net_down else 0,
             })
         
+        if export == 'csv':
+            import csv
+            from io import StringIO
+            csv_buffer = StringIO()
+            writer = csv.DictWriter(csv_buffer, fieldnames=['timestamp', 'net_up', 'net_down'])
+            writer.writeheader()
+            writer.writerows(data)
+            return (
+                csv_buffer.getvalue(),
+                200,
+                {
+                    'Content-Type': 'text/csv; charset=utf-8',
+                    'Content-Disposition': f'attachment; filename="server-{sid}-traffic-history.csv"',
+                },
+            )
+
         return jsonify(
             server_id=sid,
             days=days,
+            total=total,
+            limit=limit,
+            offset=offset,
             data=data,
             count=len(data),
         )
