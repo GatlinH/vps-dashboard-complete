@@ -4,14 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev":     "vite",
-    "build":   "vite build",
+    "dev": "vite",
+    "build": "vite build",
     "preview": "vite preview",
     "analyze": "vite build && echo '✓ Build complete. Check ../frontend-dist/ for output.'"
   },
   "dependencies": {
     "chart.js": "^4.4.1",
-    "world-atlas": "^2.0.2",
     "workbox-core": "^7.0.0",
     "workbox-expiration": "^7.0.0",
     "workbox-precaching": "^7.0.0",

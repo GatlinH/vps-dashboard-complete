@@ -64,6 +64,10 @@ export default defineConfig({
 
     // JavaScript 最小化：使用 esbuild（快速）
     minify: 'esbuild',
+    esbuild: {
+      // 生产构建移除调试输出，进一步缩减体积
+      drop: ['console', 'debugger'],
+    },
 
     rollupOptions: {
       input: {
