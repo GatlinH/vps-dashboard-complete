@@ -81,6 +81,12 @@ docker compose up -d
 - 管理后台：`http://服务器IP/admin.html` 或 `http://服务器IP/admin`
 - API：`http://服务器IP:5000`
 
+## 安全配置提醒（生产环境）
+
+- 请务必替换 `SECRET_KEY` 与 `JWT_SECRET_KEY`，且两者不得相同。
+- `ADMIN_DEFAULT_PASSWORD` 建议设置为强密码；若留空，系统会在首次启动时随机生成并输出到日志，需立即登录修改。
+- `JWT_BLOCKLIST_FAIL_OPEN` 默认为 `1`（Redis 异常时放行，优先高可用）；如你的场景更重视安全一致性，建议改为 `0`（异常即拒绝）。
+
 ## GitHub Actions 自动部署
 
 在仓库 Settings → Secrets → Actions 添加：
