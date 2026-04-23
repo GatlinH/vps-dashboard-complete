@@ -5,6 +5,7 @@
  */
 
 const BASE = '/api/v1'
+const API_SCHEMA_VERSION = '2026-04-23'
 
 /**
  * 通用 GET 请求（无鉴权头）
@@ -14,10 +15,14 @@ const BASE = '/api/v1'
 async function publicGet(path) {
   const resp = await fetch(BASE + path, {
     method: 'GET',
-    headers: { Accept: 'application/json' },
+    headers: { Accept: 'application/json', 'X-Client-Schema-Version': API_SCHEMA_VERSION },
   })
   if (!resp.ok) {
-    throw new Error(`HTTP ${resp.status}`)
+    const payload = await resp.json().catch(() => ({}))
+    const err = new Error(payload.message || payload.msg || payload.error || `HTTP ${resp.status}`)
+    err.status = resp.status
+    err.errorCode = payload.error_code
+    throw err
   }
   return resp.json()
 }

@@ -223,3 +223,22 @@ Stripe-Signature: t=1718888888,v1=abcdef123456
   "received": true
 }
 ```
+
+
+## 6. Probe / IP 查询限流与批量硬限制
+
+- `POST /api/v1/probe/ping/batch` 与 `POST /api/v1/probe/fetch-probe` 增加了双层保护：
+  - 批次上限：`PROBE_BATCH_MAX_ITEMS`（默认 `50`）
+  - 最小触发间隔：`PROBE_BATCH_MIN_INTERVAL_S`（默认 `3s`）
+  - 触发过快时返回 `429`，错误码 `BATCH_RATE_LIMITED`
+- `GET /api/v1/probe/ip-info` 增加 IP 维度限流（`IP_INFO_RATE_LIMIT`，默认 `60 per minute`）
+- `GET /api/v1/probe/ip-info` 响应增加缓存标识：`X-Cache: HIT|MISS`
+
+## 7. API Schema 版本同步
+
+前后端通过以下头部同步接口字段版本：
+
+- 客户端请求头：`X-Client-Schema-Version`
+- 服务端响应头：`X-API-Schema-Version`
+
+当版本不一致时，后端会记录告警日志，便于发布时快速发现前后端字段未对齐问题。

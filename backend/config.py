@@ -202,6 +202,21 @@ class Config:
     # ── Probe ────────────────────────────────────────────────────────────────
     PROBE_TIMEOUT_S    = int(os.getenv("PROBE_TIMEOUT_S", "5"))
     PROBE_CACHE_TTL    = int(os.getenv("PROBE_CACHE_TTL", "15"))   # seconds
+    PROBE_BATCH_MAX_ITEMS = int(os.getenv("PROBE_BATCH_MAX_ITEMS", "50"))
+    PROBE_BATCH_MIN_INTERVAL_S = float(os.getenv("PROBE_BATCH_MIN_INTERVAL_S", "3"))
+    PROBE_BATCH_RATE_LIMIT = os.getenv("PROBE_BATCH_RATE_LIMIT", "6 per minute")
+    PROBE_FETCH_RATE_LIMIT = os.getenv("PROBE_FETCH_RATE_LIMIT", "6 per minute")
+
+    # ── Public IP 查询 ───────────────────────────────────────────────────────
+    IP_INFO_RATE_LIMIT = os.getenv("IP_INFO_RATE_LIMIT", "60 per minute")
+    IP_INFO_CACHE_TTL = int(os.getenv("IP_INFO_CACHE_TTL", "3600"))
+
+    # ── API Schema 版本同步 ──────────────────────────────────────────────────
+    API_SCHEMA_VERSION = os.getenv("API_SCHEMA_VERSION", "2026-04-23")
+
+    # ── Scheduler 任务监控 ───────────────────────────────────────────────────
+    SCHEDULER_ALERT_ON_FAILURE = os.getenv("SCHEDULER_ALERT_ON_FAILURE", "1") == "1"
+    SCHEDULER_FAILURE_ALERT_THRESHOLD = int(os.getenv("SCHEDULER_FAILURE_ALERT_THRESHOLD", "3"))
 
     # ── Geo tile proxy ───────────────────────────────────────────────────────
     TILE_CACHE_TTL     = int(os.getenv("TILE_CACHE_TTL",  "86400")) # 24h

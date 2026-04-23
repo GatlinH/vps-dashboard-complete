@@ -14,6 +14,7 @@ import os
 from datetime import datetime, timezone, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval     import IntervalTrigger
+from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR, EVENT_JOB_MISSED
 
 log = logging.getLogger(__name__)
 
@@ -81,10 +82,64 @@ def create_scheduler(app):
             replace_existing=True,
         )
 
+    scheduler.add_listener(_build_scheduler_listener(app), EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED)
+
     scheduler.start()
     log.info("后台调度器已启动")
     return scheduler
 
+
+
+def _build_scheduler_listener(app):
+    """监听 APScheduler 执行结果，记录实时监控日志并在连续失败时告警。"""
+
+    def _listener(event):
+        status = "ok"
+        if event.code == EVENT_JOB_ERROR:
+            status = "error"
+        elif event.code == EVENT_JOB_MISSED:
+            status = "missed"
+
+        if status == "ok":
+            log.info("[scheduler] job=%s status=ok", event.job_id)
+            return
+
+        log.warning("[scheduler] job=%s status=%s", event.job_id, status)
+
+        if not app.config.get("SCHEDULER_ALERT_ON_FAILURE", True):
+            return
+
+        from extensions import redis_client
+        fail_key = f"vps:scheduler:fail:{event.job_id}"
+        try:
+            fail_count = redis_client.incr(fail_key)
+            redis_client.expire(fail_key, 600)
+        except Exception:
+            fail_count = 1
+
+        threshold = int(app.config.get("SCHEDULER_FAILURE_ALERT_THRESHOLD", 3))
+        if fail_count < threshold:
+            return
+
+        try:
+            with app.app_context():
+                from models.models import TelegramConfig
+                from api.telegram import send_message, _full_msg
+                cfg = TelegramConfig.query.first()
+                if cfg and cfg.enabled and cfg.bot_token and cfg.chat_id:
+                    detail = getattr(event, "exception", None)
+                    body = (
+                        f"⚠️ <b>定时任务异常</b>\n"
+                        f"任务 ID：<b>{event.job_id}</b>\n"
+                        f"状态：<b>{status}</b>\n"
+                        f"10 分钟内失败次数：<b>{fail_count}</b>\n"
+                        f"异常：<code>{detail or 'N/A'}</code>"
+                    )
+                    send_message(_full_msg(cfg.prefix, body))
+        except Exception as exc:
+            log.warning("scheduler 告警推送失败: %s", exc)
+
+    return _listener
 
 # ── 任务实现 ───────────────────────────────────────────────────────────────────
 
