@@ -106,7 +106,8 @@ _TEST_CONFIG = {
     'SECRET_KEY': 'test-secret-key-for-testing-only-32chars!',
     'REDIS_URL': 'redis://localhost:6379/15',
     'RATELIMIT_STORAGE_URI': 'memory://',
-    'RATELIMIT_ENABLED': True,
+    # 测试环境默认关闭限流，避免高频调用 /api/v1/auth/login 时触发 429 干扰功能断言
+    'RATELIMIT_ENABLED': False,
     'WTF_CSRF_ENABLED': False,
     'FORCE_HTTPS': False,
     'AGENT_REQUIRE_TLS': False,
