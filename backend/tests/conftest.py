@@ -151,6 +151,11 @@ def reset_db(app):
             extensions.redis_client.flushdb()
         except Exception:
             pass
+        # 清空 flask-limiter 计数，避免跨测试累计命中 /auth/login 速率限制
+        try:
+            app.limiter.reset()
+        except Exception:
+            pass
         if not User.query.filter_by(username='admin').first():
             admin = User(
                 username='admin',
