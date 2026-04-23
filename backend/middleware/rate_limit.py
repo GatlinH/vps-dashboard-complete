@@ -108,9 +108,10 @@ class RateLimitConfig:
     def init_app(app: Flask):
         """初始化速率限制"""
 
-        # 测试环境默认关闭限流；如需验证限流行为，可在测试里显式设置 RATELIMIT_ENABLED=True
-        if app.config.get("TESTING"):
-            app.config.setdefault("RATELIMIT_ENABLED", False)
+        # 测试环境默认关闭限流，避免共享测试客户端时被 /auth/login 限流“误伤”其它用例。
+        # 如需在测试中开启限流，可显式设置 RATELIMIT_ENABLED=True。
+        if app.config.get("TESTING") and "RATELIMIT_ENABLED" not in app.config:
+            app.config["RATELIMIT_ENABLED"] = False
 
         storage_uri = RateLimitConfig._resolve_storage_uri(app)
 
