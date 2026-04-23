@@ -117,12 +117,32 @@ class RateLimitConfig:
 
         # 将 limiter 与 app 绑定（兼容不同 flask-limiter 版本）
         app.config["RATELIMIT_STORAGE_URI"] = storage_uri
+        configured_enabled = bool(app.config.get("RATELIMIT_ENABLED", True))
+
+        # flask-limiter 在 init_app 时若检测到禁用，可能不会完整注册 request hook。
+        # 这里先以 enabled=True 完成初始化，再回写实际开关，允许测试在运行时切换。 
+        if not configured_enabled:
+            app.config["RATELIMIT_ENABLED"] = True
         try:
-            limiter.init_app(app, storage_uri=storage_uri)
-        except TypeError:
-            limiter.init_app(app)
+            try:
+                limiter.init_app(app, storage_uri=storage_uri)
+            except TypeError:
+                limiter.init_app(app)
+        finally:
+            app.config["RATELIMIT_ENABLED"] = configured_enabled
+
+        def _sync_limiter_enabled_state():
+            """同步运行时配置变更到 limiter.enabled。"""
+            limiter.enabled = bool(app.config.get("RATELIMIT_ENABLED", True))
+
+        _sync_limiter_enabled_state()
+
+        @app.before_request
+        def _apply_runtime_rate_limit_toggle():
+            _sync_limiter_enabled_state()
+
         app.limiter = limiter
-        
+
         # 自定义全局限流错误处理
         @app.errorhandler(RateLimitExceeded)
         def handle_rate_limit_exceeded(error):
