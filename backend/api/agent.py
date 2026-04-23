@@ -8,10 +8,11 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 import extensions
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from werkzeug.security import check_password_hash
 
 from extensions import db
+from middleware.rate_limit import limiter
 from models.models import AgentCommand, ProbeResult, Server
 from utils.errors import AuthenticationError, ValidationError
 
@@ -41,10 +42,31 @@ def _validate_nonce(uuid: str, nonce: str):
     if not nonce or len(nonce) > 128:
         raise AuthenticationError("invalid nonce")
     nonce_key = f"vps:agent:nonce:{uuid}:{nonce}"
-    if extensions.redis_client and extensions.redis_client.exists(nonce_key):
-        raise AuthenticationError("replayed request")
     if extensions.redis_client:
-        extensions.redis_client.setex(nonce_key, _CLOCK_SKEW_SECONDS, "1")
+        # 使用 Redis 原子写入（SET NX EX），避免 exists()+setex() 竞态
+        accepted = extensions.redis_client.set(
+            nonce_key,
+            "1",
+            ex=_CLOCK_SKEW_SECONDS,
+            nx=True,
+        )
+        if not accepted:
+            raise AuthenticationError("replayed request")
+
+
+def _enforce_transport_security():
+    require_tls = current_app.config.get("AGENT_REQUIRE_TLS")
+    if require_tls is None:
+        require_tls = not current_app.config.get("TESTING", False)
+    if require_tls and not request.is_secure:
+        raise AuthenticationError("agent endpoints require HTTPS")
+
+
+def _agent_rate_limit_key() -> str:
+    uuid = request.headers.get("X-Agent-UUID", "").strip()
+    if uuid:
+        return f"agent:{uuid}"
+    return f"ip:{request.remote_addr or 'unknown'}"
 
 
 def _hmac_digest(secret: str, body: bytes, ts: str, nonce: str) -> str:
@@ -88,6 +110,7 @@ def _record_metrics(server: Server, data: dict):
 
 
 def _authenticate_agent(payload: dict) -> tuple[Server, str]:
+    _enforce_transport_security()
     uuid = payload.get("uuid") or request.headers.get("X-Agent-UUID")
     if not uuid:
         raise AuthenticationError("missing uuid")
@@ -150,6 +173,10 @@ def claim_agent():
 
 
 @agent_bp.post("/push")
+@limiter.limit(
+    lambda: current_app.config.get("AGENT_PUSH_RATE_LIMIT", "60 per minute"),
+    key_func=_agent_rate_limit_key,
+)
 def agent_push():
     data = request.get_json(silent=True) or {}
     server, uuid = _authenticate_agent(data)
@@ -168,6 +195,10 @@ def agent_push():
 
 
 @agent_bp.get("/poll")
+@limiter.limit(
+    lambda: current_app.config.get("AGENT_POLL_RATE_LIMIT", "120 per minute"),
+    key_func=_agent_rate_limit_key,
+)
 def agent_poll():
     data = {"uuid": request.headers.get("X-Agent-UUID")}
     server, _ = _authenticate_agent(data)
