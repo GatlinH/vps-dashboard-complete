@@ -154,13 +154,25 @@ GUNICORN_THREADS=9
 | POST   | /api/telegram/alerts          | **admin** | 保存告警规则               |
 | GET    | /api/geo/tile/\<z\>/\<x\>/\<y\>.png | 公开 | 地图瓦片代理          |
 | GET    | /api/geo/countries            | 公开      | TopoJSON 矢量地图          |
-| GET    | /api/geo/servers/coords       | 公开      | 服务器经纬度列表           |
+| GET    | /api/geo/servers/coords       | 公开      | 服务器经纬度（支持分页 / 聚合） |
 
 ### 后台鉴权要求
 
 - 所有写操作（添加/更新/删除服务器、Telegram 配置、推送消息等）均需 JWT 且 `role == "admin"`
 - `backend/middleware/rbac.py` 中的 `@admin_required` 装饰器统一实现角色校验
 - 严禁仅依赖前端隐藏按钮实现"权限控制"——后端会独立校验每个请求的角色
+
+
+### Geo API 字段与版本（Schema v2026-04-23）
+
+- `GET /api/geo/countries`：返回 TopoJSON；响应头含 `X-Cache: HIT|MISS|STALE`。
+- `GET /api/geo/servers/coords?mode=list&page=1&per_page=200`：
+  - `mode=list` 时返回 `{ mode, nodes, pagination, schema_version }`。
+  - `pagination` 字段：`page/per_page/pages/total/has_next`。
+- `GET /api/geo/servers/coords?mode=aggregate`：返回 `{ mode, total, coords_ready, by_status, top_locations, schema_version }`。
+- 地图 provider 异常时，`/api/geo/tile/*` 与 `/api/geo/countries` 在无法命中缓存时返回：
+  - `error_code=MAP_PROVIDER_UNAVAILABLE`
+  - `provider`、`message`、`detail`、`fallback_hint` 字段，便于前端智能降级。
 
 ## Service Worker 缓存策略
 
@@ -199,9 +211,11 @@ const tileUrl = `/api/geo/tile/${z}/${x}/${y}.png`;
 | vps:server:{id}:metrics     | 单台实时指标         | 15s    |
 | vps:tile:{z}:{x}:{y}        | 地图瓦片二进制       | 24h    |
 | vps:geo:countries-110m      | TopoJSON 矢量数据   | 7d     |
+| vps:geo:countries-110m:stale| TopoJSON 降级缓存    | 14d    |
 | vps:ipgeo:{ip}              | IP 地理信息          | 1h     |
 | vps:ipinfo:{ip}             | IP 详细信息          | 1h     |
 | vps:coords:{ip}             | IP 经纬度            | 24h    |
+| vps:geo:tile:burst:{ip}     | 瓦片短时限流计数       | 10s    |
 
 ## HTTPS 配置（Let's Encrypt）
 

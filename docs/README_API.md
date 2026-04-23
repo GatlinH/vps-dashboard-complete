@@ -242,3 +242,60 @@ Stripe-Signature: t=1718888888,v1=abcdef123456
 - 服务端响应头：`X-API-Schema-Version`
 
 当版本不一致时，后端会记录告警日志，便于发布时快速发现前后端字段未对齐问题。
+
+## 8. Geo API（分页 / 聚合 / 降级）
+
+Schema 版本：`2026-04-23`（通过 `X-API-Schema-Version` 响应头返回）。
+
+### 8.1 GET `/api/v1/geo/servers/coords`
+
+支持两种模式：
+
+1) 列表分页模式（默认）：`mode=list&page=1&per_page=200`
+
+```json
+{
+  "mode": "list",
+  "nodes": [
+    {"id": 1, "name": "node-a", "location": "Tokyo", "status": "online", "lat": 35.6, "lon": 139.7}
+  ],
+  "pagination": {"page": 1, "per_page": 200, "pages": 3, "total": 420, "has_next": true},
+  "schema_version": "2026-04-23"
+}
+```
+
+2) 聚合模式：`mode=aggregate`
+
+```json
+{
+  "mode": "aggregate",
+  "total": 420,
+  "coords_ready": 410,
+  "by_status": {"online": 380, "offline": 40},
+  "top_locations": [{"location": "Tokyo", "count": 132}],
+  "schema_version": "2026-04-23"
+}
+```
+
+### 8.2 地图 provider 降级响应
+
+当上游地图 provider 失败且本地缓存不可用时，接口会返回统一降级结构：
+
+```json
+{
+  "error_code": "MAP_PROVIDER_UNAVAILABLE",
+  "provider": "carto",
+  "message": "地图服务暂时不可用，已进入降级模式",
+  "detail": "...",
+  "fallback_hint": "前端可切换到纯矢量模式（关闭 tileMode）或展示简化底图。"
+}
+```
+
+- `GET /api/v1/geo/countries`：若存在 stale 缓存，优先返回 `200` + `X-Cache: STALE`。
+- `GET /api/v1/geo/tile/*`：失败时返回上面的降级 JSON（HTTP 502）。
+
+### 8.3 瓦片代理限流/缓存
+
+- 短时限流：`TILE_BURST_LIMIT`（默认 120）/ `TILE_BURST_WINDOW_S`（默认 10 秒）。
+- 缓存 TTL：`TILE_CACHE_TTL`（默认 24h）。
+- 高频批量拉取可避免打爆 provider，降低被拉黑风险。

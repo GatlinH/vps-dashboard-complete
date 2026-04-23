@@ -220,6 +220,9 @@ class Config:
 
     # ── Geo tile proxy ───────────────────────────────────────────────────────
     TILE_CACHE_TTL     = int(os.getenv("TILE_CACHE_TTL",  "86400")) # 24h
+    TILE_BURST_LIMIT   = int(os.getenv("TILE_BURST_LIMIT", "120"))
+    TILE_BURST_WINDOW_S = int(os.getenv("TILE_BURST_WINDOW_S", "10"))
+    COUNTRIES_CACHE_TTL = int(os.getenv("COUNTRIES_CACHE_TTL", str(7 * 86400)))
 
 
 class DevelopmentConfig(Config):

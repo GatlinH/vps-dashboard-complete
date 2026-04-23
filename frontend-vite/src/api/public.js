@@ -37,9 +37,16 @@ export async function getCountries() {
   return publicGet('/geo/countries')
 }
 
-/** 获取服务器经纬度列表（公开） */
-export async function getServerCoords() {
-  return publicGet('/geo/servers/coords')
+/**
+ * 获取服务器经纬度列表（公开）
+ * @param {{mode?: 'list'|'aggregate', page?: number, per_page?: number}} options
+ */
+export async function getServerCoords(options = {}) {
+  const mode = options.mode || 'list'
+  const params = new URLSearchParams({ mode })
+  if (options.page) params.set('page', String(options.page))
+  if (options.per_page) params.set('per_page', String(options.per_page))
+  return publicGet(`/geo/servers/coords?${params.toString()}`)
 }
 
 /** 查询 IP 地理信息（公开，无需鉴权） */
