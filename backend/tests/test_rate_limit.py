@@ -10,7 +10,8 @@ def app():
     app = Flask(__name__)
     app.config['TESTING'] = True
     app.config['RATELIMIT_ENABLED'] = True
-    app.config['JWT_SECRET_KEY'] = 'test-secret-key-for-rate-limit'
+    # 使用 32+ 字节密钥，避免 PyJWT InsecureKeyLengthWarning
+    app.config['JWT_SECRET_KEY'] = 'test-secret-key-for-rate-limit-32ch'
     app.config['REDIS_URL'] = 'memory://'  # 测试环境强制使用内存，避免依赖 Redis 实例
     
     JWTManager(app)
@@ -107,7 +108,7 @@ def test_rate_limit_degrades_gracefully_when_storage_unavailable():
 
     app = Flask(__name__)
     app.config['TESTING'] = True
-    app.config['JWT_SECRET_KEY'] = 'test-secret-key-for-rate-limit'
+    app.config['JWT_SECRET_KEY'] = 'test-secret-key-for-rate-limit-32ch'
     app.config['REDIS_URL'] = 'redis://127.0.0.1:1/0'
 
     JWTManager(app)

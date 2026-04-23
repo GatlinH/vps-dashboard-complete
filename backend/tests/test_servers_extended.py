@@ -105,7 +105,7 @@ class TestProbe:
         server_id = test_server  # ✅
         with app.app_context():  # ✅ 在 app_context 内操作 ORM
             from models.models import Server as ServerModel
-            s = ServerModel.query.get(server_id)
+            s = db.session.get(ServerModel, server_id)
             s.probe_url = 'http://example.com/api/probe'
             db.session.commit()
 

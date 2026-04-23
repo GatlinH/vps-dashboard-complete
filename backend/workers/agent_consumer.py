@@ -27,7 +27,7 @@ def _handle_message(raw_payload: str):
     if not server_id:
         raise ValueError("missing server_id")
 
-    server = Server.query.get(int(server_id))
+    server = db.session.get(Server, int(server_id))
     if not server:
         raise ValueError(f"server not found: {server_id}")
 
