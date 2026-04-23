@@ -228,7 +228,7 @@ def fire_alert():
     cur_val   = data.get("current_value")
     threshold = data.get("threshold")
 
-    s   = Server.query.get(sid)
+    s   = db.session.get(Server, sid) if sid is not None else None
     cfg = _get_config()
     if not cfg.enabled or not cfg.bot_token:
         return jsonify(msg="Telegram 未启用"), 200
