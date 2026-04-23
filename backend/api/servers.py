@@ -13,7 +13,7 @@ from werkzeug.security import generate_password_hash
 
 from extensions import db
 import extensions
-from models.models import Server, ProbeResult
+from models.models import Server, ProbeResult, AgentCommand
 from utils.errors import ValidationError, InternalServerError
 from middleware.rbac import admin_required
 
@@ -268,6 +268,68 @@ def update_agent_config(sid):
     server.agent_config = data
     db.session.commit()
     return jsonify({"server_id": sid, "agent_config": server.agent_config})
+
+
+@servers_bp.get("/<int:sid>/agent-overview")
+@admin_required
+def get_agent_overview(sid):
+    """获取 Agent 绑定、密钥与配置概览（不返回明文 key）"""
+    server = Server.query.get_or_404(sid)
+    pending_count = (
+        AgentCommand.query
+        .filter(AgentCommand.server_id == sid, AgentCommand.status == "pending")
+        .count()
+    )
+    return jsonify({
+        "server_id": sid,
+        "uuid": server.uuid,
+        "agent_key_created_at": server.agent_key_created_at.isoformat() if server.agent_key_created_at else None,
+        "agent_key_last_used": server.agent_key_last_used.isoformat() if server.agent_key_last_used else None,
+        "agent_key_prev_expires_at": server.agent_key_prev_expires_at.isoformat() if server.agent_key_prev_expires_at else None,
+        "agent_config": server.agent_config or {},
+        "pending_commands": pending_count,
+    })
+
+
+@servers_bp.post("/<int:sid>/agent-commands")
+@admin_required
+def enqueue_agent_command(sid):
+    """向指定服务器下发 Agent 命令，供 /agent/poll 拉取"""
+    server = Server.query.get_or_404(sid)
+    data = request.get_json(silent=True) or {}
+    command_type = (data.get("command_type") or "").strip()
+    if not command_type:
+        raise ValidationError("command_type 必填", field="command_type")
+    if len(command_type) > 32:
+        raise ValidationError("command_type 不能超过 32 个字符", field="command_type")
+
+    payload = data.get("payload", {})
+    if payload is None:
+        payload = {}
+    if not isinstance(payload, dict):
+        raise ValidationError("payload 必须是 JSON 对象", field="payload")
+
+    ttl_seconds = data.get("ttl_seconds")
+    expires_at = None
+    if ttl_seconds is not None:
+        try:
+            ttl_seconds = int(ttl_seconds)
+        except (TypeError, ValueError):
+            raise ValidationError("ttl_seconds 必须是整数", field="ttl_seconds")
+        if ttl_seconds <= 0 or ttl_seconds > 86400:
+            raise ValidationError("ttl_seconds 取值范围为 1-86400", field="ttl_seconds")
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)
+
+    cmd = AgentCommand(
+        server_id=server.id,
+        command_type=command_type,
+        payload=payload,
+        status="pending",
+        expires_at=expires_at,
+    )
+    db.session.add(cmd)
+    db.session.commit()
+    return jsonify({"ok": True, "server_id": server.id, "command": cmd.to_dict()}), 201
 
 
 # ── 指标推送 ──────────────────────────────────────────────────────────────────

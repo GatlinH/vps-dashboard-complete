@@ -55,3 +55,26 @@ def test_agent_claim_push_poll(client, auth_headers, test_server):
     assert poll.status_code == 200
     data = poll.get_json()
     assert "commands" in data
+
+
+def test_agent_overview_and_command_enqueue(client, auth_headers, test_server):
+    key_resp = client.post(f"/api/v1/servers/{test_server}/agent-key/generate", headers=auth_headers)
+    assert key_resp.status_code == 200
+
+    overview = client.get(f"/api/v1/servers/{test_server}/agent-overview", headers=auth_headers)
+    assert overview.status_code == 200
+    overview_data = overview.get_json()
+    assert overview_data["server_id"] == test_server
+    assert "agent_key_created_at" in overview_data
+    assert "pending_commands" in overview_data
+
+    enqueue = client.post(
+        f"/api/v1/servers/{test_server}/agent-commands",
+        headers=auth_headers,
+        json={"command_type": "sync", "payload": {"force": True}, "ttl_seconds": 120},
+    )
+    assert enqueue.status_code == 201
+    body = enqueue.get_json()
+    assert body["ok"] is True
+    assert body["command"]["command_type"] == "sync"
+    assert body["command"]["payload"]["force"] is True

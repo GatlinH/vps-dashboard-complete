@@ -64,3 +64,29 @@ export async function createServer(payload) {
 export async function deleteServer(id) {
   return request(`/servers/${id}`, { method: 'DELETE' });
 }
+
+export async function generateAgentKey(id) {
+  return request(`/servers/${id}/agent-key/generate`, { method: 'POST' });
+}
+
+export async function rotateAgentKey(id) {
+  return request(`/servers/${id}/agent-key/rotate`, { method: 'POST' });
+}
+
+export async function getAgentOverview(id) {
+  return request(`/servers/${id}/agent-overview`);
+}
+
+export async function updateAgentConfig(id, config) {
+  return request(`/servers/${id}/agent-config`, {
+    method: 'PUT',
+    body: JSON.stringify(config || {}),
+  });
+}
+
+export async function enqueueAgentCommand(id, payload) {
+  return request(`/servers/${id}/agent-commands`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
