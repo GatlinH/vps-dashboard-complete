@@ -31,8 +31,8 @@ export async function request(path, opts = {}, auth = true) {
 
   const res = await fetch(BASE + path, { ...opts, headers });
 
-  // 401 → 触发全局登出事件
-  if (res.status === 401 || res.status === 403) {
+  // 已登录请求在 401/403 时触发全局登出；未登录请求（如登录接口）交由业务层处理原始错误
+  if (auth && (res.status === 401 || res.status === 403)) {
     clearToken();
     window.dispatchEvent(new CustomEvent('admin:logout'));
     throw new ApiError(res.status, '登录已过期，请重新登录');

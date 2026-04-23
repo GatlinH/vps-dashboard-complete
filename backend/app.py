@@ -85,11 +85,17 @@ def create_app(**config_overrides):
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):
         from utils.token_blocklist import is_token_revoked
+        fail_open = app.config.get("JWT_BLOCKLIST_FAIL_OPEN", True)
         try:
             return is_token_revoked(jwt_payload.get("jti", ""))
-        except Exception:
-            # Redis 不可用时放行，避免阻断正常请求
-            return False
+        except Exception as exc:
+            if fail_open:
+                logger.warning("JWT blocklist check failed, fail-open enabled: %s", exc)
+                # Redis 不可用时放行，避免阻断正常请求
+                return False
+            logger.error("JWT blocklist check failed, fail-open disabled: %s", exc)
+            # fail-close：Redis 异常时将 token 视为已失效，优先保证安全
+            return True
 
     # ===== 安全中间件 =====
     SecurityConfig.init_app(app)

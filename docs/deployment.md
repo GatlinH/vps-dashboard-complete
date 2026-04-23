@@ -15,6 +15,7 @@
 | `FLASK_ENV` | 是 | 运行环境（`development`/`production`） | `production` |
 | `SECRET_KEY` | 是 | Flask 会话签名密钥（>=32位） | `a3f...` |
 | `JWT_SECRET_KEY` | 是 | JWT 签名密钥（>=32位，且不同于 `SECRET_KEY`） | `c9b...` |
+| `ADMIN_DEFAULT_PASSWORD` | 建议生产设置 | 管理员初始密码（留空则首次启动随机生成并打印日志） | `StrongPass!123...` |
 | `JWT_SECRET` | 建议同步 | 兼容旧字段；建议与 `JWT_SECRET_KEY` 保持一致策略 | `c9b...` |
 | `MASTER_ENCRYPTION_KEY` | 是 | 敏感信息加密密钥 | `9d1...` |
 | `CORS_ORIGINS` | 是 | 前端允许来源，逗号分隔 | `https://app.example.com` |
@@ -28,6 +29,7 @@
 | `REDIS_HOST` `REDIS_PORT` `REDIS_DB` | 是 | Redis 连接参数 | `redis` `6379` `0` |
 | `REDIS_PASSWORD` | 生产强烈建议 | Redis 访问密码 | `redis-pass` |
 | `REDIS_URL` | 建议配置 | 连接串形式（限流等组件直接读取） | `redis://redis:6379/0` |
+| `JWT_BLOCKLIST_FAIL_OPEN` | 建议显式配置 | Redis 异常时 JWT 黑名单策略（`1`=放行高可用；`0`=拒绝更安全） | `0` |
 | `DATABASE_URL` / `DB_URL` | 建议配置 | 数据库连接串保留位（便于迁移与第三方工具） | `mysql+pymysql://...` |
 
 ### 观测与外部服务
@@ -55,6 +57,7 @@
 - `JWT_SECRET_KEY`（以及兼容字段 `JWT_SECRET`）
 - `DATABASE_URL` / `DB_URL`（如你的部署流程或外部工具依赖连接串）
 - `REDIS_URL`（建议显式填写，便于限流/中间件与外部组件复用）
+- `JWT_BLOCKLIST_FAIL_OPEN`（生产建议评估后显式设置；偏安全场景建议 `0`）
 - `SENTRY_DSN`（生产建议开启）
 - `STRIPE_SECRET`（如暂未接入支付，允许留空但建议保留字段）
 
@@ -110,6 +113,7 @@ REDIS_HOST=redis
 REDIS_PORT=6379
 REDIS_DB=0
 REDIS_PASSWORD=<strong_redis_password>
+JWT_BLOCKLIST_FAIL_OPEN=0
 
 CORS_ORIGINS=https://app.example.com,https://admin.example.com
 FORCE_HTTPS=1
@@ -163,6 +167,7 @@ curl http://localhost:5000/health
 ```
 
 若 `FLASK_ENV=production` 且关键变量仍为弱默认值，后端会直接拒绝启动（预期行为）。
+其中 `ADMIN_DEFAULT_PASSWORD` 若已设置但强度不足，也会触发拒绝启动；若留空则系统会生成随机强密码并写入启动日志，请在首次登录后立即改密。
 
 ---
 

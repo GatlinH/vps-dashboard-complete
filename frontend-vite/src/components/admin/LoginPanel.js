@@ -65,11 +65,21 @@ export class LoginPanel {
       this.hide();
       this._onSuccess();
     } catch (e) {
-      err.textContent = e.message || '登录失败，请重试';
+      err.textContent = this._formatLoginError(e);
       this._el.querySelector('#lp-pass').value = '';
     } finally {
       btn.textContent = '登 录'; btn.disabled = false;
     }
+  }
+
+  _formatLoginError(error) {
+    const status = Number(error?.status || 0);
+    if (status === 400) return '请输入用户名和密码';
+    if (status === 401) return '用户名或密码错误';
+    if (status === 403) return error?.message || '当前账号无权登录管理后台';
+    if (status === 429) return error?.message || '尝试次数过多，请稍后再试';
+    if (error?.name === 'TypeError') return '网络连接失败，请检查后重试';
+    return error?.message || '登录失败，请重试';
   }
 
   // ── 公开 ─────────────────────────────────────────────────────────────────

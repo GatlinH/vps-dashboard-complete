@@ -20,6 +20,17 @@ _WEAK_SECRET_KEY     = "change-me-in-production-32chars!"
 _WEAK_JWT_SECRET_KEY = "change-me-jwt-secret"
 
 
+def _is_strong_password(value: str) -> bool:
+    """用于生产配置校验的最小强密码规则。"""
+    if not value or len(value) < 12:
+        return False
+    has_upper = any(ch.isupper() for ch in value)
+    has_lower = any(ch.islower() for ch in value)
+    has_digit = any(ch.isdigit() for ch in value)
+    has_symbol = any(not ch.isalnum() for ch in value)
+    return has_upper and has_lower and has_digit and has_symbol
+
+
 def _parse_cors_origins(raw: str) -> list[str]:
     """解析并清洗 CORS 白名单。"""
     origins = []
@@ -57,6 +68,13 @@ def _validate_production_secrets():
     if mysql_password in ("vps_pass", "password", "root", ""):
         errors.append(
             "MYSQL_PASSWORD 仍为弱默认值 (vps_pass)。请在 .env 中设置强密码。"
+        )
+
+    admin_default_password = os.getenv("ADMIN_DEFAULT_PASSWORD", "")
+    if admin_default_password and not _is_strong_password(admin_default_password):
+        errors.append(
+            "ADMIN_DEFAULT_PASSWORD 强度不足。请使用长度 >= 12 且包含大小写/数字/符号的强密码，"
+            "或留空以便首次启动自动生成随机强密码。"
         )
 
     cors_origins = _parse_cors_origins(os.getenv('CORS_ORIGINS', ''))
@@ -115,6 +133,8 @@ class Config:
     JWT_SECRET_KEY            = os.getenv("JWT_SECRET_KEY", SECRET_KEY)
     JWT_ACCESS_TOKEN_EXPIRES  = timedelta(hours=8)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
+    # Redis 异常时 JWT 黑名单检查是否放行（1=放行，0=拒绝）
+    JWT_BLOCKLIST_FAIL_OPEN   = os.getenv("JWT_BLOCKLIST_FAIL_OPEN", "1") == "1"
 
     # ── CORS ─────────────────────────────────────────────────────────────────
     CORS_ORIGINS = _parse_cors_origins(
