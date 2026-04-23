@@ -37,6 +37,14 @@ class _InMemoryRedis:
         self._store[key] = (str(value), exp)
         return True
 
+    def set(self, key, value, ex=None, nx=False):
+        self._cleanup_expired()
+        if nx and key in self._store:
+            return False
+        exp = None if ex is None else (time.time() + max(int(ex), 0))
+        self._store[key] = (str(value), exp)
+        return True
+
     def get(self, key):
         self._cleanup_expired()
         item = self._store.get(key)
@@ -98,9 +106,10 @@ _TEST_CONFIG = {
     'SECRET_KEY': 'test-secret-key-for-testing-only-32chars!',
     'REDIS_URL': 'redis://localhost:6379/15',
     'RATELIMIT_STORAGE_URI': 'memory://',
-    'RATELIMIT_ENABLED': False,
+    'RATELIMIT_ENABLED': True,
     'WTF_CSRF_ENABLED': False,
     'FORCE_HTTPS': False,
+    'AGENT_REQUIRE_TLS': False,
     'ADMIN_DEFAULT_PASSWORD': 'TestAdmin@123456',
 }
 

@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from flask import Flask, g, request
 from flask_cors import CORS
 from flasgger import Swagger as Flasgger
+from werkzeug.middleware.proxy_fix import ProxyFix
 from extensions import db, jwt, redis_client, init_redis
 from middleware.security import SecurityConfig
 from middleware.rate_limit import RateLimitConfig
@@ -60,6 +61,16 @@ def create_app(**config_overrides):
     init_observability(app)  # 最先初始化日志/Sentry/Metrics
     app.config.from_object(get_config())
     app.config.update(config_overrides)
+
+    if app.config.get("TRUST_PROXY", False):
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app,
+            x_for=app.config.get("PROXY_FIX_X_FOR", 1),
+            x_proto=app.config.get("PROXY_FIX_X_PROTO", 1),
+            x_host=app.config.get("PROXY_FIX_X_HOST", 1),
+            x_port=app.config.get("PROXY_FIX_X_PORT", 1),
+            x_prefix=app.config.get("PROXY_FIX_X_PREFIX", 1),
+        )
 
     # Swagger 初始化
     Flasgger(app)

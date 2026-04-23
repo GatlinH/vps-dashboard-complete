@@ -97,6 +97,10 @@ services:
       # 因使用 APScheduler，Workers 必须保持为 1，用 Threads 提升并发
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-1}
       GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+      AGENT_REQUIRE_TLS: ${AGENT_REQUIRE_TLS:-1}
+      AGENT_PUSH_RATE_LIMIT: ${AGENT_PUSH_RATE_LIMIT:-60 per minute}
+      AGENT_POLL_RATE_LIMIT: ${AGENT_POLL_RATE_LIMIT:-120 per minute}
     ports:
       # 仅绑定本地回环地址，防止 Flask API 直接对公网暴露（由 Nginx 反向代理）
       - "127.0.0.1:5000:5000"
@@ -108,6 +112,48 @@ services:
       timeout: 10s
       retries: 3
       start_period: 5s
+    networks:
+      - vps-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+  agent_consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vps_agent_consumer
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    command: ["python", "-m", "workers.agent_consumer"]
+    environment:
+      FLASK_ENV: production
+      FLASK_DEBUG: "0"
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-jwt-secret}
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: ${MYSQL_USER:-vps_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-vps_pass}
+      MYSQL_DB: ${MYSQL_DB:-vps_dashboard}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ""
+      REDIS_DB: "0"
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      AGENT_METRICS_QUEUE_TIMEOUT: ${AGENT_METRICS_QUEUE_TIMEOUT:-5}
+      AGENT_METRICS_RETRY_SLEEP: ${AGENT_METRICS_RETRY_SLEEP:-1}
+      AGENT_METRICS_ERROR_QUEUE: ${AGENT_METRICS_ERROR_QUEUE:-vps:agent:metrics_queue:error}
+    volumes:
+      - /var/log/vps-dashboard:/var/log/vps-dashboard
     networks:
       - vps-network
     logging:

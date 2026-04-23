@@ -132,6 +132,15 @@ class Config:
     HSTS_MAX_AGE = int(os.getenv('HSTS_MAX_AGE', '31536000'))
     HSTS_INCLUDE_SUBDOMAINS = os.getenv('HSTS_INCLUDE_SUBDOMAINS', '1') == '1'
     HSTS_PRELOAD = os.getenv('HSTS_PRELOAD', '1') == '1'
+    AGENT_REQUIRE_TLS = os.getenv('AGENT_REQUIRE_TLS', '1') == '1'
+    AGENT_PUSH_RATE_LIMIT = os.getenv('AGENT_PUSH_RATE_LIMIT', '60 per minute')
+    AGENT_POLL_RATE_LIMIT = os.getenv('AGENT_POLL_RATE_LIMIT', '120 per minute')
+    TRUST_PROXY = os.getenv('TRUST_PROXY', '0') == '1'
+    PROXY_FIX_X_FOR = int(os.getenv('PROXY_FIX_X_FOR', '1'))
+    PROXY_FIX_X_PROTO = int(os.getenv('PROXY_FIX_X_PROTO', '1'))
+    PROXY_FIX_X_HOST = int(os.getenv('PROXY_FIX_X_HOST', '1'))
+    PROXY_FIX_X_PORT = int(os.getenv('PROXY_FIX_X_PORT', '1'))
+    PROXY_FIX_X_PREFIX = int(os.getenv('PROXY_FIX_X_PREFIX', '1'))
 
     SECURITY_CSP = {
         'default-src': "'self'",
