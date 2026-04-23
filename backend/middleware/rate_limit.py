@@ -139,7 +139,7 @@ class RateLimitConfig:
 
 
 # 预定义限速级别常量（供各蓝图通过 @limiter.limit(LIMIT) 装饰器使用）
-LOGIN_LIMIT = "10 per minute"    # 登录接口：严格防暴力破解
+LOGIN_LIMIT = "10 per minute"    # ���录接口：严格防暴力破解
 PING_LIMIT  = "5 per minute"     # Probe ping：防 TCP 探测滥用
 WRITE_LIMIT = "30 per minute"    # 写操作（POST/PUT/DELETE）
 READ_LIMIT  = "200 per minute"   # 只读接口
