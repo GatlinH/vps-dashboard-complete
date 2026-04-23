@@ -7,6 +7,7 @@
 
 const BASE = '/api/v1'
 const TOKEN_KEY = 'authToken'
+const API_SCHEMA_VERSION = '2026-04-23'
 
 // ── 令牌管理 ──────────────────────────────────────────────────────────────────
 
@@ -40,6 +41,7 @@ async function adminFetch(path, opts = {}) {
     'Content-Type': 'application/json',
     Accept: 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    'X-Client-Schema-Version': API_SCHEMA_VERSION,
     ...(opts.headers || {}),
   }
 

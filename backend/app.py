@@ -38,6 +38,15 @@ def _register_request_logger(app: Flask):
 
     @app.after_request
     def _after(response):
+        response.headers["X-API-Schema-Version"] = app.config.get("API_SCHEMA_VERSION", "unknown")
+        client_schema = request.headers.get("X-Client-Schema-Version")
+        if client_schema and client_schema != app.config.get("API_SCHEMA_VERSION"):
+            logger.warning(
+                "API schema mismatch client=%s server=%s path=%s",
+                client_schema,
+                app.config.get("API_SCHEMA_VERSION"),
+                request.path,
+            )
         start = getattr(g, "_req_start", None)
         if start is not None:
             latency_ms = round((time.monotonic() - start) * 1000, 1)

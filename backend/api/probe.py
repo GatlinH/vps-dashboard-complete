@@ -10,6 +10,7 @@ from extensions import db
 import extensions
 from models.models import Server, ProbeResult
 from middleware.rbac import admin_required
+from middleware.rate_limit import limiter
 from utils.validators import validate_port, validate_ip_or_hostname, is_safe_outbound_url
 
 probe_bp = Blueprint("probe", __name__)
@@ -95,8 +96,43 @@ def ping():
     return jsonify(results=results, stats=stats)
 
 
+def _enforce_batch_safety(server_ids, redis_key_prefix: str):
+    """批量探针硬限制：最大批次 + 最小触发间隔。"""
+    max_batch = int(current_app.config.get("PROBE_BATCH_MAX_ITEMS", 50))
+    min_interval = float(current_app.config.get("PROBE_BATCH_MIN_INTERVAL_S", 3))
+
+    if server_ids and len(server_ids) > max_batch:
+        return jsonify(
+            error_code="BATCH_TOO_LARGE",
+            message=f"单次最多允许 {max_batch} 台服务器",
+            max_batch=max_batch,
+        ), 400
+
+    try:
+        key = f"{redis_key_prefix}:{request.remote_addr or 'unknown'}"
+        last_raw = extensions.redis_client.get(key)
+        now = time.time()
+        if last_raw:
+            elapsed = now - float(last_raw)
+            if elapsed < min_interval:
+                retry_after = max(1, int(min_interval - elapsed + 0.999))
+                return jsonify(
+                    success=False,
+                    error_code="BATCH_RATE_LIMITED",
+                    message=f"批量任务触发过快，请至少间隔 {min_interval:.1f}s",
+                    retry_after=retry_after,
+                ), 429
+        extensions.redis_client.setex(key, max(1, int(min_interval * 3)), f"{now:.3f}")
+    except Exception:
+        # Redis 故障时不阻断主流程，仅降级为无间隔保护
+        pass
+
+    return None
+
+
 @probe_bp.post("/ping/batch")
 @admin_required
+@limiter.limit(lambda: current_app.config.get("PROBE_BATCH_RATE_LIMIT", "6 per minute"))
 def ping_batch():
     """
     批量 ping 所有 servers 的 IP（80 端口）
@@ -105,6 +141,10 @@ def ping_batch():
     data       = request.get_json(silent=True) or {}
     server_ids = data.get("server_ids")
     timeout    = float(current_app.config.get("PROBE_TIMEOUT_S", 5))
+
+    blocked = _enforce_batch_safety(server_ids, "vps:probe:batch:ping")
+    if blocked:
+        return blocked
 
     query = Server.query
     if server_ids:
@@ -149,6 +189,7 @@ def ping_batch():
 
 @probe_bp.post("/fetch-probe")
 @admin_required
+@limiter.limit(lambda: current_app.config.get("PROBE_FETCH_RATE_LIMIT", "6 per minute"))
 def fetch_probe():
     """
     从 server.probe_url 抓取 AFFMAN / 哪吒探针 JSON 数据并更新 metrics。
@@ -213,6 +254,10 @@ def fetch_probe():
     """
     data       = request.get_json(silent=True) or {}
     server_ids = data.get("server_ids")
+
+    blocked = _enforce_batch_safety(server_ids, "vps:probe:batch:fetch")
+    if blocked:
+        return blocked
 
     query = Server.query.filter(Server.probe_url != "")
     if server_ids:
@@ -308,6 +353,7 @@ def _parse_probe_payload(payload: dict, server: Server) -> dict:
 # ── IPv4 信息查询 ─────────────────────────────────────────────────────────────
 
 @probe_bp.get("/ip-info")
+@limiter.limit(lambda: current_app.config.get("IP_INFO_RATE_LIMIT", "60 per minute"))
 def ip_info():
     """
     查询 IP 地理信息（调用 ip-api.com，缓存 1h）
@@ -325,7 +371,10 @@ def ip_info():
     try:
         cached = extensions.redis_client.get(cache_k)
         if cached:
-            return jsonify(json.loads(cached))
+            resp = jsonify(json.loads(cached))
+            resp.headers["X-Cache"] = "HIT"
+            resp.headers["Cache-Control"] = f"public, max-age={int(current_app.config.get('IP_INFO_CACHE_TTL', 3600))}"
+            return resp
     except Exception:
         pass
 
@@ -335,9 +384,13 @@ def ip_info():
         with urllib.request.urlopen(url, timeout=6) as resp:
             data = json.loads(resp.read().decode())
         try:
-            extensions.redis_client.setex(cache_k, 3600, json.dumps(data, ensure_ascii=False))
+            ttl = int(current_app.config.get("IP_INFO_CACHE_TTL", 3600))
+            extensions.redis_client.setex(cache_k, ttl, json.dumps(data, ensure_ascii=False))
         except Exception:
             pass
-        return jsonify(data)
+        resp = jsonify(data)
+        resp.headers["X-Cache"] = "MISS"
+        resp.headers["Cache-Control"] = f"public, max-age={int(current_app.config.get('IP_INFO_CACHE_TTL', 3600))}"
+        return resp
     except Exception:
-        return jsonify(error="上游 IP 服务不可用"), 502
+        return jsonify(error_code="UPSTREAM_UNREACHABLE", message="上游 IP 服务不可用"), 502

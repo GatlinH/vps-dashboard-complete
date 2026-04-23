@@ -94,3 +94,27 @@ def test_ip_info_rejects_invalid_ip(client):
     """GET /api/probe/ip-info 非法 IP 返回 400"""
     resp = client.get('/api/v1/probe/ip-info?ip=example.com')
     assert resp.status_code == 400
+
+
+def test_ping_batch_hard_limit(client, auth_headers):
+    """POST /api/probe/ping/batch 超过批次上限返回 400"""
+    with client.application.app_context():
+        client.application.config['PROBE_BATCH_MAX_ITEMS'] = 1
+    resp = client.post('/api/v1/probe/ping/batch', json={'server_ids': [1, 2]}, headers=auth_headers)
+    assert resp.status_code == 400
+    assert resp.get_json().get('error_code') == 'BATCH_TOO_LARGE'
+
+
+def test_ip_info_returns_cache_headers(client):
+    """GET /api/probe/ip-info 返回缓存相关响应头"""
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = b'{"status":"success","query":"8.8.8.8"}'
+    mock_resp.__enter__ = lambda s: s
+    mock_resp.__exit__ = MagicMock(return_value=False)
+
+    with patch('urllib.request.urlopen', return_value=mock_resp):
+        resp = client.get('/api/v1/probe/ip-info?ip=8.8.8.8')
+
+    assert resp.status_code == 200
+    assert resp.headers.get('X-Cache') in {'HIT', 'MISS'}
+    assert 'max-age=' in (resp.headers.get('Cache-Control') or '')

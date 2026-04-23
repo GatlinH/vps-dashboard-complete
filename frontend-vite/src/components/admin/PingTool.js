@@ -1,3 +1,6 @@
+import { tcpPing } from '../../api/admin.js';
+import { getIPInfo } from '../../api/public.js';
+
 /**
  * components/admin/PingTool.js
  * TCP Ping & IP 查询工具面板
@@ -116,47 +119,36 @@ export class PingTool {
 
     for (const host of targets) {
       this._appendLine(`──── 开始探测 ${host}:${port} ────`, 'info');
-      const rtts = [];
-
-      for (let i = 0; i < count; i++) {
-        const t0 = performance.now();
-        try {
-          await fetch(`https://${host}`, {
-            mode: 'no-cors', cache: 'no-store',
-            signal: AbortSignal.timeout(3000),
-          });
-          const rtt = Math.round(performance.now() - t0);
-          rtts.push(rtt);
-          this._appendLine(`  ${i+1}/${count}  ${host}  rtt=${rtt}ms  port=${port}`, rtt < 100 ? 'ok' : rtt < 300 ? 'warn' : 'fail');
-        } catch (_) {
-          const rtt = Math.round(performance.now() - t0);
-          if (rtt < 3000) {
-            rtts.push(rtt);
-            this._appendLine(`  ${i+1}/${count}  ${host}  rtt≈${rtt}ms  (opaque)`, rtt < 150 ? 'ok' : 'warn');
+      try {
+        const data = await tcpPing(host, port, count);
+        const stats = data.stats || {};
+        const results = data.results || [];
+        results.forEach((item) => {
+          if (item.success) {
+            this._appendLine(`  ${item.seq}/${count} ${host} rtt=${item.latency_ms}ms`, 'ok');
           } else {
-            this._appendLine(`  ${i+1}/${count}  ${host}  超时/无法访问`, 'fail');
+            const type = this._classifyError({ message: item.error || '' });
+            this._appendLine(`  ${item.seq}/${count} ${host} ${this._errorLabel(type)}`, this._lineType(type));
           }
-        }
-        await new Promise(r => setTimeout(r, 200));
-      }
+        });
 
-      if (rtts.length) {
-        const avg  = Math.round(rtts.reduce((a, b) => a + b, 0) / rtts.length);
-        const loss = Math.round((count - rtts.length) / count * 100);
-        this._appendLine(`  统计: avg=${avg}ms  min=${Math.min(...rtts)}ms  max=${Math.max(...rtts)}ms  丢包${loss}%`,
-          avg < 100 ? 'ok' : 'warn');
-        // 更新服务器卡片上的 badge
+        const avg = stats.avg_ms;
+        const loss = stats.loss_pct;
+        this._appendLine(`  统计: avg=${avg ?? '—'}ms min=${stats.min_ms ?? '—'}ms max=${stats.max_ms ?? '—'}ms 丢包${loss ?? 0}%`,
+          (avg ?? 999) < 100 ? 'ok' : 'warn');
+
         const sid = this._servers.find(s => s.ip === host);
-        if (sid) {
+        if (sid && avg != null) {
           const badge = document.getElementById(`pt-badge-${sid.id}`);
           if (badge) {
-            badge.textContent = avg + 'ms';
+            badge.textContent = `${avg}ms`;
             badge.style.color      = avg < 100 ? 'var(--green)' : avg < 300 ? 'var(--orange)' : 'var(--red)';
             badge.style.background = avg < 100 ? 'rgba(56,239,125,.1)' : avg < 300 ? 'rgba(255,159,67,.1)' : 'rgba(255,107,107,.1)';
           }
         }
-      } else {
-        this._appendLine(`  ${host} 全部超时，无法探测`, 'fail');
+      } catch (e) {
+        const t = this._classifyError(e);
+        this._appendLine(`  ${host} ${this._errorLabel(t)}: ${e.message}`, this._lineType(t));
       }
       this._appendLine('', 'info');
     }
@@ -192,11 +184,10 @@ export class PingTool {
     const out = this._el.querySelector('#pt-ip-result');
     out.innerHTML = '<div style="color:var(--accent)">查询中...</div>';
     try {
-      const url = ip ? `https://ipapi.co/${ip}/json/` : 'https://ipapi.co/json/';
-      const d   = await fetch(url).then(r => r.json());
+      const d = await getIPInfo(ip);
       const rows = [
-        ['IP', d.ip], ['城市', d.city], ['地区', d.region], ['国家', d.country_name],
-        ['ISP/ASN', d.org], ['经纬度', `${d.latitude}, ${d.longitude}`], ['时区', d.timezone],
+        ['IP', d.query], ['城市', d.city], ['地区', d.regionName], ['国家', d.country],
+        ['ISP/ASN', `${d.isp || '—'} / ${d.as || '—'}`], ['经纬度', `${d.lat}, ${d.lon}`], ['组织', d.org],
       ];
       out.innerHTML = /* html */`
         <table style="width:100%;border-collapse:collapse;font-size:13px;text-align:left">
@@ -207,7 +198,29 @@ export class PingTool {
             </tr>`).join('')}
         </table>`;
     } catch (e) {
-      out.innerHTML = `<div style="color:var(--red)">查询失败: ${e.message}</div>`;
+      const type = this._classifyError(e);
+      out.innerHTML = `<div style="color:var(--red)">${this._errorLabel(type)}：${e.message}</div>`;
     }
+  }
+
+  _classifyError(error) {
+    const status = Number(error?.status || 0);
+    const code = String(error?.errorCode || '').toUpperCase();
+    const msg = String(error?.message || '').toLowerCase();
+    if (status === 429 || code.includes('RATE_LIMIT')) return 'rate_limit';
+    if (status >= 500) return 'service_error';
+    if (msg.includes('timeout') || msg.includes('unreachable') || msg.includes('不可达') || msg.includes('无法访问')) return 'unreachable';
+    return 'service_error';
+  }
+
+  _lineType(type) {
+    if (type === 'rate_limit' || type === 'unreachable') return 'warn';
+    return 'fail';
+  }
+
+  _errorLabel(type) {
+    if (type === 'rate_limit') return '限流';
+    if (type === 'unreachable') return '不可达';
+    return '服务异常';
   }
 }
