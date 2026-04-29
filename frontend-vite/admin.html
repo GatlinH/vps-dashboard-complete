@@ -3,53 +3,264 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VPS 星图 · 管理后台</title>
-  <!-- CSS & JS 由 Vite 通过 admin-main.js 注入，生产构建后自动替换为带 hash 的文件 -->
-</head>
+  <title>VPS星图·管理后台</title>
+  
+  <style>
+    :root {
+      /* 亮色模式变量 */
+      --bg-base: #f4f7f9;
+      --bg-panel: #ffffff;
+      --primary: #4361ee;
+      --primary-hover: #3a53d0;
+      --text-main: #2b2d42;
+      --text-muted: #8d99ae;
+      --border: #eef2f6;
+      --red: #ef233c;
+      --radius: 12px;
+      --shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+      --sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    /* 自动适配暗色模式 */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-base: #0f172a;
+        --bg-panel: #1e293b;
+        --text-main: #f8fafc;
+        --text-muted: #94a3b8;
+        --border: #334155;
+        --shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+      }
+    }
+
+    /* 全局重置 */
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: var(--sans);
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* 主容器：改为水平 Flex 侧边栏布局 */
+    #admin-panel {
+      display: flex;
+      flex-direction: row;
+      min-height: 100vh;
+    }
+
+    /* 侧边导航栏 */
+    .admin-nav {
+      width: 260px;
+      background: var(--bg-panel);
+      border-right: 1px solid var(--border);
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow);
+      z-index: 10;
+      box-sizing: border-box;
+    }
+
+    .admin-nav-logo {
+      font-size: 22px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-main);
+      margin-bottom: 40px;
+      padding-left: 8px;
+      letter-spacing: -0.5px;
+    }
+
+    .admin-tabs {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* 导航按钮 */
+    .admin-tab {
+      background: transparent;
+      border: none;
+      padding: 14px 16px;
+      border-radius: var(--radius);
+      text-align: left;
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--sans);
+    }
+
+    .admin-tab:hover {
+      background: rgba(67, 97, 238, 0.08);
+      color: var(--primary);
+    }
+
+    .admin-tab.active {
+      background: var(--primary);
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(67, 97, 238, 0.3);
+    }
+
+    /* 底部操作区 */
+    .nav-actions {
+      margin-top: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .btn-return {
+      padding: 12px;
+      border-radius: var(--radius);
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      font-size: 14px;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+
+    .btn-return:hover {
+      background: var(--border);
+    }
+
+    .btn-logout {
+      padding: 12px;
+      border-radius: var(--radius);
+      background: rgba(239, 35, 60, 0.1);
+      border: 1px solid rgba(239, 35, 60, 0.2);
+      color: var(--red);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: var(--sans);
+      display: flex;
+      justify-content: center;
+    }
+
+    .btn-logout:hover {
+      background: var(--red);
+      color: #ffffff;
+      border-color: var(--red);
+    }
+
+    /* 页面内容区 */
+    .admin-body {
+      flex: 1;
+      padding: 40px;
+      overflow-y: auto;
+      box-sizing: border-box;
+    }
+
+    .admin-page {
+      display: none;
+      animation: fadeIn 0.4s ease-out;
+      background: var(--bg-panel);
+      padding: 30px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+      min-height: 100%;
+      box-sizing: border-box;
+    }
+
+    .admin-page.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* 移动端适配 */
+    @media (max-width: 768px) {
+      #admin-panel {
+        flex-direction: column;
+      }
+      .admin-nav {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        padding: 20px;
+      }
+      .admin-nav-logo {
+        margin-bottom: 20px;
+      }
+      .admin-tabs {
+        flex-direction: row;
+        overflow-x: auto;
+        padding-bottom: 10px;
+      }
+      .admin-tab {
+        white-space: nowrap;
+      }
+      .nav-actions {
+        margin-top: 20px;
+        flex-direction: row;
+      }
+      .btn-return, .btn-logout {
+        flex: 1;
+      }
+      .admin-body {
+        padding: 20px;
+      }
+    }
+  </style>
+  </head>
+
 <body>
+  <div id="login-mount"></div>
 
-<!-- 登录面板挂载点（LoginPanel 动态渲染） -->
-<div id="login-mount"></div>
+  <div id="admin-panel" style="display:none;">
+    
+    <div class="admin-nav">
+      <div class="admin-nav-logo">⚙ 管理后台</div>
+      
+      <div class="admin-tabs">
+        <button class="admin-tab active" data-tab="servers" onclick="switchTab('servers')">🖥 添加服务器</button>
+        <button class="admin-tab" data-tab="ping" onclick="switchTab('ping')">📶 TCP Ping</button>
+        <button class="admin-tab" data-tab="agent" onclick="switchTab('agent')">🤖 代理</button>
+        <button class="admin-tab" data-tab="telegram" onclick="switchTab('telegram')">✈ Telegram</button>
+        <button class="admin-tab" data-tab="theme" onclick="switchTab('theme')">🎨 界面主题</button>
+      </div>
 
-<!-- 管理后台主面板 -->
-<div id="admin-panel" style="display:none;flex-direction:column;min-height:100vh">
-
-  <!-- 顶部导航 -->
-  <div class="admin-nav">
-    <div class="admin-nav-logo">⚙ 管理后台</div>
-    <div class="admin-tabs">
-      <button class="admin-tab active" data-tab="servers" onclick="switchTab('servers')">🖥 添加服务器</button>
-      <button class="admin-tab"        data-tab="ping"    onclick="switchTab('ping')">📶 TCP Ping</button>
-      <button class="admin-tab"        data-tab="agent"   onclick="switchTab('agent')">🤖 Agent</button>
-      <button class="admin-tab"        data-tab="telegram" onclick="switchTab('telegram')">✈ Telegram</button>
-      <button class="admin-tab"        data-tab="theme"   onclick="switchTab('theme')">🎨 界面主题</button>
+      <div class="nav-actions">
+        <a href="/" class="btn-return">← 返回前台</a>
+        <button onclick="adminLogout()" class="btn-logout">退出登录</button>
+      </div>
     </div>
-    <a href="/"
-       style="padding:6px 16px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);
-              color:var(--text2);font-size:12px;font-family:var(--sans);text-decoration:none;
-              display:flex;align-items:center;gap:6px">
-      ← 返回前台
-    </a>
-    <button onclick="adminLogout()"
-            style="padding:6px 14px;border-radius:8px;background:rgba(255,107,107,.1);
-                   border:1px solid rgba(255,107,107,.25);color:var(--red);
-                   font-size:12px;cursor:pointer;font-family:var(--sans)">
-      退出登录
-    </button>
+
+    <div class="admin-body">
+      <div id="tab-servers" class="admin-page active">
+        </div>
+      <div id="tab-ping" class="admin-page">
+        </div>
+      <div id="tab-agent" class="admin-page">
+        </div>
+      <div id="tab-telegram" class="admin-page">
+        </div>
+      <div id="tab-theme" class="admin-page">
+        </div>
+    </div>
+    
   </div>
 
-  <!-- 页面内容区（各组件动态渲染） -->
-  <div class="admin-body">
-    <div id="tab-servers"  class="admin-page active"></div>
-    <div id="tab-ping"     class="admin-page"></div>
-    <div id="tab-agent"    class="admin-page"></div>
-    <div id="tab-telegram" class="admin-page"></div>
-    <div id="tab-theme"    class="admin-page"></div>
-  </div>
-
-</div>
-
-<!-- Vite 入口：生产构建后替换为带 hash 的 <script> -->
-<script type="module" src="/src/admin-main.js"></script>
+  <script type="module" src="/src/admin-main.js"></script>
 </body>
 </html>
