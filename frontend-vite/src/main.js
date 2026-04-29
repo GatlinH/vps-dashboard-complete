@@ -19,7 +19,7 @@ import { fmtGb, getTrafficPct, getTrafficUsed, daysUntilReset, trafficColor } fr
 import { renderCard, renderDetailModal, bindGridEvents } from './components/ServerCard.js';
 import { listAffProducts } from './api/public.js';
 
-// ─── 懒加载句柄 ───────────────────────────────────────────────────────────────
+// ─── 懒加载句柄 ─────────────────────────────────────────────────────────[...]
 let _starMap      = null;  // StarMap 实例
 let _trafficChart = null;  // TrafficChart 实例
 
@@ -39,36 +39,50 @@ async function getTrafficChart() {
   return _trafficChart;
 }
 
-// ─── 页面切换 ────────────────────────────────────────────────────────────────
+// ─── 页面切换 ──────────────────────────────────────────────────────────[美化适配，整体替换原实现]
 
-function switchPage(page, btn) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  document.getElementById(`page-${page}`).classList.add('active');
-  btn?.classList.add('active');
-
-  if (page === 'globe')   initGlobe();
-  if (page === 'calc')    initProbeList();
-  if (page === 'traffic') renderTrafficPage();
-}
-
-// 暴露给 HTML onclick 属性
 window.switchPage = (page) => {
-  const btn = event?.currentTarget;
-  switchPage(page, btn);
+  // 1. 处理页面显示/隐藏
+  document.querySelectorAll('.page').forEach(p => {
+    p.classList.remove('active');
+  });
+  const targetPage = document.getElementById(`page-${page}`);
+  if (targetPage) targetPage.classList.add('active');
+
+  // 2. 处理导航标签高亮 (适配美化后的 .nav-tab 类)
+  document.querySelectorAll('.nav-tab').forEach(t => {
+    t.classList.remove('active');
+  });
+
+  // 自动根据事件源或 ID 查找并高亮标签
+  const activeTab = event?.currentTarget || document.querySelector(`[onclick*="switchPage('${page}')"]`);
+  if (activeTab) activeTab.classList.add('active');
+
+  // 3. 触发特定页面的初始化逻辑
+  if (page === 'globe') initGlobe();
+  if (page === 'calc') initProbeList();
+  if (page === 'traffic') renderTrafficPage();
+
+  // 切换页面后自动回到顶部
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
-// ─── 货币 ────────────────────────────────────────────────────────────────────
-
+// ─── 货币 ────────────────────────────────────────────────────────────[美化适配，整体替换原实现]
 window.setCurrency = (c) => {
   state.currency = c;
-  document.querySelectorAll('.currency-btn').forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
+
+  // 更新按钮高亮
+  document.querySelectorAll('.currency-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.trim() === c);
+  });
+
+  // 重新渲染相关数据
   updateRateDisplay();
   renderStats();
+  renderServers(); 
 };
 
-// ─── 分组 & 过滤 ─────────────────────────────────────────────────────────────
+// ─── 分组 & 过滤 ─────────────────────────────────────────────────────────[...]
 
 function getFilteredServers() {
   const q = (document.getElementById('searchBox')?.value || '').toLowerCase();
@@ -88,7 +102,7 @@ window.setGroup = (g) => {
   renderServers();
 };
 
-// ─── Dashboard 渲染 ───────────────────────────────────────────────────────────
+// ─── Dashboard 渲染 ──────────────────────────────────────────���─────────────��[...]
 
 function renderGroupTabs() {
   const groups = ['全部', ...new Set(state.servers.map(s => s.group))];
@@ -147,13 +161,27 @@ function renderStats() {
     </div>`;
 }
 
+// ─── renderServers：适配美化后的空状态提示和事件委托优化（整体替换原实现）───
+
 function renderServers() {
-  const grid    = document.getElementById('serverGrid');
+  const grid = document.getElementById('serverGrid');
   const servers = getFilteredServers();
+
+  if (servers.length === 0) {
+    grid.innerHTML = `
+      <div style="grid-column: 1/-1; text-align: center; padding: 50px; color: var(--text-dim);">
+        <div style="font-size: 40px; margin-bottom: 10px;">🔍</div>
+        <p>未找到匹配的服务器，请尝试其他关键词</p>
+      </div>`;
+    return;
+  }
+
+  // 使用美化后的渲染逻辑
   grid.innerHTML = servers.map(s => renderCard(s)).join('');
+  ensureGridDelegate(); // 确保事件委托依然生效
 }
 
-// 事件委托（只绑一次）
+// 事件委托
 let _gridDelegated = false;
 function ensureGridDelegate() {
   if (_gridDelegated) return;
@@ -164,9 +192,28 @@ function ensureGridDelegate() {
   });
 }
 
+// ─── Modal 统一弹窗控制逻辑（整体新增）────
+
+window.showModal = (contentHtml) => {
+  const modal = document.getElementById('detailModal');
+  const content = document.getElementById('modalContent');
+  if (modal && content) {
+    content.innerHTML = contentHtml;
+    modal.classList.add('open');
+  }
+};
+
+// 监听 Esc 键关闭弹窗
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    document.getElementById('detailModal')?.classList.remove('open');
+  }
+});
+
 window.closeModal = (e) => {
   if (e.target.id === 'detailModal') document.getElementById('detailModal').classList.remove('open');
 };
+
 
 // ─── AFF 渲染 ────────────────────────────────────────────────────────────────
 
@@ -749,29 +796,45 @@ window.saveTrafficSettings = () => {
   setTimeout(() => { document.getElementById('trafficSettingsModal').classList.remove('open'); renderTrafficPage(); }, 800);
 };
 
-// ─── 星空背景 ────────────────────────────────────────────────────────────────
-
+// ─── 星空背景响应式性能优化（整体替换原实现）───
 function initStarfield() {
   const c = document.getElementById('starfield');
-  c.width = window.innerWidth; c.height = window.innerHeight;
-  const ctx   = c.getContext('2d');
-  const stars = Array.from({ length: 200 }, () => ({
-    x: Math.random() * c.width, y: Math.random() * c.height,
-    r: Math.random() * 1.2 + .2, a: Math.random(),
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  
+  // 响应式调整画布大小
+  const resize = () => {
+    c.width = window.innerWidth;
+    c.height = window.innerHeight;
+  };
+  window.onresize = resize;
+  resize();
+
+  // 减少星星数量以提升性能 (120)
+  const stars = Array.from({ length: 120 }, () => ({
+    x: Math.random() * c.width,
+    y: Math.random() * c.height,
+    r: Math.random() * 1.5,
+    a: Math.random(),
+    va: Math.random() * 0.02 // 闪烁速度
   }));
+
   const draw = () => {
     ctx.clearRect(0, 0, c.width, c.height);
     stars.forEach(s => {
-      s.a = Math.max(.1, Math.min(.8, s.a + .003 * (Math.random() - .5)));
-      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(255,255,255,${s.a})`; ctx.fill();
+      s.a += s.va;
+      if (s.a > 1 || s.a < 0) s.va *= -1; // 往复闪烁
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255, 255, 255, ${Math.abs(s.a) * 0.5})`;
+      ctx.fill();
     });
     requestAnimationFrame(draw);
   };
   draw();
 }
 
-// ─── 实时模拟更新 ─────────────────────────────────────────────────────────────
+// ─── 实时模拟更新 ────────────────────────────────────────────────────────[...]
 
 function startLiveUpdates() {
   setInterval(() => {
@@ -798,7 +861,7 @@ function startLiveUpdates() {
   }, 3000);
 }
 
-// ─── 启动 ────────────────────────────────────────────────────────────────────
+// ─── 启动 ────────────────────────────────────────────────────────────[...]
 
 async function boot() {
   initStarfield();
