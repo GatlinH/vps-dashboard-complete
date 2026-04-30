@@ -5,7 +5,7 @@
 
 import './styles/admin.css'; // 确保引入样式
 import { logout } from './api/auth.js';
-import { ServerMgr } from './components/admin/ServerMgr.js';
+import { ServerManager } from './components/admin/ServerManager.js';
 import { PingTool } from './components/admin/PingTool.js';
 import { TelegramPanel } from './components/admin/TelegramPanel.js';
 import { ThemeEditor } from './components/admin/ThemeEditor.js';
@@ -66,7 +66,7 @@ async function showAdminPanel() {
 
   // 按需初始化各个功能组件
   if (!_serverMgr) {
-    _serverMgr = new ServerMgr('tab-servers');
+    _serverMgr = new ServerManager('tab-servers');
     _pingTool = new PingTool('tab-ping');
     _tgPanel = new TelegramPanel('tab-telegram');
     _themeEditor = new ThemeEditor('tab-theme');
