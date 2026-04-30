@@ -97,6 +97,26 @@ nav {
   gap: 20px;
 }
 
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-panel);
+  color: var(--text-main);
+  font: 700 12px/1 var(--sans);
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+
+.theme-toggle:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
 .currency-switch {
   display: flex;
   background: rgba(0, 0, 0, 0.04);
@@ -217,6 +237,7 @@ nav {
   .nav-right {
     width: 100%;
     justify-content: space-between;
+    flex-wrap: wrap;
   }
   
   .toolbar {
