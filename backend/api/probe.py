@@ -151,21 +151,40 @@ def ping_batch():
         query = query.filter(Server.id.in_(server_ids))
     servers = query.all()
 
-    results = {}
-    for s in servers:
-        if not s.ip:
-            results[str(s.id)] = {"error": "no IP configured"}
-            continue
-        r = tcp_ping(s.ip, 80, timeout)
-        results[str(s.id)] = r
+    # ── 并发 TCP ping 阶段（纯 I/O，不写共享状态）─────────────────────────────
+    pingable   = [(s.id, s.ip) for s in servers if s.ip]
+    no_ip_ids  = [s.id for s in servers if not s.ip]
 
-        # 更新 server status
-        old_status = s.status
+    max_workers = int(current_app.config.get("PROBE_PING_MAX_WORKERS", 10))
+    ping_results: dict = {}  # server_id -> result dict
+
+    if pingable:
+        with ThreadPoolExecutor(max_workers=min(len(pingable), max_workers)) as pool:
+            futures = {
+                pool.submit(tcp_ping, ip, 80, timeout): sid
+                for sid, ip in pingable
+            }
+            for fut in as_completed(futures):
+                sid = futures[fut]
+                try:
+                    ping_results[sid] = fut.result()
+                except Exception as e:
+                    ping_results[sid] = {
+                        "success": False, "latency_ms": None, "error": type(e).__name__
+                    }
+
+    # ── 主线程：整理结果 + DB 更新（安全，不涉及共享状态）────────────────────
+    results: dict = {}
+    for sid in no_ip_ids:
+        results[str(sid)] = {"error": "no IP configured"}
+
+    servers_by_id = {s.id: s for s in servers}
+    for sid, r in ping_results.items():
+        results[str(sid)] = r
+        s = servers_by_id[sid]
         s.status = "online" if r["success"] else "offline"
         if r.get("latency_ms") and r["latency_ms"] > 300:
             s.status = "warn"
-
-        # 写探针历史
         db.session.add(ProbeResult(
             server_id  = s.id,
             latency_ms = r.get("latency_ms"),
