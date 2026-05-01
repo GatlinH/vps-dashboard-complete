@@ -131,54 +131,75 @@ def test_send_in_log_mode_returns_true_without_smtp(app):
 
 # ── 业务函数使用 app.config 中的 FRONTEND_URL ────────────────────────────────
 
-def test_send_verification_email_uses_app_config_frontend_url(app, caplog):
-    """send_verification_email 应在邮件中使用 app.config['FRONTEND_URL']。"""
-    import logging
-    from services.email_service import send_verification_email
+def test_send_verification_email_uses_app_config_frontend_url(app, monkeypatch):
+    """send_verification_email 应使用 app.config['FRONTEND_URL'] 构造验证链接。"""
+    from services import email_service
+
+    captured = {}
+
+    def _capture_send(to, subject, html_body, text_body):
+        captured["text_body"] = text_body
+        return True
+
+    monkeypatch.setattr(email_service, "_send", _capture_send)
 
     with app.app_context():
         app.config["SMTP_MODE"]    = "log"
         app.config["FRONTEND_URL"] = "https://custom.example.com"
 
-        with caplog.at_level(logging.INFO, logger="services.email_service"):
-            result = send_verification_email("user@example.com", "testuser", "tok123")
+        result = email_service.send_verification_email("user@example.com", "testuser", "tok123")
 
-        assert result is True
-        assert "custom.example.com" in caplog.text
-        assert "verify-email" in caplog.text
-
-
-def test_send_password_reset_email_uses_app_config_frontend_url(app, caplog):
-    """send_password_reset_email 应在邮件中使用 app.config['FRONTEND_URL']。"""
-    import logging
-    from services.email_service import send_password_reset_email
-
-    with app.app_context():
-        app.config["SMTP_MODE"]    = "log"
-        app.config["FRONTEND_URL"] = "https://custom.example.com"
-
-        with caplog.at_level(logging.INFO, logger="services.email_service"):
-            result = send_password_reset_email("user@example.com", "testuser", "tok456")
-
-        assert result is True
-        assert "custom.example.com" in caplog.text
-        assert "reset-password" in caplog.text
+    assert result is True
+    expected_url = "https://custom.example.com/verify-email?token=tok123"
+    # 确保邮件正文中精确包含正确的验证链接（逐行匹配，避免子串误判）
+    assert any(line == expected_url for line in captured["text_body"].splitlines())
 
 
-def test_send_welcome_email_uses_app_config_frontend_url(app, caplog):
-    """send_welcome_email 应在邮件中使用 app.config['FRONTEND_URL']。"""
-    import logging
-    from services.email_service import send_welcome_email
+def test_send_password_reset_email_uses_app_config_frontend_url(app, monkeypatch):
+    """send_password_reset_email 应使用 app.config['FRONTEND_URL'] 构造重置链接。"""
+    from services import email_service
+
+    captured = {}
+
+    def _capture_send(to, subject, html_body, text_body):
+        captured["text_body"] = text_body
+        return True
+
+    monkeypatch.setattr(email_service, "_send", _capture_send)
 
     with app.app_context():
         app.config["SMTP_MODE"]    = "log"
         app.config["FRONTEND_URL"] = "https://custom.example.com"
 
-        with caplog.at_level(logging.INFO, logger="services.email_service"):
-            result = send_welcome_email("user@example.com", "testuser")
+        result = email_service.send_password_reset_email("user@example.com", "testuser", "tok456")
 
-        assert result is True
-        assert "custom.example.com" in caplog.text
+    assert result is True
+    expected_url = "https://custom.example.com/reset-password?token=tok456"
+    assert any(line == expected_url for line in captured["text_body"].splitlines())
+
+
+def test_send_welcome_email_uses_app_config_frontend_url(app, monkeypatch):
+    """send_welcome_email 应使用 app.config['FRONTEND_URL'] 作为控制台链接。"""
+    from services import email_service
+
+    captured = {}
+
+    def _capture_send(to, subject, html_body, text_body):
+        captured["text_body"] = text_body
+        return True
+
+    monkeypatch.setattr(email_service, "_send", _capture_send)
+
+    with app.app_context():
+        app.config["SMTP_MODE"]    = "log"
+        app.config["FRONTEND_URL"] = "https://custom.example.com"
+
+        result = email_service.send_welcome_email("user@example.com", "testuser")
+
+    assert result is True
+    expected_url = "https://custom.example.com"
+    # 控制台 URL 嵌入在 "访问控制台：<url>" 行中
+    assert any(line.endswith(expected_url) for line in captured["text_body"].splitlines())
 
 
 # ── app.config 动态注入生效（无模块级缓存） ──────────────────────────────────
@@ -222,14 +243,17 @@ def test_get_cfg_falls_back_to_environ_outside_app_context(monkeypatch):
             os.environ["SMTP_HOST"] = original
 
 
-def test_get_cfg_environ_default_mode_is_log():
+def test_get_cfg_environ_default_mode_is_log(monkeypatch):
     """无 app context 且未设置 SMTP_MODE 时，默认应为 log。"""
-    from services.email_service import _get_cfg
+    import flask
+    import services.email_service as email_module
 
-    original = os.environ.pop("SMTP_MODE", None)
-    try:
-        cfg = _get_cfg()
-        assert cfg.mode == "log"
-    finally:
-        if original is not None:
-            os.environ["SMTP_MODE"] = original
+    class _NoContext:
+        @property
+        def config(self):
+            raise RuntimeError("Working outside of application context.")
+
+    monkeypatch.setattr(flask, "current_app", _NoContext())
+    monkeypatch.delenv("SMTP_MODE", raising=False)
+    cfg = email_module._get_cfg()
+    assert cfg.mode == "log"
