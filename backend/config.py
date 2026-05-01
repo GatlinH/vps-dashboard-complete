@@ -206,6 +206,16 @@ class Config:
     }
     SECURITY_CSP_NONCE_IN = ['script-src', 'style-src']
 
+    # ── Email (SMTP) ─────────────────────────────────────────────────────────
+    SMTP_MODE     = os.getenv("SMTP_MODE",     "log")      # "smtp" | "log"
+    SMTP_HOST     = os.getenv("SMTP_HOST",     "localhost")
+    SMTP_PORT     = int(os.getenv("SMTP_PORT", "465"))
+    SMTP_USE_TLS  = os.getenv("SMTP_USE_TLS",  "true").lower() == "true"
+    SMTP_USER     = os.getenv("SMTP_USER",     "")
+    SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+    SMTP_FROM     = os.getenv("SMTP_FROM",     "")
+    FRONTEND_URL  = os.getenv("FRONTEND_URL",  "http://localhost:5173")
+
     # ── Telegram ─────────────────────────────────────────────────────────────
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
     TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID",   "")
