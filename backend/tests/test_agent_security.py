@@ -25,10 +25,45 @@ def _provision_agent(client, auth_headers, test_server):
     key_resp = client.post(f"/api/v1/servers/{test_server}/agent-key/generate", headers=auth_headers)
     agent_key = key_resp.get_json()["agent_key"]
     agent_uuid = str(uuid.uuid4())
-    claim = client.post("/api/v1/agent/claim", json={"server_id": test_server, "uuid": agent_uuid})
+    claim = client.post("/api/v1/agent/claim", json={"server_id": test_server, "uuid": agent_uuid}, headers=auth_headers)
     assert claim.status_code == 200
     return agent_key, agent_uuid
 
+
+# ── P0 回归：/claim 必须要求管理员身份验证 ───────────────────────────────────
+
+def test_claim_requires_admin_auth(client, test_server):
+    """P0 回归：未携带 JWT 时，/claim 必须返回 401，防止 UUID 劫持。"""
+    resp = client.post(
+        "/api/v1/agent/claim",
+        json={"server_id": test_server, "uuid": str(uuid.uuid4())},
+    )
+    assert resp.status_code == 401, (
+        f"/claim 应拒绝未认证请求，实际返回 {resp.status_code}"
+    )
+
+
+def test_claim_requires_admin_role(client, test_server):
+    """P0 回归：普通用户 JWT 不应能调用 /claim（仅 admin 角色）。"""
+    from flask_jwt_extended import create_access_token
+    # 生成一个 role=user 的 token（与 auth.py 中格式一致）
+    with client.application.app_context():
+        non_admin_token = create_access_token(
+            identity="9999",
+            additional_claims={"role": "user", "username": "regular_user"},
+        )
+    headers = {"Authorization": f"Bearer {non_admin_token}"}
+    resp = client.post(
+        "/api/v1/agent/claim",
+        json={"server_id": test_server, "uuid": str(uuid.uuid4())},
+        headers=headers,
+    )
+    assert resp.status_code == 403, (
+        f"/claim 应拒绝非管理员角色，实际返回 {resp.status_code}"
+    )
+
+
+# ── 已有安全测试 ─────────────────────────────────────────────────────────────
 
 def test_nonce_replay_is_rejected(client, auth_headers, test_server):
     agent_key, agent_uuid = _provision_agent(client, auth_headers, test_server)

@@ -40,7 +40,7 @@ def test_agent_claim_push_poll(client, auth_headers, test_server):
     agent_key = key_resp.get_json()["agent_key"]
     agent_uuid = str(uuid.uuid4())
 
-    claim = client.post("/api/v1/agent/claim", json={"server_id": test_server, "uuid": agent_uuid})
+    claim = client.post("/api/v1/agent/claim", json={"server_id": test_server, "uuid": agent_uuid}, headers=auth_headers)
     assert claim.status_code == 200
 
     payload = {"uuid": agent_uuid, "cpu_use": 12.3, "ram_use": 45.6, "status": "online"}
