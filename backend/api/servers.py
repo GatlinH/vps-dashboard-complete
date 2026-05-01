@@ -15,7 +15,7 @@ from extensions import db
 import extensions
 from models.models import Server, ProbeResult, AgentCommand
 from utils.errors import ValidationError, InternalServerError
-from middleware.rbac import admin_required
+from middleware.rbac import admin_required, viewer_or_admin_required
 from utils.validators import validate_server_name, validate_server_ip
 
 servers_bp = Blueprint("servers", __name__)
@@ -452,7 +452,7 @@ def push_metrics(sid):
 # ── 历史数据 ──────────────────────────────────────────────────────────────────
 
 @servers_bp.get("/<int:sid>/history")
-@admin_required
+@viewer_or_admin_required
 def get_history(sid):
     """获取服务器历史数据"""
     try:

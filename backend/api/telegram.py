@@ -8,7 +8,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt
 from extensions import db
 from models.models import TelegramConfig, AlertRule, Server
-from middleware.rbac import admin_required
+from middleware.rbac import admin_required, viewer_or_admin_required
 from middleware.rate_limit import limiter
 
 telegram_bp = Blueprint("telegram", __name__)
@@ -137,7 +137,7 @@ def manual_send():
 # ── 告警规则 ──────────────────────────────────────────────────────────────────
 
 @telegram_bp.get("/alerts")
-@admin_required
+@viewer_or_admin_required
 def list_alerts():
     rules = AlertRule.query.all()
     return jsonify(rules=[r.to_dict() for r in rules])
