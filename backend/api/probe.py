@@ -71,7 +71,7 @@ def ping():
         return r
 
     results = []
-    max_workers = current_app.config.get("PROBE_PING_MAX_WORKERS", 10)
+    max_workers = current_app.config.get("PROBE_PING_MAX_WORKERS", 20)
     with ThreadPoolExecutor(max_workers=min(count, max_workers)) as pool:
         futures = {pool.submit(_ping_once, i): i for i in range(count)}
         for fut in as_completed(futures):
