@@ -196,8 +196,8 @@ def _job_tcp_ping(app):
     """TCP ping 所有有 IP 的服务器并更新状态（并发执行）"""
     from extensions import db, redis_client
     from models.models import Server, ProbeResult
-    from utils.metrics import (vps_servers_total, vps_servers_online,
-                               vps_servers_offline, vps_probe_latency_ms)
+    from middleware.metrics_middleware import (vps_servers_total, vps_servers_online,
+                                              vps_servers_offline, vps_probe_latency_ms)
 
     with app.app_context():
         servers = Server.query.filter(Server.ip != "").all()
