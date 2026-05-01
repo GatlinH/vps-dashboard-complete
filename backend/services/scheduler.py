@@ -15,6 +15,7 @@ from datetime import datetime, timezone, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval     import IntervalTrigger
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR, EVENT_JOB_MISSED
+from middleware.metrics_middleware import record_scheduler_job, record_alert_fired
 
 log = logging.getLogger(__name__)
 
@@ -81,6 +82,12 @@ def create_scheduler(app):
             id="audit_log_cleanup", name="审计日志归档（每周日凌晨 3 点）",
             replace_existing=True,
         )
+        scheduler.add_job(
+            func=lambda: _job_agent_command_cleanup(app),
+            trigger="cron", hour=4, minute=0,
+            id="agent_command_cleanup", name="过期 Agent 命令清理（每天凌晨 4 点）",
+            replace_existing=True,
+        )
 
     scheduler.add_listener(_build_scheduler_listener(app), EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED)
 
@@ -102,9 +109,17 @@ def _build_scheduler_listener(app):
 
         if status == "ok":
             log.info("[scheduler] job=%s status=ok", event.job_id)
+            try:
+                record_scheduler_job(event.job_id, "ok")
+            except Exception:
+                pass
             return
 
         log.warning("[scheduler] job=%s status=%s", event.job_id, status)
+        try:
+            record_scheduler_job(event.job_id, status)
+        except Exception:
+            pass
 
         if not app.config.get("SCHEDULER_ALERT_ON_FAILURE", True):
             return
@@ -346,18 +361,23 @@ def _send_alert(cfg, server, rule_type, cur_val, threshold):
                  f"位置: {server.location} | IP: {server.ip}")
 
     send_message(_full_msg(cfg.prefix, body))
+    try:
+        record_alert_fired(rule_type, "telegram")
+    except Exception:
+        pass
 
 
 def _job_cleanup(app):
-    """清理 30 天前的历史探针数据"""
+    """清理历史探针数据（保留天数由 PROBE_RESULT_RETENTION_DAYS 控制，默认 30 天）"""
     from extensions import db
     from models.models import ProbeResult
-    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    retention_days = int(app.config.get("PROBE_RESULT_RETENTION_DAYS", 30))
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
     with app.app_context():
         deleted = ProbeResult.query.filter(ProbeResult.created_at < cutoff).delete()
         db.session.commit()
         if deleted:
-            log.info(f"历史数据清理: 删除 {deleted} 条 probe_results")
+            log.info(f"历史数据清理: 删除 {deleted} 条 probe_results（保留 {retention_days} 天）")
 
 
 def _job_traffic_accumulate(app):
@@ -436,3 +456,30 @@ def _job_audit_log_cleanup(app):
         except Exception as e:
             db.session.rollback()
             log.error(f"审计日志归档失败: {e}")
+
+
+def _job_agent_command_cleanup(app):
+    """每天凌晨 4 点清理已过期或已完成的 AgentCommand 记录（保留 7 天）"""
+    from extensions import db
+    from models.models import AgentCommand
+    retention_days = int(app.config.get("AGENT_COMMAND_RETENTION_DAYS", 7))
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+    with app.app_context():
+        try:
+            deleted = (
+                AgentCommand.query
+                .filter(
+                    AgentCommand.created_at < cutoff,
+                    AgentCommand.status.in_(["executed", "pending"]),
+                )
+                .delete(synchronize_session=False)
+            )
+            db.session.commit()
+            if deleted:
+                log.info(
+                    "agent_command_cleanup: 删除 %d 条 %d 天前的 agent_commands",
+                    deleted, retention_days,
+                )
+        except Exception as e:
+            db.session.rollback()
+            log.error("agent_command_cleanup 失败: %s", e)
