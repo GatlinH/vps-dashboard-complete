@@ -346,3 +346,5 @@ class TestMeEndpointRole:
             assert u.role == "user", (
                 f"signup 不应接受客户端注入的 viewer 角色，注册后应为 'user'，实际为 '{u.role}'"
             )
+            _db.session.delete(u)
+            _db.session.commit()
