@@ -1,6 +1,7 @@
 """Metrics 端点与关键计数测试。"""
 
 from middleware.metrics_middleware import (
+    _is_metrics_allowed,
     record_alert_fired,
     record_auth_login,
     record_email_sent,
@@ -23,6 +24,45 @@ def _get_metric_value(client, metric_name: str) -> float:
             except ValueError:
                 pass
     return total
+
+
+# ── P0 回归：/metrics IP 白名单 ───────────────────────────────────────────────
+
+def test_metrics_allowed_ips():
+    """P0 回归：验证 _is_metrics_allowed 白名单逻辑覆盖所有内网段。"""
+    # 允许：loopback / Docker 内网
+    assert _is_metrics_allowed("127.0.0.1") is True
+    assert _is_metrics_allowed("::1") is True
+    assert _is_metrics_allowed("10.0.0.1") is True
+    assert _is_metrics_allowed("172.17.0.2") is True     # Docker 默认桥接
+    assert _is_metrics_allowed("192.168.1.100") is True
+
+    # 拒绝：公网 IP
+    assert _is_metrics_allowed("8.8.8.8") is False
+    assert _is_metrics_allowed("1.2.3.4") is False
+    assert _is_metrics_allowed("203.0.113.5") is False
+
+    # 边界：空字符串 / 非法 IP
+    assert _is_metrics_allowed("") is False
+    assert _is_metrics_allowed("not-an-ip") is False
+
+
+def test_metrics_endpoint_blocked_for_external_ip(client, app):
+    """P0 回归：公网 IP 访问 /metrics 应被拒绝（403）。"""
+    with app.test_request_context():
+        with client.application.test_client() as c:
+            # 模拟公网 IP 访问
+            resp = c.get('/metrics', environ_base={"REMOTE_ADDR": "8.8.8.8"})
+            assert resp.status_code == 403, (
+                f"/metrics 应对公网 IP 返回 403，实际返回 {resp.status_code}"
+            )
+
+
+def test_metrics_endpoint_allowed_for_localhost(client):
+    """P0 回归：localhost 访问 /metrics 应正常返回（200）。"""
+    # Flask 测试客户端默认 remote_addr=127.0.0.1，属于白名单
+    resp = client.get('/metrics', environ_base={"REMOTE_ADDR": "127.0.0.1"})
+    assert resp.status_code == 200
 
 
 def test_metrics_endpoint_available(client):

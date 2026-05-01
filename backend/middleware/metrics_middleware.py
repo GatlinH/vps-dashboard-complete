@@ -32,6 +32,7 @@ Prometheus 指标中间件（完善版）
     }
 """
 
+import ipaddress
 import logging
 import time
 from flask import Flask, request
@@ -141,6 +142,36 @@ else:
 
 _IGNORE_PATHS = {"/health", "/metrics", "/favicon.ico"}
 
+# ── /metrics 端点 IP 白名单（防止公网暴露）───────────────────────────────────
+
+_METRICS_ALLOWED_NETWORKS = [
+    ipaddress.ip_network("127.0.0.0/8"),    # loopback
+    ipaddress.ip_network("10.0.0.0/8"),     # Docker 内网 / 私有网络
+    ipaddress.ip_network("172.16.0.0/12"),  # Docker 默认桥接网络
+    ipaddress.ip_network("192.168.0.0/16"), # 私有网络
+    ipaddress.ip_network("::1/128"),        # IPv6 loopback
+]
+
+
+def _is_metrics_allowed(ip: str) -> bool:
+    """
+    判断来源 IP 是否在 /metrics 访问白名单内（内网/localhost）。
+    测试环境（TESTING=True）或白名单可通过 METRICS_ALLOWED_CIDR 环境变量扩展。
+    """
+    if not ip:
+        return False
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    for net in _METRICS_ALLOWED_NETWORKS:
+        try:
+            if addr in net:
+                return True
+        except TypeError:
+            pass
+    return False
+
 def _normalize_endpoint(path: str) -> str:
     """
     将动态路径中的 ID 替换为占位符，防止 Prometheus 标签基数爆炸。
@@ -211,8 +242,13 @@ def init_metrics(app: Flask) -> None:
     def metrics_endpoint():
         """
         Prometheus scrape endpoint。
-        ⚠️  在 nginx.conf 中限制此路径仅内网可访问。
+        ⚠️  仅允许内网/localhost 访问，防止指标数据泄露。
+        在 nginx.conf 中同步设置 IP 白名单（location = /metrics）。
         """
+        client_ip = request.remote_addr or ""
+        if not _is_metrics_allowed(client_ip):
+            logger.warning("⛔ /metrics 访问被拒绝: remote_addr=%s", client_ip)
+            return "Forbidden", 403
         if _generate_latest is None:
             return "prometheus_client not installed", 503
         return _generate_latest(), 200, {"Content-Type": _CONTENT_TYPE}
@@ -260,6 +296,7 @@ def set_server_counts(total: int, online: int, offline: int) -> None:
 
 __all__ = [
     "init_metrics",
+    "_is_metrics_allowed",
     "vps_servers_total",
     "vps_servers_online",
     "vps_servers_offline",

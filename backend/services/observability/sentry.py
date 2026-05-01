@@ -163,20 +163,19 @@ def _register_flask_hooks(app) -> None:
         def _sentry_set_scope():
             if not has_request_context():
                 return
-            with sentry_sdk.configure_scope() as scope:
-                # request_id（由 logging_config.py 的钩子生成后存于 g）
-                rid = getattr(g, "request_id", "")
-                if rid:
-                    scope.set_tag("request_id", rid)
+            # request_id（由 logging_config.py 的钩子生成后存于 g）
+            rid = getattr(g, "request_id", "")
+            if rid:
+                sentry_sdk.set_tag("request_id", rid)
 
-                # 当前用户（JWT 解析，失败则忽略）
-                try:
-                    verify_jwt_in_request(optional=True)
-                    uid = get_jwt_identity()
-                    if uid:
-                        scope.set_user({"id": uid})
-                except Exception:
-                    pass
+            # 当前用户（JWT 解析，失败则忽略）
+            try:
+                verify_jwt_in_request(optional=True)
+                uid = get_jwt_identity()
+                if uid:
+                    sentry_sdk.set_user({"id": uid})
+            except Exception:
+                pass
 
     except ImportError:
         pass
@@ -212,15 +211,30 @@ def capture_business_event(
     """
     try:
         import sentry_sdk
-        with sentry_sdk.push_scope() as scope:
+        with sentry_sdk.new_scope() as scope:
             if extra:
                 for k, v in extra.items():
                     scope.set_extra(k, v)
             if tags:
                 for k, v in tags.items():
                     scope.set_tag(k, v)
+            event_id = sentry_sdk.capture_message(message, level=level, scope=scope)
+            return event_id
+    except AttributeError:
+        # sentry-sdk < 2.0 does not have new_scope(); fall back to direct calls
+        try:
+            import sentry_sdk
+            if extra:
+                for k, v in extra.items():
+                    sentry_sdk.set_extra(k, v)
+            if tags:
+                for k, v in tags.items():
+                    sentry_sdk.set_tag(k, v)
             event_id = sentry_sdk.capture_message(message, level=level)
             return event_id
+        except Exception as e:
+            logger.warning(f"⚠️  Sentry capture 失败: {e}")
+            return None
     except ImportError:
         logger.debug(f"[Sentry disabled] {level.upper()}: {message}")
         return None
@@ -245,11 +259,22 @@ def capture_exception(exc: Exception, extra: Optional[dict] = None) -> Optional[
     """
     try:
         import sentry_sdk
-        with sentry_sdk.push_scope() as scope:
+        with sentry_sdk.new_scope() as scope:
             if extra:
                 for k, v in extra.items():
                     scope.set_extra(k, v)
+            return sentry_sdk.capture_exception(exc, scope=scope)
+    except AttributeError:
+        # sentry-sdk < 2.0 does not have new_scope(); fall back to direct calls
+        try:
+            import sentry_sdk
+            if extra:
+                for k, v in extra.items():
+                    sentry_sdk.set_extra(k, v)
             return sentry_sdk.capture_exception(exc)
+        except Exception as e:
+            logger.warning(f"⚠️  Sentry capture_exception 失败: {e}")
+            return None
     except ImportError:
         logger.debug(f"[Sentry disabled] Exception: {exc}")
         return None

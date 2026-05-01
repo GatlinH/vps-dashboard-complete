@@ -13,6 +13,7 @@ from werkzeug.security import check_password_hash
 
 from extensions import db
 from middleware.rate_limit import limiter
+from middleware.rbac import admin_required
 from models.models import AgentCommand, ProbeResult, Server
 from utils.errors import AuthenticationError, ValidationError
 
@@ -153,6 +154,7 @@ def _authenticate_agent(payload: dict) -> tuple[Server, str]:
 
 
 @agent_bp.post("/claim")
+@admin_required
 def claim_agent():
     data = request.get_json(silent=True) or {}
     sid = data.get("server_id")
