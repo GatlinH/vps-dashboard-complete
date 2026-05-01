@@ -14,10 +14,10 @@
 import './styles/main.css';
 
 import { state, subscribe, persistServers } from './store/state.js';
-import { toDisplay, calcResidualValue, getMonthlyPrice, updateRateDisplay } from './utils/currency.js';
+import { toDisplay, calcResidualValue, getMonthlyPrice, updateRateDisplay, calcEstimateLocal } from './utils/currency.js';
 import { fmtGb, getTrafficPct, getTrafficUsed, daysUntilReset, trafficColor } from './utils/traffic.js';
 import { renderCard, renderDetailModal, bindGridEvents } from './components/ServerCard.js';
-import { listAffProducts } from './api/public.js';
+import { listAffProducts, postEstimate } from './api/public.js';
 
 // ─── 懒加载句柄 ─────────────────────────────────────────────────────────[...]
 let _starMap      = null;  // StarMap 实例
@@ -516,7 +516,7 @@ window.fillFromProbe = (id) => {
   calculateFromManual();
 };
 
-window.calculateFromManual = () => {
+window.calculateFromManual = async () => {
   const name     = document.getElementById('calcName').value || '未命名';
   const price    = parseFloat(document.getElementById('calcBuyPrice').value) || 0;
   const period   = parseInt(document.getElementById('calcPeriod').value)     || 12;
@@ -528,23 +528,46 @@ window.calculateFromManual = () => {
     return;
   }
 
-  const now        = new Date();
-  const start      = new Date(buyDate);
-  const end        = new Date(start); end.setMonth(end.getMonth() + period);
-  const totalDays  = Math.ceil((end - start) / 86400000);
-  const daysLeft   = Math.max(0, Math.ceil((end - now) / 86400000));
-  const dailyRate  = price / totalDays;
-  const residual   = dailyRate * daysLeft;
-  const consumed   = price - residual;
-  const sellPrice  = residual * (1 + premium / 100);
-  const pct        = Math.round(daysLeft / totalDays * 100);
+  let d = null;
+  let fromFallback = false;
+
+  try {
+    const res = await postEstimate({
+      price,
+      period: String(period),
+      buy_date: buyDate,
+      premium_percent: premium,
+    });
+    if (res.ok && res.data) {
+      d = res.data;
+    } else {
+      throw new Error(res.error || '估值接口返回异常');
+    }
+  } catch (err) {
+    console.warn('[exchange/estimate] 后端接口不可用，降级到本地计算:', err);
+    fromFallback = true;
+    d = calcEstimateLocal({ price, period: String(period), buy_date: buyDate, premium_percent: premium });
+  }
+
+  const daysLeft  = d.days_left;
+  const daysUsed  = d.days_used;
+  const pct       = d.residual_percent;
+  const dailyRate = d.daily_rate;
+  const consumed  = d.consumed_value;
+  const residual  = d.residual_value;
+  const sellPrice = d.suggested_price;
+  const totalDays = d.total_days;
+
+  const fallbackNotice = fromFallback
+    ? `<div style="font-size:11px;color:var(--text3);margin-top:8px;padding:4px 8px;background:var(--bg3);border-radius:4px">⚠ 本地计算结果（后端接口不可用）</div>`
+    : '';
 
   document.getElementById('calcResults').innerHTML = /* html */`
     <div class="calc-result">
       <div class="calc-result-row"><span class="key">服务器</span><span class="val">${name}</span></div>
       <div class="calc-result-row"><span class="key">购入价格</span><span class="val">${toDisplay(price)}</span></div>
-      <div class="calc-result-row"><span class="key">使用周期</span><span class="val">${period} 个月</span></div>
-      <div class="calc-result-row"><span class="key">已用天数</span><span class="val">${totalDays - daysLeft} 天</span></div>
+      <div class="calc-result-row"><span class="key">总周期 / 总天数</span><span class="val">${d.period} / ${totalDays} 天</span></div>
+      <div class="calc-result-row"><span class="key">已用天数</span><span class="val">${daysUsed} 天</span></div>
       <div class="calc-result-row"><span class="key">剩余天数</span><span class="val">${daysLeft} 天 (${pct}%)</span></div>
       <div class="calc-result-row"><span class="key">日均成本</span><span class="val">${toDisplay(dailyRate)}/天</span></div>
       <div class="calc-result-row red"><span class="key">已消耗价值</span><span class="val">${toDisplay(consumed)}</span></div>
@@ -559,7 +582,8 @@ window.calculateFromManual = () => {
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-top:4px">
         <span>已消耗 ${100-pct}%</span><span>剩余 ${pct}%</span>
       </div>
-    </div>`;
+    </div>
+    ${fallbackNotice}`;
 };
 
 // ─── 流量统计页 ──────────────────────────────────────────────────────────────

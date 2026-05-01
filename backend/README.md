@@ -155,6 +155,50 @@ GUNICORN_THREADS=9
 | GET    | /api/geo/tile/\<z\>/\<x\>/\<y\>.png | 公开 | 地图瓦片代理          |
 | GET    | /api/geo/countries            | 公开      | TopoJSON 矢量地图          |
 | GET    | /api/geo/servers/coords       | 公开      | 服务器经纬度（支持分页 / 聚合） |
+| GET    | /api/exchange/rates           | 公开      | 汇率查询（Redis 1 小时缓存）  |
+| POST   | /api/exchange/estimate        | 公开      | 交易估值（剩余价值 / 建议售价）|
+
+### Exchange API 示例
+
+```bash
+# 查询汇率
+GET /api/v1/exchange/rates?base=CNY
+
+# 交易估值（使用 buy_date）
+POST /api/v1/exchange/estimate
+Content-Type: application/json
+
+{
+  "price": 99,
+  "period": "yearly",
+  "buy_date": "2025-06-15",
+  "premium_percent": 20
+}
+
+# 交易估值（使用 expiry）
+POST /api/v1/exchange/estimate
+Content-Type: application/json
+
+{
+  "price": 30,
+  "period": "monthly",
+  "expiry": "2026-07-01"
+}
+```
+
+成功响应示例（`/estimate`）：
+```json
+{
+  "ok": true,
+  "data": {
+    "price": 99, "period": "yearly",
+    "buy_date": "2025-06-15", "expiry": "2026-06-15",
+    "total_days": 365, "days_used": 120, "days_left": 245,
+    "daily_rate": 0.27, "consumed_value": 33, "residual_value": 66,
+    "premium_percent": 20, "suggested_price": 79, "residual_percent": 67
+  }
+}
+```
 
 ### 后台鉴权要求
 
