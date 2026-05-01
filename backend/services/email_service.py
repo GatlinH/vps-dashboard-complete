@@ -6,14 +6,18 @@ backend/services/email_service.py
   SMTP_MODE=smtp  —— 生产环境，通过 SMTP_HOST 发送真实邮件
   SMTP_MODE=log   —— 开发/测试环境，将邮件内容打印到日志（默认）
 
-环境变量（在 .env 或 docker-compose environment 中配置）：
+配置来源（优先级由高到低）：
+  1. Flask app.config（推荐，通过 config.py 统一从环境变量读取）
+  2. os.environ 直接回退（仅用于无 Flask app context 的场景，如独立脚本）
+
+app.config / 环境变量键名：
   SMTP_MODE        smtp | log          默认 log
   SMTP_HOST        smtp.example.com    SMTP 服务器地址
   SMTP_PORT        465                 SSL 端口，或用 587 + STARTTLS
   SMTP_USE_TLS     true | false        是否使用 SSL（端口 465 时设 true）
   SMTP_USER        noreply@example.com 发件人账号
   SMTP_PASSWORD    xxxxxxxx            发件人密码
-  SMTP_FROM        VPS星图 <noreply@example.com>  发件人显示名
+  SMTP_FROM        VPS星图 <noreply@example.com>  发件人显示名（可选）
   FRONTEND_URL     https://example.com            用于拼接邮件中的链接
 """
 
@@ -30,30 +34,72 @@ logger = logging.getLogger(__name__)
 
 # ── 配置读取 ──────────────────────────────────────────────────────────────────
 
-def _env(key: str, default: str = "") -> str:
-    return os.environ.get(key, default).strip()
-
-
 class _EmailConfig:
-    mode         = _env("SMTP_MODE", "log")       # "smtp" | "log"
-    host         = _env("SMTP_HOST", "localhost")
-    port         = int(_env("SMTP_PORT", "465"))
-    use_tls      = _env("SMTP_USE_TLS", "true").lower() == "true"
-    user         = _env("SMTP_USER", "")
-    password     = _env("SMTP_PASSWORD", "")
-    from_addr    = _env("SMTP_FROM", f"VPS星图 <{_env('SMTP_USER')}>")
-    frontend_url = _env("FRONTEND_URL", "http://localhost:5173")
+    """邮件发送配置，通过 _get_cfg() 从 Flask app.config 或 os.environ 读取。"""
+
+    def __init__(
+        self,
+        mode: str = "log",
+        host: str = "localhost",
+        port: int = 465,
+        use_tls: bool = True,
+        user: str = "",
+        password: str = "",
+        from_addr: str = "",
+        frontend_url: str = "http://localhost:5173",
+    ):
+        self.mode         = mode
+        self.host         = host
+        self.port         = port
+        self.use_tls      = use_tls
+        self.user         = user
+        self.password     = password
+        self.from_addr    = from_addr or f"VPS星图 <{user}>"
+        self.frontend_url = frontend_url
 
 
-cfg = _EmailConfig()
+def _get_cfg() -> _EmailConfig:
+    """从 Flask app.config 读取邮件配置；在无 app context 时回退到 os.environ。
+
+    配置键（app.config 中）与环境变量名称一致：
+      SMTP_MODE, SMTP_HOST, SMTP_PORT, SMTP_USE_TLS,
+      SMTP_USER, SMTP_PASSWORD, SMTP_FROM, FRONTEND_URL
+    """
+    try:
+        from flask import current_app  # noqa: PLC0415 – 延迟导入，避免循环依赖
+        ac  = current_app.config
+        user = ac.get("SMTP_USER", "")
+        return _EmailConfig(
+            mode=ac.get("SMTP_MODE", "log"),
+            host=ac.get("SMTP_HOST", "localhost"),
+            port=int(ac.get("SMTP_PORT", 465)),
+            use_tls=bool(ac.get("SMTP_USE_TLS", True)),
+            user=user,
+            password=ac.get("SMTP_PASSWORD", ""),
+            from_addr=ac.get("SMTP_FROM", "") or f"VPS星图 <{user}>",
+            frontend_url=ac.get("FRONTEND_URL", "http://localhost:5173"),
+        )
+    except RuntimeError:
+        # 无 Flask app context（如 CLI 或独立单元测试），回退到 os.environ
+        user = os.environ.get("SMTP_USER", "").strip()
+        return _EmailConfig(
+            mode=os.environ.get("SMTP_MODE", "log").strip(),
+            host=os.environ.get("SMTP_HOST", "localhost").strip(),
+            port=int(os.environ.get("SMTP_PORT", "465").strip()),
+            use_tls=os.environ.get("SMTP_USE_TLS", "true").strip().lower() == "true",
+            user=user,
+            password=os.environ.get("SMTP_PASSWORD", "").strip(),
+            from_addr=os.environ.get("SMTP_FROM", "").strip() or f"VPS星图 <{user}>",
+            frontend_url=os.environ.get("FRONTEND_URL", "http://localhost:5173").strip(),
+        )
 
 
 # ── 核心发送函数 ──────────────────────────────────────────────────────────────
 
-def _build_message(to: str, subject: str, html_body: str, text_body: str) -> MIMEMultipart:
+def _build_message(to: str, subject: str, html_body: str, text_body: str, from_addr: str) -> MIMEMultipart:
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"]    = cfg.from_addr
+    msg["From"]    = from_addr
     msg["To"]      = to
     msg.attach(MIMEText(text_body, "plain", "utf-8"))
     msg.attach(MIMEText(html_body, "html",  "utf-8"))
@@ -62,6 +108,7 @@ def _build_message(to: str, subject: str, html_body: str, text_body: str) -> MIM
 
 def _send(to: str, subject: str, html_body: str, text_body: str) -> bool:
     """底层发送，根据 SMTP_MODE 选择真实发送或日志输出"""
+    cfg = _get_cfg()
     if cfg.mode != "smtp":
         # 开发/测试模式：打印到日志，不发送真实邮件
         logger.info(
@@ -75,7 +122,7 @@ def _send(to: str, subject: str, html_body: str, text_body: str) -> bool:
         return True
 
     try:
-        msg = _build_message(to, subject, html_body, text_body)
+        msg = _build_message(to, subject, html_body, text_body, cfg.from_addr)
         if cfg.use_tls:
             context = ssl.create_default_context()
             with smtplib.SMTP_SSL(cfg.host, cfg.port, context=context, timeout=10) as server:
@@ -131,7 +178,7 @@ _BASE_HTML = """\
 
 def send_verification_email(to: str, username: str, token: str) -> bool:
     """发送邮箱验证邮件（注册激活）"""
-    verify_url = f"{cfg.frontend_url}/verify-email?token={token}"
+    verify_url = f"{_get_cfg().frontend_url}/verify-email?token={token}"
 
     html_body_inner = f"""\
 <p>您好，<b>{username}</b>！</p>
@@ -152,7 +199,7 @@ def send_verification_email(to: str, username: str, token: str) -> bool:
 
 def send_password_reset_email(to: str, username: str, token: str) -> bool:
     """发送密码重置邮件"""
-    reset_url = f"{cfg.frontend_url}/reset-password?token={token}"
+    reset_url = f"{_get_cfg().frontend_url}/reset-password?token={token}"
 
     html_body_inner = f"""\
 <p>您好，<b>{username}</b>！</p>
@@ -173,7 +220,7 @@ def send_password_reset_email(to: str, username: str, token: str) -> bool:
 
 def send_welcome_email(to: str, username: str) -> bool:
     """发送注册欢迎邮件（邮箱验证通过后调用）"""
-    dashboard_url = cfg.frontend_url
+    dashboard_url = _get_cfg().frontend_url
 
     html_body_inner = f"""\
 <p>您好，<b>{username}</b>！</p>
