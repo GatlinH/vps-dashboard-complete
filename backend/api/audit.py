@@ -1,25 +1,21 @@
 """
 /api/audit - 操作审计日志 API
-需要管理员权限
+需要管理员或只读（viewer）权限
 """
 import logging
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt
 from extensions import db
 from models.audit_log import AuditLog
+from middleware.rbac import viewer_or_admin_required
 
 logger = logging.getLogger(__name__)
 audit_bp = Blueprint("audit", __name__)
 
 
 @audit_bp.get("/")
-@jwt_required()
+@viewer_or_admin_required
 def list_audit_logs():
-    """获取审计日志列表（管理员）"""
-    claims = get_jwt()
-    if claims.get("role") != "admin":
-        return jsonify(msg="权限不足"), 403
-
+    """获取审计日志列表（管理员或只读用户）"""
     page = request.args.get("page", 1, type=int)
     per_page = min(request.args.get("per_page", 20, type=int), 100)
     username = request.args.get("username")
@@ -45,12 +41,8 @@ def list_audit_logs():
 
 
 @audit_bp.get("/<int:log_id>")
-@jwt_required()
+@viewer_or_admin_required
 def get_audit_log(log_id):
-    """获取单条审计日志"""
-    claims = get_jwt()
-    if claims.get("role") != "admin":
-        return jsonify(msg="权限不足"), 403
-
+    """获取单条审计日志（管理员或只读用户）"""
     log = AuditLog.query.get_or_404(log_id)
     return jsonify(log=log.to_dict()), 200
