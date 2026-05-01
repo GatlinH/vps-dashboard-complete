@@ -163,12 +163,21 @@ def _build_scheduler_listener(app):
 
 def _tcp_ping_one(server_id: int, ip: str, timeout: float) -> dict:
     """对单台服务器执行一次 TCP ping，纯 I/O 操作，不访问数据库。
-    
-    Returns dict with keys: server_id, status, latency_ms
+
+    Parameters:
+        server_id: 服务器的数据库 ID，原样透传到返回值以便主线程匹配。
+        ip:        目标 IP 地址。
+        timeout:   socket 连接超时秒数。
+
+    Returns:
+        dict with keys:
+            server_id  (int)   — 同入参，供调用方关联结果
+            status     (str)   — 'online' | 'warn' | 'offline'
+            latency_ms (float|None) — 连接延迟（毫秒），失败时为 None
     """
-    start  = time.perf_counter()
-    status = "offline"
-    lat    = None
+    start      = time.perf_counter()
+    status     = "offline"
+    latency_ms = None
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(timeout)
@@ -176,11 +185,11 @@ def _tcp_ping_one(server_id: int, ip: str, timeout: float) -> dict:
         elapsed = (time.perf_counter() - start) * 1000
         sock.close()
         if result == 0:
-            status = "warn" if elapsed > 300 else "online"
-            lat    = round(elapsed, 2)
+            status     = "warn" if elapsed > 300 else "online"
+            latency_ms = round(elapsed, 2)
     except Exception:
         pass
-    return {"server_id": server_id, "status": status, "latency_ms": lat}
+    return {"server_id": server_id, "status": status, "latency_ms": latency_ms}
 
 
 def _job_tcp_ping(app):
@@ -219,22 +228,22 @@ def _job_tcp_ping(app):
         # ── 写库（主线程，单一 DB session）────────────────────────────────
         server_map = {s.id: s for s in servers}
         for sid, r in results.items():
-            s      = server_map[sid]
-            status = r["status"]
-            lat    = r["latency_ms"]
+            s          = server_map[sid]
+            status     = r["status"]
+            latency_ms = r["latency_ms"]
 
             s.status = status
 
             db.session.add(ProbeResult(
-                server_id=s.id, latency_ms=lat, status=status,
+                server_id=s.id, latency_ms=latency_ms, status=status,
                 cpu_use=s.cpu_use, ram_use=s.ram_use,
                 disk_use=s.disk_use, net_up=s.net_up, net_down=s.net_down,
             ))
 
             # 记录延迟指标
-            if lat is not None:
+            if latency_ms is not None:
                 try:
-                    vps_probe_latency_ms.observe(lat)
+                    vps_probe_latency_ms.observe(latency_ms)
                 except Exception:
                     pass
 

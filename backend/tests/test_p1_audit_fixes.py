@@ -38,7 +38,6 @@ def test_tcp_ping_one_offline_when_connection_refused():
 
 def test_tcp_ping_one_online_when_connection_succeeds():
     """连接成功且延迟 <=300ms 时应返回 online 状态。"""
-    import time
     from services.scheduler import _tcp_ping_one
 
     with patch('socket.socket') as mock_sock_cls:
