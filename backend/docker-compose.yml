@@ -120,6 +120,12 @@ services:
         max-size: "100m"
         max-file: "10"
 
+  # ── Agent Consumer（P0 部署修复）──────────────────────────────────────────
+  # 作用：消费 Redis 队列 vps:agent:metrics_queue 中由 /api/agent/push 入队的
+  #       Agent 上报数据，将 metrics 写入 MySQL。若此服务未启动，所有 Agent
+  #       push 数据将积压在 Redis 永不落库。
+  # 启动命令：python -m workers.agent_consumer
+  # 依赖：mysql（写库）、redis（brpop 消费队列）、api（app context / 配置初始化）
   agent_consumer:
     build:
       context: .
