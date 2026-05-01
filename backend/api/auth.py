@@ -484,6 +484,8 @@ def signup():
         return jsonify(msg="该邮箱已注册"), 409
 
     # ── 创建用户 ──────────────────────────────────────────────────────────────
+    # 注意：role 字段始终强制为 "user"，禁止客户端通过此接口提交 role 字段。
+    # 管理员角色只能通过内部受控流程（_get_or_create_default_admin）创建。
     user = User(
         username       = username,
         email          = email,
