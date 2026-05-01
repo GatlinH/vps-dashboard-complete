@@ -11,6 +11,9 @@ services/scheduler.py
 import json
 import logging
 import os
+import socket
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval     import IntervalTrigger
@@ -158,10 +161,39 @@ def _build_scheduler_listener(app):
 
 # ── 任务实现 ───────────────────────────────────────────────────────────────────
 
+def _tcp_ping_one(server_id: int, ip: str, timeout: float) -> dict:
+    """对单台服务器执行一次 TCP ping，纯 I/O 操作，不访问数据库。
+
+    Parameters:
+        server_id: 服务器的数据库 ID，原样透传到返回值以便主线程匹配。
+        ip:        目标 IP 地址。
+        timeout:   socket 连接超时秒数。
+
+    Returns:
+        dict with keys:
+            server_id  (int)   — 同入参，供调用方关联结果
+            status     (str)   — 'online' | 'warn' | 'offline'
+            latency_ms (float|None) — 连接延迟（毫秒），失败时为 None
+    """
+    start      = time.perf_counter()
+    status     = "offline"
+    latency_ms = None
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        result = sock.connect_ex((ip, 80))
+        elapsed = (time.perf_counter() - start) * 1000
+        sock.close()
+        if result == 0:
+            status     = "warn" if elapsed > 300 else "online"
+            latency_ms = round(elapsed, 2)
+    except Exception:
+        pass
+    return {"server_id": server_id, "status": status, "latency_ms": latency_ms}
+
+
 def _job_tcp_ping(app):
-    """TCP ping 所有有 IP 的服务器并更新状态"""
-    import socket
-    import time
+    """TCP ping 所有有 IP 的服务器并更新状态（并发执行）"""
     from extensions import db, redis_client
     from models.models import Server, ProbeResult
     from utils.metrics import (vps_servers_total, vps_servers_online,
@@ -169,44 +201,56 @@ def _job_tcp_ping(app):
 
     with app.app_context():
         servers = Server.query.filter(Server.ip != "").all()
-        timeout = app.config.get("PROBE_TIMEOUT_S", 5)
+        if not servers:
+            return
 
-        for s in servers:
-            start  = time.perf_counter()
-            status = "offline"
-            lat    = None
-            try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(float(timeout))
-                result = sock.connect_ex((s.ip, 80))
-                elapsed = (time.perf_counter() - start) * 1000
-                sock.close()
-                if result == 0:
-                    status = "warn" if elapsed > 300 else "online"
-                    lat    = round(elapsed, 2)
-            except Exception:
-                pass
+        timeout     = float(app.config.get("PROBE_TIMEOUT_S", 5))
+        max_workers = int(app.config.get("PROBE_PING_MAX_WORKERS", 10))
 
-            old_status = s.status
-            s.status   = status
+        # ── 并发 TCP ping（纯 I/O，不持有 DB session）──────────────────────
+        ping_args = [(s.id, s.ip, timeout) for s in servers]
+        results   = {}  # server_id -> {status, latency_ms}
+
+        with ThreadPoolExecutor(max_workers=min(len(servers), max_workers)) as pool:
+            futures = {
+                pool.submit(_tcp_ping_one, sid, ip, to): sid
+                for sid, ip, to in ping_args
+            }
+            for fut in as_completed(futures):
+                try:
+                    r = fut.result()
+                    results[r["server_id"]] = r
+                except Exception as exc:
+                    sid = futures[fut]
+                    log.warning("tcp_ping worker error server_id=%s: %s", sid, exc)
+                    results[sid] = {"server_id": sid, "status": "offline", "latency_ms": None}
+
+        # ── 写库（主线程，单一 DB session）────────────────────────────────
+        server_map = {s.id: s for s in servers}
+        for sid, r in results.items():
+            s          = server_map[sid]
+            status     = r["status"]
+            latency_ms = r["latency_ms"]
+
+            s.status = status
 
             db.session.add(ProbeResult(
-                server_id=s.id, latency_ms=lat, status=status,
+                server_id=s.id, latency_ms=latency_ms, status=status,
                 cpu_use=s.cpu_use, ram_use=s.ram_use,
                 disk_use=s.disk_use, net_up=s.net_up, net_down=s.net_down,
             ))
 
             # 记录延迟指标
-            if lat is not None:
+            if latency_ms is not None:
                 try:
-                    vps_probe_latency_ms.observe(lat)
+                    vps_probe_latency_ms.observe(latency_ms)
                 except Exception:
                     pass
 
         # 更新服务器状态指标
         try:
             total  = len(servers)
-            online = sum(1 for s in servers if s.status == "online")
+            online = sum(1 for s in servers if results.get(s.id, {}).get("status") == "online")
             vps_servers_total.set(total)
             vps_servers_online.set(online)
             vps_servers_offline.set(total - online)

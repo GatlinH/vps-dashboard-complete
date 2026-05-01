@@ -168,9 +168,10 @@ class AuditMiddleware:
         return 'unknown'
 
     def _get_client_ip(self) -> str:
-        """获取客户端 IP"""
-        if request.environ.get('HTTP_X_FORWARDED_FOR'):
-            return request.environ['HTTP_X_FORWARDED_FOR'].split(',')[0].strip()
+        """获取客户端 IP（由 ProxyFix 中间件处理后的可信地址）"""
+        # ProxyFix has already resolved X-Forwarded-For into request.remote_addr;
+        # reading HTTP_X_FORWARDED_FOR directly would bypass that layer and risk
+        # trusting untrusted proxy headers.
         return request.remote_addr or 'unknown'
 
     def _extract_error_message(self, response):

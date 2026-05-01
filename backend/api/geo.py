@@ -22,8 +22,10 @@ WORLD_ATLAS_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.jso
 
 
 def _remote_identity() -> str:
-    forwarded_for = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
-    return forwarded_for or request.remote_addr or "unknown"
+    # ProxyFix middleware has already resolved the real client IP into
+    # request.remote_addr; reading X-Forwarded-For directly here would
+    # bypass that processing and risk trusting an untrusted header.
+    return request.remote_addr or "unknown"
 
 
 def _short_window_allow_or_reject(rate_key: str, limit: int, window_sec: int) -> bool:
