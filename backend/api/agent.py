@@ -264,8 +264,7 @@ def agent_poll():
 )
 def agent_ack():
     """Agent 命令确认：将已执行的命令标记为 executed。
-    请求体: {"command_ids": [1, 2, 3], "results": {"1": "ok", "2": "error"}}
-    results 字段可选，用于记录每条命令的执行结果。
+    请求体: {"command_ids": [1, 2, 3]}
     """
     data = request.get_json(silent=True) or {}
     server, _ = _authenticate_agent(data)
@@ -275,10 +274,6 @@ def agent_ack():
         raise ValidationError("command_ids 必须是列表", field="command_ids")
     if len(command_ids) > 50:
         raise ValidationError("单次最多确认 50 条命令", field="command_ids")
-
-    results = data.get("results") or {}
-    if not isinstance(results, dict):
-        results = {}
 
     now = _utc_now()
     updated = 0

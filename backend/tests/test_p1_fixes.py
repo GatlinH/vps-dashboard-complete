@@ -250,15 +250,26 @@ def test_agent_push_rejects_non_numeric_metrics(client, auth_headers, test_serve
 
 # ── P1-5: Prometheus 计数器冒烟测试 ──────────────────────────────────────────
 
-def test_agent_push_increments_metric(client, auth_headers, test_server):
-    """agent push 成功后 vps_agent_push_total{status=accepted} 计数器应递增。"""
-    from middleware.metrics_middleware import vps_agent_push
+def _get_metric_value(client, metric_name: str) -> float:
+    """从 /metrics 端点解析指定指标的总值（复用 test_metrics.py 的方式）。"""
+    resp = client.get("/metrics", environ_base={"REMOTE_ADDR": "127.0.0.1"})
+    if resp.status_code != 200:
+        return 0.0
+    total = 0.0
+    for line in resp.data.decode().splitlines():
+        if line.startswith("#"):
+            continue
+        if line.startswith(metric_name):
+            try:
+                total += float(line.rsplit(" ", 1)[-1])
+            except ValueError:
+                pass
+    return total
 
-    try:
-        before = vps_agent_push.labels(status="accepted")._value.get()
-    except Exception:
-        # prometheus_client 未安装或计数器不可用，跳过
-        return
+
+def test_agent_push_increments_metric(client, auth_headers, test_server):
+    """agent push 成功后 vps_agent_push_total 计数器应递增。"""
+    before = _get_metric_value(client, "vps_agent_push_total")
 
     agent_key, agent_uuid = _provision_agent(client, auth_headers, test_server)
     payload = {"uuid": agent_uuid, "cpu_use": 10.0, "status": "online"}
@@ -271,5 +282,19 @@ def test_agent_push_increments_metric(client, auth_headers, test_server):
     )
     assert resp.status_code == 202
 
-    after = vps_agent_push.labels(status="accepted")._value.get()
-    assert after > before, "vps_agent_push_total{accepted} 应在 push 后递增"
+    after = _get_metric_value(client, "vps_agent_push_total")
+    assert after > before, "vps_agent_push_total 应在 push 成功后递增"
+
+
+def test_metrics_endpoint_exposes_agent_counters(client, auth_headers, test_server):
+    """Prometheus /metrics 端点应暴露 agent 相关计数器名称。"""
+    from middleware.metrics_middleware import record_agent_push, record_agent_poll, record_agent_ack
+
+    record_agent_push("accepted")
+    record_agent_poll("ok")
+    record_agent_ack("ok")
+
+    body = client.get("/metrics", environ_base={"REMOTE_ADDR": "127.0.0.1"}).data.decode()
+    assert "vps_agent_push_total" in body, "缺少 vps_agent_push_total 指标"
+    assert "vps_agent_poll_total" in body, "缺少 vps_agent_poll_total 指标"
+    assert "vps_agent_ack_total" in body, "缺少 vps_agent_ack_total 指标"
