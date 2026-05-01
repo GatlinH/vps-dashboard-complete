@@ -221,6 +221,11 @@ def agent_push():
         _record_metrics(server, data)
         db.session.commit()
 
+    logger.info(
+        "agent push accepted",
+        extra={"server_id": server.id, "uuid": uuid},
+    )
+
     try:
         record_agent_push("accepted")
     except Exception as exc:
@@ -252,6 +257,12 @@ def agent_poll():
         record_agent_poll("ok")
     except Exception as exc:
         logger.debug("Failed to record agent poll metric: %s", exc)
+
+    logger.info(
+        "agent poll: %d pending commands",
+        len(commands),
+        extra={"server_id": server.id},
+    )
 
     return jsonify({
         "config": server.agent_config or {},
@@ -305,5 +316,11 @@ def agent_ack():
         record_agent_ack("ok")
     except Exception as exc:
         logger.debug("Failed to record agent ack metric: %s", exc)
+
+    logger.info(
+        "agent ack: %d commands acknowledged",
+        updated,
+        extra={"server_id": server.id},
+    )
 
     return jsonify({"ok": True, "updated": updated})

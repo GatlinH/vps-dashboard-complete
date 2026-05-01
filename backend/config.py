@@ -238,6 +238,8 @@ class Config:
     # ── Scheduler 任务监控 ───────────────────────────────────────────────────
     SCHEDULER_ALERT_ON_FAILURE = os.getenv("SCHEDULER_ALERT_ON_FAILURE", "1") == "1"
     SCHEDULER_FAILURE_ALERT_THRESHOLD = int(os.getenv("SCHEDULER_FAILURE_ALERT_THRESHOLD", "3"))
+    PROBE_RESULT_RETENTION_DAYS = int(os.getenv("PROBE_RESULT_RETENTION_DAYS", "30"))
+    AGENT_COMMAND_RETENTION_DAYS = int(os.getenv("AGENT_COMMAND_RETENTION_DAYS", "7"))
 
     # ── Geo tile proxy ───────────────────────────────────────────────────────
     TILE_CACHE_TTL     = int(os.getenv("TILE_CACHE_TTL",  "86400")) # 24h

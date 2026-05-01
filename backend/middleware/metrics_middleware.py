@@ -137,6 +137,11 @@ if Counter:
         "Agent command acknowledgements received",
         ["status"],  # "ok" | "error"
     )
+    vps_scheduler_job = Counter(
+        "vps_scheduler_job_total",
+        "Scheduler job execution results",
+        ["job_id", "status"],  # status: "ok" | "error" | "missed"
+    )
 
 else:
     # prometheus_client 未安装时，使用 no-op 占位
@@ -152,6 +157,7 @@ else:
     vps_auth_logins = vps_auth_token_revocations = _NoOp()
     vps_alerts_fired = vps_traffic_limit_exceeded = vps_email_sent = _NoOp()
     vps_agent_push = vps_agent_poll = vps_agent_ack = _NoOp()
+    vps_scheduler_job = _NoOp()
 
 
 # ── 路径规范化（避免高基数 label）────────────────────────────────────────────
@@ -319,6 +325,11 @@ def record_agent_ack(status: str) -> None:
     vps_agent_ack.labels(status=status).inc()
 
 
+def record_scheduler_job(job_id: str, status: str) -> None:
+    """记录调度器任务执行结果（ok/error/missed）。"""
+    vps_scheduler_job.labels(job_id=job_id, status=status).inc()
+
+
 def set_server_counts(total: int, online: int, offline: int) -> None:
     """设置服务器总量/在线/离线 Gauge。"""
     vps_servers_total.set(total)
@@ -349,5 +360,6 @@ __all__ = [
     "record_agent_push",
     "record_agent_poll",
     "record_agent_ack",
+    "record_scheduler_job",
     "set_server_counts",
 ]
