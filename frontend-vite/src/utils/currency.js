@@ -48,3 +48,55 @@ export function updateRateDisplay() {
   };
   el.textContent = map[currency] || '';
 }
+
+/**
+ * 本地估值计算（与后端 /estimate 算法保持一致，作为离线 fallback）
+ * @param {{
+ *   price: number,
+ *   period: string,      'monthly'|'quarterly'|'yearly'|'1'|'3'|'12'
+ *   buy_date: string,    YYYY-MM-DD
+ *   expiry?: string,     YYYY-MM-DD（可选，优先使用）
+ *   premium_percent?: number
+ * }} params
+ * @returns {{
+ *   price, period, buy_date, expiry, total_days,
+ *   days_used, days_left, daily_rate,
+ *   consumed_value, residual_value,
+ *   premium_percent, suggested_price, residual_percent
+ * }}
+ */
+export function calcEstimateLocal({ price, period, buy_date, expiry, premium_percent = 0 }) {
+  const PERIOD_DAYS = { monthly: 30, quarterly: 92, yearly: 365, '1': 30, '3': 92, '12': 365 };
+  const PERIOD_NORM = { '1': 'monthly', '3': 'quarterly', '12': 'yearly' };
+  const normPeriod  = PERIOD_NORM[String(period)] || period;
+  const totalDays   = PERIOD_DAYS[String(period)] || 30;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const buyDate   = new Date(buy_date);
+  const expiryDate = expiry ? new Date(expiry) : new Date(buyDate.getTime() + totalDays * 86400000);
+
+  const daysUsed   = Math.max(0, Math.round((today - buyDate) / 86400000));
+  const daysLeft   = Math.max(0, Math.round((expiryDate - today) / 86400000));
+  const dailyRate  = price / totalDays;
+  const consumed   = Math.round(Math.min(price, dailyRate * daysUsed));
+  const residual   = Math.round(Math.max(0, dailyRate * daysLeft));
+  const suggested  = Math.round(residual * (1 + premium_percent / 100));
+  const pct        = totalDays > 0 ? Math.max(0, Math.min(100, Math.round(daysLeft / totalDays * 100))) : 0;
+
+  return {
+    price,
+    period: normPeriod,
+    buy_date,
+    expiry: expiryDate.toISOString().split('T')[0],
+    total_days: totalDays,
+    days_used: daysUsed,
+    days_left: daysLeft,
+    daily_rate: Math.round(dailyRate * 100) / 100,
+    consumed_value: consumed,
+    residual_value: residual,
+    premium_percent,
+    suggested_price: suggested,
+    residual_percent: pct,
+  };
+}

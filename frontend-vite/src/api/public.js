@@ -69,3 +69,30 @@ export async function listAffProducts(params = {}) {
 export function tileURL(z, x, y) {
   return `${BASE}/geo/tile/${z}/${x}/${y}.png`
 }
+
+/**
+ * 交易估值：计算剩余价值与建议售价
+ * POST /api/v1/exchange/estimate
+ * @param {{
+ *   price: number,
+ *   period: string,
+ *   buy_date?: string,
+ *   expiry?: string,
+ *   premium_percent?: number
+ * }} params
+ * @returns {Promise<{ok: boolean, data: object}>}
+ */
+export async function postEstimate(params) {
+  const resp = await fetch(BASE + '/exchange/estimate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(params),
+  })
+  const payload = await resp.json().catch(() => ({}))
+  if (!resp.ok) {
+    const err = new Error(payload.error || `HTTP ${resp.status}`)
+    err.status = resp.status
+    throw err
+  }
+  return payload
+}
