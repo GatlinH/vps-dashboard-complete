@@ -208,14 +208,13 @@ class TestAlerts:
     def test_alert_threshold_check(self, client, auth_headers, test_server):
         """测试告警阈值检查"""
         server_id = test_server  # ✅
-        client.post(
+        resp = client.post(
             f'/api/v1/servers/{server_id}/metrics',
             headers=auth_headers,
             json={'cpu_use': 95}
         )
-
-        from services.alert_service import AlertService
-        alert_service = AlertService()
+        # metrics update should succeed
+        assert resp.status_code in (200, 202, 204)
 
     def test_alert_cooldown(self, client, auth_headers):
         """测试告警冷却机制"""

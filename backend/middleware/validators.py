@@ -159,29 +159,3 @@ class RequestValidator:
             
             return decorated_function
         return decorator
-
-
-# backend/middleware/rate_limit.py
-
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-from flask import request
-from utils.errors import RateLimitError
-
-limiter = Limiter(
-    key_func=get_remote_address,
-    storage_uri="redis://localhost:6379",
-    strategy="fixed-window",
-    default_limits=["200 per day", "50 per hour"],
-)
-
-def init_limiter(app):
-    """初始化速率限制器"""
-    limiter.init_app(app)
-    
-    @app.errorhandler(429)
-    def ratelimit_handler(e):
-        raise RateLimitError(
-            f"请求过于频繁，请稍后再试",
-            retry_after=e.get_retry_after() if hasattr(e, 'get_retry_after') else None
-        )
