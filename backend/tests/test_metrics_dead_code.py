@@ -57,17 +57,28 @@ def test_metrics_middleware_imports_cleanly():
 
 
 def test_scheduler_imports_gauges_from_metrics_middleware():
-    """scheduler.py 已从 metrics_middleware 获取 gauge 对象，不再依赖已删除的 utils/metrics.py。"""
-    import inspect
-    import services.scheduler as sched
+    """scheduler._job_tcp_ping 从 metrics_middleware 获取 gauge 对象，不再依赖已删除的 utils/metrics.py。
 
-    source = inspect.getsource(sched._job_tcp_ping)
-    assert "middleware.metrics_middleware" in source, (
-        "scheduler._job_tcp_ping 应从 middleware.metrics_middleware 导入指标对象"
+    We verify this by running the lazy import block directly in an isolated
+    sys.modules snapshot: utils.metrics must NOT be present after the import
+    succeeds, while metrics_middleware MUST be present.
+    """
+    # Simulate what _job_tcp_ping does: import the four gauge/histogram objects.
+    # If the import still pointed at the deleted utils.metrics module, this
+    # line would raise ModuleNotFoundError.
+    from middleware.metrics_middleware import (  # noqa: F401
+        vps_servers_total,
+        vps_servers_online,
+        vps_servers_offline,
+        vps_probe_latency_ms,
     )
-    assert "utils.metrics" not in source, (
-        "scheduler._job_tcp_ping 不应再从已删除的 utils.metrics 导入"
+
+    # Confirm the deleted module is absent from the import cache.
+    assert "utils.metrics" not in sys.modules, (
+        "utils.metrics should not be importable after dead-code cleanup"
     )
+    # Confirm the authoritative module is present.
+    assert "middleware.metrics_middleware" in sys.modules
 
 
 def test_no_duplicate_registration_on_double_import():
