@@ -98,6 +98,9 @@ class _InMemoryRedis:
         self._store.clear()
         return True
 
+    def ping(self):
+        return True
+
 
 _TEST_CONFIG = {
     'TESTING': True,

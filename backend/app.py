@@ -148,11 +148,41 @@ def create_app(**config_overrides):
     # ===== 健康检查 =====
     @app.route('/health')
     def health():
+        from sqlalchemy import text
+        import extensions as _ext
+        checks = {}
+        overall = 'ok'
+
+        # 检查数据库连通性
+        try:
+            db.session.execute(text('SELECT 1'))
+            checks['db'] = 'ok'
+        except Exception as exc:
+            logger.warning('Health check: DB unavailable: %s', exc)
+            checks['db'] = 'error'
+            overall = 'degraded'
+
+        # 检查 Redis 连通性
+        rc = _ext.redis_client
+        if rc is None:
+            checks['redis'] = 'error'
+            overall = 'degraded'
+        else:
+            try:
+                rc.ping()
+                checks['redis'] = 'ok'
+            except Exception as exc:
+                logger.warning('Health check: Redis unavailable: %s', exc)
+                checks['redis'] = 'error'
+                overall = 'degraded'
+
+        status_code = 200 if overall == 'ok' else 503
         return {
-            'status': 'ok',
+            'status': overall,
+            'checks': checks,
             'timestamp': datetime.now(timezone.utc).isoformat(),
             'version': '1.0.0',
-        }, 200
+        }, status_code
 
     return app
 
