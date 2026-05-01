@@ -13,6 +13,7 @@
   7. redis_client 完全不可用时，run() 抛 RuntimeError
   8. 消息处理失败时，原始 payload 被推入 error queue
   9. 合法消息经 brpop 取出后被正确分发给 _handle_message
+ 10. _handle_message 抛异常时，run() 的 except 块调用 db.session.rollback()
 """
 from __future__ import annotations
 
@@ -205,3 +206,45 @@ class TestConsumerLoop:
 
         assert len(handled) == 1, "_handle_message 应被调用一次"
         assert handled[0] == payload, "_handle_message 应收到原始 payload"
+
+    def test_db_rollback_called_on_handle_message_failure(self, app, monkeypatch):
+        """_handle_message 抛异常时，run() 的 except 块应调用 db.session.rollback()。
+        验证写库失败后的清理行为确实执行，不仅仅是异常被吞掉。
+        """
+        import workers.agent_consumer as consumer_module
+        import extensions
+
+        rollback_calls = []
+
+        # 替换 _handle_message 以稳定注入失败，避免依赖 DB 内容
+        def fake_handle_message(raw):
+            raise RuntimeError("simulated db write failure")
+
+        def fake_brpop(key, timeout=5):
+            return (key, '{"server_id": 1, "metrics": {}}')
+
+        mock_redis = MagicMock()
+        mock_redis.brpop.side_effect = fake_brpop
+
+        # 用 SystemExit 替代真实 sleep 以终止无限循环
+        mock_time = MagicMock()
+        mock_time.sleep.side_effect = SystemExit(0)
+
+        # 跟踪 db.session.rollback 调用（consumer_module 引用的是 extensions.db）
+        original_rollback = consumer_module.db.session.rollback
+        try:
+            consumer_module.db.session.rollback = lambda: rollback_calls.append(True) or original_rollback()
+
+            monkeypatch.setattr(consumer_module, "create_app", lambda: app)
+            monkeypatch.setattr(extensions, "redis_client", mock_redis)
+            monkeypatch.setattr(consumer_module, "_handle_message", fake_handle_message)
+            monkeypatch.setattr(consumer_module, "time", mock_time)
+
+            with pytest.raises(SystemExit):
+                consumer_module.run()
+        finally:
+            consumer_module.db.session.rollback = original_rollback
+
+        assert len(rollback_calls) >= 1, (
+            "_handle_message 抛异常后，run() 的 except 块应调用 db.session.rollback()"
+        )
