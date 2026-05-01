@@ -4,6 +4,7 @@
 import hashlib
 import hmac
 import json
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -14,10 +15,12 @@ from werkzeug.security import check_password_hash
 from extensions import db
 from middleware.rate_limit import limiter
 from middleware.rbac import admin_required
+from middleware.metrics_middleware import record_agent_push, record_agent_poll, record_agent_ack
 from models.models import AgentCommand, ProbeResult, Server
 from utils.errors import AuthenticationError, ValidationError
 
 agent_bp = Blueprint("agent", __name__)
+logger = logging.getLogger(__name__)
 
 _CLOCK_SKEW_SECONDS = 60
 _OVERLAP_MINUTES = 5
@@ -76,9 +79,34 @@ def _hmac_digest(secret: str, body: bytes, ts: str, nonce: str) -> str:
 
 
 def _record_metrics(server: Server, data: dict):
-    for field in ["cpu_use", "ram_use", "disk_use", "net_up", "net_down", "status", "uptime"]:
+    # 验证并写入 0-100 范围的百分比指标
+    for field in ["cpu_use", "ram_use", "disk_use"]:
         if field in data:
-            setattr(server, field, data[field])
+            try:
+                fval = float(data[field])
+            except (TypeError, ValueError):
+                continue
+            if not (0.0 <= fval <= 100.0):
+                continue
+            setattr(server, field, fval)
+
+    # 验证并写入非负浮点数指标
+    for field in ["net_up", "net_down"]:
+        if field in data:
+            try:
+                fval = float(data[field])
+            except (TypeError, ValueError):
+                continue
+            if fval < 0:
+                continue
+            setattr(server, field, fval)
+
+    # 写入字符串/枚举字段（不做范围检查，但限制长度）
+    for field in ["status", "uptime"]:
+        if field in data:
+            val = data[field]
+            if isinstance(val, str) and len(val) <= 64:
+                setattr(server, field, val)
 
     bytes_out = data.get("bytes_out_total")
     bytes_in = data.get("bytes_in_total")
@@ -193,6 +221,11 @@ def agent_push():
         _record_metrics(server, data)
         db.session.commit()
 
+    try:
+        record_agent_push("accepted")
+    except Exception as exc:
+        logger.debug("Failed to record agent push metric: %s", exc)
+
     return jsonify({"accepted": True}), 202
 
 
@@ -215,7 +248,62 @@ def agent_poll():
         .all()
     )
 
+    try:
+        record_agent_poll("ok")
+    except Exception as exc:
+        logger.debug("Failed to record agent poll metric: %s", exc)
+
     return jsonify({
         "config": server.agent_config or {},
         "commands": [c.to_dict() for c in commands],
     })
+
+
+@agent_bp.post("/ack")
+@limiter.limit(
+    lambda: current_app.config.get("AGENT_ACK_RATE_LIMIT", "120 per minute"),
+    key_func=_agent_rate_limit_key,
+)
+def agent_ack():
+    """Agent 命令确认：将已执行的命令标记为 executed。
+    请求体: {"command_ids": [1, 2, 3]}
+    """
+    data = request.get_json(silent=True) or {}
+    server, _ = _authenticate_agent(data)
+
+    command_ids = data.get("command_ids") or []
+    if not isinstance(command_ids, list):
+        raise ValidationError("command_ids 必须是列表", field="command_ids")
+    if len(command_ids) > 50:
+        raise ValidationError("单次最多确认 50 条命令", field="command_ids")
+
+    now = _utc_now()
+    updated = 0
+    for cid in command_ids:
+        try:
+            cmd = AgentCommand.query.filter_by(
+                id=int(cid), server_id=server.id
+            ).first()
+            if cmd and cmd.status == "pending":
+                cmd.status = "executed"
+                cmd.executed_at = now
+                updated += 1
+        except (TypeError, ValueError):
+            continue
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        try:
+            record_agent_ack("error")
+        except Exception as metric_exc:
+            logger.debug("Failed to record agent ack error metric: %s", metric_exc)
+        raise
+
+    try:
+        record_agent_ack("ok")
+    except Exception as exc:
+        logger.debug("Failed to record agent ack metric: %s", exc)
+
+    return jsonify({"ok": True, "updated": updated})

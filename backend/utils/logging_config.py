@@ -194,21 +194,21 @@ def _register_dynamic_log_level_endpoint(app) -> None:
     GET  /admin/log-level              → 当前 level
     POST /admin/log-level {"level": "DEBUG"}  → 动态修改
 
-    ⚠️  该接口应受 JWT 鉴权保护，建议在 nginx.conf 限制仅内网访问。
+    ⚠️  仅 admin 角色可访问，建议在 nginx.conf 限制仅内网访问。
     """
     from flask import Blueprint, request as req, jsonify
-    from flask_jwt_extended import jwt_required
+    from middleware.rbac import admin_required
 
     log_bp = Blueprint("log_level", __name__)
 
     @log_bp.get("/admin/log-level")
-    @jwt_required()
+    @admin_required
     def get_log_level():
         current = logging.getLevelName(logging.getLogger().level)
         return jsonify(level=current)
 
     @log_bp.post("/admin/log-level")
-    @jwt_required()
+    @admin_required
     def set_log_level():
         data      = req.get_json(silent=True) or {}
         new_level = data.get("level", "").upper()

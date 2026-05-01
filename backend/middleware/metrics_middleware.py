@@ -122,6 +122,21 @@ if Counter:
         "Emails sent by email_service",
         ["template", "status"],  # template: "verify"|"reset"|"welcome"
     )
+    vps_agent_push = Counter(
+        "vps_agent_push_total",
+        "Agent push requests received",
+        ["status"],  # "accepted" | "error"
+    )
+    vps_agent_poll = Counter(
+        "vps_agent_poll_total",
+        "Agent poll requests received",
+        ["status"],  # "ok" | "error"
+    )
+    vps_agent_ack = Counter(
+        "vps_agent_ack_total",
+        "Agent command acknowledgements received",
+        ["status"],  # "ok" | "error"
+    )
 
 else:
     # prometheus_client 未安装时，使用 no-op 占位
@@ -136,6 +151,7 @@ else:
     vps_probe_latency_ms = _NoOp()
     vps_auth_logins = vps_auth_token_revocations = _NoOp()
     vps_alerts_fired = vps_traffic_limit_exceeded = vps_email_sent = _NoOp()
+    vps_agent_push = vps_agent_poll = vps_agent_ack = _NoOp()
 
 
 # ── 路径规范化（避免高基数 label）────────────────────────────────────────────
@@ -288,6 +304,21 @@ def record_email_sent(template: str, status: str) -> None:
     vps_email_sent.labels(template=template, status=status).inc()
 
 
+def record_agent_push(status: str) -> None:
+    """记录 agent push 事件（accepted/error）。"""
+    vps_agent_push.labels(status=status).inc()
+
+
+def record_agent_poll(status: str) -> None:
+    """记录 agent poll 事件（ok/error）。"""
+    vps_agent_poll.labels(status=status).inc()
+
+
+def record_agent_ack(status: str) -> None:
+    """记录 agent 命令确认事件（ok/error）。"""
+    vps_agent_ack.labels(status=status).inc()
+
+
 def set_server_counts(total: int, online: int, offline: int) -> None:
     """设置服务器总量/在线/离线 Gauge。"""
     vps_servers_total.set(total)
@@ -306,11 +337,17 @@ __all__ = [
     "vps_alerts_fired",
     "vps_traffic_limit_exceeded",
     "vps_email_sent",
+    "vps_agent_push",
+    "vps_agent_poll",
+    "vps_agent_ack",
     "record_auth_login",
     "record_token_revocation",
     "record_alert_fired",
     "record_traffic_limit_exceeded",
     "record_probe_latency",
     "record_email_sent",
+    "record_agent_push",
+    "record_agent_poll",
+    "record_agent_ack",
     "set_server_counts",
 ]

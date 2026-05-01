@@ -165,6 +165,7 @@ class Config:
     AGENT_REQUIRE_TLS = os.getenv('AGENT_REQUIRE_TLS', '1') == '1'
     AGENT_PUSH_RATE_LIMIT = os.getenv('AGENT_PUSH_RATE_LIMIT', '60 per minute')
     AGENT_POLL_RATE_LIMIT = os.getenv('AGENT_POLL_RATE_LIMIT', '120 per minute')
+    AGENT_ACK_RATE_LIMIT = os.getenv('AGENT_ACK_RATE_LIMIT', '120 per minute')
     TRUST_PROXY = os.getenv('TRUST_PROXY', '0') == '1'
     PROXY_FIX_X_FOR = int(os.getenv('PROXY_FIX_X_FOR', '1'))
     PROXY_FIX_X_PROTO = int(os.getenv('PROXY_FIX_X_PROTO', '1'))
