@@ -158,7 +158,7 @@ def create_app(**config_overrides):
             db.session.execute(text('SELECT 1'))
             checks['db'] = 'ok'
         except Exception as exc:
-            logger.warning('Health check: DB unavailable: %s', exc)
+            logger.warning('Health check: DB unavailable: %s', exc, exc_info=True)
             checks['db'] = 'error'
             overall = 'degraded'
 
@@ -172,7 +172,7 @@ def create_app(**config_overrides):
                 rc.ping()
                 checks['redis'] = 'ok'
             except Exception as exc:
-                logger.warning('Health check: Redis unavailable: %s', exc)
+                logger.warning('Health check: Redis unavailable: %s', exc, exc_info=True)
                 checks['redis'] = 'error'
                 overall = 'degraded'
 

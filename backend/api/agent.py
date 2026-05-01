@@ -4,6 +4,7 @@
 import hashlib
 import hmac
 import json
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -19,6 +20,7 @@ from models.models import AgentCommand, ProbeResult, Server
 from utils.errors import AuthenticationError, ValidationError
 
 agent_bp = Blueprint("agent", __name__)
+logger = logging.getLogger(__name__)
 
 _CLOCK_SKEW_SECONDS = 60
 _OVERLAP_MINUTES = 5
@@ -221,8 +223,8 @@ def agent_push():
 
     try:
         record_agent_push("accepted")
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Failed to record agent push metric: %s", exc)
 
     return jsonify({"accepted": True}), 202
 
@@ -248,8 +250,8 @@ def agent_poll():
 
     try:
         record_agent_poll("ok")
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Failed to record agent poll metric: %s", exc)
 
     return jsonify({
         "config": server.agent_config or {},
@@ -291,14 +293,17 @@ def agent_ack():
 
     try:
         db.session.commit()
-    except Exception as exc:
+    except Exception:
         db.session.rollback()
-        record_agent_ack("error")
+        try:
+            record_agent_ack("error")
+        except Exception as metric_exc:
+            logger.debug("Failed to record agent ack error metric: %s", metric_exc)
         raise
 
     try:
         record_agent_ack("ok")
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Failed to record agent ack metric: %s", exc)
 
     return jsonify({"ok": True, "updated": updated})
