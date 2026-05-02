@@ -53,11 +53,12 @@ def _revoke_current_access_token() -> None:
     claims = get_jwt()
     jti    = claims.get("jti")
     exp    = claims.get("exp")
+    user_id = get_jwt_identity()
     if jti and exp:
         delta = int(exp - time.time())
         if delta > 0:
             try:
-                revoke_access_token(jti, delta)
+                revoke_access_token(jti, delta, user_id=user_id)
             except Exception as e:
                 logger.warning(f"⚠️ 吊销 access token 失败: {e}")
 
@@ -234,7 +235,7 @@ def refresh():
     exp    = claims.get("exp")
 
     # 检查 refresh token 是否已吊销
-    if jti and is_refresh_token_revoked(jti):
+    if jti and is_refresh_token_revoked(jti, user_id=get_jwt_identity()):
         return jsonify(msg="Refresh token 已失效，请重新登录"), 401
 
     uid  = get_jwt_identity()
@@ -247,7 +248,7 @@ def refresh():
         delta = int(exp - time.time())
         if delta > 0:
             try:
-                revoke_refresh_token(jti, delta)
+                revoke_refresh_token(jti, delta, user_id=uid)
             except Exception as e:
                 logger.warning(f"⚠️ 吊销旧 refresh token 失败: {e}")
 
@@ -408,7 +409,8 @@ def logout():
         delta = int(rt_exp - time.time())
         if delta > 0:
             try:
-                revoke_refresh_token(rt_jti, delta)
+                uid = get_jwt_identity()
+                revoke_refresh_token(rt_jti, delta, user_id=uid)
             except Exception as e:
                 logger.warning(f"⚠️ 吊销 refresh token 失败: {e}")
 
