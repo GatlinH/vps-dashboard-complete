@@ -242,6 +242,7 @@ class TestRevokeAllUserTokens:
     def test_revoke_integrates_with_jwt_blocklist(self, client, app):
         """端到端：revoke_all_user_tokens 后使用旧 access_token 应返回 401"""
         from flask_jwt_extended import decode_token
+        from utils.token_blocklist import revoke_all_user_tokens, is_user_force_revoked
 
         # 登录获取 token
         login_res = client.post('/api/v1/auth/login', json={
@@ -254,16 +255,11 @@ class TestRevokeAllUserTokens:
         user_id = claims['sub']
         token_iat = float(claims['iat'])
 
-        # 强制下线：forced_at = int(token_iat) + 1 确保 token_iat < forced_at
-        # 直接写入 Redis 模拟 revoke_all_user_tokens 的行为（无需 sleep）
-        import extensions as _ext
-        from utils.token_blocklist import _PREFIX_USER, _FORCE_LOGOUT_TTL, is_user_force_revoked
+        # 调用真实的 revoke_all_user_tokens（forced_at = int(time.time()) + 1 总大于 token_iat）
+        with app.app_context():
+            revoke_all_user_tokens(user_id)
 
-        forced_at = float(int(token_iat) + 1)  # mirrors revoke_all_user_tokens boundary logic
-        key = f"{_PREFIX_USER}{user_id}:forced_at"
-        _ext.redis_client.setex(key, _FORCE_LOGOUT_TTL, str(forced_at))
-
-        # 验证 is_user_force_revoked 生效
+        # 验证 is_user_force_revoked 生效（forced_at > token_iat 恒成立）
         assert is_user_force_revoked(user_id, token_iat) is True
 
         # 旧 token 请求受保护接口应被拒绝

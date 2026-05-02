@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 # Per-secret CryptoManager cache: avoids re-deriving the PBKDF2HMAC key on every DB access.
 # Keyed by the secret string so different keys coexist without collision.
+# On secret rotation: old entries remain in memory for the process lifetime (bounded, low risk).
+# If a compromised secret is rotated, restart the process to clear stale cache entries.
 _crypto_cache: dict = {}
 
 
@@ -22,7 +24,7 @@ def _get_tg_crypto():
     """惰性获取 Telegram bot_token 加密用的 CryptoManager。
 
     每次调用时优先从 Flask current_app.config 读取 TELEGRAM_TOKEN_SECRET；
-    在 app context 之外（CLI、测试 fixture 初始化前）回退到 os.getenv。
+    在 app context 之外（CLI、测试 fixture 初始化前）回退到 os.getenv（并打印 debug 日志）。
     结果按 secret 值缓存，避免对同一密钥重复执行 PBKDF2HMAC 迭代。
     未配置 TELEGRAM_TOKEN_SECRET 时返回 None（调用方 EncryptedString 将在写入时 fail-closed）。
     """
@@ -32,6 +34,10 @@ def _get_tg_crypto():
     except RuntimeError:
         # Flask app context not active (e.g. CLI / pre-push test setup)
         secret = os.getenv("TELEGRAM_TOKEN_SECRET", "")
+        if secret:
+            logger.debug(
+                "TELEGRAM_TOKEN_SECRET read from env (no Flask app context active)"
+            )
 
     if not secret:
         return None
