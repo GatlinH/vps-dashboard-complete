@@ -17,6 +17,7 @@ from models.models import Server, ProbeResult, AgentCommand
 from utils.errors import ValidationError, InternalServerError
 from middleware.rbac import admin_required, viewer_or_admin_required
 from utils.validators import validate_server_name, validate_server_ip
+from services.metrics_ingest import ingest_metrics
 
 servers_bp = Blueprint("servers", __name__)
 logger = logging.getLogger(__name__)
@@ -394,56 +395,8 @@ def push_metrics(sid):
 
     data = request.get_json(silent=True) or {}
 
-    # 验证 0-100 范围的字段
-    for field in ["cpu_use", "ram_use", "disk_use"]:
-        val = data.get(field)
-        if val is not None:
-            try:
-                fval = float(val)
-            except (TypeError, ValueError):
-                raise ValidationError(f"{field} 必须是数字", field=field)
-            if not (0.0 <= fval <= 100.0):
-                raise ValidationError(f"{field} 必须在 0-100 之间", field=field)
-
-    # 更新字段
-    metrics = {}
-    for field in ["cpu_use", "ram_use", "disk_use", "net_up", "net_down", "status", "uptime"]:
-        if field in data:
-            setattr(server, field, data[field])
-            metrics[field] = data[field]
-
-    # 精确流量：支持 bytes_out_total / bytes_in_total 差值计算
-    bytes_out = data.get("bytes_out_total")
-    bytes_in  = data.get("bytes_in_total")
-    if bytes_out is not None and bytes_in is not None:
-        try:
-            bytes_out = int(bytes_out)
-            bytes_in  = int(bytes_in)
-            prev_out  = server.bytes_out_snapshot or 0
-            prev_in   = server.bytes_in_snapshot  or 0
-            if prev_out > 0 and bytes_out >= prev_out:
-                delta_up_gb = (bytes_out - prev_out) / 1024 / 1024 / 1024
-                server.traffic_up_gb   = round((server.traffic_up_gb   or 0) + delta_up_gb, 6)
-            if prev_in > 0 and bytes_in >= prev_in:
-                delta_dn_gb = (bytes_in - prev_in) / 1024 / 1024 / 1024
-                server.traffic_down_gb = round((server.traffic_down_gb or 0) + delta_dn_gb, 6)
-            server.traffic_used_gb = server.traffic_up_gb + server.traffic_down_gb
-            server.bytes_out_snapshot = bytes_out
-            server.bytes_in_snapshot  = bytes_in
-        except (TypeError, ValueError):
-            pass
-
-    # 写探针历史
-    db.session.add(ProbeResult(
-        server_id=server.id,
-        cpu_use=data.get("cpu_use", server.cpu_use),
-        ram_use=data.get("ram_use", server.ram_use),
-        disk_use=data.get("disk_use", server.disk_use),
-        net_up=data.get("net_up", server.net_up),
-        net_down=data.get("net_down", server.net_down),
-        status=data.get("status", server.status),
-        latency_ms=data.get("latency_ms"),
-    ))
+    # 校验、写库、ProbeResult 均由共享入口处理（strict=True 在字段非法时抛 ValidationError）
+    metrics = ingest_metrics(server, data, strict=True, source="admin")
     db.session.commit()
     _clear_cache()
     return jsonify(metrics=metrics)
