@@ -4,6 +4,7 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
+import hashlib
 import os
 import base64
 
@@ -25,11 +26,20 @@ class CryptoManager:
     
     @staticmethod
     def _derive_key(password: str) -> bytes:
-        """从密码衍生 Fernet 密钥"""
+        """从密码衍生 Fernet 密钥。
+
+        使用 PBKDF2HMAC 进行密钥拉伸，salt 基于 master_key 本身计算，
+        确保不同部署使用不同 salt（防止预计算攻击），同时保持确定性以支持解密。
+        注：Fernet 加密每次使用随机 IV，单值安全性不依赖 salt 唯一性。
+        """
+        # 将 master_key 的 SHA-256 哈希截取 16 字节作为密钥专属 salt
+        key_salt = hashlib.sha256(
+            b'vps-dashboard-tg:' + password.encode()
+        ).digest()[:16]
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
-            salt=b'vps-dashboard-salt',  # 生产环境应使用动态 salt
+            salt=key_salt,
             iterations=100000,
             backend=default_backend()
         )

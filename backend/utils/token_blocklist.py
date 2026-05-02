@@ -140,7 +140,7 @@ def is_user_force_revoked(user_id, token_iat: float) -> bool:
         if val is None:
             return False
         forced_at = float(val)
-        return float(token_iat) <= forced_at
+        return float(token_iat) < forced_at
     except Exception:
         return False
 
