@@ -6,8 +6,9 @@ from flask import jsonify
 from flask_jwt_extended import get_jwt, verify_jwt_in_request
 
 # 角色常量
-ADMIN_ROLE = "admin"
+ADMIN_ROLE  = "admin"
 VIEWER_ROLE = "viewer"
+USER_ROLE   = "user"
 
 # 允许访问只读后台接口的角色集合
 _READ_ROLES = {ADMIN_ROLE, VIEWER_ROLE}

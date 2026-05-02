@@ -31,8 +31,12 @@ from utils.token_blocklist import (
 
 # 引入全局限流器和预设常量
 from middleware.rate_limit import limiter, LOGIN_LIMIT, WRITE_LIMIT, READ_LIMIT
+from middleware.rbac import admin_required, ADMIN_ROLE, VIEWER_ROLE, USER_ROLE
 
 auth_bp = Blueprint("auth", __name__)
+
+# 允许管理员通过 API 分配的角色集合（不包含 admin，防止越权提权）
+_ASSIGNABLE_ROLES = {VIEWER_ROLE, USER_ROLE}
 logger  = logging.getLogger(__name__)
 
 # ── 正则 ──────────────────────────────────────────────────────────────────────
@@ -733,3 +737,109 @@ def reset_password():
 
     logger.info(f"✓ 密码已重置: user_id={user.id} username={user.username}")
     return jsonify(msg="密码重置成功，请使用新密码登录")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 管理员用户管理（P1-1 / P1-4 修复）
+# ─ 管理员可查询用户列表并将用户提升为 viewer，使其获得只读后台权限。
+# ─ 仅允许分配 user / viewer 角色，admin 角色仍通过内部流程保持，避免越权风险。
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@auth_bp.get("/users")
+@limiter.limit(READ_LIMIT)
+@admin_required
+def list_users():
+    """
+    列出所有用户（仅管理员）。
+    ---
+    tags:
+      - Auth
+    summary: 用户列表
+    security:
+      - Bearer: []
+    parameters:
+      - in: query
+        name: role
+        type: string
+        description: 按角色筛选（admin/viewer/user）
+    responses:
+      200:
+        description: 用户列表
+      403:
+        description: 权限不足
+    """
+    role_filter = request.args.get("role", "").strip() or None
+    query = User.query
+    if role_filter:
+        query = query.filter_by(role=role_filter)
+    users = query.order_by(User.id).all()
+    return jsonify(users=[u.to_dict() for u in users], count=len(users))
+
+
+@auth_bp.patch("/users/<int:user_id>/role")
+@limiter.limit(WRITE_LIMIT)
+@admin_required
+def assign_user_role(user_id: int):
+    """
+    修改用户角色（仅管理员）。
+    可分配的角色为 viewer 或 user；admin 角色不可通过此接口分配，防止越权提权。
+    ---
+    tags:
+      - Auth
+    summary: 分配用户角色
+    security:
+      - Bearer: []
+    parameters:
+      - in: path
+        name: user_id
+        type: integer
+        required: true
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required: [role]
+          properties:
+            role:
+              type: string
+              enum: [viewer, user]
+              example: viewer
+    responses:
+      200:
+        description: 角色更新成功
+      400:
+        description: role 参数缺失或非法
+      403:
+        description: 权限不足，或尝试分配 admin 角色
+      404:
+        description: 用户不存在
+    """
+    data     = request.get_json(silent=True) or {}
+    new_role = data.get("role", "").strip()
+
+    if not new_role:
+        return jsonify(msg="role 字段不能为空"), 400
+
+    if new_role not in _ASSIGNABLE_ROLES:
+        return jsonify(
+            msg=f"非法角色值：'{new_role}'；可分配角色为 user, viewer"
+        ), 400
+
+    target = db.session.get(User, user_id)
+    if not target:
+        return jsonify(msg="用户不存在"), 404
+
+    # 拒绝降级 admin 账户，防止管理员通过此接口误删自身权限
+    if target.role == ADMIN_ROLE:
+        return jsonify(msg="不能通过此接口修改 admin 账户角色"), 403
+
+    old_role     = target.role
+    target.role  = new_role
+    db.session.commit()
+
+    logger.info(
+        f"✓ 角色变更: user_id={user_id} username={target.username} "
+        f"{old_role} → {new_role}"
+    )
+    return jsonify(msg="角色已更新", user=target.to_dict())
