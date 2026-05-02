@@ -4,11 +4,14 @@
 数据库模型 - 性能优化版本
 添加关键索引和分区策略
 """
+import logging
 import os
 from datetime import datetime, timezone, date
 from extensions import db
 from models.audit_log import AuditLog  # re-export for backward compatibility
 from utils.crypto import CryptoManager, EncryptedString
+
+logger = logging.getLogger(__name__)
 
 
 def _get_tg_crypto():
@@ -18,7 +21,10 @@ def _get_tg_crypto():
         return None
     try:
         return CryptoManager(master_key=secret)
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "Telegram token 加密初始化失败，退化为明文存储（请检查 TELEGRAM_TOKEN_SECRET）: %s", exc
+        )
         return None
 
 

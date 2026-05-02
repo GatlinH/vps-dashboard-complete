@@ -104,7 +104,8 @@ def is_refresh_token_revoked(jti: str) -> bool:
 def revoke_all_user_tokens(user_id: int) -> int:
     """
     强制下线指定用户：在 Redis 中记录该用户的强制下线时间戳。
-    凡是在该时间戳之前（含）签发的 token 均视为已失效。
+    凡是严格在该时间戳之前签发的 token 均视为已失效；
+    在该时间戳之后（或同一时刻）签发的 token 仍有效，确保立即重新登录的新会话不被误封。
 
     需在 JWT blocklist 检查处同时调用 is_user_force_revoked()（已在 app.py 配置）。
 

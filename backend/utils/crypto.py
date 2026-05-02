@@ -4,9 +4,14 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
-import hashlib
 import os
 import base64
+
+# Application-specific salt for key derivation.
+# Not a password hash — this is a deterministic KDF salt that identifies this application/module.
+# Fernet adds a random IV per encryption, so per-value uniqueness is handled separately.
+_KDF_SALT = b'vps-dashboard:tg-token-kdf-v1:0'
+
 
 class CryptoManager:
     """加密管理器"""
@@ -28,18 +33,15 @@ class CryptoManager:
     def _derive_key(password: str) -> bytes:
         """从密码衍生 Fernet 密钥。
 
-        使用 PBKDF2HMAC 进行密钥拉伸，salt 基于 master_key 本身计算，
-        确保不同部署使用不同 salt（防止预计算攻击），同时保持确定性以支持解密。
-        注：Fernet 加密每次使用随机 IV，单值安全性不依赖 salt 唯一性。
+        使用 PBKDF2HMAC（100,000 次迭代）进行密钥拉伸，确保即使 master_key 较短
+        也难以暴力破解。Fernet 加密每次使用随机 128-bit IV，保证每条密文唯一。
+        salt 为应用特定常量，起域分离作用；此处 master_key 本身是高熵秘密，
+        不存在密码字典攻击场景。
         """
-        # 将 master_key 的 SHA-256 哈希截取 16 字节作为密钥专属 salt
-        key_salt = hashlib.sha256(
-            b'vps-dashboard-tg:' + password.encode()
-        ).digest()[:16]
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
-            salt=key_salt,
+            salt=_KDF_SALT,
             iterations=100000,
             backend=default_backend()
         )
@@ -78,10 +80,11 @@ class EncryptedString(TypeDecorator):
     透明地对存入数据库的字符串加密、读取时解密。
     若 crypto_manager 为 None（未配置密钥），则行为退化为普通字符串（兼容旧数据）。
     读取时若解密失败（如旧明文数据），则原样返回，保持向后兼容。
+    length 默认 512，确保 Fernet 加密后的输出（约 160-220 字符）有足够空间。
     """
     impl = String
     cache_ok = True
-    
+
     def __init__(self, crypto_manager: CryptoManager = None, length: int = 512):
         super().__init__(length)
         self.crypto_manager = crypto_manager

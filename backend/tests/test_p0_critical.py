@@ -14,6 +14,7 @@ from datetime import date
 from unittest.mock import patch, MagicMock
 
 import pytest
+from sqlalchemy import text
 from werkzeug.security import generate_password_hash
 
 from extensions import db as _db
@@ -240,7 +241,6 @@ class TestRevokeAllUserTokens:
 
     def test_revoke_integrates_with_jwt_blocklist(self, client, app):
         """端到端：revoke_all_user_tokens 后使用旧 access_token 应返回 401"""
-        import time as _time
         from flask_jwt_extended import decode_token
 
         # 登录获取 token（iat 在下线之前）
@@ -253,9 +253,11 @@ class TestRevokeAllUserTokens:
         claims = decode_token(access)
         user_id = claims['sub']
 
-        # 强制下线
+        # 强制下线（forced_at = now，token iat 在之前）
         from utils.token_blocklist import revoke_all_user_tokens
         with app.app_context():
+            # 小延迟确保 forced_at > token iat
+            time.sleep(0.01)
             revoke_all_user_tokens(user_id)
 
         # 旧 token 请求受保护接口应被拒绝
@@ -270,44 +272,74 @@ class TestRevokeAllUserTokens:
 class TestTelegramTokenEncryption:
     """P0-4: bot_token 启用密钥后数据库落盘为非明文，读取路径仍可正常使用。"""
 
-    def test_bot_token_encrypted_in_db_when_secret_set(self, app):
-        """设置 TELEGRAM_TOKEN_SECRET 后，数据库中的 bot_token 不为明文"""
-        secret = 'test-tg-secret-key-for-unit-test!'
+    def test_encrypted_string_type_decorator_encrypts_value(self, app):
+        """EncryptedString TypeDecorator process_bind_param 加密值；process_result_value 解密还原。"""
+        from utils.crypto import CryptoManager, EncryptedString
+        crypto = CryptoManager(master_key='test-tg-secret-key-for-unit-test!')
+        es = EncryptedString(crypto, length=512)
         plaintext = 'real-bot-token-123456789:ABCdef'
 
-        from utils.crypto import CryptoManager
-        from models.models import EncryptedString
+        encrypted = es.process_bind_param(plaintext, None)
+        # 落盘值不等于明文
+        assert encrypted != plaintext
+        # Fernet base64url 格式，应比明文更长
+        assert len(encrypted) > len(plaintext)
+
+        # 读取时透明解密
+        recovered = es.process_result_value(encrypted, None)
+        assert recovered == plaintext
+
+    def test_encrypted_string_legacy_plaintext_fallback(self, app):
+        """TypeDecorator 读取旧明文数据时不报错（向后兼容）"""
+        from utils.crypto import CryptoManager, EncryptedString
+        crypto = CryptoManager(master_key='test-tg-secret-key-for-unit-test!')
+        es = EncryptedString(crypto, length=512)
+        legacy_plaintext = 'old-plaintext-token'
+
+        # 旧明文无法被 Fernet 解密，应原样返回
+        result = es.process_result_value(legacy_plaintext, None)
+        assert result == legacy_plaintext
+
+    def test_bot_token_encrypted_in_db_when_secret_set(self, app):
+        """当 TELEGRAM_TOKEN_SECRET 激活时，ORM 写入后数据库中存储的是加密字符串。"""
+        from utils.crypto import CryptoManager, EncryptedString
+        from sqlalchemy import text
+
+        secret = 'test-tg-secret-key-for-unit-test!'
+        plaintext = 'real-bot-token-123456789:ABCdef'
         crypto = CryptoManager(master_key=secret)
 
+        # 创建一个激活了加密的 EncryptedString 实例
+        es = EncryptedString(crypto, length=512)
+
+        # 直接通过 process_bind_param 验证：写入数据库时值被加密
+        stored_value = es.process_bind_param(plaintext, None)
+        assert stored_value != plaintext, "数据库中不应直接存储明文 bot_token"
+
         with app.app_context():
-            cfg = TelegramConfig(chat_id='test_chat')
+            cfg = TelegramConfig(chat_id='enc_test_chat')
             _db.session.add(cfg)
             _db.session.commit()
 
-            # 模拟通过 crypto manager 加密后写入
-            encrypted = crypto.encrypt(plaintext)
-            # 直接向数据库写入加密值（模拟 TypeDecorator 处于激活状态）
-            from sqlalchemy import text
+            # 模拟 TypeDecorator 激活状态下的 ORM 写入
             _db.session.execute(
                 text("UPDATE telegram_config SET bot_token = :enc WHERE id = :id"),
-                {'enc': encrypted, 'id': cfg.id},
+                {'enc': stored_value, 'id': cfg.id},
             )
             _db.session.commit()
 
-            # 直接读取原始值（绕过 TypeDecorator）验证落盘不为明文
+            # 直接 SQL 读取（绕过 TypeDecorator）验证落盘不为明文
             row = _db.session.execute(
                 text("SELECT bot_token FROM telegram_config WHERE id = :id"),
                 {'id': cfg.id},
             ).fetchone()
             raw_value = row[0]
             assert raw_value != plaintext, "数据库中不应直接存储明文 bot_token"
-            assert len(raw_value) > len(plaintext), "加密后的值应比明文更长"
 
-            # 解密应能还原原始值
-            decrypted = crypto.decrypt(raw_value)
+            # 通过 TypeDecorator 解密应能还原原始值
+            decrypted = es.process_result_value(raw_value, None)
             assert decrypted == plaintext
 
-            # 清理
             _db.session.delete(cfg)
             _db.session.commit()
 
