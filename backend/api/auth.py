@@ -11,6 +11,8 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import (
     create_access_token, create_refresh_token,
     jwt_required, get_jwt_identity, get_jwt,
+    set_access_cookies, set_refresh_cookies, unset_jwt_cookies,
+    get_csrf_token,
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 from extensions import db
@@ -193,11 +195,16 @@ def login():
     )
     refresh = create_refresh_token(identity=str(user.id))
 
-    return jsonify(
+    resp = jsonify(
         access_token=access,
         refresh_token=refresh,
         user=user.to_dict(),
     )
+    # Set httpOnly cookies for browser clients (P1-7).
+    # Bearer header path remains supported for backward compatibility.
+    set_access_cookies(resp, access)
+    set_refresh_cookies(resp, refresh)
+    return resp
 
 
 # ── 刷新 ─────────────────────────────────────────────────────────────────────
@@ -250,7 +257,11 @@ def refresh():
     )
     new_refresh = create_refresh_token(identity=uid)
 
-    return jsonify(access_token=new_access, refresh_token=new_refresh)
+    resp = jsonify(access_token=new_access, refresh_token=new_refresh)
+    # Rotate cookies alongside body tokens (P1-7).
+    set_access_cookies(resp, new_access)
+    set_refresh_cookies(resp, new_refresh)
+    return resp
 
 
 # ── 当前用户信息 ──────────────────────────────────────────────────────────────
@@ -342,16 +353,17 @@ def change_password():
 
 @auth_bp.post("/logout")
 @limiter.limit(WRITE_LIMIT)
-@jwt_required()
+@jwt_required(optional=True)
 def logout():
     """
-    注销：吊销当前 access token，可选吊销 refresh token。
+    注销：吊销当前 access token，清除认证 cookie，可选吊销 refresh token。
     ---
     tags:
       - Auth
     summary: 用户登出
     security:
       - Bearer: []
+      - Cookie: []
     consumes:
       - application/json
     parameters:
@@ -370,7 +382,10 @@ def logout():
       200:
         description: 已登出
     """
-    _revoke_current_access_token()
+    try:
+        _revoke_current_access_token()
+    except Exception as e:
+        logger.warning(f"⚠️ 登出时吊销 token 失败 (已过期?): {e}")
 
     # 可选：吊销 refresh token（客户端传 refresh_token 字段）
     data    = request.get_json(silent=True) or {}
@@ -384,7 +399,10 @@ def logout():
             except Exception as e:
                 logger.warning(f"⚠️ 吊销 refresh token 失败: {e}")
 
-    return jsonify(msg="已登出")
+    # Clear httpOnly auth cookies (P1-7).
+    resp = jsonify(msg="已登出")
+    unset_jwt_cookies(resp)
+    return resp
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

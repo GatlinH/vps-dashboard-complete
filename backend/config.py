@@ -146,11 +146,37 @@ class Config:
     # Redis 异常时 JWT 黑名单检查是否放行（1=放行，0=拒绝）
     JWT_BLOCKLIST_FAIL_OPEN   = os.getenv("JWT_BLOCKLIST_FAIL_OPEN", "1") == "1"
 
+    # ── JWT Cookie-based Auth (P1-7) ─────────────────────────────────────────
+    # Accept tokens from both Authorization header (higher priority, backward compat)
+    # and httpOnly cookies (browser clients). Header-first order means Bearer-header
+    # requests are never subject to cookie CSRF checks.
+    JWT_TOKEN_LOCATION      = ["headers", "cookies"]
+    # Secure flag: True in production (HTTPS), False in dev. Set JWT_COOKIE_SECURE=1 for prod.
+    JWT_COOKIE_SECURE       = os.getenv(
+        "JWT_COOKIE_SECURE",
+        "1" if os.getenv("FLASK_ENV", "development") == "production" else "0",
+    ) == "1"
+    # CSRF protection for cookie-based tokens (double-submit pattern via flask-jwt-extended).
+    # Always enabled; do NOT set to False in production.
+    JWT_COOKIE_CSRF_PROTECT = True
+    # SameSite attribute for JWT cookies. "Lax" is a safe default.
+    JWT_COOKIE_SAMESITE     = os.getenv("JWT_COOKIE_SAMESITE", "Lax")
+    # Access token cookie path covers all API routes.
+    JWT_ACCESS_COOKIE_PATH  = "/"
+    # Refresh token cookie is scoped to the refresh endpoint to minimise exposure.
+    JWT_REFRESH_COOKIE_PATH = "/api/v1/auth/refresh"
+    # Persistent cookies (not session-only): survive browser restarts within token TTL.
+    JWT_SESSION_COOKIE      = False
+    # Header name that the frontend must send with the CSRF token value.
+    JWT_ACCESS_CSRF_HEADER_NAME  = "X-CSRF-Token"
+    JWT_REFRESH_CSRF_HEADER_NAME = "X-CSRF-Token"
+
     # ── CORS ─────────────────────────────────────────────────────────────────
     CORS_ORIGINS = _parse_cors_origins(
         os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173')
     )
-    CORS_ALLOW_HEADERS = ['Content-Type', 'Authorization', 'X-Request-ID']
+    # X-CSRF-Token is required for write requests when using httpOnly cookie auth.
+    CORS_ALLOW_HEADERS = ['Content-Type', 'Authorization', 'X-Request-ID', 'X-CSRF-Token']
     CORS_EXPOSE_HEADERS = ['X-Total-Count', 'X-Page-Number', 'X-Request-ID']
     CORS_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
     CORS_SUPPORTS_CREDENTIALS = True

@@ -1,44 +1,72 @@
 /**
  * api/base.js
- * 底层请求封装：统一 Base URL、Bearer Token 注入、401 自动登出
+ * 底层请求封装：统一 Base URL、credentials cookie、CSRF 防护
+ *
+ * P1-7: 认证改为 httpOnly cookie，不再使用 localStorage 存储 token。
+ * 浏览器自动携带 access_token_cookie（httpOnly），JS 只需读取
+ * 非 httpOnly 的 csrf_access_token cookie 并注入 X-CSRF-Token 头。
  */
 
 const BASE = '/api/v1';
 
-/** 读取本地 token */
-export const getToken = () => localStorage.getItem('authToken');
+// HTTP 方法集合：需要发送 CSRF token 的写操作
+const _CSRF_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-/** 保存 token */
-export const setToken = (t) => localStorage.setItem('authToken', t);
+/**
+ * 从 document.cookie 中读取指定名称的 cookie 值。
+ * @param {string} name - Cookie 名称
+ * @returns {string} cookie 值，找不到时返回空字符串
+ */
+function _readCookie(name) {
+  const match = document.cookie.split('; ').find(r => r.startsWith(name + '='));
+  return match ? decodeURIComponent(match.split('=')[1]) : '';
+}
 
-/** 清除 token（登出时调用） */
-export const clearToken = () => localStorage.removeItem('authToken');
+/**
+ * 获取适用于给定 API 路径的 CSRF token。
+ * - 刷新端点使用 csrf_refresh_token cookie
+ * - 其他端点使用 csrf_access_token cookie
+ * @param {string} [path=''] - API 路径
+ * @returns {string} CSRF token 值
+ */
+export const getCsrfToken = (path = '') => {
+  if (path.endsWith('/auth/refresh')) {
+    return _readCookie('csrf_refresh_token');
+  }
+  return _readCookie('csrf_access_token');
+};
 
 /**
  * 核心请求函数
  * @param {string} path      相对于 /api/v1 的路径，如 '/servers/'
  * @param {object} [opts]    fetch options 扩展（method / body 等）
- * @param {boolean} [auth]   是否携带 Bearer token，默认 true
+ * @param {boolean} [auth]   是否携带 CSRF token（写操作），默认 true
  * @returns {Promise<any>}   解析后的 JSON
  * @throws {ApiError}
  */
 export async function request(path, opts = {}, auth = true) {
+  const method = (opts.method || 'GET').toUpperCase();
   const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
-  if (auth) {
-    const token = getToken();
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  if (auth && _CSRF_METHODS.has(method)) {
+    const csrf = getCsrfToken(path);
+    if (csrf) headers['X-CSRF-Token'] = csrf;
   }
 
   let res;
   try {
-    res = await fetch(BASE + path, { ...opts, headers });
+    res = await fetch(BASE + path, {
+      ...opts,
+      method,
+      headers,
+      credentials: 'include',  // Required for httpOnly cookie auth
+    });
   } catch (error) {
     throw new ApiError(0, '网络异常，请稍后重试', { error_type: 'NETWORK_ERROR', raw: String(error) });
   }
 
   // 已登录请求在 401/403 时触发全局登出；未登录请求（如登录接口）交由业务层处理原始错误
   if (auth && (res.status === 401 || res.status === 403)) {
-    clearToken();
     window.dispatchEvent(new CustomEvent('admin:logout'));
     throw new ApiError(res.status, '登录已过期，请重新登录');
   }
