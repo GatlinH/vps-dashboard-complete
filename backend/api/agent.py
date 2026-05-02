@@ -17,7 +17,7 @@ from extensions import db
 from middleware.rate_limit import limiter
 from middleware.rbac import admin_required
 from middleware.metrics_middleware import record_agent_push, record_agent_poll, record_agent_ack
-from models.models import AgentCommand, ProbeResult, Server
+from models.models import AgentCommand, Server
 from utils.errors import AuthenticationError, ValidationError
 
 agent_bp = Blueprint("agent", __name__)
@@ -104,63 +104,14 @@ def _hmac_digest(secret: str, body: bytes, ts: str, nonce: str) -> str:
 
 
 def _record_metrics(server: Server, data: dict):
-    # 验证并写入 0-100 范围的百分比指标
-    for field in ["cpu_use", "ram_use", "disk_use"]:
-        if field in data:
-            try:
-                fval = float(data[field])
-            except (TypeError, ValueError):
-                continue
-            if not (0.0 <= fval <= 100.0):
-                continue
-            setattr(server, field, fval)
+    """Write metrics from *data* to *server* and append a ProbeResult.
 
-    # 验证并写入非负浮点数指标
-    for field in ["net_up", "net_down"]:
-        if field in data:
-            try:
-                fval = float(data[field])
-            except (TypeError, ValueError):
-                continue
-            if fval < 0:
-                continue
-            setattr(server, field, fval)
-
-    # 写入字符串/枚举字段（不做范围检查，但限制长度）
-    for field in ["status", "uptime"]:
-        if field in data:
-            val = data[field]
-            if isinstance(val, str) and len(val) <= 64:
-                setattr(server, field, val)
-
-    bytes_out = data.get("bytes_out_total")
-    bytes_in = data.get("bytes_in_total")
-    if bytes_out is not None and bytes_in is not None:
-        try:
-            bytes_out = int(bytes_out)
-            bytes_in = int(bytes_in)
-            prev_out = server.bytes_out_snapshot or 0
-            prev_in = server.bytes_in_snapshot or 0
-            if prev_out > 0 and bytes_out >= prev_out:
-                server.traffic_up_gb = round((server.traffic_up_gb or 0) + (bytes_out - prev_out) / 1024 / 1024 / 1024, 6)
-            if prev_in > 0 and bytes_in >= prev_in:
-                server.traffic_down_gb = round((server.traffic_down_gb or 0) + (bytes_in - prev_in) / 1024 / 1024 / 1024, 6)
-            server.traffic_used_gb = (server.traffic_up_gb or 0) + (server.traffic_down_gb or 0)
-            server.bytes_out_snapshot = bytes_out
-            server.bytes_in_snapshot = bytes_in
-        except (TypeError, ValueError):
-            pass
-
-    db.session.add(ProbeResult(
-        server_id=server.id,
-        cpu_use=data.get("cpu_use", server.cpu_use),
-        ram_use=data.get("ram_use", server.ram_use),
-        disk_use=data.get("disk_use", server.disk_use),
-        net_up=data.get("net_up", server.net_up),
-        net_down=data.get("net_down", server.net_down),
-        latency_ms=data.get("latency_ms"),
-        status=data.get("status", server.status),
-    ))
+    Delegates to the shared :func:`~services.metrics_ingest.ingest_metrics`
+    entry point with lenient (agent-path) validation semantics.
+    Does NOT commit the session; the caller is responsible.
+    """
+    from services.metrics_ingest import ingest_metrics
+    ingest_metrics(server, data, strict=False, source="agent")
 
 
 def _authenticate_agent(payload: dict) -> tuple[Server, str]:
