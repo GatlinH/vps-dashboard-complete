@@ -22,7 +22,7 @@ def _get_tg_crypto():
     try:
         return CryptoManager(master_key=secret)
     except Exception as exc:
-        logger.warning(
+        logger.error(
             "Telegram token 加密初始化失败，退化为明文存储（请检查 TELEGRAM_TOKEN_SECRET）: %s", exc
         )
         return None

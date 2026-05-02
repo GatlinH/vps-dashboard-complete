@@ -102,9 +102,15 @@ class EncryptedString(TypeDecorator):
         if value is None:
             return None
         if self.crypto_manager and value:
+            if not value.startswith('gAAAAA'):
+                # 值不符合 Fernet 格式，视为历史明文数据，直接返回（向后兼容）
+                return value
             try:
                 return self.crypto_manager.decrypt(value)
-            except Exception:
-                # 兼容性回退：旧明文数据或密钥不匹配时原样返回
+            except Exception as exc:
+                import logging as _logging
+                _logging.getLogger(__name__).error(
+                    "解密 bot_token 失败（可能密钥变更或数据损坏）: %s", exc
+                )
                 return value
         return value

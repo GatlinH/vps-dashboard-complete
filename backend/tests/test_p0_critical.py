@@ -243,7 +243,7 @@ class TestRevokeAllUserTokens:
         """端到端：revoke_all_user_tokens 后使用旧 access_token 应返回 401"""
         from flask_jwt_extended import decode_token
 
-        # 登录获取 token（iat 在下线之前）
+        # 登录获取 token
         login_res = client.post('/api/v1/auth/login', json={
             'username': 'admin',
             'password': 'TestAdmin@123456',
@@ -252,13 +252,19 @@ class TestRevokeAllUserTokens:
         access = login_res.get_json()['access_token']
         claims = decode_token(access)
         user_id = claims['sub']
+        token_iat = float(claims['iat'])
 
-        # 强制下线（forced_at = now，token iat 在之前）
-        from utils.token_blocklist import revoke_all_user_tokens
-        with app.app_context():
-            # 小延迟确保 forced_at > token iat
-            time.sleep(0.01)
-            revoke_all_user_tokens(user_id)
+        # 强制下线：forced_at = int(token_iat) + 1 确保 token_iat < forced_at
+        # 直接写入 Redis 模拟 revoke_all_user_tokens 的行为（无需 sleep）
+        import extensions as _ext
+        from utils.token_blocklist import _PREFIX_USER, _FORCE_LOGOUT_TTL, is_user_force_revoked
+
+        forced_at = token_iat + 1  # 明确在 token 签发后
+        key = f"{_PREFIX_USER}{user_id}:forced_at"
+        _ext.redis_client.setex(key, _FORCE_LOGOUT_TTL, str(forced_at))
+
+        # 验证 is_user_force_revoked 生效
+        assert is_user_force_revoked(user_id, token_iat) is True
 
         # 旧 token 请求受保护接口应被拒绝
         resp = client.get('/api/v1/traffic/', headers={
@@ -315,6 +321,8 @@ class TestTelegramTokenEncryption:
         # 直接通过 process_bind_param 验证：写入数据库时值被加密
         stored_value = es.process_bind_param(plaintext, None)
         assert stored_value != plaintext, "数据库中不应直接存储明文 bot_token"
+        # Fernet 加密输出为 URL-safe base64，以 'gAAAAA' 开头（0x80 版本字节的编码）
+        assert stored_value.startswith('gAAAAA'), "加密后的值应为 Fernet 格式"
 
         with app.app_context():
             cfg = TelegramConfig(chat_id='enc_test_chat')

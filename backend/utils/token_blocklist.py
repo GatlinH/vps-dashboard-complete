@@ -105,7 +105,10 @@ def revoke_all_user_tokens(user_id: int) -> int:
     """
     强制下线指定用户：在 Redis 中记录该用户的强制下线时间戳。
     凡是严格在该时间戳之前签发的 token 均视为已失效；
-    在该时间戳之后（或同一时刻）签发的 token 仍有效，确保立即重新登录的新会话不被误封。
+    在该时间戳之后签发的 token 仍有效，确保下线后重新登录的新会话可正常使用。
+
+    forced_at 设为下一整秒边界（int(time.time()) + 1），确保在相同秒内签发的
+    旧 token 一定被覆盖，同时新登录（iat >= forced_at）仍有效。
 
     需在 JWT blocklist 检查处同时调用 is_user_force_revoked()（已在 app.py 配置）。
 
@@ -113,7 +116,8 @@ def revoke_all_user_tokens(user_id: int) -> int:
         1 表示已设置强制下线标记，0 表示 Redis 写入失败。
     """
     key = f"{_PREFIX_USER}{user_id}:forced_at"
-    forced_at = time.time()
+    # 取下一整秒边界：确保当前秒内的所有 token 都被覆盖，新登录（iat >= forced_at）则有效
+    forced_at = float(int(time.time()) + 1)
     try:
         extensions.redis_client.setex(key, _FORCE_LOGOUT_TTL, str(forced_at))
         logger.info(f"用户强制下线已设置: user_id={user_id}, forced_at={forced_at}")
