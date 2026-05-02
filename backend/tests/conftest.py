@@ -117,6 +117,8 @@ _TEST_CONFIG = {
     'ADMIN_DEFAULT_PASSWORD': 'TestAdmin@123456',
     # 测试用加密密钥 — 确保 TelegramConfig.bot_token 写入路径不触发 fail-closed
     'TELEGRAM_TOKEN_SECRET': 'test-telegram-secret-key-for-testing-only!',
+    # P1-7: 测试环境通过 HTTP 运行，不强制 Secure 属性，保证 cookie 能被测试客户端正常收发
+    'JWT_COOKIE_SECURE': False,
 }
 
 

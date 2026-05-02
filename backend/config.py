@@ -93,6 +93,25 @@ def _validate_production_secrets():
     if '*' in os.getenv('CORS_ORIGINS', ''):
         errors.append("生产环境禁止在 CORS_ORIGINS 使用通配符 *。")
 
+    # CSRF cookie protect must never be disabled in production (P1-7).
+    if os.getenv("JWT_COOKIE_CSRF_PROTECT", "1").lower() in ("0", "false", "no"):
+        errors.append(
+            "JWT_COOKIE_CSRF_PROTECT 不得在生产环境中关闭。"
+            " CSRF 防护是 httpOnly cookie 认证的必要安全层。"
+        )
+
+    # JWT_COOKIE_SECURE must not be explicitly disabled in production.
+    # Compute the actual value as Config does to catch all cases.
+    _jwt_secure_raw = os.getenv(
+        "JWT_COOKIE_SECURE",
+        "0" if os.getenv("FLASK_ENV") == "development" else "1",
+    )
+    if _jwt_secure_raw.lower() not in ("1", "true", "yes"):
+        errors.append(
+            "JWT_COOKIE_SECURE 未启用。生产环境的认证 cookie 必须通过 HTTPS 传输（Secure 属性）。"
+            " 请将 JWT_COOKIE_SECURE=1 写入 .env，或不要设置 FLASK_ENV=development。"
+        )
+
     if errors:
         for msg in errors:
             # 使用 print 而非 logger，确保在日志系统初始化前也能输出
@@ -146,11 +165,42 @@ class Config:
     # Redis 异常时 JWT 黑名单检查是否放行（1=放行，0=拒绝）
     JWT_BLOCKLIST_FAIL_OPEN   = os.getenv("JWT_BLOCKLIST_FAIL_OPEN", "1") == "1"
 
+    # ── JWT Cookie-based Auth (P1-7) ─────────────────────────────────────────
+    # Accept tokens from both Authorization header (higher priority, backward compat)
+    # and httpOnly cookies (browser clients). Header-first order means Bearer-header
+    # requests are never subject to cookie CSRF checks.
+    JWT_TOKEN_LOCATION      = ["headers", "cookies"]
+    # Secure flag: True by default (HTTPS); explicitly set to False only in development.
+    # Override via JWT_COOKIE_SECURE env var (1=True, 0=False).
+    # Note: the cookie 'secure' attribute means the browser only sends it over HTTPS.
+    JWT_COOKIE_SECURE       = os.getenv(
+        "JWT_COOKIE_SECURE",
+        "0" if os.getenv("FLASK_ENV") == "development" else "1",
+    ) == "1"
+    # CSRF protection for cookie-based tokens (double-submit pattern via flask-jwt-extended).
+    # Always enabled; do NOT set to False in production.
+    JWT_COOKIE_CSRF_PROTECT = True
+    # SameSite attribute for JWT cookies. "Lax" is a safe default.
+    JWT_COOKIE_SAMESITE     = os.getenv("JWT_COOKIE_SAMESITE", "Lax")
+    # Access token cookie path covers all API routes.
+    JWT_ACCESS_COOKIE_PATH  = "/"
+    # Refresh token cookie is scoped to the refresh endpoint to minimise exposure.
+    JWT_REFRESH_COOKIE_PATH = "/api/v1/auth/refresh"
+    # Persistent cookies (not session-only): survive browser restarts within token TTL.
+    JWT_SESSION_COOKIE      = False
+    # Header name that the frontend must send with the CSRF token value.
+    JWT_ACCESS_CSRF_HEADER_NAME  = "X-CSRF-Token"
+    JWT_REFRESH_CSRF_HEADER_NAME = "X-CSRF-Token"
+    # Domain attribute for JWT cookies (None = current domain only).
+    # Set JWT_COOKIE_DOMAIN=.example.com to share auth cookies across sub-domains.
+    JWT_COOKIE_DOMAIN       = os.getenv("JWT_COOKIE_DOMAIN") or None
+
     # ── CORS ─────────────────────────────────────────────────────────────────
     CORS_ORIGINS = _parse_cors_origins(
         os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173')
     )
-    CORS_ALLOW_HEADERS = ['Content-Type', 'Authorization', 'X-Request-ID']
+    # X-CSRF-Token is required for write requests when using httpOnly cookie auth.
+    CORS_ALLOW_HEADERS = ['Content-Type', 'Authorization', 'X-Request-ID', 'X-CSRF-Token']
     CORS_EXPOSE_HEADERS = ['X-Total-Count', 'X-Page-Number', 'X-Request-ID']
     CORS_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
     CORS_SUPPORTS_CREDENTIALS = True

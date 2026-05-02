@@ -2,57 +2,53 @@
  * src/api/admin.js
  * 管理接口封装 —— 仅供管理后台使用
  * 从 frontend/api-admin.js 迁移，改为 ES Module 标准导出格式
- * 统一处理 Authorization 头、401/403 跳转
+ *
+ * P1-7: 认证改为 httpOnly cookie + CSRF 防护，不再使用 localStorage 存储 token。
+ * 浏览器自动携带 access_token_cookie（httpOnly）；写操作须附带 X-CSRF-Token 头
+ * (值从非 httpOnly 的 csrf_access_token / csrf_refresh_token cookie 中读取)。
  */
 
+import { getCsrfToken } from './csrf.js';
+
 const BASE = '/api/v1'
-const TOKEN_KEY = 'authToken'
 const API_SCHEMA_VERSION = '2026-04-23'
 
-// ── 令牌管理 ──────────────────────────────────────────────────────────────────
-
-export function getToken() {
-  return localStorage.getItem(TOKEN_KEY)
-}
-
-export function setToken(token) {
-  if (token) {
-    localStorage.setItem(TOKEN_KEY, token)
-  } else {
-    localStorage.removeItem(TOKEN_KEY)
-  }
-}
-
-export function clearToken() {
-  localStorage.removeItem(TOKEN_KEY)
-}
+// HTTP 方法集合：需要发送 CSRF token 的写操作
+const _CSRF_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 // ── 核心请求方法 ─────────────────────────────────────────────────────────────
 
 /**
- * 带 JWT 的请求
+ * 带 CSRF 防护的认证请求（通过 httpOnly cookie 自动携带凭证）
  * @param {string} path - API 路径（不含 /api 前缀）
  * @param {object} opts - fetch options（method, body 等）
  * @returns {Promise<any>} 解析后的 JSON
  */
 async function adminFetch(path, opts = {}) {
-  const token = getToken()
+  const method = (opts.method || 'GET').toUpperCase()
   const headers = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     'X-Client-Schema-Version': API_SCHEMA_VERSION,
     ...(opts.headers || {}),
   }
 
+  // Attach CSRF token for state-changing requests (double-submit cookie pattern)
+  if (_CSRF_METHODS.has(method)) {
+    const csrf = getCsrfToken(path)
+    if (csrf) headers['X-CSRF-Token'] = csrf
+  }
+
   const resp = await fetch(BASE + path, {
-    method: opts.method || 'GET',
+    method,
     headers,
+    credentials: 'include',  // Required for httpOnly cookie auth
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   })
 
-  if (resp.status === 401 || resp.status === 403) {
-    clearToken()
+  if (resp.status === 401) {
+    // 401 = unauthenticated; trigger global logout for redirect to login.
+    // 403 = authenticated but insufficient permission — do NOT log out.
     window.dispatchEvent(new CustomEvent('admin:unauthorized', { detail: { status: resp.status } }))
     const err = new Error(`HTTP ${resp.status}`)
     err.status = resp.status
@@ -75,11 +71,12 @@ async function adminFetch(path, opts = {}) {
 
 // ── 认证 ──────────────────────────────────────────────────────────────────────
 
-/** 登录，返回 { access_token, refresh_token, user } */
+/** 登录；token 由服务端写入 httpOnly cookie，不再存入 localStorage */
 export async function login(username, password) {
   const data = await fetch(BASE + '/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',  // Required for cookie to be set
     body: JSON.stringify({ username, password }),
   })
   if (!data.ok) {
@@ -87,7 +84,7 @@ export async function login(username, password) {
     throw new Error(json.msg || '用户名或密码错误')
   }
   const result = await data.json()
-  setToken(result.access_token)
+  // Do NOT store tokens in localStorage (P1-7)
   return result
 }
 
@@ -207,3 +204,4 @@ export async function saveAlertRules(rules) {
 export async function getServerCoords() {
   return adminFetch('/geo/servers/coords')
 }
+

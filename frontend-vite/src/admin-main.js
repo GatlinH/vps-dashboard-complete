@@ -4,7 +4,7 @@
  */
 
 import './styles/admin.css'; // 确保引入样式
-import { logout } from './api/auth.js';
+import { logout, checkSession } from './api/auth.js';
 import { ServerManager } from './components/admin/ServerManager.js';
 import { PingTool } from './components/admin/PingTool.js';
 import { TelegramPanel } from './components/admin/TelegramPanel.js';
@@ -50,7 +50,7 @@ function switchTab(tab) {
  */
 async function adminLogout() {
   if (confirm('确定要退出管理后台吗？')) {
-    logout();
+    await logout();  // Revokes token and clears httpOnly cookies server-side
     showLogin();
     // 清理界面状态
     document.getElementById('admin-panel').style.display = 'none';
@@ -98,12 +98,15 @@ function showLogin() {
 
 // ─── 初始化启动 ─────────────────────────────────────────────────────────
 
-function boot() {
-  // 检查登录状态并初始化
-  const token = localStorage.getItem('admin_token');
-  if (token) {
+async function boot() {
+  // P1-7: no localStorage token check; verify session via httpOnly cookie.
+  try {
+    await checkSession();
     showAdminPanel();
-  } else {
+  } catch (e) {
+    // Session expired or not logged in — show login page.
+    // Log at debug level so developers can distinguish network errors from normal 401s.
+    console.debug('[boot] session check failed, showing login:', e?.message || e);
     showLogin();
   }
 }
