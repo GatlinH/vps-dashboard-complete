@@ -382,10 +382,14 @@ def logout():
       200:
         description: 已登出
     """
+    # Best-effort: revoke the current access token JTI in Redis.
+    # _revoke_current_access_token handles its own internal exceptions;
+    # the outer guard ensures any unexpected error (e.g. get_jwt() abnormality)
+    # never prevents cookie clearing from completing.
     try:
         _revoke_current_access_token()
     except Exception as e:
-        logger.warning(f"⚠️ 登出时吊销 token 失败 (已过期?): {e}")
+        logger.warning("⚠️ 登出时 token 吊销遇到意外错误: %s", e)
 
     # 可选：吊销 refresh token（客户端传 refresh_token 字段）
     data    = request.get_json(silent=True) or {}

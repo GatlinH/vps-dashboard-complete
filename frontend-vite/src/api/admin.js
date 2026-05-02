@@ -8,35 +8,13 @@
  * (值从非 httpOnly 的 csrf_access_token / csrf_refresh_token cookie 中读取)。
  */
 
+import { getCsrfToken } from './csrf.js';
+
 const BASE = '/api/v1'
 const API_SCHEMA_VERSION = '2026-04-23'
 
 // HTTP 方法集合：需要发送 CSRF token 的写操作
 const _CSRF_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
-
-// ── CSRF 工具 ─────────────────────────────────────────────────────────────────
-
-/**
- * 从 document.cookie 中读取指定名称的 cookie 值。
- * @param {string} name - Cookie 名称
- * @returns {string}
- */
-function _readCookie(name) {
-  const match = document.cookie.split('; ').find(r => r.startsWith(name + '='))
-  return match ? decodeURIComponent(match.split('=')[1]) : ''
-}
-
-/**
- * 获取适用于给定 API 路径的 CSRF token。
- * 刷新端点使用 csrf_refresh_token；其余使用 csrf_access_token。
- * @param {string} path
- * @returns {string}
- */
-function _getCsrfToken(path) {
-  return path.endsWith('/auth/refresh')
-    ? _readCookie('csrf_refresh_token')
-    : _readCookie('csrf_access_token')
-}
 
 // ── 核心请求方法 ─────────────────────────────────────────────────────────────
 
@@ -57,7 +35,7 @@ async function adminFetch(path, opts = {}) {
 
   // Attach CSRF token for state-changing requests (double-submit cookie pattern)
   if (_CSRF_METHODS.has(method)) {
-    const csrf = _getCsrfToken(path)
+    const csrf = getCsrfToken(path)
     if (csrf) headers['X-CSRF-Token'] = csrf
   }
 

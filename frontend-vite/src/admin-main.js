@@ -103,7 +103,10 @@ async function boot() {
   try {
     await checkSession();
     showAdminPanel();
-  } catch (_) {
+  } catch (e) {
+    // Session expired or not logged in — show login page.
+    // Log at debug level so developers can distinguish network errors from normal 401s.
+    console.debug('[boot] session check failed, showing login:', e?.message || e);
     showLogin();
   }
 }

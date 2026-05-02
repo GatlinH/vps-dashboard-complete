@@ -151,10 +151,12 @@ class Config:
     # and httpOnly cookies (browser clients). Header-first order means Bearer-header
     # requests are never subject to cookie CSRF checks.
     JWT_TOKEN_LOCATION      = ["headers", "cookies"]
-    # Secure flag: True in production (HTTPS), False in dev. Set JWT_COOKIE_SECURE=1 for prod.
+    # Secure flag: True by default (HTTPS); explicitly set to False only in development.
+    # Override via JWT_COOKIE_SECURE env var (1=True, 0=False).
+    # Note: the cookie 'secure' attribute means the browser only sends it over HTTPS.
     JWT_COOKIE_SECURE       = os.getenv(
         "JWT_COOKIE_SECURE",
-        "1" if os.getenv("FLASK_ENV", "development") == "production" else "0",
+        "0" if os.getenv("FLASK_ENV") == "development" else "1",
     ) == "1"
     # CSRF protection for cookie-based tokens (double-submit pattern via flask-jwt-extended).
     # Always enabled; do NOT set to False in production.
