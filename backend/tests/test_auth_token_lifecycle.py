@@ -23,6 +23,7 @@ class TestTokenLifecycle:
         old_refresh = login_res.get_json()['refresh_token']
         old_claims = decode_token(old_refresh)
         old_refresh_jti = old_claims['jti']
+        user_id = old_claims.get('sub')
 
         refresh_res = client.post(
             '/api/v1/auth/refresh',
@@ -34,11 +35,13 @@ class TestTokenLifecycle:
         assert 'access_token' in body
         assert 'refresh_token' in body
 
-        # 旧 refresh token 应被吊销，且保留 TTL（用于自动过期）
-        assert is_refresh_token_revoked(old_refresh_jti) is True
-        assert is_access_token_revoked(old_refresh_jti) is False
+        # 旧 refresh token 应被吊销（用 user_id 走 v2 路径）
+        assert is_refresh_token_revoked(old_refresh_jti, user_id=user_id) is True
+        assert is_access_token_revoked(old_refresh_jti, user_id=user_id) is False
 
-        redis_ttl = extensions.redis_client.ttl(f'revoked:refresh:{old_refresh_jti}')
+        # 验证 v2 key 存在且 TTL > 0
+        v2_key = f'revoked:refresh:{user_id}:{old_refresh_jti}'
+        redis_ttl = extensions.redis_client.ttl(v2_key)
         assert redis_ttl > 0
 
         # 同一旧 token 不可二次换发
@@ -58,7 +61,9 @@ class TestTokenLifecycle:
         access = login_res.get_json()['access_token']
         refresh = login_res.get_json()['refresh_token']
 
-        access_jti = decode_token(access)['jti']
+        access_claims = decode_token(access)
+        access_jti = access_claims['jti']
+        user_id = access_claims.get('sub')
         refresh_jti = decode_token(refresh)['jti']
 
         logout_res = client.post(
@@ -67,8 +72,8 @@ class TestTokenLifecycle:
         )
         assert logout_res.status_code == 200
 
-        assert is_access_token_revoked(access_jti) is True
-        assert is_refresh_token_revoked(refresh_jti) is False
+        assert is_access_token_revoked(access_jti, user_id=user_id) is True
+        assert is_refresh_token_revoked(refresh_jti, user_id=user_id) is False
 
     def test_refresh_token_blocklist_entry_expires_with_ttl(self):
         jti = 'refresh-jti-expiry-check'

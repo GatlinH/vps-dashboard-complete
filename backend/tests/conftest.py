@@ -94,6 +94,34 @@ class _InMemoryRedis:
             if fnmatch.fnmatch(key, pattern):
                 yield key
 
+    def rpush(self, key, *values):
+        self._cleanup_expired()
+        lst = self._store.get(key)
+        items = list(lst[0]) if lst and isinstance(lst[0], list) else []
+        items.extend(values)
+        self._store[key] = (items, None)
+        return len(items)
+
+    def llen(self, key):
+        self._cleanup_expired()
+        item = self._store.get(key)
+        if item is None:
+            return 0
+        val, _ = item
+        return len(val) if isinstance(val, list) else 0
+
+    def brpop(self, key, timeout=0):
+        self._cleanup_expired()
+        item = self._store.get(key)
+        if item is None:
+            return None
+        val, exp = item
+        if not isinstance(val, list) or not val:
+            return None
+        value = val.pop()
+        self._store[key] = (val, exp)
+        return (key, value)
+
     def flushdb(self):
         self._store.clear()
         return True

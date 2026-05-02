@@ -97,14 +97,19 @@ def create_app(**config_overrides):
         fail_open = app.config.get("JWT_BLOCKLIST_FAIL_OPEN", True)
         try:
             jti = jwt_payload.get("jti", "")
-            if is_token_revoked(jti):
+            user_id = jwt_payload.get("sub")
+            token_type = jwt_payload.get("type", "access")
+            if is_token_revoked(jti, token_type=token_type, user_id=user_id):
                 return True
             # 检查用户级强制下线（revoke_all_user_tokens 设置的标记）
-            user_id = jwt_payload.get("sub")
             token_iat = jwt_payload.get("iat", 0)
             if user_id is not None:
                 return is_user_force_revoked(user_id, token_iat)
-            return False
+            # user_id 缺失（异常 token）：拒绝并记录
+            logger.warning(
+                "JWT blocklist check: token missing sub claim, rejecting. jti=%s", jti
+            )
+            return True
         except Exception as exc:
             if fail_open:
                 logger.warning("JWT blocklist check failed, fail-open enabled: %s", exc)
