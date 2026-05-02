@@ -4,6 +4,8 @@
 import socket
 import time
 import json
+import urllib.request
+import urllib.error
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, request, jsonify, current_app
 from extensions import db
@@ -283,51 +285,85 @@ def fetch_probe():
         query = query.filter(Server.id.in_(server_ids))
     servers = query.all()
 
+    timeout    = float(current_app.config.get("PROBE_FETCH_TIMEOUT_S", 8))
+    max_workers = int(current_app.config.get("PROBE_FETCH_MAX_WORKERS", 10))
+
+    # Pre-extract data snapshots before spawning threads to keep ORM out of workers
+    server_snapshots = {
+        s.id: {
+            "id": s.id, "name": s.name, "probe_url": s.probe_url,
+            "cpu_use": s.cpu_use or 0.0, "ram_use": s.ram_use or 0.0,
+            "disk_use": s.disk_use or 0.0, "net_up": s.net_up or 0.0,
+            "net_down": s.net_down or 0.0, "status": s.status,
+            "uptime": s.uptime,
+        }
+        for s in servers
+    }
+
+    # ── 并发 HTTP 抓取阶段（纯 I/O，不写共享状态）────────────────────────────
+    def _fetch_one(snap: dict):
+        """Worker: 仅执行 HTTP 抓取与解析，不访问 DB / Flask 上下文。"""
+        if not is_safe_outbound_url(snap["probe_url"]):
+            return snap["id"], None, "probe_url 非法或存在安全风险"
+        req = urllib.request.Request(
+            snap["probe_url"],
+            headers={"User-Agent": "VPS-Dashboard/1.0"},
+            method="GET",
+        )
+        with urllib.request.urlopen(req, timeout=int(timeout)) as resp:
+            payload = json.loads(resp.read().decode())
+        metrics = _parse_probe_payload_dict(payload, snap)
+        return snap["id"], metrics, None
+
+    fetch_results: dict = {}   # server_id -> (metrics | None, error | None)
+
+    if server_snapshots:
+        with ThreadPoolExecutor(
+            max_workers=min(len(server_snapshots), max_workers)
+        ) as pool:
+            futures = {
+                pool.submit(_fetch_one, snap): sid
+                for sid, snap in server_snapshots.items()
+            }
+            for fut in as_completed(futures):
+                sid = futures[fut]
+                try:
+                    _, metrics, err = fut.result()
+                    fetch_results[sid] = (metrics, err)
+                except Exception as exc:
+                    fetch_results[sid] = (None, "probe fetch failed")
+
+    # ── 主线程：整理结果 + DB 更新（安全，不涉及并发写共享状态）─────────────
     updated = []
     errors  = []
+    servers_by_id   = {s.id: s for s in servers}
+    probe_cache_ttl = current_app.config.get("PROBE_CACHE_TTL", 15)
 
-    for s in servers:
+    for sid, (metrics, err) in fetch_results.items():
+        if err is not None:
+            current_app.logger.warning(f"探针抓取失败 server_id={sid}: {err}")
+            errors.append({"server_id": str(sid), "error": err})
+            continue
+
+        s = servers_by_id[sid]
+        for k, v in metrics.items():
+            setattr(s, k, v)
+
+        db.session.add(ProbeResult(server_id=s.id, **{
+            k: metrics.get(k) for k in
+            ["cpu_use", "ram_use", "disk_use", "net_up", "net_down", "status"]
+        }, latency_ms=None))
+
         try:
-            if not is_safe_outbound_url(s.probe_url):
-                errors.append({"server_id": str(s.id), "error": "probe_url 非法或存在安全风险"})
-                continue
-
-            import urllib.request, urllib.error
-            req = urllib.request.Request(
-                s.probe_url,
-                headers={"User-Agent": "VPS-Dashboard/1.0"},
-                method="GET",
+            extensions.redis_client.setex(
+                f"vps:server:{s.id}:metrics",
+                probe_cache_ttl,
+                json.dumps(metrics, ensure_ascii=False),
             )
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                payload = json.loads(resp.read().decode())
+        except Exception:
+            pass
 
-            # 哪吒探针格式解析
-            metrics = _parse_probe_payload(payload, s)
-            for k, v in metrics.items():
-                setattr(s, k, v)
-
-            db.session.add(ProbeResult(server_id=s.id, **{
-                k: metrics.get(k) for k in
-                ["cpu_use","ram_use","disk_use","net_up","net_down","status"]
-            }, latency_ms=None))
-
-            # 写 Redis
-            try:
-                extensions.redis_client.setex(
-                    f"vps:server:{s.id}:metrics",
-                    current_app.config.get("PROBE_CACHE_TTL", 15),
-                    json.dumps(metrics, ensure_ascii=False),
-                )
-            except Exception:
-                pass
-
-            # 修复：转为字符串兼容前端或测试用例的语义断言
-            updated.append(str(s.id))
-            
-        except Exception as e:
-            # 修复：记录详细日志方便 CI 和后台排查异常
-            current_app.logger.warning(f"探针抓取失败 server_id={s.id}: {e}")
-            errors.append({"server_id": str(s.id), "error": "probe fetch failed"})
+        updated.append(str(s.id))
 
     db.session.commit()
     try:
@@ -339,11 +375,23 @@ def fetch_probe():
 
 
 def _parse_probe_payload(payload: dict, server: Server) -> dict:
-    """将探针 JSON 映射为统一指标字典"""
+    """将探针 JSON 映射为统一指标字典（接受 ORM 对象）"""
+    snap = {
+        "id": server.id, "name": server.name,
+        "cpu_use": server.cpu_use or 0.0, "ram_use": server.ram_use or 0.0,
+        "disk_use": server.disk_use or 0.0, "net_up": server.net_up or 0.0,
+        "net_down": server.net_down or 0.0, "status": server.status,
+        "uptime": server.uptime,
+    }
+    return _parse_probe_payload_dict(payload, snap)
+
+
+def _parse_probe_payload_dict(payload: dict, snap: dict) -> dict:
+    """将探针 JSON 映射为统一指标字典（接受 dict 快照，线程安全）。"""
     # 哪吒探针 v0 格式
     if "servers" in payload:
         for item in payload["servers"]:
-            if str(item.get("id")) == str(server.id) or item.get("name") == server.name:
+            if str(item.get("id")) == str(snap["id"]) or item.get("name") == snap["name"]:
                 cpu  = item.get("cpu", 0)
                 mem  = item.get("mem_used", 0) / max(item.get("mem_total", 1), 1) * 100
                 disk = item.get("disk_used", 0) / max(item.get("disk_total", 1), 1) * 100
@@ -359,13 +407,13 @@ def _parse_probe_payload(payload: dict, server: Server) -> dict:
 
     # 通用自定义格式
     return {
-        "cpu_use":  round(float(payload.get("cpu_use",  server.cpu_use)),  2),
-        "ram_use":  round(float(payload.get("ram_use",  server.ram_use)),  2),
-        "disk_use": round(float(payload.get("disk_use", server.disk_use)), 2),
-        "net_up":   round(float(payload.get("net_up",   server.net_up)),   2),
-        "net_down": round(float(payload.get("net_down", server.net_down)), 2),
-        "status":   payload.get("status", server.status),
-        "uptime":   payload.get("uptime", server.uptime),
+        "cpu_use":  round(float(payload.get("cpu_use",  snap["cpu_use"])),  2),
+        "ram_use":  round(float(payload.get("ram_use",  snap["ram_use"])),  2),
+        "disk_use": round(float(payload.get("disk_use", snap["disk_use"])), 2),
+        "net_up":   round(float(payload.get("net_up",   snap["net_up"])),   2),
+        "net_down": round(float(payload.get("net_down", snap["net_down"])), 2),
+        "status":   payload.get("status", snap["status"]),
+        "uptime":   payload.get("uptime", snap["uptime"]),
     }
 
 

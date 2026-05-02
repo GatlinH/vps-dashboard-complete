@@ -10,6 +10,7 @@
 """
 import json
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, Response, jsonify, request, current_app
 
 import extensions
@@ -215,9 +216,27 @@ def servers_coords():
         )
 
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    servers_list = pagination.items
+
+    # ── 并发坐标获取（纯外部 I/O；缓存命中时几乎无开销）─────────────────────
+    max_geo_workers = int(current_app.config.get("GEO_FETCH_MAX_WORKERS", 10))
+    coords_map: dict = {}  # server_id -> (lat, lon)
+
+    if servers_list:
+        with ThreadPoolExecutor(
+            max_workers=min(len(servers_list), max_geo_workers)
+        ) as pool:
+            futures = {pool.submit(_get_server_coords, s): s.id for s in servers_list}
+            for fut in as_completed(futures):
+                sid = futures[fut]
+                try:
+                    coords_map[sid] = fut.result()
+                except Exception:
+                    coords_map[sid] = (35.0, 105.0)
+
     nodes = []
-    for s in pagination.items:
-        lat, lon = _get_server_coords(s)
+    for s in servers_list:
+        lat, lon = coords_map.get(s.id, (35.0, 105.0))
         nodes.append({
             "id": s.id,
             "name": s.name,
