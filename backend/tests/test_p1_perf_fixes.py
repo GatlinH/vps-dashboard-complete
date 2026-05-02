@@ -117,7 +117,7 @@ class TestFetchProbeConcurrent:
             m.__exit__ = MagicMock(return_value=False)
             return m
 
-        with patch('api.probe.is_safe_outbound_url', return_value=True), \
+        with patch('services.probe_fetcher.is_safe_outbound_url', return_value=True), \
              patch('urllib.request.urlopen', side_effect=_urlopen_ok):
             resp = client.post(
                 '/api/v1/probe/fetch-probe',
@@ -154,7 +154,7 @@ class TestFetchProbeConcurrent:
             m.__exit__ = MagicMock(return_value=False)
             return m
 
-        with patch('api.probe.is_safe_outbound_url', return_value=True), \
+        with patch('services.probe_fetcher.is_safe_outbound_url', return_value=True), \
              patch('urllib.request.urlopen', side_effect=_selective_urlopen):
             resp = client.post(
                 '/api/v1/probe/fetch-probe',
@@ -196,7 +196,7 @@ class TestFetchProbeConcurrent:
             # 只让第一台（node-0）安全通过
             return "/node-0/" in url
 
-        with patch('api.probe.is_safe_outbound_url', side_effect=_selective_safe), \
+        with patch('services.probe_fetcher.is_safe_outbound_url', side_effect=_selective_safe), \
              patch('urllib.request.urlopen', side_effect=_urlopen_ok):
             resp = client.post(
                 '/api/v1/probe/fetch-probe',
@@ -224,7 +224,7 @@ class TestFetchProbeConcurrent:
             m.__exit__ = MagicMock(return_value=False)
             return m
 
-        with patch('api.probe.is_safe_outbound_url', return_value=True), \
+        with patch('services.probe_fetcher.is_safe_outbound_url', return_value=True), \
              patch('urllib.request.urlopen', side_effect=_urlopen_ok):
             resp = client.post(
                 '/api/v1/probe/fetch-probe',
@@ -252,7 +252,7 @@ class TestFetchProbeConcurrent:
             m.__exit__ = MagicMock(return_value=False)
             return m
 
-        with patch('api.probe.is_safe_outbound_url', return_value=True), \
+        with patch('services.probe_fetcher.is_safe_outbound_url', return_value=True), \
              patch('urllib.request.urlopen', side_effect=_urlopen_ok):
             resp = client.post(
                 '/api/v1/probe/fetch-probe',

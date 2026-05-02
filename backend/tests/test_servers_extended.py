@@ -180,7 +180,8 @@ class TestProbe:
             s.probe_url = 'http://example.com/api/probe'
             db.session.commit()
 
-        with patch('urllib.request.urlopen') as mock_urlopen:
+        with patch('services.probe_fetcher.is_safe_outbound_url', return_value=True), \
+             patch('urllib.request.urlopen') as mock_urlopen:
             mock_response = MagicMock()
             mock_response.read.return_value = b'''{
                 "cpu_use": 45.5,
