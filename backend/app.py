@@ -93,10 +93,18 @@ def create_app(**config_overrides):
     # ===== JWT 令牌黑名单检查 =====
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):
-        from utils.token_blocklist import is_token_revoked
+        from utils.token_blocklist import is_token_revoked, is_user_force_revoked
         fail_open = app.config.get("JWT_BLOCKLIST_FAIL_OPEN", True)
         try:
-            return is_token_revoked(jwt_payload.get("jti", ""))
+            jti = jwt_payload.get("jti", "")
+            if is_token_revoked(jti):
+                return True
+            # 检查用户级强制下线（revoke_all_user_tokens 设置的标记）
+            user_id = jwt_payload.get("sub")
+            token_iat = jwt_payload.get("iat", 0)
+            if user_id is not None:
+                return is_user_force_revoked(user_id, token_iat)
+            return False
         except Exception as exc:
             if fail_open:
                 logger.warning("JWT blocklist check failed, fail-open enabled: %s", exc)

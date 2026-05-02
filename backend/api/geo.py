@@ -13,6 +13,7 @@ import requests
 from flask import Blueprint, Response, jsonify, request, current_app
 
 import extensions
+from middleware.rbac import viewer_or_admin_required
 
 geo_bp = Blueprint("geo", __name__)
 
@@ -179,6 +180,7 @@ def ip_geo(ip=None):
 
 
 @geo_bp.get("/servers/coords")
+@viewer_or_admin_required
 def servers_coords():
     """返回服务器经纬度，支持分页与聚合视图。"""
     from models.models import Server

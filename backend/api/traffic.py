@@ -4,6 +4,7 @@
 /api/traffic - 流量统计与管理
 """
 import os as _os
+import calendar as _calendar
 from datetime import datetime, timezone, timedelta, date
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt
@@ -229,13 +230,19 @@ def get_traffic_history(sid):
 # ── 月度重置与告警辅助（供 scheduler.py 调用） ────────────────────────────────
 
 def check_monthly_resets():
-    """检查并重置到达重置日的服务器流量，返回被重置的 server_id 列表"""
+    """检查并重置到达重置日的服务器流量，返回被重置的 server_id 列表。
+
+    当 traffic_reset_day 超过当月最后一天（如 31 号配置而当月仅 28/30 天），
+    则在当月最后一天执行重置，避免该月永远不重置的问题。
+    """
     today = date.today()
+    _, last_day = _calendar.monthrange(today.year, today.month)
     reset_ids = []
     try:
         servers = Server.query.filter(Server.traffic_reset_day > 0).all()
         for s in servers:
-            if today.day == s.traffic_reset_day:
+            effective_reset_day = min(s.traffic_reset_day, last_day)
+            if today.day == effective_reset_day:
                 s.traffic_up_gb   = 0.0
                 s.traffic_down_gb = 0.0
                 s.traffic_used_gb = 0.0
