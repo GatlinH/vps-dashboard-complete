@@ -110,6 +110,18 @@ class _InMemoryRedis:
         val, _ = item
         return len(val) if isinstance(val, list) else 0
 
+    def rpop(self, key):
+        self._cleanup_expired()
+        item = self._store.get(key)
+        if item is None:
+            return None
+        val, exp = item
+        if not isinstance(val, list) or not val:
+            return None
+        value = val.pop()
+        self._store[key] = (val, exp)
+        return value
+
     def brpop(self, key, timeout=0):
         self._cleanup_expired()
         item = self._store.get(key)
