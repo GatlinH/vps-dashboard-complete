@@ -209,3 +209,190 @@ npm run build
 - `frontend-dist/admin.html` 存在
 - `frontend-dist/sw.js` 存在
 - CI 的 Frontend Build Check 通过
+
+---
+
+## 7) 管理后台 IP 白名单（Admin Allowlist）
+
+### 7.1 受保护路由（Whitelisted routes）
+
+| 路径 | 说明 |
+|---|---|
+| `/admin.html` | 管理后台主入口 |
+| `/admin` | `/admin.html` 的等价入口，直接返回 `admin.html` 内容（不发生浏览器重定向），同样受白名单保护 |
+
+以上路由仅允许白名单内 IP 访问；非白名单 IP 访问返回 **403 Forbidden**。  
+其余路由（`/`、`/api/`、静态资源等）**不受影响**。
+
+---
+
+### 7.2 配置白名单（How to configure allowlist）
+
+**文件位置：** `backend/admin-allowlist.conf`（不入版本库，由 `.gitignore` 排除）  
+**模板位置：** `backend/admin-allowlist.conf.example`（版本库中保存，用于首次部署复制）
+
+**首次部署：**
+
+```bash
+cd backend
+cp admin-allowlist.conf.example admin-allowlist.conf
+# 编辑文件，添加允许的 IP / CIDR
+vi admin-allowlist.conf
+```
+
+**文件格式（CIDR）：**
+
+```nginx
+allow 203.0.113.10/32;     # 办公室固定出口 IP
+allow 198.51.100.0/24;     # 运维跳板机网段
+allow 10.0.0.0/8;          # 内网 / VPN 出口
+deny all;                  # 最后一行必须保留
+```
+
+> ⚠️  `deny all;` 必须保留在文件末尾；`allow` 规则按顺序匹配，第一条命中即生效。
+
+---
+
+### 7.3 代理信任链配置（Trusted proxy settings）
+
+**默认拓扑假设：** Nginx 直连公网（无 LB/CDN），`$remote_addr` 即为真实客户端 IP。
+
+若部署在 **LB / CDN 之后**，需在 `backend/nginx.conf` 的 server 块中取消注释并调整：
+
+```nginx
+set_real_ip_from 10.0.0.0/8;        # 替换为实际上游 LB 网段
+real_ip_header   X-Forwarded-For;   # 或 X-Real-IP / CF-Connecting-IP（Cloudflare）
+real_ip_recursive on;
+```
+
+> ⚠️  **仅信任受控上游网段**，切勿使用 `set_real_ip_from 0.0.0.0/0`，  
+>     否则任意客户端均可伪造 `X-Forwarded-For` 绕过白名单。
+
+---
+
+### 7.4 验证步骤（Verification steps）
+
+**1. 配置语法检查：**
+
+```bash
+docker compose exec nginx nginx -t
+# 期望输出：configuration file /etc/nginx/nginx.conf test is successful
+```
+
+**2. 白名单命中（允许访问，200）：**
+
+```bash
+# 直连（本机 IP 在白名单内）
+curl -o /dev/null -sw "%{http_code}\n" http://your-domain.com/admin.html
+# 期望：200
+
+# 经由代理（模拟 X-Forwarded-For，需 set_real_ip_from 正确配置）
+curl -H "X-Forwarded-For: <ALLOWED_IP>" \
+     -o /dev/null -sw "%{http_code}\n" http://your-domain.com/admin.html
+# 期望：200（仅当 set_real_ip_from 包含 curl 来源 IP 时生效）
+```
+
+**3. 非白名单拒绝（403）：**
+
+```bash
+# 从未在白名单内的 IP 访问（或通过代理注入非白名单 XFF）
+curl -o /dev/null -sw "%{http_code}\n" http://your-domain.com/admin.html
+# 期望：403
+
+curl -H "X-Forwarded-For: 1.2.3.4" \
+     -o /dev/null -sw "%{http_code}\n" http://your-domain.com/admin.html
+# 期望：403（1.2.3.4 不在白名单）
+```
+
+**4. 兼容路径 /admin（同样受白名单保护，直接返回 admin.html 内容）：**
+
+```bash
+# 白名单 IP
+curl -o /dev/null -sw "%{http_code}\n" http://your-domain.com/admin
+# 期望：200（白名单命中，直接返回 admin.html 内容，不发生浏览器跳转）
+
+# 非白名单 IP
+curl -o /dev/null -sw "%{http_code}\n" http://your-domain.com/admin
+# 期望：403（白名单拦截）
+```
+
+> 注意：`/admin` 路径现在直接返回 `admin.html` 内容而非 302 重定向。这是必要的设计——  
+> 使用 `return 302` 会在 nginx 的 rewrite 阶段执行（先于 access 阶段的 `deny`），  
+> 导致白名单规则被绕过。
+
+**5. 普通用户路由不受影响：**
+
+```bash
+curl -o /dev/null -sw "%{http_code}\n" http://your-domain.com/
+# 期望：200
+
+curl -o /dev/null -sw "%{http_code}\n" http://your-domain.com/api/v1/health
+# 期望：200
+```
+
+---
+
+### 7.5 生效步骤（Apply changes）
+
+```bash
+# 1. 修改 backend/admin-allowlist.conf
+# 2. 验证配置语法
+docker compose exec nginx nginx -t
+# 3. 热重载（零停机）
+docker compose exec nginx nginx -s reload
+```
+
+> 变更仅影响管理路由，其余流量在 reload 期间不中断。
+
+---
+
+### 7.6 紧急放行（Emergency access）
+
+临时追加 IP（不修改原有规则）：
+
+```bash
+# 使用 sed 将新 allow 规则插入到 deny all; 之前（避免 >> 追加到 deny all 后导致规则失效）
+sed -i '$i allow <EMERGENCY_IP>/32;' backend/admin-allowlist.conf
+# 或手动 vi 编辑，确保 deny all; 仍在最后一行
+docker compose exec nginx nginx -t && docker compose exec nginx nginx -s reload
+```
+
+---
+
+### 7.7 回滚步骤（Rollback steps）
+
+**方案 A：恢复旧白名单（仅回滚 IP 列表）**
+
+```bash
+# 从备份恢复（推荐：每次修改前先备份）
+cp backend/admin-allowlist.conf.bak backend/admin-allowlist.conf
+# 或从版本库的 .example 模板重新生成（恢复到"默认拒绝所有"状态）
+cp backend/admin-allowlist.conf.example backend/admin-allowlist.conf
+docker compose exec nginx nginx -t && docker compose exec nginx nginx -s reload
+```
+
+> ⚠️  `admin-allowlist.conf` 不入版本库（见 `.gitignore`），无法通过 `git show` 恢复历史 IP 列表；  
+>     建议每次修改前执行 `cp admin-allowlist.conf admin-allowlist.conf.bak` 留存备份。
+
+**方案 B：完整回滚 nginx.conf（恢复白名单功能关闭状态）**
+
+```bash
+git stash   # 暂存本地改动
+git checkout <PREVIOUS_COMMIT> -- backend/nginx.conf
+docker compose exec nginx nginx -t && docker compose exec nginx nginx -s reload
+```
+
+**灰度节点建议：** 变更前先在单台节点 reload，观察日志 1 分钟确认无误后再同步其余节点，最大限度降低中断风险。
+
+---
+
+### 7.8 已知限制（Known limitations）
+
+| 限制 | 说明 | 建议 |
+|---|---|---|
+| 动态出口 IP | 若办公室使用 DHCP/动态公网 IP，白名单需定期更新 | 改用 VPN 固定出口，或加入 `/24` 段 |
+| VPN 出口变化 | VPN 扩容/切换时出口 IP 段可能变化 | 使用 CIDR 段而非单 IP |
+| IPv6 支持 | `deny all` 对 IPv4/IPv6 均有效；如需放行 IPv6 地址，格式：`allow 2001:db8::/32;` | 视实际网络环境添加 |
+| CDN/多级代理 | 未正确配置 `set_real_ip_from` 时，nginx 看到的是代理 IP 而非真实客户端 IP | 参见 7.3 节 |
+| 仅保护静态入口 | 白名单保护 HTML 入口页，API 鉴权仍由后端 JWT + RBAC 负责，两层共同构成防御纵深 | 确保后端 `@admin_required` 装饰器已覆盖所有管理 API |
+
