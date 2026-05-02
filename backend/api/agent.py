@@ -6,6 +6,7 @@ import hmac
 import json
 import logging
 import secrets
+import threading
 from datetime import datetime, timedelta, timezone
 
 import extensions
@@ -25,6 +26,30 @@ logger = logging.getLogger(__name__)
 _CLOCK_SKEW_SECONDS = 60
 _OVERLAP_MINUTES = 5
 _QUEUE_KEY = "vps:agent:metrics_queue"
+
+# ── Redis 降级路径并发保护 ──────────────────────────────────────────────────
+# 当 Redis 不可用时，agent_push 会降级为同步写库。为避免高并发场景下同步写库
+# 把数据库连接/事务压力无限放大，使用有界信号量限制同时进行的降级写库数量。
+# 超过并发上限的请求仍返回 202（agent 不报错），但本次指标数据被丢弃（load-shedding）。
+# 默认上限由 AGENT_FALLBACK_DB_CONCURRENCY 配置项控制（默认 5）。
+_fallback_db_sem: threading.Semaphore | None = None
+_fallback_db_sem_init_lock = threading.Lock()
+
+
+def _get_fallback_db_sem() -> threading.Semaphore:
+    """获取（或懒初始化）Redis 降级路径的并发信号量。
+
+    信号量上限由 AGENT_FALLBACK_DB_CONCURRENCY 配置项决定，在首次调用时从
+    current_app.config 中读取并缓存。若需在测试中重置，可将模块级
+    _fallback_db_sem 设为 None。
+    """
+    global _fallback_db_sem
+    if _fallback_db_sem is None:
+        with _fallback_db_sem_init_lock:
+            if _fallback_db_sem is None:
+                limit = int(current_app.config.get("AGENT_FALLBACK_DB_CONCURRENCY", 5))
+                _fallback_db_sem = threading.Semaphore(limit)
+    return _fallback_db_sem
 
 
 def _utc_now():
@@ -218,8 +243,24 @@ def agent_push():
         )
         extensions.redis_client.rpush(_QUEUE_KEY, payload)
     else:
-        _record_metrics(server, data)
-        db.session.commit()
+        # Redis 不可用：降级为同步写库，但须通过有界信号量保护并发。
+        # 若信号量已耗尽，本次指标数据被丢弃（load-shedding），仍返回 202。
+        sem = _get_fallback_db_sem()
+        if not sem.acquire(blocking=False):
+            logger.warning(
+                "agent push: Redis unavailable and fallback DB concurrency limit reached;"
+                " metrics dropped (load-shedding)",
+                extra={"server_id": server.id, "uuid": uuid},
+            )
+        else:
+            try:
+                _record_metrics(server, data)
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                raise
+            finally:
+                sem.release()
 
     logger.info(
         "agent push accepted",

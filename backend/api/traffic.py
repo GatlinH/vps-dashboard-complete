@@ -229,13 +229,19 @@ def get_traffic_history(sid):
 
 # ── 月度重置与告警辅助（供 scheduler.py 调用） ────────────────────────────────
 
-def check_monthly_resets():
+def check_monthly_resets(today=None):
     """检查并重置到达重置日的服务器流量，返回被重置的 server_id 列表。
 
     当 traffic_reset_day 超过当月最后一天（如 31 号配置而当月仅 28/30 天），
     则在当月最后一天执行重置，避免该月永远不重置的问题。
+
+    Args:
+        today: 用于判断的日期（date 对象）。默认为 None，此时使用系统本地日期
+               date.today()。scheduler 调用时应传入调度器所在时区的当前日期，
+               以避免系统时区与调度器时区不一致导致的语义偏差。
     """
-    today = date.today()
+    if today is None:
+        today = date.today()
     _, last_day = _calendar.monthrange(today.year, today.month)
     reset_ids = []
     try:

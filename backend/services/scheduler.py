@@ -15,6 +15,7 @@ import socket
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval     import IntervalTrigger
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR, EVENT_JOB_MISSED
@@ -33,7 +34,20 @@ def create_scheduler(app):
         log.info(f"Worker {worker_id}: 跳过调度器启动（避免重复）")
         return None
 
-    scheduler = BackgroundScheduler(timezone="Asia/Shanghai")
+    # 时区从配置项读取，默认 Asia/Shanghai 以保持历史兼容。
+    # 修改时区会影响所有 cron 任务的触发时间（如月度流量重置 00:05）。
+    tz_name = app.config.get("SCHEDULER_TIMEZONE", "Asia/Shanghai")
+    try:
+        tz = ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, KeyError):
+        log.warning(
+            "SCHEDULER_TIMEZONE '%s' 无效，回退到 Asia/Shanghai",
+            tz_name,
+        )
+        tz_name = "Asia/Shanghai"
+        tz = ZoneInfo(tz_name)
+
+    scheduler = BackgroundScheduler(timezone=tz_name)
 
     with app.app_context():
         # ── 任务注册 ────────────────────────────────────────────────────────
@@ -463,10 +477,20 @@ def _job_traffic_accumulate(app):
 
 
 def _job_monthly_traffic_reset(app):
-    """每天 00:05 检查并重置到达重置日的服务器流量"""
+    """每天 00:05 检查并重置到达重置日的服务器流量。
+
+    使用调度器配置的时区（SCHEDULER_TIMEZONE）计算"今天"的日期，避免系统时区
+    与调度器时区不一致时，date.today() 返回错误日期导致重置时机偏差。
+    """
     from api.traffic import check_monthly_resets
+    tz_name = app.config.get("SCHEDULER_TIMEZONE", "Asia/Shanghai")
+    try:
+        tz = ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, KeyError):
+        tz = ZoneInfo("Asia/Shanghai")
+    today_in_tz = datetime.now(tz).date()
     with app.app_context():
-        reset_ids = check_monthly_resets()
+        reset_ids = check_monthly_resets(today=today_in_tz)
         if reset_ids:
             log.info(f"月度流量重置: server_ids={reset_ids}")
 
