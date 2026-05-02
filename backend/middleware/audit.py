@@ -230,7 +230,8 @@ class AuditMiddleware:
             max_bytes = int(
                 current_app.config.get('AUDIT_NEW_VALUES_MAX_BYTES', _DEFAULT_MAX_BYTES)
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning("⚠️ AUDIT_NEW_VALUES_MAX_BYTES 配置读取失败，使用默认值 %d: %s", _DEFAULT_MAX_BYTES, exc)
             max_bytes = _DEFAULT_MAX_BYTES
 
         # Truncation disabled
@@ -294,7 +295,8 @@ class AuditMiddleware:
     def _serialized_bytes(obj) -> int:
         try:
             return len(json.dumps(obj, ensure_ascii=False, default=str).encode('utf-8'))
-        except Exception:
+        except Exception as exc:
+            logger.warning("⚠️ audit payload 序列化大小计算失败: %s", exc)
             return 0
 
     def _safe_json_payload(self):

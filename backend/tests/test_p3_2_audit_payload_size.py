@@ -311,7 +311,7 @@ def test_truncation_disabled_when_max_bytes_zero():
 
     with app.test_request_context('/api/v1/servers', method='POST', json=large_payload):
         from flask import g
-        g.request_id = 'req-nodisable'
+        g.request_id = 'req-no-disable'
 
         result = audit._build_new_values_payload(role='admin')
 
