@@ -335,7 +335,7 @@ class TestViewerPermissionAfterPromotion:
     def test_demoted_viewer_loses_access(
         self, app, client, admin_headers, plain_user
     ):
-        """viewer 被降级回 user 后，旧 token （新登录）不再有只读权限。"""
+        """viewer 被降级回 user 后，重新登录获得的新 token 不再有只读权限。"""
         # 先提升为 viewer
         client.patch(
             f"/api/v1/auth/users/{plain_user}/role",

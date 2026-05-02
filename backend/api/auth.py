@@ -31,12 +31,12 @@ from utils.token_blocklist import (
 
 # 引入全局限流器和预设常量
 from middleware.rate_limit import limiter, LOGIN_LIMIT, WRITE_LIMIT, READ_LIMIT
-from middleware.rbac import admin_required, ADMIN_ROLE, VIEWER_ROLE
+from middleware.rbac import admin_required, ADMIN_ROLE, VIEWER_ROLE, USER_ROLE
 
 auth_bp = Blueprint("auth", __name__)
 
 # 允许管理员通过 API 分配的角色集合（不包含 admin，防止越权提权）
-_ASSIGNABLE_ROLES = {VIEWER_ROLE, "user"}
+_ASSIGNABLE_ROLES = {VIEWER_ROLE, USER_ROLE}
 logger  = logging.getLogger(__name__)
 
 # ── 正则 ──────────────────────────────────────────────────────────────────────
@@ -823,7 +823,7 @@ def assign_user_role(user_id: int):
 
     if new_role not in _ASSIGNABLE_ROLES:
         return jsonify(
-            msg=f"非法角色值：'{new_role}'；可分配角色为 {sorted(_ASSIGNABLE_ROLES)}"
+            msg=f"非法角色值：'{new_role}'；可分配角色为 user, viewer"
         ), 400
 
     target = db.session.get(User, user_id)
