@@ -93,6 +93,13 @@ def _validate_production_secrets():
     if '*' in os.getenv('CORS_ORIGINS', ''):
         errors.append("生产环境禁止在 CORS_ORIGINS 使用通配符 *。")
 
+    # CSRF cookie protect must never be disabled in production (P1-7).
+    if os.getenv("JWT_COOKIE_CSRF_PROTECT", "1").lower() in ("0", "false", "no"):
+        errors.append(
+            "JWT_COOKIE_CSRF_PROTECT 不得在生产环境中关闭。"
+            " CSRF 防护是 httpOnly cookie 认证的必要安全层。"
+        )
+
     if errors:
         for msg in errors:
             # 使用 print 而非 logger，确保在日志系统初始化前也能输出
@@ -172,6 +179,9 @@ class Config:
     # Header name that the frontend must send with the CSRF token value.
     JWT_ACCESS_CSRF_HEADER_NAME  = "X-CSRF-Token"
     JWT_REFRESH_CSRF_HEADER_NAME = "X-CSRF-Token"
+    # Domain attribute for JWT cookies (None = current domain only).
+    # Set JWT_COOKIE_DOMAIN=.example.com to share auth cookies across sub-domains.
+    JWT_COOKIE_DOMAIN       = os.getenv("JWT_COOKIE_DOMAIN") or None
 
     # ── CORS ─────────────────────────────────────────────────────────────────
     CORS_ORIGINS = _parse_cors_origins(

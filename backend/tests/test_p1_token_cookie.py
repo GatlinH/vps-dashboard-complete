@@ -230,3 +230,99 @@ class TestBearerHeaderBackwardCompat:
         res = client.get('/api/v1/auth/me', headers={'Authorization': f'Bearer {token}'})
         assert res.status_code == 200
         assert 'user' in res.get_json()
+
+
+# ── Cookie 安全属性 ───────────────────────────────────────────────────────────
+
+class TestCookieSecurityAttributes:
+    """验证登录响应的 cookie 安全属性（HttpOnly / SameSite / Path）。"""
+
+    def _login(self, client):
+        res = client.post(
+            '/api/v1/auth/login',
+            json={'username': 'admin', 'password': 'TestAdmin@123456'},
+        )
+        assert res.status_code == 200
+        return res
+
+    def test_access_cookie_has_samesite_attribute(self, client):
+        """access_token_cookie 必须携带 SameSite 属性，防御跨站请求伪造。"""
+        res = self._login(client)
+        cookie_str = _parse_set_cookie(res, 'access_token_cookie')
+        assert cookie_str is not None
+        assert re.search(r'\bSameSite\b', cookie_str, re.IGNORECASE), (
+            f"access_token_cookie 应包含 SameSite 属性，实际为: {cookie_str}"
+        )
+
+    def test_access_cookie_has_path_attribute(self, client):
+        """access_token_cookie 必须携带 Path 属性，限制 cookie 作用范围。"""
+        res = self._login(client)
+        cookie_str = _parse_set_cookie(res, 'access_token_cookie')
+        assert cookie_str is not None
+        assert re.search(r'\bPath=', cookie_str, re.IGNORECASE), (
+            f"access_token_cookie 应包含 Path 属性，实际为: {cookie_str}"
+        )
+
+    def test_get_via_cookie_does_not_require_csrf(self, client):
+        """cookie 路径的 GET 请求无需 X-CSRF-Token 头（安全方法豁免）。"""
+        # Establish session via cookie
+        login_res = client.post(
+            '/api/v1/auth/login',
+            json={'username': 'admin', 'password': 'TestAdmin@123456'},
+        )
+        assert login_res.status_code == 200
+        # GET without any CSRF header or Authorization — cookie path only
+        res = client.get('/api/v1/auth/me')
+        assert res.status_code == 200, (
+            f"cookie 路径 GET 应返回 200（无需 CSRF），实际: {res.status_code}"
+        )
+
+
+# ── 前端基座源码审查 ──────────────────────────────────────────────────────────
+
+import os as _os
+import pathlib as _pathlib
+
+
+class TestFrontendBaseLayer:
+    """验证前端请求基座（base.js）满足 P1-7 安全要求（源码静态检查）。"""
+
+    _BASE_JS = _pathlib.Path(
+        _os.path.dirname(__file__),
+        '../../frontend-vite/src/api/base.js',
+    ).resolve()
+
+    def _read_source(self):
+        return self._BASE_JS.read_text(encoding='utf-8')
+
+    def test_base_js_credentials_include(self):
+        """base.js 必须包含 credentials: 'include'，使浏览器自动携带 httpOnly cookie。"""
+        src = self._read_source()
+        assert "credentials: 'include'" in src or 'credentials:"include"' in src, (
+            "base.js 应包含 credentials: 'include' 以启用 cookie 发送"
+        )
+
+    def test_base_js_no_localstorage_get(self):
+        """base.js 不得再读取 localStorage（getItem / 直接访问 authToken）。"""
+        src = self._read_source()
+        # These patterns indicate old localStorage-based token storage
+        assert 'localStorage.getItem' not in src, (
+            "base.js 不应再使用 localStorage.getItem 读取 token"
+        )
+
+    def test_base_js_no_localstorage_set(self):
+        """base.js 不得再写入 localStorage（setItem / removeItem）。"""
+        src = self._read_source()
+        assert 'localStorage.setItem' not in src, (
+            "base.js 不应再使用 localStorage.setItem 存储 token"
+        )
+        assert 'localStorage.removeItem' not in src, (
+            "base.js 不应再使用 localStorage.removeItem 清除 token"
+        )
+
+    def test_base_js_csrf_header_on_writes(self):
+        """base.js 必须在写操作中注入 X-CSRF-Token 头。"""
+        src = self._read_source()
+        assert 'X-CSRF-Token' in src, (
+            "base.js 应在写操作请求头中携带 X-CSRF-Token"
+        )
