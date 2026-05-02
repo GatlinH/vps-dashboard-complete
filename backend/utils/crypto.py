@@ -4,13 +4,19 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
+import logging
 import os
 import base64
+
+logger = logging.getLogger(__name__)
 
 # Application-specific salt for key derivation.
 # Not a password hash — this is a deterministic KDF salt that identifies this application/module.
 # Fernet adds a random IV per encryption, so per-value uniqueness is handled separately.
 _KDF_SALT = b'vps-dashboard:tg-token-kdf-v1:0'
+
+# Fernet encrypted tokens always start with this base64url prefix (encoding of 0x80 version byte).
+_FERNET_PREFIX = 'gAAAAA'
 
 
 class CryptoManager:
@@ -102,14 +108,13 @@ class EncryptedString(TypeDecorator):
         if value is None:
             return None
         if self.crypto_manager and value:
-            if not value.startswith('gAAAAA'):
+            if not value.startswith(_FERNET_PREFIX):
                 # 值不符合 Fernet 格式，视为历史明文数据，直接返回（向后兼容）
                 return value
             try:
                 return self.crypto_manager.decrypt(value)
             except Exception as exc:
-                import logging as _logging
-                _logging.getLogger(__name__).error(
+                logger.error(
                     "解密 bot_token 失败（可能密钥变更或数据损坏）: %s", exc
                 )
                 return value

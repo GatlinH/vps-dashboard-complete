@@ -117,7 +117,7 @@ def revoke_all_user_tokens(user_id: int) -> int:
     """
     key = f"{_PREFIX_USER}{user_id}:forced_at"
     # 取下一整秒边界：确保当前秒内的所有 token 都被覆盖，新登录（iat >= forced_at）则有效
-    forced_at = float(int(time.time()) + 1)
+    forced_at = int(time.time()) + 1
     try:
         extensions.redis_client.setex(key, _FORCE_LOGOUT_TTL, str(forced_at))
         logger.info(f"用户强制下线已设置: user_id={user_id}, forced_at={forced_at}")

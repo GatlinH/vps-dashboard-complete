@@ -259,7 +259,7 @@ class TestRevokeAllUserTokens:
         import extensions as _ext
         from utils.token_blocklist import _PREFIX_USER, _FORCE_LOGOUT_TTL, is_user_force_revoked
 
-        forced_at = token_iat + 1  # 明确在 token 签发后
+        forced_at = float(int(token_iat) + 1)  # mirrors revoke_all_user_tokens boundary logic
         key = f"{_PREFIX_USER}{user_id}:forced_at"
         _ext.redis_client.setex(key, _FORCE_LOGOUT_TTL, str(forced_at))
 
@@ -322,7 +322,8 @@ class TestTelegramTokenEncryption:
         stored_value = es.process_bind_param(plaintext, None)
         assert stored_value != plaintext, "数据库中不应直接存储明文 bot_token"
         # Fernet 加密输出为 URL-safe base64，以 'gAAAAA' 开头（0x80 版本字节的编码）
-        assert stored_value.startswith('gAAAAA'), "加密后的值应为 Fernet 格式"
+        from utils.crypto import _FERNET_PREFIX
+        assert stored_value.startswith(_FERNET_PREFIX), "加密后的值应为 Fernet 格式"
 
         with app.app_context():
             cfg = TelegramConfig(chat_id='enc_test_chat')
