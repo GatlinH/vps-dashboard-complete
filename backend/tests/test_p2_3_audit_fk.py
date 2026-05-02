@@ -27,12 +27,18 @@ from werkzeug.security import generate_password_hash
 # SQLite disables FK constraints by default.  Enable them so that
 # ON DELETE SET NULL is exercised in the in-memory test DB.
 
-@event.listens_for(Engine, "connect")
 def _enable_sqlite_fk(dbapi_connection, _record):
     if isinstance(dbapi_connection, sqlite3.Connection):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
+
+
+# Guard against duplicate registration when the module is reloaded in long
+# test sessions: SQLAlchemy's listen() raises if the same (target, identifier,
+# fn) triple is added twice with propagate=True.
+if not event.contains(Engine, "connect", _enable_sqlite_fk):
+    event.listen(Engine, "connect", _enable_sqlite_fk)
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -161,8 +167,8 @@ def test_list_query_not_broken_by_null_user_id(app):
         dicts = [row.to_dict() for row in pagination.items]  # must not raise
 
         null_user_ids = [d for d in dicts if d["user_id"] is None]
-        assert len(null_user_ids) >= 2, (
-            "Expected at least 2 rows with user_id=None in result"
+        assert len(null_user_ids) == 2, (
+            f"Expected exactly 2 rows with user_id=None (1 deleted-user + 1 anonymous), got {len(null_user_ids)}"
         )
 
         # username-filter path must also be safe
