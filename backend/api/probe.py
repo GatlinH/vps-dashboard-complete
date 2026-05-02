@@ -4,8 +4,6 @@
 import socket
 import time
 import json
-import urllib.request
-import urllib.error
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, request, jsonify, current_app
 from extensions import db
@@ -13,7 +11,8 @@ import extensions
 from models.models import Server, ProbeResult
 from middleware.rbac import admin_required
 from middleware.rate_limit import limiter
-from utils.validators import validate_port, validate_ip_or_hostname, is_safe_outbound_url
+from utils.validators import validate_port, validate_ip_or_hostname
+from services.probe_fetcher import fetch_and_parse_probe, _parse_probe_payload_dict
 
 probe_bp = Blueprint("probe", __name__)
 
@@ -302,18 +301,9 @@ def fetch_probe():
 
     # ── 并发 HTTP 抓取阶段（纯 I/O，不写共享状态）────────────────────────────
     def _fetch_one(snap: dict):
-        """Worker: 仅执行 HTTP 抓取与解析，不访问 DB / Flask 上下文。"""
-        if not is_safe_outbound_url(snap["probe_url"]):
-            return snap["id"], None, "probe_url 非法或存在安全风险"
-        req = urllib.request.Request(
-            snap["probe_url"],
-            headers={"User-Agent": "VPS-Dashboard/1.0"},
-            method="GET",
-        )
-        with urllib.request.urlopen(req, timeout=int(timeout)) as resp:
-            payload = json.loads(resp.read().decode())
-        metrics = _parse_probe_payload_dict(payload, snap)
-        return snap["id"], metrics, None
+        """Worker: 委托共享层执行 HTTP 抓取与解析，不访问 DB / Flask 上下文。"""
+        metrics, err = fetch_and_parse_probe(snap["probe_url"], snap, timeout=timeout)
+        return snap["id"], metrics, err
 
     fetch_results: dict = {}   # server_id -> (metrics | None, error | None)
 
@@ -375,7 +365,7 @@ def fetch_probe():
 
 
 def _parse_probe_payload(payload: dict, server: Server) -> dict:
-    """将探针 JSON 映射为统一指标字典（接受 ORM 对象）"""
+    """将探针 JSON 映射为统一指标字典（接受 ORM 对象，委托共享层处理）。"""
     snap = {
         "id": server.id, "name": server.name,
         "cpu_use": server.cpu_use or 0.0, "ram_use": server.ram_use or 0.0,
@@ -384,37 +374,6 @@ def _parse_probe_payload(payload: dict, server: Server) -> dict:
         "uptime": server.uptime,
     }
     return _parse_probe_payload_dict(payload, snap)
-
-
-def _parse_probe_payload_dict(payload: dict, snap: dict) -> dict:
-    """将探针 JSON 映射为统一指标字典（接受 dict 快照，线程安全）。"""
-    # 哪吒探针 v0 格式
-    if "servers" in payload:
-        for item in payload["servers"]:
-            if str(item.get("id")) == str(snap["id"]) or item.get("name") == snap["name"]:
-                cpu  = item.get("cpu", 0)
-                mem  = item.get("mem_used", 0) / max(item.get("mem_total", 1), 1) * 100
-                disk = item.get("disk_used", 0) / max(item.get("disk_total", 1), 1) * 100
-                return {
-                    "cpu_use":  round(cpu,  2),
-                    "ram_use":  round(mem,  2),
-                    "disk_use": round(disk, 2),
-                    "net_up":   round(item.get("net_out_speed", 0) / 1024 / 1024, 2),
-                    "net_down": round(item.get("net_in_speed",  0) / 1024 / 1024, 2),
-                    "status":   "online",
-                    "uptime":   str(item.get("uptime", "")),
-                }
-
-    # 通用自定义格式
-    return {
-        "cpu_use":  round(float(payload.get("cpu_use",  snap["cpu_use"])),  2),
-        "ram_use":  round(float(payload.get("ram_use",  snap["ram_use"])),  2),
-        "disk_use": round(float(payload.get("disk_use", snap["disk_use"])), 2),
-        "net_up":   round(float(payload.get("net_up",   snap["net_up"])),   2),
-        "net_down": round(float(payload.get("net_down", snap["net_down"])), 2),
-        "status":   payload.get("status", snap["status"]),
-        "uptime":   payload.get("uptime", snap["uptime"]),
-    }
 
 
 # ── IPv4 信息查询 ─────────────────────────────────────────────────────────────

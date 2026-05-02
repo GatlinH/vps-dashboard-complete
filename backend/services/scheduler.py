@@ -280,12 +280,10 @@ def _job_tcp_ping(app):
 
 
 def _job_fetch_probes(app):
-    """抓取有 probe_url 的服务器探针数据"""
-    import urllib.request
+    """抓取有 probe_url 的服务器探针数据（复用共享层 fetch_and_parse_probe）"""
     from extensions import db, redis_client
     from models.models import Server, ProbeResult
-    from api.probe import _parse_probe_payload
-    from utils.validators import is_safe_outbound_url
+    from services.probe_fetcher import fetch_and_parse_probe
 
     with app.app_context():
         servers = Server.query.filter(Server.probe_url != "").all()
@@ -293,41 +291,24 @@ def _job_fetch_probes(app):
 
         for s in servers:
             fail_key = f"vps:probe_fail:{s.id}"
+            snap = {
+                "id": s.id, "name": s.name,
+                "cpu_use": s.cpu_use or 0.0, "ram_use": s.ram_use or 0.0,
+                "disk_use": s.disk_use or 0.0, "net_up": s.net_up or 0.0,
+                "net_down": s.net_down or 0.0, "status": s.status,
+                "uptime": s.uptime,
+            }
             try:
-                if not is_safe_outbound_url(s.probe_url):
-                    raise ValueError("unsafe probe_url")
-
-                req = urllib.request.Request(
-                    s.probe_url,
-                    headers={"User-Agent": "VPS-Dashboard/1.0"},
+                metrics, err = fetch_and_parse_probe(
+                    s.probe_url, snap,
+                    timeout=app.config.get("PROBE_FETCH_TIMEOUT_S", 8),
                 )
-                with urllib.request.urlopen(req, timeout=8) as resp:
-                    payload = json.loads(resp.read().decode())
-
-                metrics = _parse_probe_payload(payload, s)
-                for k, v in metrics.items():
-                    setattr(s, k, v)
-
-                db.session.add(ProbeResult(server_id=s.id, **{
-                    k: metrics.get(k) for k in
-                    ["cpu_use","ram_use","disk_use","net_up","net_down","status"]
-                }, latency_ms=None))
-
-                try:
-                    redis_client.setex(
-                        f"vps:server:{s.id}:metrics",
-                        app.config.get("PROBE_CACHE_TTL", 15),
-                        json.dumps(metrics, ensure_ascii=False),
-                    )
-                    # 成功：清除失败计数
-                    redis_client.delete(fail_key)
-                except Exception:
-                    pass
-
-                updated_ids.append(str(s.id)) # 也统一转为 string 处理
             except Exception as e:
-                log.warning(f"探针抓取失败 server_id={s.id}: {e}")
-                # 失败计数
+                err = str(e)
+                metrics = None
+
+            if err is not None:
+                log.warning(f"探针抓取失败 server_id={s.id}: {err}")
                 try:
                     fail_count = redis_client.incr(fail_key)
                     redis_client.expire(fail_key, 300)  # 5分钟窗口
@@ -336,6 +317,28 @@ def _job_fetch_probes(app):
                         log.warning(f"服务器 {s.id}({s.name}) 连续 {fail_count} 次探针失败，标记 offline")
                 except Exception:
                     pass
+                continue
+
+            for k, v in metrics.items():
+                setattr(s, k, v)
+
+            db.session.add(ProbeResult(server_id=s.id, **{
+                k: metrics.get(k) for k in
+                ["cpu_use", "ram_use", "disk_use", "net_up", "net_down", "status"]
+            }, latency_ms=None))
+
+            try:
+                redis_client.setex(
+                    f"vps:server:{s.id}:metrics",
+                    app.config.get("PROBE_CACHE_TTL", 15),
+                    json.dumps(metrics, ensure_ascii=False),
+                )
+                # 成功：清除失败计数
+                redis_client.delete(fail_key)
+            except Exception:
+                pass
+
+            updated_ids.append(str(s.id))
 
         try:
             db.session.commit()
