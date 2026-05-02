@@ -353,10 +353,15 @@ def change_password():
 
 @auth_bp.post("/logout")
 @limiter.limit(WRITE_LIMIT)
-# optional=True: allows unauthenticated callers to hit /logout (e.g. double-click, expired
-# session) and still receive cookie clearing headers.  When a valid cookie IS present, flask-
-# jwt-extended still enforces CSRF protection (JWT_COOKIE_CSRF_PROTECT=True), so an
-# unauthenticated caller has no cookie and therefore nothing sensitive to protect.
+# optional=True: allows unauthenticated callers (e.g. double-click, expired session) to call
+# /logout and still receive cookie-clearing headers (Max-Age=0) without getting 401.
+# Security: when a valid access_token_cookie IS present in the request, flask-jwt-extended
+# still enforces CSRF protection (JWT_COOKIE_CSRF_PROTECT=True) — a cookie-authenticated
+# POST without a matching X-CSRF-Token header is rejected with 401 "Missing CSRF token".
+# When NO cookie is present, there is no session to protect: the request proceeds as a no-op
+# (no token to revoke), which is intentional and safe.
+# SameSite=Lax further limits cross-origin cookie sending, so a cross-site attacker cannot
+# trivially make the victim's browser send the auth cookie to this endpoint.
 @jwt_required(optional=True)
 def logout():
     """

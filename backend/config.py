@@ -101,9 +101,15 @@ def _validate_production_secrets():
         )
 
     # JWT_COOKIE_SECURE must not be explicitly disabled in production.
-    if os.getenv("JWT_COOKIE_SECURE", "").lower() in ("0", "false", "no"):
+    # Compute the actual value as Config does to catch all cases.
+    _jwt_secure_raw = os.getenv(
+        "JWT_COOKIE_SECURE",
+        "0" if os.getenv("FLASK_ENV") == "development" else "1",
+    )
+    if _jwt_secure_raw.lower() not in ("1", "true", "yes"):
         errors.append(
-            "JWT_COOKIE_SECURE 不得在生产环境中关闭（cookie 必须通过 HTTPS 传输）。"
+            "JWT_COOKIE_SECURE 未启用。生产环境的认证 cookie 必须通过 HTTPS 传输（Secure 属性）。"
+            " 请将 JWT_COOKIE_SECURE=1 写入 .env，或不要设置 FLASK_ENV=development。"
         )
 
     if errors:

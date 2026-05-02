@@ -203,6 +203,30 @@ class TestLogoutClearsCookies:
             f"logout 后 /auth/me 应返回 401，实际: {res.status_code}"
         )
 
+    def test_logout_with_cookie_but_no_csrf_is_rejected(self, client):
+        """已认证（cookie 存在）但不携带 CSRF token 的 logout 请求必须被拒绝。
+        
+        This verifies that CSRF protection is enforced on the logout endpoint when
+        an auth cookie is present — preventing a cross-site forced-logout attack.
+        """
+        self._login_and_get_csrf(client)  # establishes session cookie
+        # POST logout with cookie present but no CSRF header
+        res = client.post('/api/v1/auth/logout')
+        assert res.status_code in (401, 422), (
+            f"cookie 存在时缺少 CSRF token 的 logout 请求应被拒绝（401/422），实际: {res.status_code}"
+        )
+
+    def test_logout_without_any_session_is_noop(self, client):
+        """无 session（无 cookie）的 logout 请求应返回 200，不报错（幂等清理）。
+        
+        With optional=True and no cookie, there is nothing to revoke and nothing to protect
+        with CSRF. The endpoint returns 200 with cookie-clearing headers as a no-op.
+        """
+        res = client.post('/api/v1/auth/logout')
+        assert res.status_code == 200, (
+            f"无 session 的 logout 请求应返回 200（幂等），实际: {res.status_code}"
+        )
+
 
 # ── Bearer header 向后兼容 ────────────────────────────────────────────────────
 
@@ -302,22 +326,12 @@ class TestFrontendBaseLayer:
             "base.js 应包含 credentials: 'include' 以启用 cookie 发送"
         )
 
-    def test_base_js_no_localstorage_get(self):
-        """base.js 不得再读取 localStorage（getItem / 直接属性访问）。"""
+    def test_base_js_no_localstorage_access(self):
+        """base.js 不得再以任何形式访问 localStorage（getItem / setItem / removeItem / 属性访问）。"""
+        import re as _re
         src = self._read_source()
-        # Check all forms of localStorage read access
-        assert 'localStorage.getItem' not in src, (
-            "base.js 不应再使用 localStorage.getItem 读取 token"
-        )
-        # Direct property access patterns (e.g. localStorage['authToken'] or localStorage.authToken)
-        assert "localStorage['authToken']" not in src, (
-            "base.js 不应通过 localStorage['authToken'] 访问 token"
-        )
-        assert "localStorage[\"authToken\"]" not in src, (
-            "base.js 不应通过 localStorage[\"authToken\"] 访问 token"
-        )
-        assert 'localStorage.authToken' not in src, (
-            "base.js 不应通过 localStorage.authToken 访问 token"
+        assert not _re.search(r'localStorage\s*[\.\[]', src), (
+            "base.js 不应再有任何 localStorage 读取或写入操作（包括 getItem/setItem/removeItem 及直接属性访问）"
         )
 
     def test_base_js_no_localstorage_set(self):

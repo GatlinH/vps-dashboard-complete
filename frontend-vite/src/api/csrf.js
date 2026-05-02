@@ -18,7 +18,8 @@ const REFRESH_PATH_SUFFIX = '/auth/refresh';
  * @returns {string} cookie 值，找不到时返回空字符串
  */
 export function readCookie(name) {
-  // Escape special regex chars in name (name should be alphanumeric/_/- in practice)
+  // Escape special regex chars in name (name should be alphanumeric/_/- in practice,
+  // but full escaping guards against any edge-case usage).
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const m = document.cookie.match(new RegExp('(?:^|;\\s*)' + escaped + '=([^;]*)'));
   return m ? decodeURIComponent(m[1]) : '';
