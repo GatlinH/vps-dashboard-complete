@@ -166,6 +166,9 @@ class Config:
     AGENT_PUSH_RATE_LIMIT = os.getenv('AGENT_PUSH_RATE_LIMIT', '60 per minute')
     AGENT_POLL_RATE_LIMIT = os.getenv('AGENT_POLL_RATE_LIMIT', '120 per minute')
     AGENT_ACK_RATE_LIMIT = os.getenv('AGENT_ACK_RATE_LIMIT', '120 per minute')
+    # AGENT_FALLBACK_DB_CONCURRENCY: Redis 不可用时，允许同时进行同步 DB 写入的最大并发数。
+    # 超过此上限的请求将直接接受（202）但丢弃数据，避免数据库连接被高并发请求打爆。
+    AGENT_FALLBACK_DB_CONCURRENCY = int(os.getenv('AGENT_FALLBACK_DB_CONCURRENCY', '5'))
     TRUST_PROXY = os.getenv('TRUST_PROXY', '0') == '1'
     PROXY_FIX_X_FOR = int(os.getenv('PROXY_FIX_X_FOR', '1'))
     PROXY_FIX_X_PROTO = int(os.getenv('PROXY_FIX_X_PROTO', '1'))
@@ -247,7 +250,10 @@ class Config:
     # strict: 非白名单直接拒绝保存；warn: 允许保存但前端/接口会给强警告
     AFF_DOMAIN_POLICY = os.getenv("AFF_DOMAIN_POLICY", "strict").strip().lower()
 
-    # ── Scheduler 任务监控 ───────────────────────────────────────────────────
+    # ── Scheduler ────────────────────────────────────────────────────────────
+    # SCHEDULER_TIMEZONE: 调度器时区，影响 cron 任务触发时间（如月度流量重置 00:05）。
+    # 默认保持与历史行为兼容的 Asia/Shanghai。部署到其他时区时务必按需修改。
+    SCHEDULER_TIMEZONE = os.getenv("SCHEDULER_TIMEZONE", "Asia/Shanghai")
     SCHEDULER_ALERT_ON_FAILURE = os.getenv("SCHEDULER_ALERT_ON_FAILURE", "1") == "1"
     SCHEDULER_FAILURE_ALERT_THRESHOLD = int(os.getenv("SCHEDULER_FAILURE_ALERT_THRESHOLD", "3"))
     PROBE_RESULT_RETENTION_DAYS = int(os.getenv("PROBE_RESULT_RETENTION_DAYS", "30"))
