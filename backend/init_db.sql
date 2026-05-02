@@ -206,7 +206,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   INDEX idx_action (action),
   INDEX idx_resource (resource_type, resource_id),
   INDEX idx_created_at (created_at),
-  INDEX idx_success (success)
+  INDEX idx_success (success),
+  CONSTRAINT fk_audit_logs_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审计日志表';
 
 -- ===== 初始数据插入 =====
