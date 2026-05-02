@@ -455,11 +455,6 @@ class TestIdempotency:
     def test_repeated_admin_push_creates_multiple_probe_results(
         self, client, auth_headers, test_server, app
     ):
-        before_count = (
-            ProbeResult.query.filter_by(server_id=test_server).count()
-            if False  # we'll count inside app context
-            else None
-        )
         with app.app_context():
             before_count = ProbeResult.query.filter_by(server_id=test_server).count()
 
