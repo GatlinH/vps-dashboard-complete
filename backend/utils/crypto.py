@@ -82,40 +82,62 @@ from sqlalchemy import TypeDecorator, String
 
 class EncryptedString(TypeDecorator):
     """加密的字符串类型。
-    
-    透明地对存入数据库的字符串加密、读取时解密。
-    若 crypto_manager 为 None（未配置密钥），则行为退化为普通字符串（兼容旧数据）。
-    读取时若解密失败（如旧明文数据），则原样返回，保持向后兼容。
-    length 默认 512，确保 Fernet 加密后的输出（约 160-220 字符）有足够空间。
+
+    接受一个可调用对象 get_crypto（惰性求值），在每次读写时调用以获取 CryptoManager。
+    这样 crypto 密钥可从 Flask app.config 在请求时读取，而不是在模块导入时静态确定。
+
+    Fail-closed 写入策略：
+    - 非空值写入时，若 get_crypto() 返回 None（未配置 TELEGRAM_TOKEN_SECRET），
+      抛 RuntimeError，拒绝明文落盘。
+    - 空字符串和 None 允许直接写入（对应清空 token 操作）。
+
+    读取时若 get_crypto() 返回 None（如只读场景或旧数据迁移），原样返回列值。
+    历史明文值（非 Fernet 格式）兼容返回，不抛异常。
+
+    向后兼容：也可直接传入 CryptoManager 实例（会被自动包装成 lambda）。
     """
     impl = String
     cache_ok = True
 
-    def __init__(self, crypto_manager: CryptoManager = None, length: int = 512):
+    def __init__(self, get_crypto, length: int = 512):
+        """
+        get_crypto: callable() -> CryptoManager | None，或 CryptoManager 实例（向后兼容）。
+        """
         super().__init__(length)
-        self.crypto_manager = crypto_manager
-    
+        self._get_crypto = get_crypto if callable(get_crypto) else (lambda: get_crypto)
+
     def process_bind_param(self, value, dialect):
-        """存储前加密"""
+        """存储前加密。未配置密钥时拒绝非空值写入（fail-closed）。"""
         if value is None:
             return None
-        if self.crypto_manager and value:
-            return self.crypto_manager.encrypt(value)
-        return value
-    
+        if not value:
+            # 空字符串允许直接写入（清空 token）
+            return value
+        crypto = self._get_crypto()
+        if crypto is None:
+            raise RuntimeError(
+                "TELEGRAM_TOKEN_SECRET 未配置，拒绝明文写入 bot_token。"
+                "请在环境变量或应用配置中设置 TELEGRAM_TOKEN_SECRET 后重试。"
+            )
+        return crypto.encrypt(value)
+
     def process_result_value(self, value, dialect):
-        """读取时解密；解密失败时原样返回（兼容历史明文数据）。"""
+        """读取时解密；未配置密钥或历史明文数据时原样返回（向后兼容）。"""
         if value is None:
             return None
-        if self.crypto_manager and value:
-            if not value.startswith(_FERNET_PREFIX):
-                # 值不符合 Fernet 格式，视为历史明文数据，直接返回（向后兼容）
-                return value
-            try:
-                return self.crypto_manager.decrypt(value)
-            except Exception as exc:
-                logger.error(
-                    "解密 bot_token 失败（可能密钥变更或数据损坏）: %s", exc
-                )
-                return value
-        return value
+        if not value:
+            return value
+        crypto = self._get_crypto()
+        if crypto is None:
+            # 未配置密钥：原样返回（只读兼容路径）
+            return value
+        if not value.startswith(_FERNET_PREFIX):
+            # 历史明文数据（迁移前写入）：不尝试解密
+            return value
+        try:
+            return crypto.decrypt(value)
+        except Exception as exc:
+            logger.error(
+                "解密 bot_token 失败（可能密钥变更或数据损坏）: %s", exc
+            )
+            return value

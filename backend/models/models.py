@@ -13,22 +13,39 @@ from utils.crypto import CryptoManager, EncryptedString
 
 logger = logging.getLogger(__name__)
 
+# Per-secret CryptoManager cache: avoids re-deriving the PBKDF2HMAC key on every DB access.
+# Keyed by the secret string so different keys coexist without collision.
+_crypto_cache: dict = {}
+
 
 def _get_tg_crypto():
-    """读取 TELEGRAM_TOKEN_SECRET 并返回 CryptoManager；未配置时返回 None（明文模式）。"""
-    secret = os.getenv("TELEGRAM_TOKEN_SECRET", "")
+    """惰性获取 Telegram bot_token 加密用的 CryptoManager。
+
+    每次调用时优先从 Flask current_app.config 读取 TELEGRAM_TOKEN_SECRET；
+    在 app context 之外（CLI、测试 fixture 初始化前）回退到 os.getenv。
+    结果按 secret 值缓存，避免对同一密钥重复执行 PBKDF2HMAC 迭代。
+    未配置 TELEGRAM_TOKEN_SECRET 时返回 None（调用方 EncryptedString 将在写入时 fail-closed）。
+    """
+    from flask import current_app
+    try:
+        secret = current_app.config.get("TELEGRAM_TOKEN_SECRET", "")
+    except RuntimeError:
+        # Flask app context not active (e.g. CLI / pre-push test setup)
+        secret = os.getenv("TELEGRAM_TOKEN_SECRET", "")
+
     if not secret:
         return None
-    try:
-        return CryptoManager(master_key=secret)
-    except Exception as exc:
-        logger.error(
-            "Telegram token 加密初始化失败，退化为明文存储（请检查 TELEGRAM_TOKEN_SECRET）: %s", exc
-        )
-        return None
 
+    if secret not in _crypto_cache:
+        try:
+            _crypto_cache[secret] = CryptoManager(master_key=secret)
+        except Exception as exc:
+            logger.error(
+                "Telegram token 加密初始化失败（请检查 TELEGRAM_TOKEN_SECRET）: %s", exc
+            )
+            return None
 
-_tg_crypto = _get_tg_crypto()
+    return _crypto_cache[secret]
 
 class User(db.Model):
     __tablename__ = "users"
@@ -269,7 +286,7 @@ class TelegramConfig(db.Model):
     __tablename__ = "telegram_config"
     
     id = db.Column(db.Integer, primary_key=True)
-    bot_token = db.Column(EncryptedString(_tg_crypto, length=512), default="")
+    bot_token = db.Column(EncryptedString(_get_tg_crypto, length=512), default="")
     chat_id = db.Column(db.String(64), default="")
     prefix = db.Column(db.String(64), default="【VPS星图】")
     enabled = db.Column(db.Boolean, default=False, index=True)

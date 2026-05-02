@@ -282,6 +282,7 @@ class TestTelegramTokenEncryption:
         """EncryptedString TypeDecorator process_bind_param 加密值；process_result_value 解密还原。"""
         from utils.crypto import CryptoManager, EncryptedString
         crypto = CryptoManager(master_key='test-tg-secret-key-for-unit-test!')
+        # 向后兼容路径：直接传入 CryptoManager 实例（自动包装为 lambda）
         es = EncryptedString(crypto, length=512)
         plaintext = 'real-bot-token-123456789:ABCdef'
 
@@ -307,50 +308,51 @@ class TestTelegramTokenEncryption:
         assert result == legacy_plaintext
 
     def test_bot_token_encrypted_in_db_when_secret_set(self, app):
-        """当 TELEGRAM_TOKEN_SECRET 激活时，ORM 写入后数据库中存储的是加密字符串。"""
-        from utils.crypto import CryptoManager, EncryptedString
+        """ORM 路径：通过 TelegramConfig.bot_token = plaintext + commit，
+        验证数据库落盘值为 Fernet 密文（非明文）；再通过 ORM expire + reload 验证透明解密。
+        此测试依赖 conftest._TEST_CONFIG 中已配置的 TELEGRAM_TOKEN_SECRET。
+        """
+        from utils.crypto import _FERNET_PREFIX
         from sqlalchemy import text
 
-        secret = 'test-tg-secret-key-for-unit-test!'
-        plaintext = 'real-bot-token-123456789:ABCdef'
-        crypto = CryptoManager(master_key=secret)
-
-        # 创建一个激活了加密的 EncryptedString 实例
-        es = EncryptedString(crypto, length=512)
-
-        # 直接通过 process_bind_param 验证：写入数据库时值被加密
-        stored_value = es.process_bind_param(plaintext, None)
-        assert stored_value != plaintext, "数据库中不应直接存储明文 bot_token"
-        # Fernet 加密输出为 URL-safe base64，以 'gAAAAA' 开头（0x80 版本字节的编码）
-        from utils.crypto import _FERNET_PREFIX
-        assert stored_value.startswith(_FERNET_PREFIX), "加密后的值应为 Fernet 格式"
+        plaintext = 'orm-path-test-token:987654321:QRStuv'
 
         with app.app_context():
-            cfg = TelegramConfig(chat_id='enc_test_chat')
+            cfg = TelegramConfig(chat_id='orm_enc_chat')
+            cfg.bot_token = plaintext        # EncryptedString.process_bind_param 将在 commit 时触发
             _db.session.add(cfg)
             _db.session.commit()
+            saved_id = cfg.id
 
-            # 模拟 TypeDecorator 激活状态下的 ORM 写入
-            _db.session.execute(
-                text("UPDATE telegram_config SET bot_token = :enc WHERE id = :id"),
-                {'enc': stored_value, 'id': cfg.id},
-            )
-            _db.session.commit()
-
-            # 直接 SQL 读取（绕过 TypeDecorator）验证落盘不为明文
+            # 原始 SQL 读取：绕过 ORM/TypeDecorator，直接读取列原始值
             row = _db.session.execute(
                 text("SELECT bot_token FROM telegram_config WHERE id = :id"),
-                {'id': cfg.id},
+                {'id': saved_id},
             ).fetchone()
             raw_value = row[0]
-            assert raw_value != plaintext, "数据库中不应直接存储明文 bot_token"
+            assert raw_value != plaintext, "数据库落盘值不应为明文 bot_token"
+            assert raw_value.startswith(_FERNET_PREFIX), "数据库落盘值应为 Fernet 密文格式"
 
-            # 通过 TypeDecorator 解密应能还原原始值
-            decrypted = es.process_result_value(raw_value, None)
-            assert decrypted == plaintext
+            # ORM reload：expire 后再读属性，触发 process_result_value → 透明解密
+            _db.session.expire(cfg)
+            assert cfg.bot_token == plaintext, "ORM 读取应透明解密，返回原始 token"
 
             _db.session.delete(cfg)
             _db.session.commit()
+
+    def test_write_rejected_when_no_encryption_key(self):
+        """EncryptedString fail-closed：get_crypto() 返回 None 时，写入非空值应抛 RuntimeError。"""
+        from utils.crypto import EncryptedString
+        es = EncryptedString(get_crypto=lambda: None, length=512)
+        with pytest.raises(RuntimeError, match='TELEGRAM_TOKEN_SECRET'):
+            es.process_bind_param('some-plaintext-token', None)
+
+    def test_empty_token_allowed_without_key(self):
+        """EncryptedString：写入空字符串/None 不需要加密密钥（允许清空 token 操作）。"""
+        from utils.crypto import EncryptedString
+        es = EncryptedString(get_crypto=lambda: None, length=512)
+        assert es.process_bind_param('', None) == ''
+        assert es.process_bind_param(None, None) is None
 
     def test_bot_token_readable_via_model(self, app, client, auth_headers):
         """通过 API 写入 bot_token 后，API 读取路径（send_message）应能正常使用"""
