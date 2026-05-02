@@ -143,11 +143,8 @@ class TestFetchProbeConcurrent:
 
         ok_body = _make_probe_response(cpu=15.0, ram=25.0, disk=35.0)
 
-        call_count = {"n": 0}
-
         def _selective_urlopen(req, timeout=8):
             url = req.full_url if hasattr(req, "full_url") else str(req)
-            call_count["n"] += 1
             # 失败节点 URL 中含有 node-1 路径段
             if "/node-1/" in url:
                 raise urllib.error.URLError("simulated timeout")
