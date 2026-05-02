@@ -3,6 +3,7 @@
 *.key
 *.pem
 *.p12
+backend/admin-allowlist.conf   # 管理后台 IP 白名单（含运维 IP，不入版本库）
 
 # ── Python ───────────────────────────────────────────────────
 __pycache__/

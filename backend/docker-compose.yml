@@ -176,6 +176,9 @@ services:
       - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # 管理后台 IP 白名单文件（从 admin-allowlist.conf.example 复制后按需填写 allow 规则）
+      # 首次部署：cp backend/admin-allowlist.conf.example backend/admin-allowlist.conf
+      - ./admin-allowlist.conf:/etc/nginx/conf.d/admin-allowlist.conf:ro
       # ✅ 改为挂载 Vite 构建产物目录 frontend-dist/
       # 原来的 ../frontend/ 是未经构建的源码目录，已废弃
       - ../frontend-dist:/usr/share/nginx/html:ro
