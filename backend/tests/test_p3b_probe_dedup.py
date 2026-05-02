@@ -322,7 +322,7 @@ class TestSchedulerFetchProbesCallchain:
             _job_fetch_probes(app)
 
         with app.app_context():
-            s = Server.query.get(sid)
+            s = db.session.get(Server, sid)
             assert s.cpu_use == 25.0
             assert s.ram_use == 40.0
             pr = ProbeResult.query.filter_by(server_id=sid).order_by(
@@ -355,7 +355,7 @@ class TestSchedulerFetchProbesCallchain:
             _job_fetch_probes(app)
 
         with app.app_context():
-            s = Server.query.get(sid)
+            s = db.session.get(Server, sid)
             # 仅第 1 次失败，未达到 3 次阈值，状态应保持 "online"
             assert s.status == "online"
 
@@ -389,7 +389,7 @@ class TestSchedulerFetchProbesCallchain:
             _job_fetch_probes(app)
 
         with app.app_context():
-            s = Server.query.get(sid)
+            s = db.session.get(Server, sid)
             assert s.status == "offline"
 
     def test_scheduler_fetch_probes_http_error(self, app):
