@@ -219,6 +219,8 @@ class Config:
     # ── Telegram ─────────────────────────────────────────────────────────────
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
     TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID",   "")
+    # 用于对数据库中存储的 bot_token 进行对称加密，留空则退化为明文存储（不推荐生产使用）
+    TELEGRAM_TOKEN_SECRET = os.getenv("TELEGRAM_TOKEN_SECRET", "")
 
     # ── Probe ────────────────────────────────────────────────────────────────
     PROBE_TIMEOUT_S    = int(os.getenv("PROBE_TIMEOUT_S", "5"))

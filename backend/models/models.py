@@ -4,9 +4,25 @@
 数据库模型 - 性能优化版本
 添加关键索引和分区策略
 """
+import os
 from datetime import datetime, timezone, date
 from extensions import db
 from models.audit_log import AuditLog  # re-export for backward compatibility
+from utils.crypto import CryptoManager, EncryptedString
+
+
+def _get_tg_crypto():
+    """读取 TELEGRAM_TOKEN_SECRET 并返回 CryptoManager；未配置时返回 None（明文模式）。"""
+    secret = os.getenv("TELEGRAM_TOKEN_SECRET", "")
+    if not secret:
+        return None
+    try:
+        return CryptoManager(master_key=secret)
+    except Exception:
+        return None
+
+
+_tg_crypto = _get_tg_crypto()
 
 class User(db.Model):
     __tablename__ = "users"
@@ -247,7 +263,7 @@ class TelegramConfig(db.Model):
     __tablename__ = "telegram_config"
     
     id = db.Column(db.Integer, primary_key=True)
-    bot_token = db.Column(db.String(256), default="")
+    bot_token = db.Column(EncryptedString(_tg_crypto, length=512), default="")
     chat_id = db.Column(db.String(64), default="")
     prefix = db.Column(db.String(64), default="【VPS星图】")
     enabled = db.Column(db.Boolean, default=False, index=True)
