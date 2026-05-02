@@ -3,15 +3,20 @@
 """
 审计中间件 - 记录所有重要操作
 """
+import json
 import logging
 from datetime import datetime, timezone
 
-from flask import g, request
+from flask import current_app, g, request
 
 from extensions import db
 from models.audit_log import AuditLog
 
 logger = logging.getLogger(__name__)
+
+# Default maximum serialized size (bytes) for the new_values JSON field.
+# Can be overridden via AUDIT_NEW_VALUES_MAX_BYTES in app config.
+_DEFAULT_MAX_BYTES = 16384
 
 
 class AuditMiddleware:
@@ -188,7 +193,12 @@ class AuditMiddleware:
         return f'HTTP {response.status_code}'
 
     def _build_new_values_payload(self, role: str):
-        """构建审计详情（请求参数 + 审计元数据）"""
+        """构建审计详情（请求参数 + 审计元数据），并进行体积控制。
+
+        处理顺序：先脱敏，后截断，确保敏感字段不会因截断而泄漏原文。
+        当序列化后体积超过 AUDIT_NEW_VALUES_MAX_BYTES 时，执行截断并附加
+        _truncation_meta 元信息字段。
+        """
         body = self._safe_json_payload()
         metadata = {
             'query': {k: request.args.get(k) for k in request.args.keys()},
@@ -198,11 +208,94 @@ class AuditMiddleware:
         }
 
         if body is None and not metadata['query']:
-            return metadata
-        return {
-            'payload': body,
-            'metadata': metadata,
+            payload = metadata
+        else:
+            payload = {
+                'payload': body,
+                'metadata': metadata,
+            }
+
+        return self._enforce_size_limit(payload)
+
+    def _enforce_size_limit(self, payload: dict) -> dict:
+        """确保 payload 序列化后不超过配置上限。
+
+        超限时执行字段级截断策略：
+        1. 对超长字符串值截断至合理长度；
+        2. 对超长数组只保留前 N 项；
+        3. 若仍超限，移除非关键顶层字段，直至满足约束；
+        4. 最终附加 _truncation_meta 元信息。
+        """
+        try:
+            max_bytes = int(
+                current_app.config.get('AUDIT_NEW_VALUES_MAX_BYTES', _DEFAULT_MAX_BYTES)
+            )
+        except Exception:
+            max_bytes = _DEFAULT_MAX_BYTES
+
+        # Truncation disabled
+        if max_bytes <= 0:
+            return payload
+
+        serialized = json.dumps(payload, ensure_ascii=False, default=str)
+        original_size = len(serialized.encode('utf-8'))
+
+        if original_size <= max_bytes:
+            return payload
+
+        # --- truncation needed ---
+        truncated_payload = self._truncate_payload(payload, max_bytes)
+        stored_serialized = json.dumps(truncated_payload, ensure_ascii=False, default=str)
+        stored_size = len(stored_serialized.encode('utf-8'))
+
+        truncated_payload['_truncation_meta'] = {
+            'truncated': True,
+            'original_size_bytes': original_size,
+            'stored_size_bytes': stored_size,
         }
+        return truncated_payload
+
+    def _truncate_payload(self, payload: dict, max_bytes: int) -> dict:
+        """对 payload 执行字段级截断，尽力满足 max_bytes 约束。"""
+        # Work on a shallow copy so we don't mutate the original
+        result = dict(payload)
+
+        # Phase 1: trim individual string values and arrays inside 'payload' key
+        if 'payload' in result and isinstance(result['payload'], dict):
+            result['payload'] = self._trim_values(result['payload'], str_limit=256, arr_limit=20)
+        elif 'payload' in result and isinstance(result['payload'], list):
+            result['payload'] = result['payload'][:20]
+
+        # Phase 2: if still too large, drop the 'payload' body entirely
+        if self._serialized_bytes(result) > max_bytes:
+            result.pop('payload', None)
+
+        # Phase 3: if still too large, drop query params from metadata
+        if self._serialized_bytes(result) > max_bytes:
+            if 'metadata' in result and isinstance(result.get('metadata'), dict):
+                trimmed_meta = dict(result['metadata'])
+                trimmed_meta.pop('query', None)
+                result['metadata'] = trimmed_meta
+
+        return result
+
+    @staticmethod
+    def _trim_values(obj, str_limit: int, arr_limit: int):
+        """Recursively trim string lengths and array sizes within obj."""
+        if isinstance(obj, dict):
+            return {k: AuditMiddleware._trim_values(v, str_limit, arr_limit) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [AuditMiddleware._trim_values(item, str_limit, arr_limit) for item in obj[:arr_limit]]
+        if isinstance(obj, str) and len(obj) > str_limit:
+            return obj[:str_limit]
+        return obj
+
+    @staticmethod
+    def _serialized_bytes(obj) -> int:
+        try:
+            return len(json.dumps(obj, ensure_ascii=False, default=str).encode('utf-8'))
+        except Exception:
+            return 0
 
     def _safe_json_payload(self):
         """读取并脱敏请求体"""

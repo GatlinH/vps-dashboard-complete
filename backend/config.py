@@ -309,6 +309,12 @@ class Config:
     PROBE_RESULT_RETENTION_DAYS = int(os.getenv("PROBE_RESULT_RETENTION_DAYS", "30"))
     AGENT_COMMAND_RETENTION_DAYS = int(os.getenv("AGENT_COMMAND_RETENTION_DAYS", "7"))
 
+    # ── Audit payload size control ───────────────────────────────────────────
+    # Maximum serialized size (bytes) of the new_values JSON column.
+    # Payloads exceeding this limit are truncated with a _truncation_meta field.
+    # Default 16 KB; set to 0 to disable truncation (not recommended).
+    AUDIT_NEW_VALUES_MAX_BYTES = int(os.getenv("AUDIT_NEW_VALUES_MAX_BYTES", "16384"))
+
     # ── Geo tile proxy ───────────────────────────────────────────────────────
     TILE_CACHE_TTL     = int(os.getenv("TILE_CACHE_TTL",  "86400")) # 24h
     TILE_BURST_LIMIT   = int(os.getenv("TILE_BURST_LIMIT", "120"))
