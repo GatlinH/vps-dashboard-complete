@@ -304,6 +304,9 @@ def _job_fetch_probes(app):
                     timeout=app.config.get("PROBE_FETCH_TIMEOUT_S", 8),
                 )
             except Exception as e:
+                # Safety net: fetch_and_parse_probe returns (None, err) for all
+                # expected errors; this catches only unexpected exceptions (e.g.,
+                # bugs inside probe_fetcher itself).
                 err = str(e)
                 metrics = None
 

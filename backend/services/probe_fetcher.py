@@ -55,7 +55,7 @@ def fetch_and_parse_probe(
 
     try:
         req = urllib.request.Request(url, headers=req_headers, method="GET")
-        with urllib.request.urlopen(req, timeout=int(timeout)) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             payload = json.loads(resp.read().decode())
     except urllib.error.HTTPError as exc:
         return None, f"HTTP {exc.code}"

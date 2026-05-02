@@ -145,10 +145,11 @@ class TestFetchAndParseProbeUnit:
         """DNS/连接失败等网络错误映射为具体原因字符串。"""
         from services.probe_fetcher import fetch_and_parse_probe
 
-        with patch(
-            "urllib.request.urlopen",
-            side_effect=urllib.error.URLError(reason="Name or service not known"),
-        ):
+        with patch("services.probe_fetcher.is_safe_outbound_url", return_value=True), \
+             patch(
+                "urllib.request.urlopen",
+                side_effect=urllib.error.URLError(reason="Name or service not known"),
+             ):
             metrics, err = fetch_and_parse_probe("http://no-such-host.example/probe", _SNAP)
 
         assert metrics is None
