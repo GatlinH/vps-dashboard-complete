@@ -219,7 +219,7 @@ npm run build
 | 路径 | 说明 |
 |---|---|
 | `/admin.html` | 管理后台主入口 |
-| `/admin` | `/admin.html` 的别名（302 重定向），同样受白名单保护 |
+| `/admin` | `/admin.html` 的等价入口，直接返回 `admin.html` 内容（不发生浏览器重定向），同样受白名单保护 |
 
 以上路由仅允许白名单内 IP 访问；非白名单 IP 访问返回 **403 Forbidden**。  
 其余路由（`/`、`/api/`、静态资源等）**不受影响**。
@@ -351,9 +351,9 @@ docker compose exec nginx nginx -s reload
 临时追加 IP（不修改原有规则）：
 
 ```bash
-# 编辑文件，在 deny all; 之前追加一行
-echo "allow <EMERGENCY_IP>/32;" >> backend/admin-allowlist.conf
-# （或手动 vi 编辑，确保 deny all; 仍在最后一行）
+# 使用 sed 将新 allow 规则插入到 deny all; 之前（避免 >> 追加到 deny all 后导致规则失效）
+sed -i '$i allow <EMERGENCY_IP>/32;' backend/admin-allowlist.conf
+# 或手动 vi 编辑，确保 deny all; 仍在最后一行
 docker compose exec nginx nginx -t && docker compose exec nginx nginx -s reload
 ```
 
@@ -364,11 +364,15 @@ docker compose exec nginx nginx -t && docker compose exec nginx nginx -s reload
 **方案 A：恢复旧白名单（仅回滚 IP 列表）**
 
 ```bash
-git show HEAD~1:backend/admin-allowlist.conf.example > backend/admin-allowlist.conf
-# 或从备份恢复
+# 从备份恢复（推荐：每次修改前先备份）
 cp backend/admin-allowlist.conf.bak backend/admin-allowlist.conf
+# 或从版本库的 .example 模板重新生成（恢复到"默认拒绝所有"状态）
+cp backend/admin-allowlist.conf.example backend/admin-allowlist.conf
 docker compose exec nginx nginx -t && docker compose exec nginx nginx -s reload
 ```
+
+> ⚠️  `admin-allowlist.conf` 不入版本库（见 `.gitignore`），无法通过 `git show` 恢复历史 IP 列表；  
+>     建议每次修改前执行 `cp admin-allowlist.conf admin-allowlist.conf.bak` 留存备份。
 
 **方案 B：完整回滚 nginx.conf（恢复白名单功能关闭状态）**
 
