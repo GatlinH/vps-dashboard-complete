@@ -46,7 +46,9 @@ async function adminFetch(path, opts = {}) {
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   })
 
-  if (resp.status === 401 || resp.status === 403) {
+  if (resp.status === 401) {
+    // 401 = unauthenticated; trigger global logout for redirect to login.
+    // 403 = authenticated but insufficient permission — do NOT log out.
     window.dispatchEvent(new CustomEvent('admin:unauthorized', { detail: { status: resp.status } }))
     const err = new Error(`HTTP ${resp.status}`)
     err.status = resp.status

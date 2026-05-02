@@ -46,8 +46,9 @@ export async function request(path, opts = {}, auth = true) {
     throw new ApiError(0, '网络异常，请稍后重试', { error_type: 'NETWORK_ERROR', raw: String(error) });
   }
 
-  // 已登录请求在 401/403 时触发全局登出；未登录请求（如登录接口）交由业务层处理原始错误
-  if (auth && (res.status === 401 || res.status === 403)) {
+  // 已登录请求在 401 时触发全局登出（未认证）。
+  // 403 (Forbidden) 表示已认证但权限不足，不应触发登出。
+  if (auth && res.status === 401) {
     window.dispatchEvent(new CustomEvent('admin:logout'));
     throw new ApiError(res.status, '登录已过期，请重新登录');
   }

@@ -303,11 +303,21 @@ class TestFrontendBaseLayer:
         )
 
     def test_base_js_no_localstorage_get(self):
-        """base.js 不得再读取 localStorage（getItem / 直接访问 authToken）。"""
+        """base.js 不得再读取 localStorage（getItem / 直接属性访问）。"""
         src = self._read_source()
-        # These patterns indicate old localStorage-based token storage
+        # Check all forms of localStorage read access
         assert 'localStorage.getItem' not in src, (
             "base.js 不应再使用 localStorage.getItem 读取 token"
+        )
+        # Direct property access patterns (e.g. localStorage['authToken'] or localStorage.authToken)
+        assert "localStorage['authToken']" not in src, (
+            "base.js 不应通过 localStorage['authToken'] 访问 token"
+        )
+        assert "localStorage[\"authToken\"]" not in src, (
+            "base.js 不应通过 localStorage[\"authToken\"] 访问 token"
+        )
+        assert 'localStorage.authToken' not in src, (
+            "base.js 不应通过 localStorage.authToken 访问 token"
         )
 
     def test_base_js_no_localstorage_set(self):

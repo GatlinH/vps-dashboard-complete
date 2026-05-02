@@ -100,6 +100,12 @@ def _validate_production_secrets():
             " CSRF 防护是 httpOnly cookie 认证的必要安全层。"
         )
 
+    # JWT_COOKIE_SECURE must not be explicitly disabled in production.
+    if os.getenv("JWT_COOKIE_SECURE", "").lower() in ("0", "false", "no"):
+        errors.append(
+            "JWT_COOKIE_SECURE 不得在生产环境中关闭（cookie 必须通过 HTTPS 传输）。"
+        )
+
     if errors:
         for msg in errors:
             # 使用 print 而非 logger，确保在日志系统初始化前也能输出
