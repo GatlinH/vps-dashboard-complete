@@ -1,4 +1,5 @@
 """Telegram API 测试"""
+import pytest
 from unittest.mock import patch, MagicMock
 
 
@@ -182,7 +183,6 @@ def test_write_rejected_when_no_encryption_key(app):
     SQLAlchemy 将 TypeDecorator 中的 RuntimeError 包装为 StatementError；
     断言 __cause__ 为 RuntimeError 且消息包含 TELEGRAM_TOKEN_SECRET。
     """
-    import pytest
     from sqlalchemy.exc import StatementError
     from models.models import TelegramConfig
     from extensions import db
@@ -217,7 +217,6 @@ def test_empty_token_clears_without_key(app):
             cfg.bot_token = ""
             db.session.add(cfg)
             db.session.flush()  # should not raise
-            db.session.rollback()
         finally:
             db.session.rollback()
             app.config["TELEGRAM_TOKEN_SECRET"] = original
