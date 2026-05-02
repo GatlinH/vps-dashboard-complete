@@ -87,6 +87,31 @@ docker compose up -d
 - `ADMIN_DEFAULT_PASSWORD` 建议设置为强密码；若留空，系统会在首次启动时随机生成并输出到日志，需立即登录修改。
 - `JWT_BLOCKLIST_FAIL_OPEN` 默认为 `1`（Redis 异常时放行，优先高可用）；如你的场景更重视安全一致性，建议改为 `0`（异常即拒绝）。
 
+## CI 构建流水线（P3E）
+
+### 前端构建 CI
+
+仓库配置了两条 CI 流程来保证前端构建可用：
+
+| Workflow | 触发条件 | 说明 |
+|----------|----------|------|
+| `ci.yml` → `Frontend Build Check` | 所有 push/PR（无 path 过滤） | 通用 CI 门控，`deploy.yml` 依赖此检查 |
+| `frontend-ci.yml` → `Frontend Build (path-filtered)` | 仅 `frontend-vite/**` 或 workflow 文件变更时 | 资源优化版，自动上传构建产物 |
+
+### 构建产物（Artifact）
+
+每次前端相关变更的 CI 运行结束后，构建产物会以以下格式上传至 GitHub Actions Artifacts：
+
+- **命名**：`frontend-dist-<git-sha>`
+- **路径**：仓库根目录下的 `frontend-dist/`（`vite.config.js` 中 `outDir: '../frontend-dist'`）
+- **保留期**：7 天
+
+### 为什么不把 `frontend-dist/` 提交进仓库
+
+- 构建产物是源码的衍生物，提交后会造成 diff 噪音，增加仓库体积
+- CI 已保证每次变更均可自动重现构建，任何人均可从 artifact 获取最新产物
+- 部署时应在目标环境执行同版本构建（参见下方部署步骤），或从 CI artifact 下载后解压到 `frontend-dist/`
+
 ## GitHub Actions 自动部署
 
 在仓库 Settings → Secrets → Actions 添加：
@@ -98,7 +123,7 @@ docker compose up -d
 | `VPS_SSH_KEY` | SSH 私钥（`cat ~/.ssh/id_rsa`）|
 
 配置后，每次 `git push main` 自动触发：
-1. 运行后端测试 + 前端构建检查
+1. 运行后端测试 + 前端构建检查（CI 已验证构建可用）
 2. 远程执行 `frontend-vite` 构建，产出 `frontend-dist/`
 3. 重启 `backend/docker-compose.yml` 服务完成部署
 
