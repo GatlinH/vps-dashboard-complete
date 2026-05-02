@@ -5,7 +5,6 @@ import json
 import requests
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify, current_app
-from flask_jwt_extended import jwt_required, get_jwt
 from extensions import db
 from models.models import TelegramConfig, AlertRule, Server
 from middleware.rbac import admin_required, viewer_or_admin_required
@@ -67,18 +66,14 @@ def _full_msg(prefix: str, body: str) -> str:
 # ── 路由 ─────────────────────────────────────────────────────────────────────
 
 @telegram_bp.get("/config")
-@jwt_required()
+@viewer_or_admin_required
 def get_config():
     return jsonify(config=_get_config().to_dict())
 
 
 @telegram_bp.post("/config")
-@jwt_required()
+@admin_required
 def save_config():
-    claims = get_jwt()
-    if claims.get("role") != "admin":
-        return jsonify(msg="权限不足"), 403
-
     data = request.get_json(silent=True) or {}
     cfg  = _get_config()
 
@@ -171,16 +166,12 @@ def export_telegram_bundle():
 
 
 @telegram_bp.post("/alerts")
-@jwt_required()
+@admin_required
 def save_alerts():
     """
     Body: { rules: [{ rule_type, threshold, enabled, server_id? }, ...] }
     全量替换全局告警规则
     """
-    claims = get_jwt()
-    if claims.get("role") != "admin":
-        return jsonify(msg="权限不足"), 403
-
     data  = request.get_json(silent=True) or {}
     rules = data.get("rules", [])
 

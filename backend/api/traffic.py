@@ -7,10 +7,10 @@ import os as _os
 import calendar as _calendar
 from datetime import datetime, timezone, timedelta, date
 from flask import Blueprint, request, jsonify, current_app
-from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy.orm import load_only
 from extensions import db, redis_client
 from models.models import Server, ProbeResult
+from middleware.rbac import admin_required, viewer_or_admin_required
 from werkzeug.exceptions import HTTPException
 from utils.errors import ValidationError, InternalServerError
 
@@ -18,7 +18,7 @@ traffic_bp = Blueprint("traffic", __name__)
 
 
 @traffic_bp.get('/')
-@jwt_required()
+@viewer_or_admin_required
 def get_traffic_summary():
     """获取流量总结"""
     try:
@@ -49,7 +49,7 @@ def get_traffic_summary():
 
 
 @traffic_bp.get('/servers')
-@jwt_required()
+@viewer_or_admin_required
 def list_traffic_servers():
     """获取所有服务器流量统计"""
     try:
@@ -83,7 +83,7 @@ def list_traffic_servers():
 
 
 @traffic_bp.get('/<int:sid>')
-@jwt_required()
+@viewer_or_admin_required
 def get_server_traffic(sid):
     """获取单个服务器流量详情"""
     try:
@@ -125,14 +125,9 @@ def get_server_traffic(sid):
 
 
 @traffic_bp.post('/<int:sid>')
-@jwt_required()
+@admin_required
 def update_server_traffic(sid):
     """更新服务器流量统计"""
-    claims = get_jwt()
-    if claims.get("role") != "admin":
-        from utils.errors import AuthorizationError
-        raise AuthorizationError()
-    
     try:
         server = Server.query.get_or_404(sid)
         data = request.get_json(silent=True) or {}
@@ -168,7 +163,7 @@ def update_server_traffic(sid):
 
 
 @traffic_bp.get('/<int:sid>/history')
-@jwt_required()
+@viewer_or_admin_required
 def get_traffic_history(sid):
     """获取流量历史数据"""
     try:
