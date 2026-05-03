@@ -379,7 +379,6 @@ def _job_check_alerts(app):
     """
     from extensions import db, redis_client as _redis
     from models.models import Server, AlertRule, TelegramConfig
-    from api.telegram import send_message, _full_msg
     from services.alert_cooldown import check_and_set_cooldown
     from middleware.metrics_middleware import record_cooldown_check
 
