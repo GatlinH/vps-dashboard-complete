@@ -703,3 +703,118 @@ class TestValidateNonceRedisUnavailable:
             # Second call: same nonce → replay
             with pytest.raises(AuthenticationError, match="replayed request"):
                 agent_module._validate_nonce("uuid-replay", "nonce-abc")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# G. _RateLimitedWarning — 告警限频
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestRateLimitedWarning:
+    """_RateLimitedWarning 限频行为单元测试（注入假时钟，无需实际等待）。"""
+
+    def _make(self, interval=60.0):
+        from api.agent import _RateLimitedWarning
+        clock = [0.0]
+
+        def fake_clock():
+            return clock[0]
+
+        return _RateLimitedWarning(interval=interval, _clock=fake_clock), clock
+
+    def test_first_call_emits(self, caplog):
+        """第一次调用应立即发出 warning。"""
+        import logging
+        warn, _ = self._make()
+        lg = logging.getLogger("test.rlw.first")
+        with caplog.at_level(logging.WARNING, logger="test.rlw.first"):
+            warn.warning(lg, "key1", "test message %s", "arg1")
+        assert any("test message arg1" in r.message for r in caplog.records)
+
+    def test_second_call_within_interval_suppressed(self, caplog):
+        """间隔内第二次调用不应发出 warning。"""
+        import logging
+        warn, clock = self._make(interval=60.0)
+        lg = logging.getLogger("test.rlw.suppress")
+        with caplog.at_level(logging.WARNING, logger="test.rlw.suppress"):
+            warn.warning(lg, "key2", "first emit")
+            clock[0] = 30.0  # still within interval
+            warn.warning(lg, "key2", "suppressed emit")
+        messages = [r.message for r in caplog.records]
+        assert sum("first emit" in m or "suppressed emit" in m for m in messages) == 1, (
+            "间隔内第二次调用应被抑制，仅应有一条 warning"
+        )
+
+    def test_after_interval_emits_with_suppressed_count(self, caplog):
+        """间隔过后重新发出 warning，且消息中包含抑制计数。"""
+        import logging
+        warn, clock = self._make(interval=60.0)
+        lg = logging.getLogger("test.rlw.reemit")
+        with caplog.at_level(logging.WARNING, logger="test.rlw.reemit"):
+            warn.warning(lg, "key3", "first emit")
+            clock[0] = 10.0
+            warn.warning(lg, "key3", "suppressed 1")   # suppressed
+            clock[0] = 20.0
+            warn.warning(lg, "key3", "suppressed 2")   # suppressed
+            clock[0] = 61.0  # interval expired
+            warn.warning(lg, "key3", "second emit after interval")
+
+        records = caplog.records
+        # Last record should mention suppressed count
+        last = records[-1]
+        assert "+2 suppressed" in last.message, (
+            f"重新发出时应包含抑制计数 '+2 suppressed'，实际消息: {last.message!r}"
+        )
+        assert last.suppressed == 2, (  # type: ignore[attr-defined]
+            "extra['suppressed'] 应为 2"
+        )
+
+    def test_suppressed_count_in_extra(self, caplog):
+        """抑制计数应以 suppressed 字段写入结构化 extra。"""
+        import logging
+        warn, clock = self._make(interval=60.0)
+        lg = logging.getLogger("test.rlw.extra")
+        with caplog.at_level(logging.WARNING, logger="test.rlw.extra"):
+            warn.warning(lg, "key4", "first")
+            clock[0] = 30.0
+            warn.warning(lg, "key4", "suppressed")
+            clock[0] = 61.0
+            warn.warning(lg, "key4", "re-emit", extra={"existing": "val"})
+
+        last = caplog.records[-1]
+        assert last.suppressed == 1  # type: ignore[attr-defined]
+        assert last.existing == "val"  # type: ignore[attr-defined]
+
+    def test_different_keys_independent(self, caplog):
+        """不同 key 的限频计数互不干扰。"""
+        import logging
+        warn, clock = self._make(interval=60.0)
+        lg = logging.getLogger("test.rlw.keys")
+        with caplog.at_level(logging.WARNING, logger="test.rlw.keys"):
+            warn.warning(lg, "keyA", "A first")
+            warn.warning(lg, "keyB", "B first")
+            clock[0] = 30.0
+            warn.warning(lg, "keyA", "A suppressed")  # suppressed
+            warn.warning(lg, "keyB", "B suppressed")  # suppressed
+            clock[0] = 61.0
+            warn.warning(lg, "keyA", "A re-emit")
+            warn.warning(lg, "keyB", "B re-emit")
+
+        messages = [r.message for r in caplog.records]
+        emitted = [m for m in messages if "re-emit" in m]
+        assert len(emitted) == 2, "两个 key 应各自独立重新发出 warning"
+
+    def test_no_suppressed_count_on_first_reemit_without_suppression(self, caplog):
+        """若间隔过后无抑制消息，重新发出时不应追加抑制计数。"""
+        import logging
+        warn, clock = self._make(interval=60.0)
+        lg = logging.getLogger("test.rlw.nozero")
+        with caplog.at_level(logging.WARNING, logger="test.rlw.nozero"):
+            warn.warning(lg, "key5", "first emit")
+            clock[0] = 61.0  # interval expired, no suppressed calls in between
+            warn.warning(lg, "key5", "second emit no suppression")
+
+        last = caplog.records[-1]
+        assert "suppressed" not in last.message, (
+            "无抑制消息时重新发出不应包含抑制计数"
+        )
+
