@@ -31,9 +31,7 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 import urllib.error
-from io import BytesIO
 from unittest.mock import MagicMock, patch
 
 import pytest
