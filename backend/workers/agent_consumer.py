@@ -173,6 +173,7 @@ def run():
                         "topic": _QUEUE_KEY,
                         "partition": None,
                         "offset": None,
+                        "error_type": type(exc).__name__,
                     },
                 )
                 db.session.rollback()

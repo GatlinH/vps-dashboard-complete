@@ -148,16 +148,34 @@ def ingest_metrics(
             pass
 
     # ── 5. ProbeResult snapshot ───────────────────────────────────────────────
+    # Use `applied` (validated values already written to server) rather than raw
+    # `data` values so that the ProbeResult reflects only the values that actually
+    # passed validation.  This matters for the agent path (strict=False) where
+    # out-of-range or non-numeric values are silently skipped: using raw `data`
+    # would store invalid values (e.g. cpu_use=150) in the historical record.
+    #
+    # latency_ms is validated separately: cast to float and reject negative values
+    # to avoid storing invalid types that could cause DB errors on insert.
+    latency_ms_validated: float | None = None
+    latency_raw = data.get("latency_ms")
+    if latency_raw is not None:
+        try:
+            latency_ms_val = float(latency_raw)
+            if latency_ms_val >= 0:
+                latency_ms_validated = latency_ms_val
+        except (TypeError, ValueError):
+            pass
+
     db.session.add(
         ProbeResult(
             server_id=server.id,
-            cpu_use=data.get("cpu_use", server.cpu_use),
-            ram_use=data.get("ram_use", server.ram_use),
-            disk_use=data.get("disk_use", server.disk_use),
-            net_up=data.get("net_up", server.net_up),
-            net_down=data.get("net_down", server.net_down),
-            status=data.get("status", server.status),
-            latency_ms=data.get("latency_ms"),
+            cpu_use=applied.get("cpu_use", server.cpu_use),
+            ram_use=applied.get("ram_use", server.ram_use),
+            disk_use=applied.get("disk_use", server.disk_use),
+            net_up=applied.get("net_up", server.net_up),
+            net_down=applied.get("net_down", server.net_down),
+            status=applied.get("status", server.status),
+            latency_ms=latency_ms_validated,
         )
     )
 

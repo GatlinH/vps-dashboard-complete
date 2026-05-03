@@ -7,6 +7,7 @@ import json
 import logging
 import secrets
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 
 import extensions
@@ -26,6 +27,51 @@ logger = logging.getLogger(__name__)
 _CLOCK_SKEW_SECONDS = 60
 _OVERLAP_MINUTES = 5
 _QUEUE_KEY = "vps:agent:metrics_queue"
+
+
+class _RateLimitedWarning:
+    """Emit a ``logger.warning`` at most once per *interval* seconds per *key*.
+
+    Calls that arrive within the cooldown window are counted as suppressed.
+    When the next emission fires it appends ``[+N suppressed]`` to the message
+    and sets ``suppressed=N`` in the structured ``extra`` dict, so log
+    aggregators can still observe the total event frequency without every
+    request flooding the log stream during a Redis outage.
+
+    Thread-safe; the optional *_clock* argument (callable → float) allows
+    monotonic-clock injection in unit tests.
+    """
+
+    def __init__(self, interval: float = 60.0, _clock=None):
+        self._interval = interval
+        self._clock = _clock or time.monotonic
+        self._lock = threading.Lock()
+        # key -> [last_emit_monotonic, suppressed_count]
+        self._state: dict[str, list] = {}
+
+    def warning(self, lg: logging.Logger, key: str, msg: str, *args, **kwargs):
+        now = self._clock()
+        emit = False
+        suppressed = 0
+        with self._lock:
+            entry = self._state.get(key)
+            if entry is None or now - entry[0] >= self._interval:
+                suppressed = entry[1] if entry else 0
+                self._state[key] = [now, 0]
+                emit = True
+            else:
+                entry[1] += 1
+        if not emit:
+            return
+        if suppressed:
+            extra = dict(kwargs.pop("extra", None) or {})
+            extra["suppressed"] = suppressed
+            lg.warning(msg + " [+%d suppressed]", *(*args, suppressed), extra=extra, **kwargs)
+        else:
+            lg.warning(msg, *args, **kwargs)
+
+
+_warn = _RateLimitedWarning(interval=60.0)
 
 # ── Redis 降级路径并发保护 ──────────────────────────────────────────────────
 # 当 Redis 不可用时，agent_push 会降级为同步写库。为避免高并发场景下同步写库
@@ -72,15 +118,37 @@ def _validate_nonce(uuid: str, nonce: str):
         raise AuthenticationError("invalid nonce")
     nonce_key = f"vps:agent:nonce:{uuid}:{nonce}"
     if extensions.redis_client:
-        # 使用 Redis 原子写入（SET NX EX），避免 exists()+setex() 竞态
-        accepted = extensions.redis_client.set(
-            nonce_key,
-            "1",
-            ex=_CLOCK_SKEW_SECONDS,
-            nx=True,
+        try:
+            # 使用 Redis 原子写入（SET NX EX），避免 exists()+setex() 竞态
+            accepted = extensions.redis_client.set(
+                nonce_key,
+                "1",
+                ex=_CLOCK_SKEW_SECONDS,
+                nx=True,
+            )
+            if not accepted:
+                raise AuthenticationError("replayed request")
+        except AuthenticationError:
+            raise
+        except Exception as exc:
+            # redis-py 在 Redis 故障时抛出 ConnectionError / RedisError 等，
+            # 而不是返回 None；捕获后降级放行并记录警告。
+            _warn.warning(
+                logger, "nonce_redis_error",
+                "agent nonce validation skipped: Redis error (uuid=%s): %s. "
+                "Replay protection degraded for the duration of Redis outage.",
+                uuid, exc,
+            )
+    else:
+        # Redis 不可用时无法执行防重放校验，记录警告后降级放行。
+        # 此窗口期内短暂的重放攻击风险由 timestamp 窗口（_CLOCK_SKEW_SECONDS）和
+        # HMAC 签名提供的有限保护兜底；运维侧应尽快恢复 Redis。
+        _warn.warning(
+            logger, "nonce_redis_unavailable",
+            "agent nonce validation skipped: Redis unavailable (uuid=%s). "
+            "Replay protection degraded for the duration of Redis outage.",
+            uuid,
         )
-        if not accepted:
-            raise AuthenticationError("replayed request")
 
 
 def _enforce_transport_security():
@@ -187,22 +255,43 @@ def agent_push():
     data = request.get_json(silent=True) or {}
     server, uuid = _authenticate_agent(data)
 
+    _use_fallback = True  # assume fallback until Redis enqueue succeeds
     if extensions.redis_client and hasattr(extensions.redis_client, "rpush"):
         payload = json.dumps(
             {"server_id": server.id, "uuid": uuid, "metrics": data, "received_at": _utc_now().isoformat()},
             ensure_ascii=False,
         )
-        extensions.redis_client.rpush(_QUEUE_KEY, payload)
-    else:
-        # Redis 不可用：降级为同步写库，但须通过有界信号量保护并发。
-        # 若信号量已耗尽，本次指标数据被丢弃（load-shedding），仍返回 202。
+        try:
+            extensions.redis_client.rpush(_QUEUE_KEY, payload)
+            _use_fallback = False
+        except Exception as exc:
+            # redis-py raises ConnectionError/RedisError on outage; fall back to
+            # the semaphore-protected synchronous DB write path so that the agent
+            # does not receive a 500 and the load-shedding logic remains reachable.
+            _warn.warning(
+                logger, "rpush_failed",
+                "agent push: Redis rpush failed (%s), falling back to synchronous DB write",
+                exc,
+                extra={"server_id": server.id, "uuid": uuid},
+            )
+
+    if _use_fallback:
+        # Redis not available or rpush failed: fallback to semaphore-protected
+        # synchronous DB write.  If semaphore is exhausted, data is dropped
+        # (load-shedding); agent still gets 202.
         sem = _get_fallback_db_sem()
         if not sem.acquire(blocking=False):
-            logger.warning(
+            _warn.warning(
+                logger, "load_shedding",
                 "agent push: Redis unavailable and fallback DB concurrency limit reached;"
                 " metrics dropped (load-shedding)",
                 extra={"server_id": server.id, "uuid": uuid},
             )
+            try:
+                record_agent_push("dropped")
+            except Exception as exc:
+                _warn.warning(logger, "metric_dropped_record_failed",
+                              "Failed to record agent push dropped metric: %s", exc)
         else:
             try:
                 _record_metrics(server, data)
@@ -221,7 +310,8 @@ def agent_push():
     try:
         record_agent_push("accepted")
     except Exception as exc:
-        logger.debug("Failed to record agent push metric: %s", exc)
+        _warn.warning(logger, "metric_accepted_record_failed",
+                      "Failed to record agent push metric: %s", exc)
 
     return jsonify({"accepted": True}), 202
 
