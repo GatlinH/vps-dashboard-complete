@@ -130,7 +130,7 @@ CREATE TABLE IF NOT EXISTS probe_results (
   status     VARCHAR(16) COMMENT '状态快照',
 
   -- 时间戳（分区键，UTC）
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '探测时间（UTC）',
+  created_at DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP()) COMMENT '探测时间（UTC）',
 
   -- 主键必须包含分区键（MySQL 分区规则）
   PRIMARY KEY (id, created_at),
