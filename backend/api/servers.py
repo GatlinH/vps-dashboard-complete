@@ -273,6 +273,9 @@ def delete_server(sid):
     # MySQL partitioned tables have no FK cascade; explicitly delete probe results
     # for this server.  Use batched DELETEs to avoid a single large row-lock
     # window (and slow partition-scan) on tables with many historical rows.
+    # Each batch is committed independently so InnoDB releases row locks
+    # progressively.  Partial deletions on error are acceptable: any remaining
+    # orphaned rows are picked up by the next retention cleanup job run.
     while True:
         # Materialize a batch of ids first so the DELETE does not read from
         # the same table in a nested subquery, which MySQL rejects.

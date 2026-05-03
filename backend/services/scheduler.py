@@ -24,6 +24,11 @@ from middleware.metrics_middleware import record_scheduler_job, record_alert_fir
 log = logging.getLogger(__name__)
 
 # Batch size for chunked DELETE operations (retention cleanup fallback).
+# Small enough to avoid long row-lock windows; large enough to finish quickly
+# without excessive round-trips.  Each batch is committed independently so
+# InnoDB releases its row locks after every _CLEANUP_BATCH rows.
+# Partial deletions caused by mid-run errors are intentional: the job is
+# idempotent and the next scheduled run will clean up any remaining rows.
 _CLEANUP_BATCH = 1_000
 
 
