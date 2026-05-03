@@ -264,35 +264,42 @@ manage_secrets() {
     cat > "${SECRETS_FILE}" <<'EOF'
 # /etc/vps-dashboard/secrets.env
 # ⚠️  本文件包含敏感信息，请勿提交到版本库。
-# 填写完所有 CHANGE_ME 字段后，重新运行 sudo ./install.sh
+# 确认所有 CHANGE_ME 字段后，重新运行 sudo ./install.sh
 #
-# 生成随机密钥示例：
-#   python3 -c "import secrets; print(secrets.token_hex(32))"
+# 自动生成强密码/密钥
+    local gen_secret="python3 -c \"import secrets; print(secrets.token_hex(32))\""
+    local gen_pass="python3 -c \"import secrets, string; \
+print(''.join(secrets.choice(string.ascii_letters+string.digits) for _ in range(24)))\""
+
+    cat > "${SECRETS_FILE}" <<EOF
+# /etc/vps-dashboard/secrets.env
+# ⚠️  本文件包含敏感信息，请勿提交到版本库。
+# ⚠️  MASTER_ENCRYPTION_KEY 一旦使用不可更改，请务必备份！
 
 # ─── Flask & JWT ───────────────────────────────────────────────────────────
-SECRET_KEY=CHANGE_ME_USE_python3_secrets_token_hex_32
-JWT_SECRET_KEY=CHANGE_ME_DIFFERENT_FROM_SECRET_KEY
+SECRET_KEY=$(eval $gen_secret)
+JWT_SECRET_KEY=$(eval $gen_secret)
 
 # ─── MySQL ─────────────────────────────────────────────────────────────────
-MYSQL_ROOT_PASSWORD=CHANGE_ME_STRONG_ROOT_PASSWORD
+MYSQL_ROOT_PASSWORD=$(eval $gen_pass)
 MYSQL_USER=vps_user
-MYSQL_PASSWORD=CHANGE_ME_STRONG_MYSQL_PASSWORD
+MYSQL_PASSWORD=$(eval $gen_pass)
 MYSQL_DB=vps_dashboard
 
 # ─── Redis ─────────────────────────────────────────────────────────────────
-REDIS_PASSWORD=CHANGE_ME_STRONG_REDIS_PASSWORD
+REDIS_PASSWORD=$(eval $gen_pass)
 
 # ─── 加密密钥 ──────────────────────────────────────────────────────────────
-MASTER_ENCRYPTION_KEY=CHANGE_ME_USE_python3_secrets_token_hex_32
+MASTER_ENCRYPTION_KEY=$(eval $gen_secret)
 
-# ─── CORS（替换为你的实际域名，多个域名逗号分隔） ────────────────────────────
+# ─── CORS（替换为你的实际域名） ──────────────────────────────────────────
 CORS_ORIGINS=https://your-domain.example.com
 
 # ─── 可选：Telegram 告警 ───────────────────────────────────────────────────
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
 
-# ─── 可选：调优参数（默认值可直接使用） ────────────────────────────────────
+# ─── 可选：调优参数 ────────────────────────────────────────────────────────
 PROBE_TIMEOUT_S=5
 PROBE_CACHE_TTL=15
 TILE_CACHE_TTL=86400
