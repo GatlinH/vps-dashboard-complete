@@ -123,8 +123,8 @@ docker compose up -d
 | `VPS_SSH_KEY` | SSH 私钥（`cat ~/.ssh/id_rsa`）|
 
 配置后，每次 `git push main` 自动触发：
-1. 运行后端测试 + 前端构建检查（CI 已验证构建可用）
-2. 远程执行 `frontend-vite` 构建，产出 `frontend-dist/`
+1. 运行后端测试 + 前端构建检查（仅说明当前提交在 CI 环境中可通过测试并完成构建）
+2. 在 VPS 上远程执行 `frontend-vite` 构建，产出 `frontend-dist/`（该步骤仍依赖服务器上的 Node/npm 环境；需与 CI 保持一致，或改为下载 CI artifact 部署）
 3. 重启 `backend/docker-compose.yml` 服务完成部署
 
 ## 技术栈
