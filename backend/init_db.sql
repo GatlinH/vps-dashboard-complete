@@ -103,11 +103,24 @@ CREATE TABLE IF NOT EXISTS servers (
   INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='VPS 服务器表';
 
--- ③ 探针结果历史表（分区表，便于大数据量管理）
+-- ③ 探针结果历史表（按日分区，MySQL 8.0+ RANGE COLUMNS 方案）
+--
+-- 分区设计：
+--   - 分区键：created_at（UTC DATETIME）
+--   - 分区策略：RANGE COLUMNS(created_at)，按日粒度
+--   - 命名规则：pYYYYMMDD（如 p20260503）
+--   - 兜底分区 pmax 防止未预建分区时写入失败
+--
+-- MySQL 约束：RANGE COLUMNS 分区表不支持 FOREIGN KEY，
+--   服务器级联删除由应用层负责（delete_server API）。
+--
+-- !!! 重要：下方若出现按日分区日期（如 2026-05-01..2026-05-10），它们只是占位示例，不是安全默认值。
+-- !!! 如果直接执行而不改成“实际部署日期附近”的分区范围，新写入数据会立刻落入 pmax，破坏“按日分区”的预期。
+-- !!! 初始化前必须重新生成这些日期；生产环境应依赖定时分区维护任务持续向前预建。分区管理命令见 docs/probe_partition_ops.md。
 CREATE TABLE IF NOT EXISTS probe_results (
-  id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '结果ID',
-  server_id  INT UNSIGNED NOT NULL COMMENT '服务器ID',
-  
+  id         BIGINT UNSIGNED AUTO_INCREMENT,
+  server_id  INT UNSIGNED NOT NULL COMMENT '服务器ID（无外键约束，由应用层管理级联）',
+
   -- 指标数据
   cpu_use    FLOAT COMMENT 'CPU 使用率',
   ram_use    FLOAT COMMENT '内存使用率',
@@ -116,19 +129,27 @@ CREATE TABLE IF NOT EXISTS probe_results (
   net_down   FLOAT COMMENT '网络下行',
   latency_ms FLOAT COMMENT '延迟（毫秒）',
   status     VARCHAR(16) COMMENT '状态快照',
-  
-  -- 时间戳
-  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '探测时间',
-  
+
+  -- 时间戳（分区键，UTC）
+  created_at DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP()) COMMENT '探测时间（UTC）',
+
+  -- 主键必须包含分区键（MySQL 分区规则）
+  PRIMARY KEY (id, created_at),
   INDEX idx_server_time (server_id, created_at),
-  INDEX idx_created_at (created_at),
-  FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='探针结果历史表'
-PARTITION BY RANGE (YEAR(created_at)) (
-  PARTITION p2024 VALUES LESS THAN (2025),
-  PARTITION p2025 VALUES LESS THAN (2026),
-  PARTITION p2026 VALUES LESS THAN (2027),
-  PARTITION pmax  VALUES LESS THAN MAXVALUE
+  INDEX idx_created_at  (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='探针结果历史表（按日分区）'
+PARTITION BY RANGE COLUMNS(created_at) (
+  PARTITION p20260501 VALUES LESS THAN ('2026-05-02'),
+  PARTITION p20260502 VALUES LESS THAN ('2026-05-03'),
+  PARTITION p20260503 VALUES LESS THAN ('2026-05-04'),
+  PARTITION p20260504 VALUES LESS THAN ('2026-05-05'),
+  PARTITION p20260505 VALUES LESS THAN ('2026-05-06'),
+  PARTITION p20260506 VALUES LESS THAN ('2026-05-07'),
+  PARTITION p20260507 VALUES LESS THAN ('2026-05-08'),
+  PARTITION p20260508 VALUES LESS THAN ('2026-05-09'),
+  PARTITION p20260509 VALUES LESS THAN ('2026-05-10'),
+  PARTITION p20260510 VALUES LESS THAN ('2026-05-11'),
+  PARTITION pmax      VALUES LESS THAN (MAXVALUE)
 );
 
 -- ④ 告警规则表
@@ -245,7 +266,6 @@ INSERT INTO servers (
 
 -- 创建复合索引以优化常见查询
 ALTER TABLE servers ADD INDEX idx_status_group (status, group_name);
-ALTER TABLE probe_results ADD INDEX idx_server_hour (server_id, HOUR(created_at));
 ALTER TABLE audit_logs ADD INDEX idx_user_action (user_id, action, created_at);
 
 -- ===== 统计信息更新 =====

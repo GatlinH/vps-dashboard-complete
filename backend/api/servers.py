@@ -6,7 +6,7 @@ import logging
 import secrets
 from datetime import datetime, timezone, date, timedelta
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.exceptions import HTTPException
 from werkzeug.security import generate_password_hash
@@ -267,6 +267,34 @@ def delete_server(sid):
     except Exception as e:
         raise InternalServerError(error_detail=str(e))
 
+    # MySQL partitioned tables have no FK cascade; explicitly delete probe results
+    # for this server.  Use batched DELETEs to avoid a single large row-lock
+    # window (and slow partition-scan) on tables with many historical rows.
+    # Each batch is committed independently so InnoDB releases row locks
+    # progressively.  Partial deletions on error are acceptable: any remaining
+    # orphaned rows are picked up by the next retention cleanup job run.
+    batch_size = current_app.config.get("PROBE_RESULT_DELETE_BATCH", 1000)
+    while True:
+        # Materialize a batch of ids first so the DELETE does not read from
+        # the same table in a nested subquery, which MySQL rejects.
+        probe_result_ids = [
+            row.id
+            for row in db.session.query(ProbeResult.id)
+            .filter(ProbeResult.server_id == sid)
+            .order_by(ProbeResult.id)
+            .limit(batch_size)
+            .all()
+        ]
+        if not probe_result_ids:
+            break
+        ProbeResult.query.filter(
+            ProbeResult.id.in_(probe_result_ids)
+        ).delete(synchronize_session=False)
+        db.session.commit()
+
+    # Delete the server in its own transaction.  The server object is expired
+    # after the batch commits above, but SQLAlchemy retains the PK in the
+    # identity map so session.delete() does not need to re-query the row.
     db.session.delete(server)
     db.session.commit()
     _clear_cache()

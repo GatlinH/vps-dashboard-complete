@@ -220,9 +220,21 @@ class AgentCommand(db.Model):
 
 
 class ProbeResult(db.Model):
-    """探针结果历史 - 按日期分区"""
+    """探针结果历史 - 按日分区（MySQL 8.0+）
+
+    MySQL 分区方案：RANGE COLUMNS(created_at)，按日粒度（pYYYYMMDD），
+    含兜底分区 pmax。分区管理由 services.probe_partition 提供工具函数。
+
+    重要约束：MySQL 分区表不支持外键（FOREIGN KEY），因此
+    probe_results 在 MySQL 中不含 FK 约束。
+    - 删除服务器时，api/servers.py::delete_server 会显式清理该服务器的
+      ProbeResult 行（不依赖 DB 级 CASCADE）。
+    - 保留期内其余孤儿行（如有）由定时清理任务（_job_cleanup）回收。
+    SQLAlchemy 模型保留 ForeignKey 声明以兼容 SQLite 测试环境
+    （SQLite 默认不强制外键）。
+    """
     __tablename__ = "probe_results"
-    
+
     id = db.Column(db.BigInteger().with_variant(db.Integer, 'sqlite'), primary_key=True, autoincrement=True)
     server_id = db.Column(db.Integer, db.ForeignKey("servers.id", ondelete="CASCADE"), nullable=False, index=True)
     
