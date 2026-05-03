@@ -439,7 +439,7 @@ def _send_alert(cfg, server, rule_type, cur_val, threshold):
 
 
 def _job_cleanup(app):
-    """清理历史探针数据（MySQL 优先 DROP PARTITION，非 MySQL 降级为 DELETE）。
+    """清理历史探针数据（MySQL 优先 DROP PARTITION，非 MySQL 或未分区表降级为 DELETE）。
 
     保留天数由 PROBE_RESULT_RETENTION_DAYS 控制（默认 30 天）。
     清理过程输出结构化日志：分区名、耗时、影响范围。
@@ -449,7 +449,7 @@ def _job_cleanup(app):
     from extensions import db
     from models.models import ProbeResult
     from services.probe_partition import (
-        _is_mysql, drop_expired_partitions,
+        _is_mysql, drop_expired_partitions, list_partitions,
     )
 
     retention_days = int(app.config.get("PROBE_RESULT_RETENTION_DAYS", 30))
@@ -457,7 +457,16 @@ def _job_cleanup(app):
 
     with app.app_context():
         engine = db.engine
+        use_partition = False
         if _is_mysql(engine):
+            # Only use DROP PARTITION if the table is actually partitioned.
+            # An unpartitioned probe_results (pre-migration) would return an
+            # empty list from list_partitions() and silently skip all cleanup.
+            partitions = list_partitions(engine)
+            has_pmax = any(p["partition_name"] == "pmax" for p in partitions)
+            use_partition = bool(partitions) and has_pmax
+
+        if use_partition:
             # ── MySQL: DROP PARTITION（瞬时元数据操作，无行级锁）──────────────
             dropped = drop_expired_partitions(engine, retention_days=retention_days)
             elapsed_ms = round((_time.perf_counter() - t0) * 1000, 1)
@@ -474,7 +483,7 @@ def _job_cleanup(app):
                     elapsed_ms, retention_days,
                 )
         else:
-            # ── Non-MySQL fallback: batched DELETE（SQLite / non-partitioned）
+            # ── Fallback: bulk DELETE（SQLite / non-partitioned MySQL / pre-migration）
             cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
             try:
                 deleted = ProbeResult.query.filter(

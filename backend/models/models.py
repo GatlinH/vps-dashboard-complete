@@ -226,12 +226,12 @@ class ProbeResult(db.Model):
     含兜底分区 pmax。分区管理由 services.probe_partition 提供工具函数。
 
     重要约束：MySQL 分区表不支持外键（FOREIGN KEY），因此
-    probe_results 在 MySQL 中不含 FK 约束。SQLAlchemy 模型保留
-    ForeignKey 声明仅用于兼容 SQLite 测试环境（SQLite 默认不强制外键）。
-
-    这意味着在 MySQL 中删除 server 时，probe_results 可能暂时保留为孤儿记录；
-    这些记录预期由数据保留/清理任务统一删除，而不是依赖数据库或当前代码路径
-    立即级联删除。
+    probe_results 在 MySQL 中不含 FK 约束。
+    - 删除服务器时，api/servers.py::delete_server 会显式清理该服务器的
+      ProbeResult 行（不依赖 DB 级 CASCADE）。
+    - 保留期内其余孤儿行（如有）由定时清理任务（_job_cleanup）回收。
+    SQLAlchemy 模型保留 ForeignKey 声明以兼容 SQLite 测试环境
+    （SQLite 默认不强制外键）。
     """
     __tablename__ = "probe_results"
 

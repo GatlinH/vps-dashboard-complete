@@ -267,6 +267,11 @@ def delete_server(sid):
     except Exception as e:
         raise InternalServerError(error_detail=str(e))
 
+    # MySQL partitioned tables have no FK cascade; explicitly delete probe results
+    # for this server so orphan rows are cleaned up immediately rather than waiting
+    # for the retention job.  This is a no-op on SQLite (ForeignKey cascades handled
+    # by SQLAlchemy relationships, but the FK is declared on the model for that path).
+    ProbeResult.query.filter_by(server_id=sid).delete(synchronize_session=False)
     db.session.delete(server)
     db.session.commit()
     _clear_cache()

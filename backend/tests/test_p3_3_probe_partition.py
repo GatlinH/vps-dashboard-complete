@@ -10,6 +10,7 @@ P3-3: ProbeResult 分区与历史清理优化
      A-3  _parse_partition_date 解析正确，非日期名返回 None
      A-4  MySQL 模拟：list_partitions 通过 INFORMATION_SCHEMA 查询
      A-5  MySQL 模拟：ensure_future_partitions 幂等，调用 REORGANIZE PARTITION
+     A-5b ensure_future_partitions 从最新已有分区后补齐 gap（错过维护日的情况）
      A-6  MySQL 模拟：drop_expired_partitions 调用 DROP PARTITION
      A-7  MySQL 模拟：drop_expired_partitions dry_run 不执行 DDL
      A-8  MySQL 模拟：drop_expired_partitions 不删除 pmax 和非日期分区
@@ -19,7 +20,8 @@ P3-3: ProbeResult 分区与历史清理优化
      B-1  _job_cleanup 在 SQLite 使用 DELETE 回退路径
      B-2  _job_cleanup 幂等（重复执行不报错）
      B-3  _job_cleanup 删除超期数据，保留期内数据不删除（保留边界）
-     B-4  _job_cleanup 在 MySQL mock 路径调用 drop_expired_partitions
+     B-4  _job_cleanup 在已分区 MySQL 调用 drop_expired_partitions
+     B-4b _job_cleanup 在未分区 MySQL（无 pmax）回退到 DELETE
      B-5  _job_probe_partition_maintain 在非 MySQL 直接返回
      B-6  _job_probe_partition_maintain 在 MySQL mock 调用 ensure_future_partitions
 
@@ -27,6 +29,7 @@ P3-3: ProbeResult 分区与历史清理优化
      C-1  ProbeResult 写入语义不变
      C-2  ProbeResult 查询（过滤、排序）语义不变
      C-3  ProbeResult to_dict 结构完整
+     C-4  delete_server 显式清理 probe_results
 
 运行方式：
     cd backend && python -m pytest tests/test_p3_3_probe_partition.py -v
@@ -231,6 +234,41 @@ class TestMySQLEnsureFuturePartitions:
 
         assert created == []
         mock_engine.connect.assert_not_called()
+
+    def test_gap_fill_creates_intermediate_partitions(self):
+        """A-5b: If the job missed days, partitions for missed days should be created.
+
+        Scenario: last daily partition is p20260501 (3 days ago).
+        today=2026-05-04, days_ahead=2.
+        Expected: p20260502, p20260503, p20260504, p20260505, p20260506 are all created.
+        """
+        from services.probe_partition import ensure_future_partitions
+
+        today = date(2026, 5, 4)
+        # Only p20260501 existed; gap covers p20260502 and p20260503 before today
+        existing_names = {"p20260501", "pmax"}
+
+        with patch("services.probe_partition.list_partitions") as mock_list, \
+             patch("services.probe_partition._is_mysql", return_value=True):
+
+            mock_list.return_value = [
+                {"partition_name": "p20260501", "partition_description": "'2026-05-02'", "table_rows": 0},
+                {"partition_name": "pmax",      "partition_description": "MAXVALUE",     "table_rows": 0},
+            ]
+
+            mock_engine = MagicMock()
+            mock_engine.dialect.name = "mysql"
+            mock_conn = MagicMock()
+            mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+            mock_conn.__exit__ = MagicMock(return_value=False)
+            mock_engine.connect.return_value = mock_conn
+
+            created = ensure_future_partitions(mock_engine, days_ahead=2, today=today)
+
+        # p20260502 (gap), p20260503 (gap), p20260504 (today), p20260505, p20260506
+        for expected in ["p20260502", "p20260503", "p20260504", "p20260505", "p20260506"]:
+            assert expected in created, f"Expected {expected} to be created (gap-fill)"
+        assert "p20260501" not in created  # already existed
 
 
 class TestMySQLDropExpiredPartitions:
@@ -483,20 +521,62 @@ class TestJobCleanupSQLite:
 
 
 class TestJobCleanupMySQLPath:
-    """B-4: _job_cleanup calls drop_expired_partitions on MySQL engine."""
+    """B-4 / B-4b: _job_cleanup MySQL dispatch logic."""
 
-    def test_cleanup_calls_drop_partitions_on_mysql(self, app):
-        """On MySQL, _job_cleanup must use drop_expired_partitions, not DELETE."""
+    def test_cleanup_calls_drop_partitions_on_partitioned_mysql(self, app):
+        """B-4: On partitioned MySQL (has pmax), must use drop_expired_partitions."""
         from services.scheduler import _job_cleanup
 
         app.config["PROBE_RESULT_RETENTION_DAYS"] = 30
 
+        partitions_with_pmax = [
+            {"partition_name": "p20260401", "partition_description": "'2026-04-02'", "table_rows": 1000},
+            {"partition_name": "pmax",      "partition_description": "MAXVALUE",     "table_rows": 0},
+        ]
+
         with patch("services.probe_partition._is_mysql", return_value=True), \
+             patch("services.probe_partition.list_partitions", return_value=partitions_with_pmax), \
              patch("services.probe_partition.drop_expired_partitions", return_value=["p20260401"]) \
              as mock_drop:
             _job_cleanup(app)
 
         mock_drop.assert_called_once()
+
+    def test_cleanup_falls_back_to_delete_on_unpartitioned_mysql(self, app):
+        """B-4b: MySQL table with no partitions (pre-migration) must fall back to DELETE."""
+        from extensions import db
+        from models.models import Server, ProbeResult
+        from services.scheduler import _job_cleanup
+
+        with app.app_context():
+            s = Server(
+                name="unpart-srv", ip="10.70.0.1",
+                group_name="test", cpu_cores=1, ram_gb=1.0,
+                disk_gb=10, price=5.0, period="monthly",
+            )
+            db.session.add(s)
+            db.session.commit()
+            sid = s.id
+
+            old_ts = datetime.now(timezone.utc) - timedelta(days=35)
+            db.session.add(ProbeResult(server_id=sid, status="online", created_at=old_ts))
+            db.session.commit()
+
+        app.config["PROBE_RESULT_RETENTION_DAYS"] = 30
+
+        # MySQL engine but list_partitions returns empty (unpartitioned table)
+        with patch("services.probe_partition._is_mysql", return_value=True), \
+             patch("services.probe_partition.list_partitions", return_value=[]), \
+             patch("services.probe_partition.drop_expired_partitions") as mock_drop:
+            _job_cleanup(app)
+
+        # DROP PARTITION should NOT be called on unpartitioned tables
+        mock_drop.assert_not_called()
+
+        # The old row should have been removed via DELETE fallback
+        with app.app_context():
+            remaining = ProbeResult.query.all()
+            assert len(remaining) == 0
 
 
 class TestJobProbePartitionMaintain:
@@ -635,3 +715,42 @@ class TestProbeResultCompatibility:
         assert expected_keys == set(d.keys())
         assert isinstance(d["created_at"], str)
         assert d["status"] == "online"
+
+    def test_delete_server_cleans_probe_results(self, app, auth_headers):
+        """C-4: Deleting a server via API must also delete its ProbeResult rows.
+
+        This verifies the explicit ProbeResult cleanup in delete_server,
+        which replaces the removed MySQL FK CASCADE.
+        """
+        from extensions import db
+        from models.models import Server, ProbeResult
+
+        with app.app_context():
+            s = Server(
+                name="del-cascade-srv", ip="10.60.0.9",
+                group_name="test", cpu_cores=1, ram_gb=1.0,
+                disk_gb=10, price=5.0, period="monthly",
+            )
+            db.session.add(s)
+            db.session.commit()
+            sid = s.id
+
+            for i in range(3):
+                db.session.add(ProbeResult(
+                    server_id=sid, status="online",
+                    created_at=datetime.now(timezone.utc) - timedelta(hours=i),
+                ))
+            db.session.commit()
+
+            # Confirm rows exist before delete
+            assert ProbeResult.query.filter_by(server_id=sid).count() == 3
+
+        with app.test_client() as client:
+            resp = client.delete(f"/api/v1/servers/{sid}", headers=auth_headers)
+        assert resp.status_code == 200
+
+        with app.app_context():
+            remaining = ProbeResult.query.filter_by(server_id=sid).all()
+            assert remaining == [], (
+                "ProbeResult rows for deleted server must be removed by delete_server"
+            )

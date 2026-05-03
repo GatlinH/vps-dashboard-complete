@@ -17,13 +17,14 @@ ProbeResult (probe_results) 表分区管理工具。
 
 MySQL 分区注意事项：
   - RANGE COLUMNS(created_at) 与外键（FOREIGN KEY）不兼容，
-    probe_results 表在 MySQL 中不含 FK；删除 server 记录时不会自动级联删除
-    相关 probe_results，遗留孤儿数据由保留期清理机制处理。
+    probe_results 表在 MySQL 中不含 FK 约束。
+  - 删除服务器时，delete_server API 会显式清理该服务器的 ProbeResult 行；
+    保留期内的其余孤儿行（如有）由定时清理任务自动回收。
   - probe_results 的 SQLAlchemy 模型保留 ForeignKey 声明以兼容 SQLite 测试。
 """
 import logging
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import text
@@ -125,11 +126,15 @@ def ensure_future_partitions(
     days_ahead: int = 30,
     today: Optional[date] = None,
 ) -> list[str]:
-    """Pre-create daily partitions for today .. today + days_ahead (inclusive).
+    """Pre-create daily partitions to cover today through today + days_ahead.
+
+    Also fills any gaps between the last existing daily partition and today so
+    that rows which landed in pmax during a missed maintenance window get their
+    own partition and can later be DROP PARTITIONed individually.
 
     Each new partition is inserted by reorganising the pmax catchall partition:
         ALTER TABLE probe_results REORGANIZE PARTITION pmax INTO (
-            PARTITION pYYYYMMDD VALUES LESS THAN ('YYYY-MM-DD'),
+            PARTITION pYYYYMMDD VALUES LESS THAN ('YYYY-MM-DD+1'),
             PARTITION pmax       VALUES LESS THAN (MAXVALUE)
         )
 
@@ -140,14 +145,36 @@ def ensure_future_partitions(
     if not _is_mysql(engine):
         return []
 
-    today = today or date.today()
-    existing = {p["partition_name"] for p in list_partitions(engine)}
+    # Use UTC date so partition names align with UTC-stored created_at values.
+    today = today or datetime.now(timezone.utc).date()
+    existing_partitions = list_partitions(engine)
+    existing_names = {p["partition_name"] for p in existing_partitions}
+
+    # Find the latest existing daily partition so we can fill any gaps.
+    # If the maintenance job missed days, rows for those days landed in pmax.
+    # Creating the missing intermediate partitions lets them be drop-cleaned later.
+    last_daily: Optional[date] = None
+    for p in existing_partitions:
+        d = _parse_partition_date(p["partition_name"])
+        if d is not None and (last_daily is None or d > last_daily):
+            last_daily = d
+
+    # Start from day after the last existing daily partition (gap-fill), but
+    # cap the lookback to today - days_ahead to avoid creating hundreds of
+    # historical partitions on first run or after a long idle period.
+    if last_daily is not None:
+        start = max(last_daily + timedelta(days=1), today - timedelta(days=days_ahead))
+    else:
+        start = today
+
+    end = today + timedelta(days=days_ahead)
     created: list[str] = []
 
-    for offset in range(days_ahead + 1):
-        d = today + timedelta(days=offset)
+    d = start
+    while d <= end:
         name = _partition_name(d)
-        if name in existing:
+        if name in existing_names:
+            d += timedelta(days=1)
             continue
 
         upper = (d + timedelta(days=1)).strftime("%Y-%m-%d")
@@ -156,6 +183,7 @@ def ensure_future_partitions(
         # never fail in practice; guard protects against future refactors).
         if not _is_safe_partition_name(name):  # pragma: no cover
             log.error("probe_partition: skipping unsafe partition name=%r", name)
+            d += timedelta(days=1)
             continue
         ddl = text(
             f"ALTER TABLE {TABLE_NAME} REORGANIZE PARTITION {_PMAX} INTO ("
@@ -171,12 +199,13 @@ def ensure_future_partitions(
                 name, upper,
             )
             created.append(name)
-            existing.add(name)
+            existing_names.add(name)
         except Exception as exc:
             log.error(
                 "probe_partition: failed to create partition=%s: %s",
                 name, exc,
             )
+        d += timedelta(days=1)
 
     return created
 
@@ -202,7 +231,8 @@ def drop_expired_partitions(
     if not _is_mysql(engine):
         return []
 
-    today = today or date.today()
+    # Use UTC date so cutoff aligns with UTC-stored partition boundaries.
+    today = today or datetime.now(timezone.utc).date()
     cutoff = today - timedelta(days=retention_days)
 
     partitions = list_partitions(engine)

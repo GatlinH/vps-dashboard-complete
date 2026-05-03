@@ -27,9 +27,28 @@
 USE vps_dashboard;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- STEP 1: 创建新的按日分区表（含未来 10 天示例分区）
---         生产部署前请替换为实际的当前日期范围；
---         后续分区由定时任务（probe_partition_maintain）自动维护。
+-- STEP 1: 创建新的按日分区表
+--
+-- ⚠ 分区范围设置指引（重要）：
+--   初始分区应覆盖从 "最早历史数据日期" 到 "今天 + days_ahead" 的完整区间，
+--   以确保所有历史数据落入命名分区（而非 pmax），从而支持精确的 DROP PARTITION 清理。
+--
+--   推荐做法：
+--     1. 查询历史最早日期：SELECT DATE(MIN(created_at)) FROM probe_results;
+--     2. 使用以下辅助查询生成连续分区 DDL（以 Python 为例）：
+--          from datetime import date, timedelta
+--          start = date(2025, 1, 1)          # 替换为最早历史数据日期
+--          days_ahead = 30
+--          today = date.today()
+--          d = start
+--          while d <= today + timedelta(days=days_ahead):
+--              upper = d + timedelta(days=1)
+--              print(f"  PARTITION p{d.strftime('%Y%m%d')} VALUES LESS THAN ('{upper}'),")
+--              d += timedelta(days=1)
+--     3. 将生成的分区列表粘贴到下方 CREATE TABLE 语句中（替换示例分区）。
+--
+--   注意：若初始分区仅覆盖近期，历史数据全部落入第一个分区，
+--   导致该分区在保留期后仍包含大量历史数据，DROP PARTITION 清理精度受损。
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS probe_results_new (
   id         BIGINT UNSIGNED AUTO_INCREMENT,
@@ -51,7 +70,8 @@ CREATE TABLE IF NOT EXISTS probe_results_new (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   COMMENT='探针结果历史表（按日分区）'
 PARTITION BY RANGE COLUMNS(created_at) (
-  -- 示例：请根据实际部署日期调整，定时任务会自动维护未来分区
+  -- ⚠ 示例分区仅覆盖 2026-05 前 10 天，请按上方指引替换为实际日期范围。
+  -- 至少应从 (历史最早日期) 到 (今天 + PROBE_RESULT_PARTITION_DAYS_AHEAD)。
   PARTITION p20260501 VALUES LESS THAN ('2026-05-02'),
   PARTITION p20260502 VALUES LESS THAN ('2026-05-03'),
   PARTITION p20260503 VALUES LESS THAN ('2026-05-04'),
