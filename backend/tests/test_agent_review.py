@@ -459,14 +459,14 @@ class TestAgentPushDroppedCounter:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# E. consumer 幂等性（相同消息不产生双倍副作用）
+# E. consumer 重复消息处理安全性（重复投递按收到次数正常处理，不出现额外副作用）
 # ─────────────────────────────────────────────────────────────────────────────
 
-class TestConsumerIdempotency:
-    """相同的消息被处理两次，副作用（ProbeResult 行数）恰好累加 2，而非更多。"""
+class TestConsumerDuplicateMessageHandling:
+    """相同消息处理两次时，应各自产生一次正常写入，总计新增 2 行 ProbeResult，而非更多。"""
 
     def test_duplicate_messages_produce_two_probe_results(self, app, test_server):
-        """_handle_message 调用两次，ProbeResult 只增加 2 行（每次处理一行，无重复写入异常）。"""
+        """_handle_message 调用两次时应新增 2 行 ProbeResult，体现重复投递可安全处理而非幂等去重。"""
         from extensions import db
         from models.models import ProbeResult
         import workers.agent_consumer as consumer_module
