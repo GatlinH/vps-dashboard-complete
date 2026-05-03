@@ -159,11 +159,12 @@ def ensure_future_partitions(
         if d is not None and (last_daily is None or d > last_daily):
             last_daily = d
 
-    # Start from day after the last existing daily partition (gap-fill), but
-    # cap the lookback to today - days_ahead to avoid creating hundreds of
-    # historical partitions on first run or after a long idle period.
+    # Start from the day after the last existing daily partition so any gap is
+    # fully backfilled. This ensures rows that accumulated in pmax during a
+    # prolonged outage are migrated into daily partitions and can later be
+    # removed by normal retention cleanup.
     if last_daily is not None:
-        start = max(last_daily + timedelta(days=1), today - timedelta(days=days_ahead))
+        start = last_daily + timedelta(days=1)
     else:
         start = today
 
