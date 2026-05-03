@@ -93,6 +93,21 @@ def _validate_production_secrets():
     if '*' in os.getenv('CORS_ORIGINS', ''):
         errors.append("生产环境禁止在 CORS_ORIGINS 使用通配符 *。")
 
+    # FRONTEND_URL is required in production when email sending is enabled.
+    smtp_mode = os.getenv("SMTP_MODE", "log").strip().lower()
+    frontend_url = os.getenv("FRONTEND_URL", "").strip()
+    if smtp_mode == "smtp":
+        if not frontend_url:
+            errors.append(
+                "FRONTEND_URL 未设置。SMTP_MODE=smtp 时必须配置前端域名（如 https://panel.example.com），"
+                " 否则邮件中的验证/重置链接将指向无效地址。"
+            )
+        elif "localhost" in frontend_url or "127.0.0.1" in frontend_url:
+            errors.append(
+                f"FRONTEND_URL={frontend_url!r} 包含 localhost/127.0.0.1。"
+                " SMTP_MODE=smtp 时必须使用真实可访问的生产域名。"
+            )
+
     # CSRF cookie protect must never be disabled in production (P1-7).
     if os.getenv("JWT_COOKIE_CSRF_PROTECT", "1").lower() in ("0", "false", "no"):
         errors.append(
@@ -152,6 +167,8 @@ class Config:
     REDIS_PORT         = int(os.getenv("REDIS_PORT", "6379"))
     REDIS_PASSWORD     = os.getenv("REDIS_PASSWORD", "")
     REDIS_DB           = int(os.getenv("REDIS_DB",   "0"))
+    # REDIS_URL is auto-assembled from REDIS_HOST/PORT/PASSWORD/DB above.
+    # The REDIS_URL env var is intentionally NOT read; set the component vars instead.
     REDIS_URL          = (
         f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
         if REDIS_PASSWORD
@@ -267,6 +284,9 @@ class Config:
     SMTP_USER     = os.getenv("SMTP_USER",     "")
     SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
     SMTP_FROM     = os.getenv("SMTP_FROM",     "")
+    # FRONTEND_URL: used to build links in verification/reset emails.
+    # Default is localhost (development only). Production requires a real HTTPS URL
+    # when SMTP_MODE=smtp (enforced by _validate_production_secrets).
     FRONTEND_URL  = os.getenv("FRONTEND_URL",  "http://localhost:5173")
 
     # ── Telegram ─────────────────────────────────────────────────────────────

@@ -127,6 +127,7 @@ def setup_logging(app=None) -> None:
       3. 其余 → 可读文本格式
 
     额外 Sink（按需）：
+      LOG_FILE 设置后自动追加 RotatingFileHandler（每文件 50 MB，保留 5 个）
       LOKI_URL 设置后自动追加 LokiHttpHandler
     """
     flask_env     = os.getenv("FLASK_ENV", "development")
@@ -145,6 +146,32 @@ def setup_logging(app=None) -> None:
     root = logging.getLogger()
     root.setLevel(log_level)
     root.handlers = [console_handler]
+
+    # File Sink（可选）
+    log_file = os.getenv("LOG_FILE", "").strip()
+    if log_file:
+        try:
+            log_dir = os.path.dirname(log_file)
+            if log_dir:
+                os.makedirs(log_dir, exist_ok=True)
+            file_handler = logging.handlers.RotatingFileHandler(
+                log_file,
+                maxBytes=50 * 1024 * 1024,  # 50 MB per file
+                backupCount=5,
+                encoding="utf-8",
+            )
+            if flask_env == "production":
+                file_handler.setFormatter(JsonFormatter())
+            else:
+                file_handler.setFormatter(logging.Formatter(_DEV_FMT))
+            file_handler.setLevel(log_level)
+            root.addHandler(file_handler)
+            logging.getLogger(__name__).info(f"✓ File sink 已启用: {log_file}")
+        except OSError as exc:
+            logging.getLogger(__name__).warning(
+                f"⚠ 无法初始化 FileHandler（LOG_FILE={log_file!r}）: {exc}"
+                "  — 将仅使用 stdout 日志。"
+            )
 
     # Loki Sink（可选）
     loki_url = os.getenv("LOKI_URL", "")
