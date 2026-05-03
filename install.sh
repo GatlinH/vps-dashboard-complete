@@ -24,6 +24,7 @@ REQUIRED_VARS=(
   REDIS_PASSWORD
   MASTER_ENCRYPTION_KEY
   CORS_ORIGINS
+  FRONTEND_URL        # ← 新增
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
