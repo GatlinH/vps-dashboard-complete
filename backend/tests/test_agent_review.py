@@ -263,9 +263,6 @@ class TestProbeFetcherErrorMapping:
             sid2 = s2.id
 
         with app.app_context():
-            from middleware.rbac import admin_required
-            from tests.conftest import _TEST_CONFIG
-
             # Direct service-layer call via HTTP endpoint
             good_resp = {"cpu_use": 20.0, "ram_use": 30.0, "disk_use": 40.0}
             good_body = json.dumps(good_resp).encode()
