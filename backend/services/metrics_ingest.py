@@ -153,6 +153,19 @@ def ingest_metrics(
     # passed validation.  This matters for the agent path (strict=False) where
     # out-of-range or non-numeric values are silently skipped: using raw `data`
     # would store invalid values (e.g. cpu_use=150) in the historical record.
+    #
+    # latency_ms is validated separately: cast to float and reject negative values
+    # to avoid storing invalid types that could cause DB errors on insert.
+    latency_ms_validated: float | None = None
+    latency_raw = data.get("latency_ms")
+    if latency_raw is not None:
+        try:
+            latency_ms_val = float(latency_raw)
+            if latency_ms_val >= 0:
+                latency_ms_validated = latency_ms_val
+        except (TypeError, ValueError):
+            pass
+
     db.session.add(
         ProbeResult(
             server_id=server.id,
@@ -162,7 +175,7 @@ def ingest_metrics(
             net_up=applied.get("net_up", server.net_up),
             net_down=applied.get("net_down", server.net_down),
             status=applied.get("status", server.status),
-            latency_ms=data.get("latency_ms"),
+            latency_ms=latency_ms_validated,
         )
     )
 

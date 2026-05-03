@@ -138,9 +138,88 @@ class TestIngestMetricsProbeResult:
             "admin 和 agent 路径 applied 字段集合应相同（合法 payload）"
         )
 
+    def test_agent_path_valid_latency_ms_stored(self, app, test_server):
+        """agent 路径中合法的 latency_ms 应存入 ProbeResult。"""
+        from extensions import db
+        from models.models import ProbeResult, Server
+        from services.metrics_ingest import ingest_metrics
 
-# ─────────────────────────────────────────────────────────────────────────────
-# B. probe_fetcher 错误类型映射
+        with app.app_context():
+            server = db.session.get(Server, test_server)
+            ingest_metrics(server, {"latency_ms": 42.5}, strict=False, source="agent")
+            db.session.commit()
+
+            result = (
+                ProbeResult.query.filter_by(server_id=test_server)
+                .order_by(ProbeResult.id.desc())
+                .first()
+            )
+            assert result is not None
+            assert result.latency_ms == 42.5
+
+    def test_invalid_latency_ms_not_stored(self, app, test_server):
+        """非数字 latency_ms 不应存入 ProbeResult（应为 None）。"""
+        from extensions import db
+        from models.models import ProbeResult, Server
+        from services.metrics_ingest import ingest_metrics
+
+        with app.app_context():
+            server = db.session.get(Server, test_server)
+            ingest_metrics(server, {"latency_ms": "bad"}, strict=False, source="agent")
+            db.session.commit()
+
+            result = (
+                ProbeResult.query.filter_by(server_id=test_server)
+                .order_by(ProbeResult.id.desc())
+                .first()
+            )
+            assert result is not None
+            assert result.latency_ms is None, (
+                "非数字 latency_ms 应被丢弃（存储 None）"
+            )
+
+    def test_negative_latency_ms_not_stored(self, app, test_server):
+        """负数 latency_ms 不应存入 ProbeResult（应为 None）。"""
+        from extensions import db
+        from models.models import ProbeResult, Server
+        from services.metrics_ingest import ingest_metrics
+
+        with app.app_context():
+            server = db.session.get(Server, test_server)
+            ingest_metrics(server, {"latency_ms": -10.0}, strict=False, source="agent")
+            db.session.commit()
+
+            result = (
+                ProbeResult.query.filter_by(server_id=test_server)
+                .order_by(ProbeResult.id.desc())
+                .first()
+            )
+            assert result is not None
+            assert result.latency_ms is None, (
+                "负数 latency_ms 应被丢弃（存储 None）"
+            )
+
+    def test_zero_latency_ms_stored(self, app, test_server):
+        """零值 latency_ms 是合法值，应被存储。"""
+        from extensions import db
+        from models.models import ProbeResult, Server
+        from services.metrics_ingest import ingest_metrics
+
+        with app.app_context():
+            server = db.session.get(Server, test_server)
+            ingest_metrics(server, {"latency_ms": 0.0}, strict=False, source="agent")
+            db.session.commit()
+
+            result = (
+                ProbeResult.query.filter_by(server_id=test_server)
+                .order_by(ProbeResult.id.desc())
+                .first()
+            )
+            assert result is not None
+            assert result.latency_ms == 0.0
+
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestProbeFetcherErrorMapping:
@@ -457,9 +536,88 @@ class TestAgentPushDroppedCounter:
         # Restore semaphore
         agent_module._fallback_db_sem = None
 
+    def test_rpush_exception_falls_back_to_db_write(
+        self, app, client, auth_headers, test_server, monkeypatch
+    ):
+        """rpush 抛出 ConnectionError 时应降级同步写库，仍返回 202，指标数据不丢失。"""
+        import hashlib
+        import hmac as _hmac
+        import time
+        import uuid
+        import api.agent as agent_module
+        import extensions
+        from models.models import Server
+        from extensions import db as _db
+
+        # Provision agent
+        key_resp = client.post(
+            f"/api/v1/servers/{test_server}/agent-key/generate",
+            headers=auth_headers,
+        )
+        assert key_resp.status_code == 200
+        plain_key = key_resp.get_json()["agent_key"]
+        agent_uuid = str(uuid.uuid4())
+        claim = client.post(
+            "/api/v1/agent/claim",
+            json={"server_id": test_server, "uuid": agent_uuid},
+            headers=auth_headers,
+        )
+        assert claim.status_code == 200
+
+        # Ensure semaphore has capacity
+        import threading
+        agent_module._fallback_db_sem = threading.Semaphore(5)
+
+        orig_redis = extensions.redis_client
+
+        # Build valid signed request
+        payload_dict = {"uuid": agent_uuid, "cpu_use": 77.0}
+        raw = json.dumps(payload_dict, separators=(",", ":"), ensure_ascii=False).encode()
+        ts = str(int(time.time()))
+        nonce = uuid.uuid4().hex
+        sig = _hmac.new(
+            plain_key.encode(), f"{ts}.{nonce}.".encode() + raw, hashlib.sha256
+        ).hexdigest()
+        headers = {
+            "X-Agent-UUID": agent_uuid,
+            "X-Agent-Key": plain_key,
+            "X-Agent-Timestamp": ts,
+            "X-Agent-Nonce": nonce,
+            "X-Agent-Signature": sig,
+            "Content-Type": "application/json",
+        }
+
+        class _RpushFailingRedis:
+            """Truthy Redis stub: SET NX works (auth passes), rpush raises."""
+            def __init__(self, real):
+                self._real = real
+
+            def set(self, key, value, ex=None, nx=False):
+                return self._real.set(key, value, ex=ex, nx=nx)
+
+            def rpush(self, *a, **kw):
+                raise ConnectionError("redis connection refused")
+
+        monkeypatch.setattr(extensions, "redis_client", _RpushFailingRedis(orig_redis))
+
+        resp = client.post("/api/v1/agent/push", data=raw, headers=headers)
+        assert resp.status_code == 202, (
+            f"rpush 失败后应降级写库并返回 202，实际: {resp.status_code}: {resp.get_json()}"
+        )
+
+        # Verify server was updated via the fallback DB write
+        with app.app_context():
+            server = _db.session.get(Server, test_server)
+            assert server.cpu_use == 77.0, (
+                "rpush 失败后降级同步写库应更新 Server.cpu_use"
+            )
+
+        # Restore
+        agent_module._fallback_db_sem = None
+
 
 # ─────────────────────────────────────────────────────────────────────────────
-# E. consumer 重复消息处理安全性（重复投递按收到次数正常处理，不出现额外副作用）
+# E. consumer 重复消息处理安全性
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestConsumerDuplicateMessageHandling:
@@ -512,6 +670,26 @@ class TestValidateNonceRedisUnavailable:
 
         assert any("nonce validation skipped" in r.message for r in caplog.records), (
             "Redis 不可用时应记录包含 'nonce validation skipped' 的 warning"
+        )
+
+    def test_warning_logged_when_redis_raises(self, app, monkeypatch, caplog):
+        """redis.set() 抛异常时（如 ConnectionError）应记录 warning 而不是抛出异常。"""
+        import api.agent as agent_module
+        import extensions
+
+        class _FailingRedis:
+            """Truthy Redis stub whose set() always raises ConnectionError."""
+            def set(self, *a, **kw):
+                raise ConnectionError("redis connection timeout")
+
+        monkeypatch.setattr(extensions, "redis_client", _FailingRedis())
+        with app.app_context():
+            with caplog.at_level(logging.WARNING, logger="api.agent"):
+                # Should not raise — must degrade gracefully
+                agent_module._validate_nonce("test-uuid-exc", "test-nonce-exc")
+
+        assert any("nonce validation skipped" in r.message for r in caplog.records), (
+            "Redis 抛异常时应记录包含 'nonce validation skipped' 的 warning"
         )
 
     def test_nonce_replay_still_rejected_when_redis_available(self, app, monkeypatch):

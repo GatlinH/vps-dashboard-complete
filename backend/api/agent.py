@@ -72,15 +72,26 @@ def _validate_nonce(uuid: str, nonce: str):
         raise AuthenticationError("invalid nonce")
     nonce_key = f"vps:agent:nonce:{uuid}:{nonce}"
     if extensions.redis_client:
-        # 使用 Redis 原子写入（SET NX EX），避免 exists()+setex() 竞态
-        accepted = extensions.redis_client.set(
-            nonce_key,
-            "1",
-            ex=_CLOCK_SKEW_SECONDS,
-            nx=True,
-        )
-        if not accepted:
-            raise AuthenticationError("replayed request")
+        try:
+            # 使用 Redis 原子写入（SET NX EX），避免 exists()+setex() 竞态
+            accepted = extensions.redis_client.set(
+                nonce_key,
+                "1",
+                ex=_CLOCK_SKEW_SECONDS,
+                nx=True,
+            )
+            if not accepted:
+                raise AuthenticationError("replayed request")
+        except AuthenticationError:
+            raise
+        except Exception as exc:
+            # redis-py 在 Redis 故障时抛出 ConnectionError / RedisError 等，
+            # 而不是返回 None；捕获后降级放行并记录警告。
+            logger.warning(
+                "agent nonce validation skipped: Redis error (uuid=%s): %s. "
+                "Replay protection degraded for the duration of Redis outage.",
+                uuid, exc,
+            )
     else:
         # Redis 不可用时无法执行防重放校验，记录警告后降级放行。
         # 此窗口期内短暂的重放攻击风险由 timestamp 窗口（_CLOCK_SKEW_SECONDS）和
@@ -196,15 +207,29 @@ def agent_push():
     data = request.get_json(silent=True) or {}
     server, uuid = _authenticate_agent(data)
 
+    _use_fallback = True  # assume fallback until Redis enqueue succeeds
     if extensions.redis_client and hasattr(extensions.redis_client, "rpush"):
         payload = json.dumps(
             {"server_id": server.id, "uuid": uuid, "metrics": data, "received_at": _utc_now().isoformat()},
             ensure_ascii=False,
         )
-        extensions.redis_client.rpush(_QUEUE_KEY, payload)
-    else:
-        # Redis 不可用：降级为同步写库，但须通过有界信号量保护并发。
-        # 若信号量已耗尽，本次指标数据被丢弃（load-shedding），仍返回 202。
+        try:
+            extensions.redis_client.rpush(_QUEUE_KEY, payload)
+            _use_fallback = False
+        except Exception as exc:
+            # redis-py raises ConnectionError/RedisError on outage; fall back to
+            # the semaphore-protected synchronous DB write path so that the agent
+            # does not receive a 500 and the load-shedding logic remains reachable.
+            logger.warning(
+                "agent push: Redis rpush failed (%s), falling back to synchronous DB write",
+                exc,
+                extra={"server_id": server.id, "uuid": uuid},
+            )
+
+    if _use_fallback:
+        # Redis not available or rpush failed: fallback to semaphore-protected
+        # synchronous DB write.  If semaphore is exhausted, data is dropped
+        # (load-shedding); agent still gets 202.
         sem = _get_fallback_db_sem()
         if not sem.acquire(blocking=False):
             logger.warning(
