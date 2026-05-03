@@ -80,6 +80,21 @@
 
 ---
 
+## P3F — Nginx 限流配置收敛（limit_req_zone）
+
+- [ ] `backend/nginx-main.conf` 已存在，内含 `limit_req_zone` 定义（`http {}` 级别）
+- [ ] `backend/docker-compose.yml` nginx 服务已挂载 `nginx-main.conf` → `/etc/nginx/nginx.conf`
+- [ ] `docker compose up -d` 后 nginx 容器正常运行：`docker compose ps nginx`
+- [ ] 配置语法通过：`docker compose exec nginx nginx -t`
+- [ ] 常规请求返回 200（未触发限流）
+- [ ] 压测可触发 429：`ab -n 200 -c 50 http://localhost/api/v1/health`
+- [ ] 日志可见限流字段：`docker compose exec nginx grep "REJECTED" /var/log/nginx/access.log`
+- [ ] 容器重启后配置仍自动生效（无需手工补配置）
+
+> 详细验证步骤与回滚方案见 `docs/nginx-rate-limiting.md`。
+
+---
+
 ## P2 — 上线后 1~2 周内补齐
 
 - [ ] 登录失败次数限制与临时锁定
