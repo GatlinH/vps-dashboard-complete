@@ -1,24 +1,19 @@
-# docker-compose.yml  ← 放置于仓库根目录
-# 从 backend/docker-compose.yml 迁移，修正所有路径引用
-
 version: "3.9"
 
 services:
-  # MySQL 8
   mysql:
     image: mysql:8.0.33
     container_name: vps_mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
-      MYSQL_DATABASE: ${MYSQL_DB:-vps_dashboard}
-      MYSQL_USER: ${MYSQL_USER:-vps_user}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-vps_pass}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DB}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
       - "127.0.0.1:3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      # 修复 #3：init_db.sql 在 backend/ 子目录
       - ./backend/init_db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     command: >
       --character-set-server=utf8mb4
@@ -34,7 +29,6 @@ services:
     networks:
       - vps-network
 
-  # Redis 7
   redis:
     image: redis:7-alpine
     container_name: vps_redis
@@ -51,22 +45,17 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
     networks:
       - vps-network
 
-  # Flask API
   api:
     build:
-      # 修复 #1：构建上下文指向 backend/ 子目录
       context: ./backend
       dockerfile: Dockerfile
-      args:
-        # 中国大陆服务器可取消注释加速安装：
-        # PIP_INDEX_URL: https://pypi.tsinghua.edu.cn/simple
     container_name: vps_api
     restart: unless-stopped
     depends_on:
@@ -77,24 +66,24 @@ services:
     environment:
       FLASK_ENV: production
       FLASK_DEBUG: "0"
-      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-jwt-secret}
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       MYSQL_HOST: mysql
       MYSQL_PORT: "3306"
-      MYSQL_USER: ${MYSQL_USER:-vps_user}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-vps_pass}
-      MYSQL_DB: ${MYSQL_DB:-vps_dashboard}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DB: ${MYSQL_DB}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       REDIS_DB: "0"
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
-      PROBE_TIMEOUT_S: "5"
-      PROBE_CACHE_TTL: "15"
-      TILE_CACHE_TTL: "86400"
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      MASTER_ENCRYPTION_KEY: ${MASTER_ENCRYPTION_KEY}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
-      MASTER_ENCRYPTION_KEY: ${MASTER_ENCRYPTION_KEY:-}
+      PROBE_TIMEOUT_S: ${PROBE_TIMEOUT_S:-5}
+      PROBE_CACHE_TTL: ${PROBE_CACHE_TTL:-15}
+      TILE_CACHE_TTL: ${TILE_CACHE_TTL:-86400}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-1}
       GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
       TRUST_PROXY: ${TRUST_PROXY:-1}
@@ -106,24 +95,16 @@ services:
     volumes:
       - /var/log/vps-dashboard:/var/log/vps-dashboard
     healthcheck:
-      # 修复 #8：python:3.11-slim 无 curl，改用标准库 urllib
-      test: ["CMD", "python", "-c",
-             "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=5)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 5s
     networks:
       - vps-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "100m"
-        max-file: "10"
 
   agent_consumer:
     build:
-      # 修复 #2：构建上下文指向 backend/ 子目录
       context: ./backend
       dockerfile: Dockerfile
     container_name: vps_agent_consumer
@@ -139,32 +120,27 @@ services:
     environment:
       FLASK_ENV: production
       FLASK_DEBUG: "0"
-      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-jwt-secret}
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       MYSQL_HOST: mysql
       MYSQL_PORT: "3306"
-      MYSQL_USER: ${MYSQL_USER:-vps_user}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-vps_pass}
-      MYSQL_DB: ${MYSQL_DB:-vps_dashboard}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DB: ${MYSQL_DB}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       REDIS_DB: "0"
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      CORS_ORIGINS: ${CORS_ORIGINS}
       AGENT_METRICS_QUEUE_TIMEOUT: ${AGENT_METRICS_QUEUE_TIMEOUT:-5}
       AGENT_METRICS_RETRY_SLEEP: ${AGENT_METRICS_RETRY_SLEEP:-1}
       AGENT_METRICS_ERROR_QUEUE: ${AGENT_METRICS_ERROR_QUEUE:-vps:agent:metrics_queue:error}
+      MASTER_ENCRYPTION_KEY: ${MASTER_ENCRYPTION_KEY}
     volumes:
       - /var/log/vps-dashboard:/var/log/vps-dashboard
     networks:
       - vps-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "100m"
-        max-file: "10"
 
-  # Nginx 反向代理（仅 --profile production 时启动）
   nginx:
     image: fholzer/nginx-brotli:latest
     container_name: vps_nginx
@@ -175,13 +151,9 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      # 修复 #4：nginx-main.conf 在 backend/ 子目录
       - ./backend/nginx-main.conf:/etc/nginx/nginx.conf:ro
-      # 修复 #5：nginx.conf 在 backend/ 子目录
       - ./backend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      # 修复 #6：admin-allowlist.conf 在 backend/ 子目录
       - ./backend/admin-allowlist.conf:/etc/nginx/conf.d/admin-allowlist.conf:ro
-      # 修复 #7：frontend-dist 现在就在根目录，不再是 ../frontend-dist
       - ./frontend-dist:/usr/share/nginx/html:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - ./nginx-logs:/var/log/nginx
@@ -192,19 +164,12 @@ services:
       retries: 3
     networks:
       - vps-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "100m"
-        max-file: "10"
     profiles:
       - production
 
 volumes:
   mysql_data:
-    driver: local
   redis_data:
-    driver: local
 
 networks:
   vps-network:
