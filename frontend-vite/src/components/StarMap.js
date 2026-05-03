@@ -103,6 +103,10 @@ export class StarMap {
       tileMode: false,
       minZoom: 0.45,
       maxZoom: 3.5,
+      // allowDirectThirdParty: when false (default), geo data is fetched through the
+      // backend proxy (/api/geo/countries, /api/geo/tile/...) which caches responses
+      // in Redis.  Set to true ONLY for local debugging; never enable in production.
+      allowDirectThirdParty: false,
     };
 
     // Geo & tile 数据
@@ -210,8 +214,14 @@ export class StarMap {
 
   async _loadGeoData() {
     this.onStatusChange?.('正在加载矢量地图...', true);
+    // Default: route through the backend proxy (/api/geo/countries) which caches
+    // the TopoJSON in Redis and avoids direct browser → jsDelivr traffic.
+    // Set opts.allowDirectThirdParty=true ONLY for local debugging (not production).
+    const url = this.opts.allowDirectThirdParty
+      ? 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
+      : '/api/geo/countries';
     try {
-      const topo = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(r => r.json());
+      const topo = await fetch(url).then(r => r.json());
       this._geoFeatures = extractGeoArcs(topo);
       this.onStatusChange?.('矢量地图就绪', false);
     } catch (_) {
@@ -233,9 +243,18 @@ export class StarMap {
   async _fetchTile(tx, ty, tz) {
     const key = `${tz}/${tx}/${ty}`;
     if (this._tileCache.has(key)) return this._tileCache.get(key);
-    const s = ['a', 'b', 'c'][Math.abs(tx + ty) % 3];
+    // Default: route through backend proxy which caches tiles in Redis.
+    // Direct CARTO access is only allowed when opts.allowDirectThirdParty=true
+    // (debugging only, must not be enabled in production).
+    let tileUrl;
+    if (this.opts.allowDirectThirdParty) {
+      const s = ['a', 'b', 'c'][Math.abs(tx + ty) % 3];
+      tileUrl = `https://${s}.basemaps.cartocdn.com/dark_all/${tz}/${tx}/${ty}.png`;
+    } else {
+      tileUrl = `/api/geo/tile/${tz}/${tx}/${ty}.png`;
+    }
     try {
-      const bmp = await createImageBitmap(await (await fetch(`https://${s}.basemaps.cartocdn.com/dark_all/${tz}/${tx}/${ty}.png`)).blob());
+      const bmp = await createImageBitmap(await (await fetch(tileUrl)).blob());
       if (this._tileCache.size > 300) this._tileCache.delete(this._tileCache.keys().next().value);
       this._tileCache.set(key, bmp);
       return bmp;

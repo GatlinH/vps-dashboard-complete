@@ -28,7 +28,6 @@
 | `MYSQL_ROOT_PASSWORD` | 是（Docker 场景） | MySQL root 密码 | `strong-root-pass` |
 | `REDIS_HOST` `REDIS_PORT` `REDIS_DB` | 是 | Redis 连接参数 | `redis` `6379` `0` |
 | `REDIS_PASSWORD` | 生产强烈建议 | Redis 访问密码 | `redis-pass` |
-| `REDIS_URL` | 建议配置 | 连接串形式（限流等组件直接读取） | `redis://redis:6379/0` |
 | `JWT_BLOCKLIST_FAIL_OPEN` | 建议显式配置 | Redis 异常时 JWT 黑名单策略（`1`=放行高可用；`0`=拒绝更安全） | `0` |
 | `DATABASE_URL` / `DB_URL` | 建议配置 | 数据库连接串保留位（便于迁移与第三方工具） | `mysql+pymysql://...` |
 
@@ -41,8 +40,11 @@
 | `SENTRY_PROFILES_RATE` | 可选 | Sentry profiling 采样率 | `0.1` |
 | `APP_VERSION` | 可选 | 版本号（Sentry release） | `2026.04.19` |
 | `LOKI_URL` | 可选 | Loki 推送端点 | `http://loki:3100/loki/api/v1/push` |
+| `LOG_FILE` | 可选 | 日志写入文件路径（`RotatingFileHandler`，50 MB/文件，保留 5 个）。留空则仅 stdout（容器友好模式）。 | `/var/log/vps-dashboard/app.log` |
 | `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` | 可选 | Telegram 告警 | `xxx` / `123456` |
+| `TELEGRAM_TOKEN_SECRET` | 可选（生产建议配置） | 数据库中 bot_token 的 AES-GCM 对称加密密钥（`>=32位`）。留空则明文存储（不推荐生产使用）。缺失不影响启动，但 token 将以明文保存。 | `9d1f...`（`secrets.token_hex(32)`） |
 | `SMTP_MODE` 及 `SMTP_*` | 可选 | 邮件发送配置 | `smtp` |
+| `FRONTEND_URL` | 邮件功能必须（`SMTP_MODE=smtp`） | 前端域名，用于拼接邮件中的验证/重置链接。`SMTP_MODE=smtp` 时生产启动强制校验，不允许 localhost。 | `https://panel.example.com` |
 
 ### 支付（预留字段）
 
@@ -56,10 +58,12 @@
 
 - `JWT_SECRET_KEY`（以及兼容字段 `JWT_SECRET`）
 - `DATABASE_URL` / `DB_URL`（如你的部署流程或外部工具依赖连接串）
-- `REDIS_URL`（建议显式填写，便于限流/中间件与外部组件复用）
+- `REDIS_URL`：**无需手动配置**。代码通过 `REDIS_HOST`、`REDIS_PORT`、`REDIS_PASSWORD`、`REDIS_DB` 自动组装连接串，`REDIS_URL` 环境变量**不被读取**。请直接设置上述四个分量变量。
 - `JWT_BLOCKLIST_FAIL_OPEN`（生产建议评估后显式设置；偏安全场景建议 `0`）
 - `SENTRY_DSN`（生产建议开启）
 - `STRIPE_SECRET`（如暂未接入支付，允许留空但建议保留字段）
+- `FRONTEND_URL`（邮件功能启用时必须设置为真实 HTTPS 域名）
+- `TELEGRAM_TOKEN_SECRET`（生产建议配置以启用 token 加密存储）
 
 ---
 
@@ -132,6 +136,12 @@ SMTP_USE_TLS=true
 SMTP_USER=noreply@example.com
 SMTP_PASSWORD=<smtp_password>
 SMTP_FROM=VPS星图 <noreply@example.com>
+FRONTEND_URL=https://panel.example.com
+
+# Telegram 告警（可选，生产建议配置 TELEGRAM_TOKEN_SECRET 启用加密）
+TELEGRAM_BOT_TOKEN=<bot_token>
+TELEGRAM_CHAT_ID=<chat_id>
+TELEGRAM_TOKEN_SECRET=<64_hex_secret>
 ```
 
 ---
@@ -176,8 +186,10 @@ curl http://localhost:5000/health
 1. **准备配置**
    - `cp backend/.env.example backend/.env`
    - 替换所有 `CHANGE_ME` 项，尤其是 `SECRET_KEY`、`JWT_SECRET_KEY`、`MYSQL_PASSWORD`。
+   - 若启用邮件发送（`SMTP_MODE=smtp`），同步设置 `FRONTEND_URL=https://panel.example.com`。
 2. **执行预检查**
-   - 运行 `backend/scripts/pre-deploy.sh`，提前发现缺失项。
+   - 运行 `backend/scripts/pre-deploy.sh --env-file backend/.env`，提前发现缺失/弱默认值。
+   - 支持从指定文件读取：`--env-file /etc/vps-dashboard/secrets.env`（默认路径）。
 3. **拉起服务**
    - `cd backend && docker compose up -d`
 4. **健康检查**
@@ -186,6 +198,7 @@ curl http://localhost:5000/health
 5. **上线后观测**
    - 若已配置 `SENTRY_DSN`，确认 Sentry 能接收到错误事件。
    - 若配置 `LOKI_URL`，确认日志可检索。
+   - 若配置 `LOG_FILE`，确认文件可写且 RotatingFileHandler 正常轮转。
 
 ---
 
@@ -209,6 +222,45 @@ npm run build
 - `frontend-dist/admin.html` 存在
 - `frontend-dist/sw.js` 存在
 - CI 的 Frontend Build Check 通过
+
+---
+
+## 6.1) 3D 星图地图数据流量路径
+
+前端 3D 星图（`StarMap.js`）的地图数据**默认经由后端代理**获取，不直接访问第三方 CDN/API：
+
+| 数据类型 | 默认路径 | 第三方来源（后端内部） |
+|---|---|---|
+| 国家矢量（TopoJSON） | `GET /api/geo/countries` | jsDelivr `world-atlas@2` |
+| CARTO 暗色瓦片 | `GET /api/geo/tile/{z}/{x}/{y}.png` | CARTO basemaps |
+
+**优点：**
+- 后端 Redis 缓存（国家数据 7 天，瓦片 24 小时），大幅减少外部请求
+- 前端无需直连第三方域，符合 CSP 约束
+- 瓦片有速率限制保护（`TILE_BURST_LIMIT` / `TILE_BURST_WINDOW_S`）
+
+**直连调试模式（仅本地开发）：**
+
+```js
+// 仅调试使用，不得在生产部署中启用
+const map = new StarMap('#globe-canvas', servers);
+map.opts.allowDirectThirdParty = true;  // 直连 jsDelivr 和 CARTO，默认关闭
+map.start();
+```
+
+> ⚠️  `allowDirectThirdParty=true` 仅供开发环境调试，生产部署必须保持默认值 `false`。
+
+**验证代理路径（curl）：**
+
+```bash
+# 国家矢量数据走代理
+curl -si http://localhost:5000/api/geo/countries | head -3
+# 期望：HTTP/1.1 200 OK，X-Cache: HIT 或 MISS
+
+# 瓦片走代理（zoom=1, x=0, y=0 是有效坐标）
+curl -si http://localhost:5000/api/geo/tile/1/0/0.png | head -3
+# 期望：HTTP/1.1 200 OK，Content-Type: image/png
+```
 
 ---
 
