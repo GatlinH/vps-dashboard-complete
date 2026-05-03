@@ -125,12 +125,19 @@ def ensure_future_partitions(
     engine,
     days_ahead: int = 30,
     today: Optional[date] = None,
+    max_backfill_days: int = 90,
 ) -> list[str]:
     """Pre-create daily partitions to cover today through today + days_ahead.
 
     Also fills any gaps between the last existing daily partition and today so
     that rows which landed in pmax during a missed maintenance window get their
     own partition and can later be DROP PARTITIONed individually.
+
+    max_backfill_days caps how far back the gap-fill will reach.  If the last
+    existing daily partition is more than max_backfill_days in the past the
+    start date is capped and a warning is logged; rows older than the cap date
+    that are still in pmax must be cleaned by a targeted DELETE (the retention
+    cleanup job handles this via the bulk-DELETE fallback path).
 
     Each new partition is inserted by reorganising the pmax catchall partition:
         ALTER TABLE probe_results REORGANIZE PARTITION pmax INTO (
@@ -172,6 +179,19 @@ def ensure_future_partitions(
     # removed by normal retention cleanup.
     if last_daily is not None:
         start = last_daily + timedelta(days=1)
+        # Cap backfill to avoid an unbounded DDL loop when the last daily
+        # partition is far in the past (e.g. stale init_db.sql placeholder
+        # dates, or the job was disabled for months).
+        earliest_allowed = today - timedelta(days=max_backfill_days)
+        if start < earliest_allowed:
+            log.warning(
+                "probe_partition: last daily partition %s is more than "
+                "%d days in the past; capping backfill start at %s. "
+                "Rows in pmax older than %s will be cleaned by the "
+                "retention DELETE job.",
+                last_daily, max_backfill_days, earliest_allowed, earliest_allowed,
+            )
+            start = earliest_allowed
     else:
         start = today
 

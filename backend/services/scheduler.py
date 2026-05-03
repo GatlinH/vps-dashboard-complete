@@ -23,6 +23,9 @@ from middleware.metrics_middleware import record_scheduler_job, record_alert_fir
 
 log = logging.getLogger(__name__)
 
+# Batch size for chunked DELETE operations (retention cleanup fallback).
+_CLEANUP_BATCH = 1_000
+
 
 def create_scheduler(app):
     # 防止 Gunicorn 多 worker 重复启动调度器
@@ -483,18 +486,32 @@ def _job_cleanup(app):
                     elapsed_ms, retention_days,
                 )
         else:
-            # ── Fallback: bulk DELETE（SQLite / non-partitioned MySQL / pre-migration）
+            # ── Fallback: batched DELETE（SQLite / non-partitioned MySQL / pre-migration）
+            # Materialise IDs in chunks to bound each transaction's row-lock window
+            # and avoid a single long-running statement on large tables.
             cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
             try:
-                deleted = ProbeResult.query.filter(
-                    ProbeResult.created_at < cutoff
-                ).delete(synchronize_session=False)
-                db.session.commit()
+                total_deleted = 0
+                while True:
+                    ids = [
+                        row.id
+                        for row in db.session.query(ProbeResult.id)
+                        .filter(ProbeResult.created_at < cutoff)
+                        .limit(_CLEANUP_BATCH)
+                        .all()
+                    ]
+                    if not ids:
+                        break
+                    batch = ProbeResult.query.filter(
+                        ProbeResult.id.in_(ids)
+                    ).delete(synchronize_session=False)
+                    db.session.commit()
+                    total_deleted += batch
                 elapsed_ms = round((_time.perf_counter() - t0) * 1000, 1)
                 log.info(
                     "probe_cleanup: method=delete rows=%d elapsed_ms=%.1f "
                     "retention_days=%d cutoff=%s",
-                    deleted, elapsed_ms, retention_days, cutoff.date(),
+                    total_deleted, elapsed_ms, retention_days, cutoff.date(),
                 )
             except Exception as exc:
                 db.session.rollback()
@@ -631,6 +648,7 @@ def _job_probe_partition_maintain(app):
     )
 
     days_ahead = int(app.config.get("PROBE_RESULT_PARTITION_DAYS_AHEAD", 30))
+    retention_days = int(app.config.get("PROBE_RESULT_RETENTION_DAYS", 30))
     with app.app_context():
         if not _is_mysql(db.engine):
             return
@@ -644,7 +662,9 @@ def _job_probe_partition_maintain(app):
             )
             return
 
-        created = ensure_future_partitions(db.engine, days_ahead=days_ahead)
+        created = ensure_future_partitions(
+            db.engine, days_ahead=days_ahead, max_backfill_days=retention_days,
+        )
         if created:
             log.info(
                 "probe_partition_maintain: created %d partition(s): %s",

@@ -270,6 +270,48 @@ class TestMySQLEnsureFuturePartitions:
             assert expected in created, f"Expected {expected} to be created (gap-fill)"
         assert "p20260501" not in created  # already existed
 
+    def test_gap_fill_capped_at_max_backfill_days(self):
+        """A-5c: Gap-fill must not go further back than max_backfill_days.
+
+        Scenario: last daily partition is 200 days ago; max_backfill_days=30.
+        The start date should be capped at today - 30, not today - 200.
+        """
+        from services.probe_partition import ensure_future_partitions
+
+        today = date(2026, 5, 4)
+        last_daily = today - timedelta(days=200)  # very old
+        last_daily_name = f"p{last_daily.strftime('%Y%m%d')}"
+
+        with patch("services.probe_partition.list_partitions") as mock_list, \
+             patch("services.probe_partition._is_mysql", return_value=True):
+
+            mock_list.return_value = [
+                {"partition_name": last_daily_name, "partition_description": "", "table_rows": 0},
+                {"partition_name": "pmax",          "partition_description": "MAXVALUE", "table_rows": 0},
+            ]
+
+            mock_engine = MagicMock()
+            mock_engine.dialect.name = "mysql"
+            mock_conn = MagicMock()
+            mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+            mock_conn.__exit__ = MagicMock(return_value=False)
+            mock_engine.connect.return_value = mock_conn
+
+            created = ensure_future_partitions(
+                mock_engine, days_ahead=2, today=today, max_backfill_days=30,
+            )
+
+        # Must not create any partition earlier than today - 30
+        earliest_allowed = today - timedelta(days=30)
+        for name in created:
+            d = date(int(name[1:5]), int(name[5:7]), int(name[7:9]))
+            assert d >= earliest_allowed, (
+                f"Partition {name} (date={d}) is before earliest_allowed={earliest_allowed}"
+            )
+        # Partitions from today-30 through today+2 should be created
+        assert len(created) == 30 + 2 + 1  # 30 backfill days + 2 ahead + today
+
+
 
 class TestMySQLDropExpiredPartitions:
     """A-6 / A-7 / A-8 / A-9: drop_expired_partitions 行为验证。"""
