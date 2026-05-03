@@ -17,7 +17,8 @@ ProbeResult (probe_results) 表分区管理工具。
 
 MySQL 分区注意事项：
   - RANGE COLUMNS(created_at) 与外键（FOREIGN KEY）不兼容，
-    probe_results 表在 MySQL 中不含 FK；由应用层（delete_server）负责级联删除。
+    probe_results 表在 MySQL 中不含 FK；删除 server 记录时不会自动级联删除
+    相关 probe_results，遗留孤儿数据由保留期清理机制处理。
   - probe_results 的 SQLAlchemy 模型保留 ForeignKey 声明以兼容 SQLite 测试。
 """
 import logging
