@@ -41,6 +41,20 @@ from unittest.mock import MagicMock, call, patch
 import pytest
 
 
+# ---------------------------------------------------------------------------
+# Module-level date anchor: all partition-logic tests derive their fixture
+# dates from _TODAY so the test file does not need updating as time passes.
+# TestPartitionHelpers uses specific literal dates to verify exact format
+# behaviour (e.g. zero-padding) and intentionally keeps them fixed.
+# ---------------------------------------------------------------------------
+_TODAY = date.today()
+
+
+def _pn(d: date) -> str:
+    """Mirror probe_partition._partition_name() without importing the private symbol."""
+    return f"p{d.strftime('%Y%m%d')}"
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # A. probe_partition 单元测试
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -100,14 +114,14 @@ class TestNonMySQLSafety:
     def test_ensure_future_partitions_sqlite_returns_empty(self):
         from services.probe_partition import ensure_future_partitions
         result = ensure_future_partitions(
-            self._sqlite_engine(), days_ahead=7, today=date(2026, 5, 3)
+            self._sqlite_engine(), days_ahead=7, today=_TODAY
         )
         assert result == []
 
     def test_drop_expired_partitions_sqlite_returns_empty(self):
         from services.probe_partition import drop_expired_partitions
         result = drop_expired_partitions(
-            self._sqlite_engine(), retention_days=30, today=date(2026, 5, 3)
+            self._sqlite_engine(), retention_days=30, today=_TODAY
         )
         assert result == []
 
@@ -115,7 +129,7 @@ class TestNonMySQLSafety:
         from services.probe_partition import drop_expired_partitions
         result = drop_expired_partitions(
             self._sqlite_engine(), retention_days=30, dry_run=True,
-            today=date(2026, 5, 3),
+            today=_TODAY,
         )
         assert result == []
 
@@ -145,14 +159,15 @@ class TestMySQLListPartitions:
 
     def test_list_partitions_returns_partition_dicts(self):
         from services.probe_partition import list_partitions
+        p_name = _pn(_TODAY - timedelta(days=2))
         partitions = [
-            {"partition_name": "p20260501", "partition_description": "'2026-05-02'", "table_rows": 1000},
-            {"partition_name": "pmax",      "partition_description": "MAXVALUE",     "table_rows": 0},
+            {"partition_name": p_name, "partition_description": "", "table_rows": 1000},
+            {"partition_name": "pmax", "partition_description": "MAXVALUE", "table_rows": 0},
         ]
         engine = _make_mysql_engine(partitions)
         result = list_partitions(engine)
         assert len(result) == 2
-        assert result[0]["partition_name"] == "p20260501"
+        assert result[0]["partition_name"] == p_name
         assert result[1]["partition_name"] == "pmax"
 
     def test_list_partitions_error_returns_empty(self):
@@ -180,9 +195,12 @@ class TestMySQLEnsureFuturePartitions:
         """Should create partitions for days not yet present."""
         from services.probe_partition import ensure_future_partitions
 
-        today = date(2026, 5, 3)
-        # Only p20260503 exists; p20260504 and p20260505 are missing
-        engine = self._make_engine_with_existing(["p20260503"])
+        today = _TODAY
+        today_name = _pn(today)
+        d1 = _pn(today + timedelta(days=1))
+        d2 = _pn(today + timedelta(days=2))
+        # Only today's partition exists; tomorrow and day-after are missing
+        engine = self._make_engine_with_existing([today_name])
 
         with patch("services.probe_partition.list_partitions") as mock_list, \
              patch.object(engine, "connect") as mock_connect:
@@ -193,8 +211,8 @@ class TestMySQLEnsureFuturePartitions:
                 call_count += 1
                 if call_count == 1:
                     return [
-                        {"partition_name": "p20260503", "partition_description": "", "table_rows": 0},
-                        {"partition_name": "pmax",      "partition_description": "MAXVALUE", "table_rows": 0},
+                        {"partition_name": today_name, "partition_description": "", "table_rows": 0},
+                        {"partition_name": "pmax",     "partition_description": "MAXVALUE", "table_rows": 0},
                     ]
                 return []
 
@@ -207,17 +225,17 @@ class TestMySQLEnsureFuturePartitions:
 
             created = ensure_future_partitions(engine, days_ahead=2, today=today)
 
-        # p20260504 and p20260505 should be created
-        assert "p20260504" in created
-        assert "p20260505" in created
-        assert "p20260503" not in created  # already existed
+        # tomorrow and day-after should be created; today already existed
+        assert d1 in created
+        assert d2 in created
+        assert today_name not in created  # already existed
 
     def test_no_creation_when_all_exist(self):
         """Should not call DDL when all partitions already exist."""
         from services.probe_partition import ensure_future_partitions
 
-        today = date(2026, 5, 3)
-        existing = ["p20260503", "p20260504", "p20260505"]
+        today = _TODAY
+        existing = [_pn(today), _pn(today + timedelta(days=1)), _pn(today + timedelta(days=2))]
 
         with patch("services.probe_partition.list_partitions") as mock_list, \
              patch("services.probe_partition._is_mysql", return_value=True):
@@ -238,22 +256,24 @@ class TestMySQLEnsureFuturePartitions:
     def test_gap_fill_creates_intermediate_partitions(self):
         """A-5b: If the job missed days, partitions for missed days should be created.
 
-        Scenario: last daily partition is p20260501 (3 days ago).
-        today=2026-05-04, days_ahead=2.
-        Expected: p20260502, p20260503, p20260504, p20260505, p20260506 are all created.
+        Scenario: last daily partition is 3 days ago.
+        days_ahead=2.
+        Expected: 2 gap days, today, and 2 ahead days are all created.
         """
         from services.probe_partition import ensure_future_partitions
 
-        today = date(2026, 5, 4)
-        # Only p20260501 existed; gap covers p20260502 and p20260503 before today
-        existing_names = {"p20260501", "pmax"}
+        today = _TODAY
+        last_daily = today - timedelta(days=3)
+        last_name = _pn(last_daily)
+        # Names expected: last_daily+1, last_daily+2, today, today+1, today+2
+        expected_created = [_pn(last_daily + timedelta(days=i)) for i in range(1, 6)]
 
         with patch("services.probe_partition.list_partitions") as mock_list, \
              patch("services.probe_partition._is_mysql", return_value=True):
 
             mock_list.return_value = [
-                {"partition_name": "p20260501", "partition_description": "'2026-05-02'", "table_rows": 0},
-                {"partition_name": "pmax",      "partition_description": "MAXVALUE",     "table_rows": 0},
+                {"partition_name": last_name, "partition_description": f"'{(last_daily + timedelta(days=1)).isoformat()}'", "table_rows": 0},
+                {"partition_name": "pmax",    "partition_description": "MAXVALUE", "table_rows": 0},
             ]
 
             mock_engine = MagicMock()
@@ -265,10 +285,9 @@ class TestMySQLEnsureFuturePartitions:
 
             created = ensure_future_partitions(mock_engine, days_ahead=2, today=today)
 
-        # p20260502 (gap), p20260503 (gap), p20260504 (today), p20260505, p20260506
-        for expected in ["p20260502", "p20260503", "p20260504", "p20260505", "p20260506"]:
+        for expected in expected_created:
             assert expected in created, f"Expected {expected} to be created (gap-fill)"
-        assert "p20260501" not in created  # already existed
+        assert last_name not in created  # already existed
 
     def test_gap_fill_capped_at_max_backfill_days(self):
         """A-5c: Gap-fill must not go further back than max_backfill_days.
@@ -278,7 +297,7 @@ class TestMySQLEnsureFuturePartitions:
         """
         from services.probe_partition import ensure_future_partitions
 
-        today = date(2026, 5, 4)
+        today = _TODAY
         last_daily = today - timedelta(days=200)  # very old
         last_daily_name = f"p{last_daily.strftime('%Y%m%d')}"
 
@@ -320,12 +339,14 @@ class TestMySQLDropExpiredPartitions:
         """Partitions older than retention_days should be dropped."""
         from services.probe_partition import drop_expired_partitions
 
-        today = date(2026, 5, 3)
-        # p20260401 is 32 days ago (> 30 days retention)
+        today = _TODAY
+        # expired: 32 days ago (> 30 days retention); recent: 1 day ago (kept)
+        expired_name = _pn(today - timedelta(days=32))
+        recent_name  = _pn(today - timedelta(days=1))
         partitions = [
-            {"partition_name": "p20260401", "partition_description": "'2026-04-02'", "table_rows": 5000},
-            {"partition_name": "p20260502", "partition_description": "'2026-05-03'", "table_rows": 100},
-            {"partition_name": "pmax",      "partition_description": "MAXVALUE",     "table_rows": 0},
+            {"partition_name": expired_name, "partition_description": "", "table_rows": 5000},
+            {"partition_name": recent_name,  "partition_description": "", "table_rows": 100},
+            {"partition_name": "pmax",       "partition_description": "MAXVALUE", "table_rows": 0},
         ]
 
         mock_engine = MagicMock()
@@ -338,19 +359,20 @@ class TestMySQLDropExpiredPartitions:
         with patch("services.probe_partition.list_partitions", return_value=partitions):
             dropped = drop_expired_partitions(mock_engine, retention_days=30, today=today)
 
-        assert dropped == ["p20260401"]
+        assert dropped == [expired_name]
         # Verify DROP PARTITION DDL was executed
         executed_sqls = [str(c.args[0]) for c in mock_conn.execute.call_args_list]
-        assert any("DROP PARTITION" in sql and "p20260401" in sql for sql in executed_sqls)
+        assert any("DROP PARTITION" in sql and expired_name in sql for sql in executed_sqls)
 
     def test_dry_run_does_not_execute_ddl(self):
         """dry_run=True returns list but does NOT execute DROP PARTITION."""
         from services.probe_partition import drop_expired_partitions
 
-        today = date(2026, 5, 3)
+        today = _TODAY
+        expired_name = _pn(today - timedelta(days=32))
         partitions = [
-            {"partition_name": "p20260401", "partition_description": "'2026-04-02'", "table_rows": 100},
-            {"partition_name": "pmax",      "partition_description": "MAXVALUE",     "table_rows": 0},
+            {"partition_name": expired_name, "partition_description": "", "table_rows": 100},
+            {"partition_name": "pmax",       "partition_description": "MAXVALUE", "table_rows": 0},
         ]
 
         mock_engine = MagicMock()
@@ -361,14 +383,14 @@ class TestMySQLDropExpiredPartitions:
                 mock_engine, retention_days=30, dry_run=True, today=today
             )
 
-        assert result == ["p20260401"]
+        assert result == [expired_name]
         mock_engine.connect.assert_not_called()  # no DDL executed
 
     def test_pmax_never_dropped(self):
         """pmax partition must never appear in the drop list."""
         from services.probe_partition import drop_expired_partitions
 
-        today = date(2026, 5, 3)
+        today = _TODAY
         partitions = [
             {"partition_name": "pmax", "partition_description": "MAXVALUE", "table_rows": 0},
         ]
@@ -384,7 +406,7 @@ class TestMySQLDropExpiredPartitions:
         """Legacy yearly partition names (p2026) must be skipped."""
         from services.probe_partition import drop_expired_partitions
 
-        today = date(2026, 5, 3)
+        today = _TODAY
         partitions = [
             {"partition_name": "p2024", "partition_description": "2025", "table_rows": 0},
             {"partition_name": "pmax",  "partition_description": "MAXVALUE", "table_rows": 0},
@@ -405,10 +427,10 @@ class TestMySQLDropExpiredPartitions:
         """
         from services.probe_partition import drop_expired_partitions
 
-        today = date(2026, 5, 3)
+        today = _TODAY
         retention_days = 30
-        cutoff = today - timedelta(days=retention_days)  # 2026-04-03
-        boundary_name = f"p{cutoff.strftime('%Y%m%d')}"  # p20260403
+        cutoff = today - timedelta(days=retention_days)
+        boundary_name = _pn(cutoff)
 
         partitions = [
             {"partition_name": boundary_name, "partition_description": "", "table_rows": 10},
@@ -429,11 +451,11 @@ class TestMySQLDropExpiredPartitions:
         """A partition one day before cutoff SHOULD be dropped."""
         from services.probe_partition import drop_expired_partitions
 
-        today = date(2026, 5, 3)
+        today = _TODAY
         retention_days = 30
-        cutoff = today - timedelta(days=retention_days)          # 2026-04-03
-        expired_date = cutoff - timedelta(days=1)                # 2026-04-02
-        expired_name = f"p{expired_date.strftime('%Y%m%d')}"    # p20260402
+        cutoff = today - timedelta(days=retention_days)
+        expired_date = cutoff - timedelta(days=1)
+        expired_name = _pn(expired_date)
 
         partitions = [
             {"partition_name": expired_name, "partition_description": "", "table_rows": 10},
@@ -455,10 +477,11 @@ class TestMySQLDropExpiredPartitions:
         """When no partitions are expired, return empty list without error."""
         from services.probe_partition import drop_expired_partitions
 
-        today = date(2026, 5, 3)
+        today = _TODAY
+        recent_name = _pn(today - timedelta(days=1))
         partitions = [
-            {"partition_name": "p20260502", "partition_description": "'2026-05-03'", "table_rows": 50},
-            {"partition_name": "pmax",      "partition_description": "MAXVALUE",     "table_rows": 0},
+            {"partition_name": recent_name, "partition_description": "", "table_rows": 50},
+            {"partition_name": "pmax",      "partition_description": "MAXVALUE", "table_rows": 0},
         ]
         mock_engine = MagicMock()
         mock_engine.dialect.name = "mysql"
@@ -572,13 +595,14 @@ class TestJobCleanupMySQLPath:
         app.config["PROBE_RESULT_RETENTION_DAYS"] = 30
 
         partitions_with_pmax = [
-            {"partition_name": "p20260401", "partition_description": "'2026-04-02'", "table_rows": 1000},
-            {"partition_name": "pmax",      "partition_description": "MAXVALUE",     "table_rows": 0},
+            {"partition_name": _pn(_TODAY - timedelta(days=32)), "partition_description": "", "table_rows": 1000},
+            {"partition_name": "pmax",                           "partition_description": "MAXVALUE", "table_rows": 0},
         ]
+        expired_name = _pn(_TODAY - timedelta(days=32))
 
         with patch("services.probe_partition._is_mysql", return_value=True), \
              patch("services.probe_partition.list_partitions", return_value=partitions_with_pmax), \
-             patch("services.probe_partition.drop_expired_partitions", return_value=["p20260401"]) \
+             patch("services.probe_partition.drop_expired_partitions", return_value=[expired_name]) \
              as mock_drop:
             _job_cleanup(app)
 
@@ -641,13 +665,13 @@ class TestJobProbePartitionMaintain:
         app.config["PROBE_RESULT_PARTITION_DAYS_AHEAD"] = 7
 
         partitions_with_pmax = [
-            {"partition_name": "p20260502", "partition_description": "'2026-05-03'", "table_rows": 0},
-            {"partition_name": "pmax",      "partition_description": "MAXVALUE",     "table_rows": 0},
+            {"partition_name": _pn(_TODAY - timedelta(days=1)), "partition_description": "", "table_rows": 0},
+            {"partition_name": "pmax",                          "partition_description": "MAXVALUE", "table_rows": 0},
         ]
 
         with patch("services.probe_partition._is_mysql", return_value=True), \
              patch("services.probe_partition.list_partitions", return_value=partitions_with_pmax), \
-             patch("services.probe_partition.ensure_future_partitions", return_value=["p20260510"]) \
+             patch("services.probe_partition.ensure_future_partitions", return_value=[_pn(_TODAY + timedelta(days=7))]) \
              as mock_ensure:
             _job_probe_partition_maintain(app)
 

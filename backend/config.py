@@ -311,6 +311,9 @@ class Config:
     # Pre-creating partitions ensures data never falls into the pmax catchall partition,
     # which would prevent precise per-partition cleanup.  Only applies to MySQL.
     PROBE_RESULT_PARTITION_DAYS_AHEAD = int(os.getenv("PROBE_RESULT_PARTITION_DAYS_AHEAD", "30"))
+    # Batch size for the ProbeResult cleanup loop inside delete_server and the
+    # fallback batched DELETE in _job_cleanup.  Tune via .env if row density changes.
+    PROBE_RESULT_DELETE_BATCH = int(os.getenv("PROBE_RESULT_DELETE_BATCH", "1000"))
     AGENT_COMMAND_RETENTION_DAYS = int(os.getenv("AGENT_COMMAND_RETENTION_DAYS", "7"))
 
     # ── Audit payload size control ───────────────────────────────────────────

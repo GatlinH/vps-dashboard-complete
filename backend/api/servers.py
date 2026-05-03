@@ -6,7 +6,7 @@ import logging
 import secrets
 from datetime import datetime, timezone, date, timedelta
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.exceptions import HTTPException
 from werkzeug.security import generate_password_hash
@@ -25,9 +25,6 @@ logger = logging.getLogger(__name__)
 _CACHE_KEY_ADMIN  = "vps:servers:admin"   # 全量字段（含 IP、价格等）
 _CACHE_KEY_PUBLIC = "vps:servers:public"  # 公开字段
 _CACHE_TTL = 30  # seconds
-# Batch size for the ProbeResult cleanup loop inside delete_server.
-# Small enough to avoid long row-lock windows; large enough to finish quickly.
-_PROBE_DELETE_BATCH = 1_000
 
 FIELD_MAX_LEN = {
     "name": 128, "ip": 45, "location": 128,
@@ -276,6 +273,7 @@ def delete_server(sid):
     # Each batch is committed independently so InnoDB releases row locks
     # progressively.  Partial deletions on error are acceptable: any remaining
     # orphaned rows are picked up by the next retention cleanup job run.
+    batch_size = current_app.config.get("PROBE_RESULT_DELETE_BATCH", 1000)
     while True:
         # Materialize a batch of ids first so the DELETE does not read from
         # the same table in a nested subquery, which MySQL rejects.
@@ -284,7 +282,7 @@ def delete_server(sid):
             for row in db.session.query(ProbeResult.id)
             .filter(ProbeResult.server_id == sid)
             .order_by(ProbeResult.id)
-            .limit(_PROBE_DELETE_BATCH)
+            .limit(batch_size)
             .all()
         ]
         if not probe_result_ids:
