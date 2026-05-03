@@ -114,8 +114,9 @@ CREATE TABLE IF NOT EXISTS servers (
 -- MySQL 约束：RANGE COLUMNS 分区表不支持 FOREIGN KEY，
 --   服务器级联删除由应用层负责（delete_server API）。
 --
--- 初始分区：当前月 + 未来 7 天示例（生产环境由定时任务自动预创建）。
--- 运行前请将日期替换为实际部署日期；分区管理命令见 docs/probe_partition_ops.md。
+-- !!! 重要：下方若出现按日分区日期（如 2026-05-01..2026-05-10），它们只是占位示例，不是安全默认值。
+-- !!! 如果直接执行而不改成“实际部署日期附近”的分区范围，新写入数据会立刻落入 pmax，破坏“按日分区”的预期。
+-- !!! 初始化前必须重新生成这些日期；生产环境应依赖定时分区维护任务持续向前预建。分区管理命令见 docs/probe_partition_ops.md。
 CREATE TABLE IF NOT EXISTS probe_results (
   id         BIGINT UNSIGNED AUTO_INCREMENT,
   server_id  INT UNSIGNED NOT NULL COMMENT '服务器ID（无外键约束，由应用层管理级联）',
