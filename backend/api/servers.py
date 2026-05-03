@@ -291,7 +291,11 @@ def delete_server(sid):
             .filter(ProbeResult.id.in_(probe_result_ids))
             .delete(synchronize_session=False)
         )
-        db.session.flush()
+        if deleted_batch:
+            db.session.commit()
+
+    # Re-load after batched commits so the final delete runs in its own transaction.
+    server = Server.query.get_or_404(sid)
     db.session.delete(server)
     db.session.commit()
     _clear_cache()
