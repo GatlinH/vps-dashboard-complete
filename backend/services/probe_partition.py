@@ -1,0 +1,229 @@
+"""
+services/probe_partition.py
+
+ProbeResult (probe_results) 表分区管理工具。
+
+功能：
+  1. 预创建未来 N 天日级分区（幂等，重复调用安全）
+  2. DROP 过期日级分区（优先分区级操作，避免海量 DELETE）
+  3. 列出当前分区（用于监控/运维）
+
+约束：
+  - 仅 MySQL 8.0+ 生效；SQLite 等非 MySQL 环境所有 DDL 操作被安全跳过
+  - 分区键：created_at（UTC DATETIME）
+  - 分区粒度：按日，命名规则 pYYYYMMDD（如 p20260503）
+  - 兜底分区 pmax 永久保留，防止未预建分区时写入失败
+  - 日期统一使用 UTC，避免时区边界偏差
+
+MySQL 分区注意事项：
+  - RANGE COLUMNS(created_at) 与外键（FOREIGN KEY）不兼容，
+    probe_results 表在 MySQL 中不含 FK；由应用层（delete_server）负责级联删除。
+  - probe_results 的 SQLAlchemy 模型保留 ForeignKey 声明以兼容 SQLite 测试。
+"""
+import logging
+import time
+from datetime import date, datetime, timedelta
+from typing import Optional
+
+from sqlalchemy import text
+
+log = logging.getLogger(__name__)
+
+TABLE_NAME = "probe_results"
+_PMAX = "pmax"
+
+
+# ── Helpers ─────────────────────────────────────────────────────────────────
+
+def _is_mysql(engine) -> bool:
+    """Return True when connected to MySQL/MariaDB."""
+    return engine.dialect.name in ("mysql", "pymysql", "mariadb")
+
+
+def _partition_name(d: date) -> str:
+    """Partition name for a given date: pYYYYMMDD."""
+    return f"p{d.strftime('%Y%m%d')}"
+
+
+def _parse_partition_date(name: str) -> Optional[date]:
+    """Parse date from a partition name pYYYYMMDD.
+
+    Returns None for non-date names (e.g. 'pmax', yearly 'p2026').
+    """
+    if not name or name == _PMAX:
+        return None
+    # Expected format: p + 8 digits
+    if len(name) != 9 or not name.startswith("p"):
+        return None
+    try:
+        return datetime.strptime(name[1:], "%Y%m%d").date()
+    except ValueError:
+        return None
+
+
+# ── Public API ───────────────────────────────────────────────────────────────
+
+def list_partitions(engine) -> list[dict]:
+    """List all partitions for probe_results.
+
+    Returns list of dicts with keys:
+        partition_name        (str)
+        partition_description (str)  — LESS THAN value
+        table_rows            (int)  — estimated row count
+
+    On non-MySQL databases returns an empty list.
+    """
+    if not _is_mysql(engine):
+        return []
+
+    sql = text("""
+        SELECT
+            PARTITION_NAME,
+            PARTITION_DESCRIPTION,
+            TABLE_ROWS
+        FROM INFORMATION_SCHEMA.PARTITIONS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME   = :table_name
+          AND PARTITION_NAME IS NOT NULL
+        ORDER BY PARTITION_ORDINAL_POSITION
+    """)
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(sql, {"table_name": TABLE_NAME}).fetchall()
+        return [
+            {
+                "partition_name":        row[0],
+                "partition_description": row[1],
+                "table_rows":            row[2],
+            }
+            for row in rows
+        ]
+    except Exception as exc:
+        log.warning("probe_partition: list_partitions failed: %s", exc)
+        return []
+
+
+def ensure_future_partitions(
+    engine,
+    days_ahead: int = 30,
+    today: Optional[date] = None,
+) -> list[str]:
+    """Pre-create daily partitions for today .. today + days_ahead (inclusive).
+
+    Each new partition is inserted by reorganising the pmax catchall partition:
+        ALTER TABLE probe_results REORGANIZE PARTITION pmax INTO (
+            PARTITION pYYYYMMDD VALUES LESS THAN ('YYYY-MM-DD'),
+            PARTITION pmax       VALUES LESS THAN (MAXVALUE)
+        )
+
+    Existing partitions are skipped — the function is idempotent.
+    Returns the list of newly created partition names.
+    On non-MySQL databases returns an empty list.
+    """
+    if not _is_mysql(engine):
+        return []
+
+    today = today or date.today()
+    existing = {p["partition_name"] for p in list_partitions(engine)}
+    created: list[str] = []
+
+    for offset in range(days_ahead + 1):
+        d = today + timedelta(days=offset)
+        name = _partition_name(d)
+        if name in existing:
+            continue
+
+        upper = (d + timedelta(days=1)).strftime("%Y-%m-%d")
+        ddl = text(
+            f"ALTER TABLE {TABLE_NAME} REORGANIZE PARTITION {_PMAX} INTO ("
+            f"PARTITION {name} VALUES LESS THAN ('{upper}'),"
+            f"PARTITION {_PMAX} VALUES LESS THAN (MAXVALUE))"
+        )
+        try:
+            with engine.connect() as conn:
+                conn.execute(ddl)
+                conn.commit()
+            log.info(
+                "probe_partition: created partition=%s upper_bound=%s",
+                name, upper,
+            )
+            created.append(name)
+            existing.add(name)
+        except Exception as exc:
+            log.error(
+                "probe_partition: failed to create partition=%s: %s",
+                name, exc,
+            )
+
+    return created
+
+
+def drop_expired_partitions(
+    engine,
+    retention_days: int = 30,
+    dry_run: bool = False,
+    today: Optional[date] = None,
+) -> list[str]:
+    """Drop daily partitions whose date is older than today - retention_days.
+
+    The pmax catchall partition and any non-pYYYYMMDD partitions are never dropped.
+
+    dry_run=True logs what would be dropped without executing DDL.
+
+    Returns list of dropped (or would-be-dropped) partition names.
+    On non-MySQL databases returns an empty list.
+
+    The function is idempotent — if a partition has already been dropped a
+    prior run this call simply finds nothing to drop.
+    """
+    if not _is_mysql(engine):
+        return []
+
+    today = today or date.today()
+    cutoff = today - timedelta(days=retention_days)
+
+    partitions = list_partitions(engine)
+    to_drop: list[str] = []
+    for p in partitions:
+        name = p["partition_name"]
+        d = _parse_partition_date(name)
+        if d is None:
+            continue  # pmax or non-date partition — skip
+        if d < cutoff:
+            to_drop.append(name)
+
+    if not to_drop:
+        log.info(
+            "probe_partition: no expired partitions to drop "
+            "(retention=%d days, cutoff=%s)",
+            retention_days, cutoff,
+        )
+        return []
+
+    if dry_run:
+        log.info(
+            "probe_partition: DRY RUN — would drop %d partition(s): %s",
+            len(to_drop), to_drop,
+        )
+        return to_drop
+
+    dropped: list[str] = []
+    for name in to_drop:
+        t0 = time.perf_counter()
+        try:
+            with engine.connect() as conn:
+                conn.execute(text(f"ALTER TABLE {TABLE_NAME} DROP PARTITION {name}"))
+                conn.commit()
+            elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
+            log.info(
+                "probe_partition: dropped partition=%s elapsed_ms=%.1f",
+                name, elapsed_ms,
+            )
+            dropped.append(name)
+        except Exception as exc:
+            log.error(
+                "probe_partition: failed to drop partition=%s: %s",
+                name, exc,
+            )
+
+    return dropped

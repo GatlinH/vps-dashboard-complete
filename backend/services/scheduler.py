@@ -105,6 +105,13 @@ def create_scheduler(app):
             id="agent_command_cleanup", name="过期 Agent 命令清理（每天凌晨 4 点）",
             replace_existing=True,
         )
+        scheduler.add_job(
+            func=lambda: _job_probe_partition_maintain(app),
+            trigger="cron", hour=1, minute=30,
+            id="probe_partition_maintain",
+            name="ProbeResult 分区预创建（每天凌晨 1:30）",
+            replace_existing=True,
+        )
 
     scheduler.add_listener(_build_scheduler_listener(app), EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED)
 
@@ -432,16 +439,57 @@ def _send_alert(cfg, server, rule_type, cur_val, threshold):
 
 
 def _job_cleanup(app):
-    """清理历史探针数据（保留天数由 PROBE_RESULT_RETENTION_DAYS 控制，默认 30 天）"""
+    """清理历史探针数据（MySQL 优先 DROP PARTITION，非 MySQL 降级为 DELETE）。
+
+    保留天数由 PROBE_RESULT_RETENTION_DAYS 控制（默认 30 天）。
+    清理过程输出结构化日志：分区名、耗时、影响范围。
+    本函数幂等，重复执行不报错。
+    """
+    import time as _time
     from extensions import db
     from models.models import ProbeResult
+    from services.probe_partition import (
+        _is_mysql, drop_expired_partitions,
+    )
+
     retention_days = int(app.config.get("PROBE_RESULT_RETENTION_DAYS", 30))
-    cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+    t0 = _time.perf_counter()
+
     with app.app_context():
-        deleted = ProbeResult.query.filter(ProbeResult.created_at < cutoff).delete()
-        db.session.commit()
-        if deleted:
-            log.info(f"历史数据清理: 删除 {deleted} 条 probe_results（保留 {retention_days} 天）")
+        engine = db.engine
+        if _is_mysql(engine):
+            # ── MySQL: DROP PARTITION（瞬时元数据操作，无行级锁）──────────────
+            dropped = drop_expired_partitions(engine, retention_days=retention_days)
+            elapsed_ms = round((_time.perf_counter() - t0) * 1000, 1)
+            if dropped:
+                log.info(
+                    "probe_cleanup: method=drop_partition count=%d "
+                    "partitions=%s elapsed_ms=%.1f retention_days=%d",
+                    len(dropped), dropped, elapsed_ms, retention_days,
+                )
+            else:
+                log.info(
+                    "probe_cleanup: method=drop_partition count=0 "
+                    "elapsed_ms=%.1f retention_days=%d",
+                    elapsed_ms, retention_days,
+                )
+        else:
+            # ── Non-MySQL fallback: batched DELETE（SQLite / non-partitioned）
+            cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+            try:
+                deleted = ProbeResult.query.filter(
+                    ProbeResult.created_at < cutoff
+                ).delete(synchronize_session=False)
+                db.session.commit()
+                elapsed_ms = round((_time.perf_counter() - t0) * 1000, 1)
+                log.info(
+                    "probe_cleanup: method=delete rows=%d elapsed_ms=%.1f "
+                    "retention_days=%d cutoff=%s",
+                    deleted, elapsed_ms, retention_days, cutoff.date(),
+                )
+            except Exception as exc:
+                db.session.rollback()
+                log.error("probe_cleanup: DELETE fallback failed: %s", exc)
 
 
 def _job_traffic_accumulate(app):
@@ -557,3 +605,27 @@ def _job_agent_command_cleanup(app):
         except Exception as e:
             db.session.rollback()
             log.error("agent_command_cleanup 失败: %s", e)
+
+
+def _job_probe_partition_maintain(app):
+    """每天凌晨 1:30 预创建 probe_results 未来 N 天分区。
+
+    确保写入数据始终落入精确的日级分区而非 pmax 兜底分区，
+    从而支持后续精确的 DROP PARTITION 清理操作。
+    仅 MySQL 环境执行；SQLite / 非分区环境直接返回。
+    """
+    from extensions import db
+    from services.probe_partition import _is_mysql, ensure_future_partitions
+
+    days_ahead = int(app.config.get("PROBE_RESULT_PARTITION_DAYS_AHEAD", 30))
+    with app.app_context():
+        if not _is_mysql(db.engine):
+            return
+        created = ensure_future_partitions(db.engine, days_ahead=days_ahead)
+        if created:
+            log.info(
+                "probe_partition_maintain: created %d partition(s): %s",
+                len(created), created,
+            )
+        else:
+            log.info("probe_partition_maintain: all partitions up to date")

@@ -307,6 +307,10 @@ class Config:
     SCHEDULER_ALERT_ON_FAILURE = os.getenv("SCHEDULER_ALERT_ON_FAILURE", "1") == "1"
     SCHEDULER_FAILURE_ALERT_THRESHOLD = int(os.getenv("SCHEDULER_FAILURE_ALERT_THRESHOLD", "3"))
     PROBE_RESULT_RETENTION_DAYS = int(os.getenv("PROBE_RESULT_RETENTION_DAYS", "30"))
+    # Number of future daily partitions to pre-create during the daily maintenance job.
+    # Pre-creating partitions ensures data never falls into the pmax catchall partition,
+    # which would prevent precise per-partition cleanup.  Only applies to MySQL.
+    PROBE_RESULT_PARTITION_DAYS_AHEAD = int(os.getenv("PROBE_RESULT_PARTITION_DAYS_AHEAD", "30"))
     AGENT_COMMAND_RETENTION_DAYS = int(os.getenv("AGENT_COMMAND_RETENTION_DAYS", "7"))
 
     # ── Audit payload size control ───────────────────────────────────────────
