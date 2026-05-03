@@ -188,7 +188,7 @@ hey -n 200 -c 50 http://localhost/api/v1/health
 for i in $(seq 1 80); do
   curl -o /dev/null -sw "%{http_code} " http://localhost/api/v1/health
 done
-# 期望：前 60 个（30r/s × burst 30）为 200，后续出现 429
+# 观察到出现 429 即表示限流已命中（实际触发位置取决于请求间隔与 burst 消耗速度，无固定计数）
 ```
 
 **关键输出摘要示例：**
