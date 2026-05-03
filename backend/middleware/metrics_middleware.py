@@ -144,7 +144,7 @@ if Counter:
     )
     # P3-8: alert cooldown check results
     vps_alert_cooldown_check = Counter(
-        "alert_cooldown_check_total",
+        "vps_alert_cooldown_check_total",
         "Alert cooldown check results",
         ["result", "backend"],  # result: allow|suppress|error_fail_open|error_fail_closed
     )
