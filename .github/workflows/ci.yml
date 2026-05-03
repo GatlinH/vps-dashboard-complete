@@ -105,6 +105,7 @@ jobs:
           echo "✅ frontend-dist 构建产物完整"
 
       - name: Upload frontend artifact
+        if: github.event_name != 'workflow_call'
         uses: actions/upload-artifact@v4
         with:
           name: frontend-dist-${{ github.sha }}
