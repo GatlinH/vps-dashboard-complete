@@ -135,6 +135,7 @@ build_frontend() {
 
   log_info "安装前端依赖..."
   if ! (cd "${src_dir}" && npm ci --prefer-offline 2>/dev/null); then
+    log_warn "离线缓存未命中，切换到在线安装..."
     (cd "${src_dir}" && npm ci)
   fi
 

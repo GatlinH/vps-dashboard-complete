@@ -330,8 +330,8 @@ validate_secrets() {
   while IFS= read -r line; do
     # 跳过空行和注释
     [[ -z "${line}" || "${line}" =~ ^[[:space:]]*# ]] && continue
-    # 仅处理 KEY=VALUE 格式
-    if [[ "${line}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+    # 仅处理 KEY=VALUE 格式，且 VALUE 部分不为空
+    if [[ "${line}" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.+)$ ]]; then
       export "${line?}"
     fi
   done < "${SECRETS_FILE}"
@@ -427,6 +427,7 @@ build_frontend() {
 
   log_info "安装前端依赖..."
   if ! (cd "${src_dir}" && npm ci --prefer-offline 2>/dev/null); then
+    log_warn "离线缓存未命中，切换到在线安装..."
     (cd "${src_dir}" && npm ci)
   fi
 
@@ -490,10 +491,10 @@ show_status() {
 import sys, json
 lines = sys.stdin.read().strip().splitlines()
 bad = [
-    l for l in lines
-    if l.strip()
-    for d in [json.loads(l)]
-    if d.get('Health') in ('unhealthy', 'starting')
+    line for line in lines
+    if line.strip()
+    for container in [json.loads(line)]
+    if container.get('Health') in ('unhealthy', 'starting')
 ]
 print(len(bad))
 " 2>/dev/null || echo "0")"

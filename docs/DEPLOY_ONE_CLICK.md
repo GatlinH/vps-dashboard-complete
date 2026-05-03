@@ -329,9 +329,27 @@ cat ./nginx-logs/access.log
 
 ### 8. 定期备份
 
-建议配置 cron 定期备份数据库：
+建议创建备份脚本并通过 cron 定期执行，避免密码暴露在进程列表中：
 
 ```bash
+# 创建备份脚本（仅 root 可读）
+sudo tee /usr/local/bin/vps-backup.sh <<'SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+SECRETS_FILE="/etc/vps-dashboard/secrets.env"
+BACKUP_DIR="/backup"
+mkdir -p "${BACKUP_DIR}"
+
+# 从 secrets 文件读取密码（不暴露在进程列表）
+MYSQL_ROOT_PASSWORD="$(grep '^MYSQL_ROOT_PASSWORD=' "${SECRETS_FILE}" | cut -d= -f2-)"
+
+docker exec vps_mysql mysqldump \
+  --defaults-extra-file=<(printf '[client]\npassword=%s\n' "${MYSQL_ROOT_PASSWORD}") \
+  -u root --all-databases \
+  > "${BACKUP_DIR}/vps_$(date +%Y%m%d_%H%M%S).sql"
+SCRIPT
+sudo chmod 700 /usr/local/bin/vps-backup.sh
+
 # 添加 cron 任务（每天凌晨2点备份）
-(crontab -l 2>/dev/null; echo "0 2 * * * docker exec vps_mysql mysqldump -u root -p\$(grep MYSQL_ROOT_PASSWORD /etc/vps-dashboard/secrets.env | cut -d= -f2) --all-databases > /backup/vps_\$(date +\%Y\%m\%d).sql 2>/dev/null") | crontab -
+(crontab -l 2>/dev/null; echo "0 2 * * * /usr/local/bin/vps-backup.sh >> /var/log/vps-dashboard/backup.log 2>&1") | crontab -
 ```
