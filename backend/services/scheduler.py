@@ -400,20 +400,10 @@ def _job_check_alerts(app):
 
             for s in targets:
                 # ── 冷却检查 ─────────────────────────────────────────────────
-                if backend == "redis":
-                    # Optimistic pre-check: only call Redis if the condition
-                    # might be met. Avoids unnecessary Redis I/O when the
-                    # metric value isn't near the threshold.
-                    #
-                    # For the actual allowed/suppressed decision we rely on the
-                    # atomic SET NX EX below (after condition check).
-                    #
-                    # NOTE: We evaluate the alert condition FIRST, then
-                    # atomically claim the cooldown slot only when the condition
-                    # is actually true.  This avoids "burning" the cooldown
-                    # window for a check cycle where the condition isn't met.
-                    pass  # condition check below; Redis gate called after
-                else:
+                # Redis cooldown is enforced later via the atomic gate after
+                # the alert condition is evaluated. Only the DB backend needs
+                # the legacy early last_fired check here.
+                if backend != "redis":
                     # DB backend (legacy / rollback path)
                     if rule.last_fired:
                         lf = rule.last_fired
