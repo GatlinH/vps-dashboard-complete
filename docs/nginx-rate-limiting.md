@@ -247,9 +247,9 @@ curl -o /dev/null -sw "%{http_code}\n" http://localhost/api/v1/health
 | 业务响应结构 | 无变化。新增 429 响应体为 nginx 默认 HTML（非 API JSON），前端应处理此状态码 |
 | 白名单豁免 | `/metrics`、静态资源（`/assets/`、`/sw.js`、`/manifest.webmanifest`）、前端页面（`/`、`/admin.html`）均不在限流 location 内，不受影响 |
 | 未版本化 API 路径重定向 | `location ~ ^/api/(?!v\d+/)(.+)$`（301 重定向）不受限流影响 |
-| 地图瓦片 `/api/geo/tile/` | 不在 `/api/` 的 limit_req 内（location 前缀顺序：精确 > 正则 > 前缀，`/api/geo/tile/` 更长，nginx 优先匹配，**但实际 nginx 前缀匹配取最长匹配**，故 `/api/geo/tile/` 会匹配 `/api/` 限流。如需豁免，可在 `/api/geo/tile/` location 中添加 `limit_req_bypass` 或单独配置 zone） |
+| 地图瓦片 `/api/geo/tile/` | 按当前 `backend/nginx.conf`，`location /api/geo/tile/` 作为更长前缀会优先于 `location /api/` 命中，因此通常不会落入 `/api/` 中声明的 `limit_req`。如需对该路由限流，应在 `/api/geo/tile/` 的 location 内显式配置单独的 `limit_req`/zone；如需豁免，保持该 location 不配置 `limit_req` 即可 |
 
-> **注意**：`/api/geo/tile/` 会被 `location /api/` 的限流捕获。若该路由流量较大，建议单独为其分配一个速率更高的 zone 或完全豁免（在该 location 添加 `limit_req off;`，nginx 1.25.1+ 支持）。当前默认配置保留此行为以维持一致的防护策略。
+> **注意**：当前默认配置下，`/api/geo/tile/` 是否受限流取决于其自身的 `location` 配置，而不是 `location /api/`。若该路由后续流量较大且需要单独控制，建议在 `/api/geo/tile/` 的 location 中显式配置更高配额的 zone；若要明确关闭该 location 的限流，在所用 Nginx 版本支持时可使用 `limit_req off;`。
 
 ---
 
