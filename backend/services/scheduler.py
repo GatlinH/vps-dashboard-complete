@@ -374,7 +374,7 @@ def _job_check_alerts(app):
     当 ALERT_COOLDOWN_BACKEND=redis（默认）时：
       - 使用 alert:cooldown:{rule_id}:{server_id} Redis key 判定冷却，不读写 DB last_fired。
       - AlertRule.last_fired 不再作为热路径判断依据；该字段保留供审计/展示，新语义：
-        "最近一次通过 DB 模式实际发送告警的时间（best-effort，仅 backend=db 时更新）"。
+        "最近一次通过 DB 模式尝试发送告警的时间（best-effort，仅 backend=db 时更新）"。
     当 ALERT_COOLDOWN_BACKEND=db 时：降级使用原 last_fired 逻辑（兼容/回滚路径）。
     """
     from extensions import db, redis_client as _redis
