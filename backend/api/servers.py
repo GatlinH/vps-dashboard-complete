@@ -275,15 +275,20 @@ def delete_server(sid):
     # window (and slow partition-scan) on tables with many historical rows.
     deleted_batch = _PROBE_DELETE_BATCH
     while deleted_batch == _PROBE_DELETE_BATCH:
-        # Subquery-based LIMIT works on both SQLite and MySQL.
-        id_q = (
-            db.session.query(ProbeResult.id)
+        # Materialize a batch of ids first so the DELETE does not read from
+        # the same table in a nested subquery, which MySQL rejects.
+        probe_result_ids = [
+            row.id
+            for row in db.session.query(ProbeResult.id)
             .filter(ProbeResult.server_id == sid)
             .limit(_PROBE_DELETE_BATCH)
-        )
+            .all()
+        ]
+        if not probe_result_ids:
+            break
         deleted_batch = (
             ProbeResult.query
-            .filter(ProbeResult.id.in_(id_q))
+            .filter(ProbeResult.id.in_(probe_result_ids))
             .delete(synchronize_session=False)
         )
         db.session.flush()
