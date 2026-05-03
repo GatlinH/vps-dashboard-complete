@@ -43,49 +43,111 @@ vps-dashboard/
 | 公开展示页 | `http://服务器IP/` 或 `/index.html` | 无需登录，可公开访问 |
 | 管理后台 | `http://服务器IP/admin.html` 或 `/admin` | 需要管理员账号登录 |
 
-## 快速开始
+## 一键安装（推荐，生产环境）
 
-### 1. 克隆仓库
+支持 **Ubuntu / Debian / CentOS / RHEL / Rocky / AlmaLinux / Fedora**。
 
-```bash
-git clone https://github.com/你的用户名/vps-dashboard.git
-cd vps-dashboard
-```
-
-### 2. 前端构建
+### 步骤 1：克隆仓库
 
 ```bash
-cd frontend-vite
-npm ci
-npm run build
-# 产物输出到 ../frontend-dist
+git clone https://github.com/GatlinH/vps-dashboard-complete.git
+cd vps-dashboard-complete
 ```
 
-### 3. 配置后端环境变量
+### 步骤 2：首次运行（生成配置模板）
 
 ```bash
-cd ../backend
-cp .env.example .env
-nano .env
+sudo ./install.sh
 ```
 
-### 4. 启动服务
+脚本会自动安装 Docker，并在 `/etc/vps-dashboard/secrets.env` 生成配置模板后退出。
+
+> ⚠️ **敏感信息统一存放于 `/etc/vps-dashboard/secrets.env`，不得写入仓库任何 `.env` 文件。**
+
+### 步骤 3：填写 Secrets
 
 ```bash
-docker compose up -d
+sudo nano /etc/vps-dashboard/secrets.env
 ```
 
-### 5. 访问
+将所有 `CHANGE_ME` 占位符替换为真实值，生成随机密钥：
 
-- 公开页：`http://服务器IP/`
-- 管理后台：`http://服务器IP/admin.html` 或 `http://服务器IP/admin`
-- API：`http://服务器IP:5000`
+```bash
+python3 -c "import secrets; print(secrets.token_hex(32))"
+```
+
+### 步骤 4：正式安装
+
+```bash
+sudo ./install.sh
+```
+
+安装完成后访问：
+
+| 页面 | URL |
+|------|-----|
+| 公开展示页 | `http://服务器IP/` |
+| 管理后台 | `http://服务器IP/admin` |
+
+---
+
+## 更新
+
+```bash
+cd vps-dashboard-complete
+sudo ./update.sh
+```
+
+跳过前端构建（仅更新后端）：
+
+```bash
+sudo SKIP_FRONTEND_BUILD=1 ./update.sh
+```
+
+---
+
+## 停止 / 重启 / 日志
+
+```bash
+# 变量简写
+ENV_FILE=/etc/vps-dashboard/secrets.env
+
+# 查看状态
+docker compose --env-file $ENV_FILE --profile production ps
+
+# 实时日志
+docker compose --env-file $ENV_FILE --profile production logs -f
+
+# 停止（保留数据）
+docker compose --env-file $ENV_FILE --profile production down
+
+# 重启
+docker compose --env-file $ENV_FILE --profile production restart
+```
+
+---
+
+## 回滚
+
+```bash
+# 查看历史版本
+git log --oneline -10
+
+# 回滚到指定版本
+git checkout <commit-sha>
+
+# 重新部署
+sudo ./update.sh
+```
+
+---
 
 ## 安全配置提醒（生产环境）
 
-- 请务必替换 `SECRET_KEY` 与 `JWT_SECRET_KEY`，且两者不得相同。
-- `ADMIN_DEFAULT_PASSWORD` 建议设置为强密码；若留空，系统会在首次启动时随机生成并输出到日志，需立即登录修改。
-- `JWT_BLOCKLIST_FAIL_OPEN` 默认为 `1`（Redis 异常时放行，优先高可用）；如你的场景更重视安全一致性，建议改为 `0`（异常即拒绝）。
+- `SECRET_KEY` 与 `JWT_SECRET_KEY` 必须不同，各不少于 32 位随机字符。
+- `ADMIN_DEFAULT_PASSWORD` 建议显式设置强密码；若留空，系统首次启动时自动生成并输出到日志。
+- `JWT_BLOCKLIST_FAIL_OPEN` 默认为 `1`（Redis 异常时放行，优先高可用）；如更重视安全一致性，建议改为 `0`。
+- 详细安全建议见 [docs/DEPLOY_ONE_CLICK.md](docs/DEPLOY_ONE_CLICK.md)。
 
 ## CI 构建流水线（P3E）
 
