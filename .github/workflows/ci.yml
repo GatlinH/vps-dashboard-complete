@@ -110,3 +110,4 @@ jobs:
           name: frontend-dist-${{ github.sha }}
           path: frontend-dist/
           retention-days: 7
+          overwrite: true
