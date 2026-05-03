@@ -624,12 +624,25 @@ def _job_probe_partition_maintain(app):
     仅 MySQL 环境执行；SQLite / 非分区环境直接返回。
     """
     from extensions import db
-    from services.probe_partition import _is_mysql, ensure_future_partitions
+    from services.probe_partition import (
+        _is_mysql,
+        ensure_future_partitions,
+        list_partitions,
+    )
 
     days_ahead = int(app.config.get("PROBE_RESULT_PARTITION_DAYS_AHEAD", 30))
     with app.app_context():
         if not _is_mysql(db.engine):
             return
+
+        partitions = list_partitions(db.engine)
+        if not partitions or "pmax" not in set(partitions):
+            log.warning(
+                "probe_partition_maintain: partitioning is not enabled for "
+                "probe_results; skipping maintenance"
+            )
+            return
+
         created = ensure_future_partitions(db.engine, days_ahead=days_ahead)
         if created:
             log.info(
