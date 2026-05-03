@@ -81,6 +81,15 @@ def _validate_nonce(uuid: str, nonce: str):
         )
         if not accepted:
             raise AuthenticationError("replayed request")
+    else:
+        # Redis 不可用时无法执行防重放校验，记录警告后降级放行。
+        # 此窗口期内短暂的重放攻击风险由 timestamp 窗口（_CLOCK_SKEW_SECONDS）和
+        # HMAC 签名提供的有限保护兜底；运维侧应尽快恢复 Redis。
+        logger.warning(
+            "agent nonce validation skipped: Redis unavailable (uuid=%s). "
+            "Replay protection degraded for the duration of Redis outage.",
+            uuid,
+        )
 
 
 def _enforce_transport_security():
@@ -203,6 +212,10 @@ def agent_push():
                 " metrics dropped (load-shedding)",
                 extra={"server_id": server.id, "uuid": uuid},
             )
+            try:
+                record_agent_push("dropped")
+            except Exception as exc:
+                logger.debug("Failed to record agent push dropped metric: %s", exc)
         else:
             try:
                 _record_metrics(server, data)
