@@ -433,18 +433,15 @@ class TestAgentPushDroppedCounter:
             "Content-Type": "application/json",
         }
 
-        # Now set redis to None to trigger fallback path, keeping nonce key in memory
-        # We use a fake redis that supports nonce SET NX but not rpush
+        # Keep Redis available for nonce SET NX, but simulate queue push support
+        # being unavailable by using a truthy stub that does not define rpush.
         class _NoRpushRedis:
-            """Redis stub: supports nonce SET NX (so auth passes), but no rpush."""
+            """Redis stub: supports nonce SET NX (so auth passes), but has no rpush."""
             def __init__(self, real):
                 self._real = real
+
             def set(self, key, value, ex=None, nx=False):
                 return self._real.set(key, value, ex=ex, nx=nx)
-            def rpush(self, *a, **kw):
-                return None  # pretend rpush doesn't exist
-            def __bool__(self):
-                return False  # triggers fallback DB path
 
         monkeypatch.setattr(extensions, "redis_client", _NoRpushRedis(orig_redis))
 
