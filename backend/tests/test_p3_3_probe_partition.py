@@ -40,20 +40,19 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
+from services.probe_partition import _partition_name as _pn
+
 
 # ---------------------------------------------------------------------------
 # Module-level date anchor: all partition-logic tests derive their fixture
 # dates from _TODAY so the test file does not need updating as time passes.
 # TestPartitionHelpers uses specific literal dates to verify exact format
 # behaviour (e.g. zero-padding) and intentionally keeps them fixed.
+# _TODAY is evaluated once per test session and is passed as an explicit
+# parameter to every function under test, so midnight boundary issues don't
+# apply — all assertions in a single run share the same anchor date.
 # ---------------------------------------------------------------------------
 _TODAY = date.today()
-
-
-def _pn(d: date) -> str:
-    """Mirror probe_partition._partition_name() without importing the private symbol."""
-    return f"p{d.strftime('%Y%m%d')}"
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # A. probe_partition 单元测试
