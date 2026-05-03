@@ -170,7 +170,7 @@ def setup_logging(app=None) -> None:
         except OSError as exc:
             logging.getLogger(__name__).warning(
                 f"⚠ 无法初始化 FileHandler（LOG_FILE={log_file!r}）: {exc}"
-                "  — 将仅使用 stdout 日志。"
+                f"  — 将仅使用 stdout 日志。"
             )
 
     # Loki Sink（可选）

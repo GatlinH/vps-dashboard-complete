@@ -118,6 +118,9 @@ if [[ ! -f .env ]]; then
 fi
 
 # ─── 6. 检查端口占用 ──────────────────────────────────────────────────────────
+# Note: occupied ports are reported as warnings only. A port may already be bound
+# by the running service containers (e.g. during a rolling redeploy). Docker
+# Compose will fail fast with a clear error if a port conflict exists at startup.
 echo "✓ 检查端口占用..."
 for port in 80 443 3306 6379 5000; do
   if lsof -Pi :"$port" -sTCP:LISTEN -t >/dev/null 2>&1; then
