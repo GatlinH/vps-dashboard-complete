@@ -455,13 +455,12 @@ class TestJobCleanupSQLite:
             retention_days = 30
             cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
 
-            # Exactly at cutoff: should be deleted (created_at < cutoff is False,
-            # so this row will NOT be deleted — it's on the boundary)
+            # Record created 1 second before the cutoff — older than cutoff, so it IS deleted
             boundary_pr = ProbeResult(
                 server_id=sid, status="online",
-                created_at=cutoff - timedelta(seconds=1),  # 1s before cutoff
+                created_at=cutoff - timedelta(seconds=1),  # 1s before cutoff → deleted
             )
-            # Recent record: definitely kept
+            # Recent record: definitely within retention window, must be kept
             recent_pr = ProbeResult(
                 server_id=sid, status="online",
                 created_at=cutoff + timedelta(hours=1),
