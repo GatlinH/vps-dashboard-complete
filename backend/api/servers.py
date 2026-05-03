@@ -273,29 +273,27 @@ def delete_server(sid):
     # MySQL partitioned tables have no FK cascade; explicitly delete probe results
     # for this server.  Use batched DELETEs to avoid a single large row-lock
     # window (and slow partition-scan) on tables with many historical rows.
-    deleted_batch = _PROBE_DELETE_BATCH
-    while deleted_batch == _PROBE_DELETE_BATCH:
+    while True:
         # Materialize a batch of ids first so the DELETE does not read from
         # the same table in a nested subquery, which MySQL rejects.
         probe_result_ids = [
             row.id
             for row in db.session.query(ProbeResult.id)
             .filter(ProbeResult.server_id == sid)
+            .order_by(ProbeResult.id)
             .limit(_PROBE_DELETE_BATCH)
             .all()
         ]
         if not probe_result_ids:
             break
-        deleted_batch = (
-            ProbeResult.query
-            .filter(ProbeResult.id.in_(probe_result_ids))
-            .delete(synchronize_session=False)
-        )
-        if deleted_batch:
-            db.session.commit()
+        ProbeResult.query.filter(
+            ProbeResult.id.in_(probe_result_ids)
+        ).delete(synchronize_session=False)
+        db.session.commit()
 
-    # Re-load after batched commits so the final delete runs in its own transaction.
-    server = Server.query.get_or_404(sid)
+    # Delete the server in its own transaction.  The server object is expired
+    # after the batch commits above, but SQLAlchemy retains the PK in the
+    # identity map so session.delete() does not need to re-query the row.
     db.session.delete(server)
     db.session.commit()
     _clear_cache()

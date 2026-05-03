@@ -497,6 +497,7 @@ def _job_cleanup(app):
                         row.id
                         for row in db.session.query(ProbeResult.id)
                         .filter(ProbeResult.created_at < cutoff)
+                        .order_by(ProbeResult.id)
                         .limit(_CLEANUP_BATCH)
                         .all()
                     ]
