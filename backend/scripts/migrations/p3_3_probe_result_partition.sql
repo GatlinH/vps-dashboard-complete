@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS probe_results_new (
   net_down   FLOAT        COMMENT '网络下行',
   latency_ms FLOAT        COMMENT '延迟（毫秒）',
   status     VARCHAR(16)  COMMENT '状态快照',
-  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '探测时间（UTC）',
+  created_at DATETIME     NOT NULL DEFAULT (UTC_TIMESTAMP()) COMMENT '探测时间（UTC）',
 
   -- 主键必须包含分区键（MySQL RANGE COLUMNS 规则）
   PRIMARY KEY (id, created_at),
