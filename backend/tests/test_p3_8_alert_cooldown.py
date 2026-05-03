@@ -485,14 +485,13 @@ class TestJobCheckAlertsFailStrategies:
         extensions.redis_client = broken
 
         try:
-            with patch("api.telegram.send_message", return_value={"ok": True}), \
+            with patch("api.telegram.send_message", return_value={"ok": True}) as mock_send, \
                  patch("api.telegram.requests.post",
                        return_value=MagicMock(json=lambda: {"ok": True})):
                 with patch("middleware.metrics_middleware.vps_alert_cooldown_check"):
                     from services.scheduler import _job_check_alerts
                     _job_check_alerts(app)
-            # Verify send_message was called (fail-open allowed the alert)
-            # Implicitly verified by no exception being raised
+                mock_send.assert_called()
         finally:
             extensions.redis_client = original_redis
 
