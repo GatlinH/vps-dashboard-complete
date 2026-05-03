@@ -138,13 +138,11 @@ class TestConcurrency:
         Exactly 1 should succeed (SET NX); the rest should be suppressed.
         This verifies the atomic guarantee of SET NX EX.
         """
-        # Use a real fakeredis if available for true atomicity; fall back to
-        # _InMemoryRedis whose set(nx=True) is also implemented correctly.
-        try:
-            import fakeredis as _fr
-            r = _fr.FakeRedis(decode_responses=True)
-        except ImportError:
-            r = _InMemoryRedis()
+        # This test specifically validates atomic SET NX EX behavior under
+        # concurrency, so require fakeredis and skip when it is unavailable
+        # instead of falling back to a non-atomic in-memory stub.
+        _fr = pytest.importorskip("fakeredis")
+        r = _fr.FakeRedis(decode_responses=True)
 
         n_threads = 10
         results = []
