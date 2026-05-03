@@ -142,6 +142,12 @@ if Counter:
         "Scheduler job execution results",
         ["job_id", "status"],  # status: "ok" | "error" | "missed"
     )
+    # P3-8: alert cooldown check results
+    vps_alert_cooldown_check = Counter(
+        "alert_cooldown_check_total",
+        "Alert cooldown check results",
+        ["result", "backend"],  # result: allow|suppress|error_fail_open|error_fail_closed
+    )
 
 else:
     # prometheus_client 未安装时，使用 no-op 占位
@@ -158,6 +164,7 @@ else:
     vps_alerts_fired = vps_traffic_limit_exceeded = vps_email_sent = _NoOp()
     vps_agent_push = vps_agent_poll = vps_agent_ack = _NoOp()
     vps_scheduler_job = _NoOp()
+    vps_alert_cooldown_check = _NoOp()
 
 
 # ── 路径规范化（避免高基数 label）────────────────────────────────────────────
@@ -330,6 +337,11 @@ def record_scheduler_job(job_id: str, status: str) -> None:
     vps_scheduler_job.labels(job_id=job_id, status=status).inc()
 
 
+def record_cooldown_check(result: str, backend: str) -> None:
+    """记录告警冷却判定结果（allow/suppress/error_fail_open/error_fail_closed）。"""
+    vps_alert_cooldown_check.labels(result=result, backend=backend).inc()
+
+
 def set_server_counts(total: int, online: int, offline: int) -> None:
     """设置服务器总量/在线/离线 Gauge。"""
     vps_servers_total.set(total)
@@ -361,5 +373,6 @@ __all__ = [
     "record_agent_poll",
     "record_agent_ack",
     "record_scheduler_job",
+    "record_cooldown_check",
     "set_server_counts",
 ]

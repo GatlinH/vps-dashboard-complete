@@ -316,6 +316,18 @@ class Config:
     PROBE_RESULT_DELETE_BATCH = int(os.getenv("PROBE_RESULT_DELETE_BATCH", "1000"))
     AGENT_COMMAND_RETENTION_DAYS = int(os.getenv("AGENT_COMMAND_RETENTION_DAYS", "7"))
 
+    # ── Alert Cooldown (P3-8) ────────────────────────────────────────────────
+    # ALERT_COOLDOWN_BACKEND: "redis" (default) or "db" (legacy fallback).
+    #   redis — cooldown enforced via atomic SET NX EX in Redis (no DB write per check).
+    #   db    — legacy: reads/writes AlertRule.last_fired in MySQL (original behaviour).
+    # ALERT_COOLDOWN_FAIL_OPEN: when backend=redis and Redis is unreachable:
+    #   True  (default, fail-open)  — allow the alert to fire (availability-first).
+    #   False (fail-closed)         — suppress the alert (noise-reduction-first).
+    # WARNING: fail-open may produce duplicate alerts during Redis outage.
+    # WARNING: fail-closed may miss alerts during Redis outage.
+    ALERT_COOLDOWN_BACKEND  = os.getenv("ALERT_COOLDOWN_BACKEND",  "redis").strip().lower()
+    ALERT_COOLDOWN_FAIL_OPEN = os.getenv("ALERT_COOLDOWN_FAIL_OPEN", "1") == "1"
+
     # ── Audit payload size control ───────────────────────────────────────────
     # Maximum serialized size (bytes) of the new_values JSON column.
     # Payloads exceeding this limit are truncated with a _truncation_meta field.
