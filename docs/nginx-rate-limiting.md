@@ -206,7 +206,7 @@ for i in $(seq 1 10); do
     -H "Content-Type: application/json" \
     -d '{"username":"x","password":"y"}'
 done
-# 期望：前 6 次为 4xx（401 认证失败），第 6~10 次为 429 限流
+# 期望：前 5 次为 4xx（如 401 认证失败），第 6 次起为 429 限流（可能随时间间隔略有波动）
 ```
 
 ### 5.5 日志可见限流命中
