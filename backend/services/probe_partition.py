@@ -149,6 +149,13 @@ def ensure_future_partitions(
     today = today or datetime.now(timezone.utc).date()
     existing_partitions = list_partitions(engine)
     existing_names = {p["partition_name"] for p in existing_partitions}
+    if not existing_partitions or _PMAX not in existing_names:
+        log.warning(
+            "probe_partition: skipping ensure_future_partitions for table=%s; "
+            "table is not partitioned or catchall partition=%s is missing",
+            TABLE_NAME, _PMAX,
+        )
+        return []
 
     # Find the latest existing daily partition so we can fill any gaps.
     # If the maintenance job missed days, rows for those days landed in pmax.
