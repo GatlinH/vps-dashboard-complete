@@ -105,6 +105,8 @@ class TestCheckAndSetCooldown:
         key = make_cooldown_key(rule_id, server_id)
         ttl = fake_redis.ttl(key)
         # TTL coerced to at least 1 inside check_and_set_cooldown
+        assert fake_redis.exists(key) == 1
+        assert ttl != -1
         assert ttl >= 0
 
 
