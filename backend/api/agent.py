@@ -240,7 +240,7 @@ def agent_push():
             try:
                 record_agent_push("dropped")
             except Exception as exc:
-                logger.debug("Failed to record agent push dropped metric: %s", exc)
+                logger.warning("Failed to record agent push dropped metric: %s", exc)
         else:
             try:
                 _record_metrics(server, data)
@@ -259,7 +259,7 @@ def agent_push():
     try:
         record_agent_push("accepted")
     except Exception as exc:
-        logger.debug("Failed to record agent push metric: %s", exc)
+        logger.warning("Failed to record agent push metric: %s", exc)
 
     return jsonify({"accepted": True}), 202
 
