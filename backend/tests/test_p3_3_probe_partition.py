@@ -598,7 +598,13 @@ class TestJobProbePartitionMaintain:
 
         app.config["PROBE_RESULT_PARTITION_DAYS_AHEAD"] = 7
 
+        partitions_with_pmax = [
+            {"partition_name": "p20260502", "partition_description": "'2026-05-03'", "table_rows": 0},
+            {"partition_name": "pmax",      "partition_description": "MAXVALUE",     "table_rows": 0},
+        ]
+
         with patch("services.probe_partition._is_mysql", return_value=True), \
+             patch("services.probe_partition.list_partitions", return_value=partitions_with_pmax), \
              patch("services.probe_partition.ensure_future_partitions", return_value=["p20260510"]) \
              as mock_ensure:
             _job_probe_partition_maintain(app)

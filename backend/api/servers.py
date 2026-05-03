@@ -25,6 +25,9 @@ logger = logging.getLogger(__name__)
 _CACHE_KEY_ADMIN  = "vps:servers:admin"   # 全量字段（含 IP、价格等）
 _CACHE_KEY_PUBLIC = "vps:servers:public"  # 公开字段
 _CACHE_TTL = 30  # seconds
+# Batch size for the ProbeResult cleanup loop inside delete_server.
+# Small enough to avoid long row-lock windows; large enough to finish quickly.
+_PROBE_DELETE_BATCH = 1_000
 
 FIELD_MAX_LEN = {
     "name": 128, "ip": 45, "location": 128,
@@ -268,10 +271,22 @@ def delete_server(sid):
         raise InternalServerError(error_detail=str(e))
 
     # MySQL partitioned tables have no FK cascade; explicitly delete probe results
-    # for this server so orphan rows are cleaned up immediately rather than waiting
-    # for the retention job.  This is a no-op on SQLite (ForeignKey cascades handled
-    # by SQLAlchemy relationships, but the FK is declared on the model for that path).
-    ProbeResult.query.filter_by(server_id=sid).delete(synchronize_session=False)
+    # for this server.  Use batched DELETEs to avoid a single large row-lock
+    # window (and slow partition-scan) on tables with many historical rows.
+    deleted_batch = _PROBE_DELETE_BATCH
+    while deleted_batch == _PROBE_DELETE_BATCH:
+        # Subquery-based LIMIT works on both SQLite and MySQL.
+        id_q = (
+            db.session.query(ProbeResult.id)
+            .filter(ProbeResult.server_id == sid)
+            .limit(_PROBE_DELETE_BATCH)
+        )
+        deleted_batch = (
+            ProbeResult.query
+            .filter(ProbeResult.id.in_(id_q))
+            .delete(synchronize_session=False)
+        )
+        db.session.flush()
     db.session.delete(server)
     db.session.commit()
     _clear_cache()

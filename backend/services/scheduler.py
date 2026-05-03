@@ -636,7 +636,8 @@ def _job_probe_partition_maintain(app):
             return
 
         partitions = list_partitions(db.engine)
-        if not partitions or "pmax" not in set(partitions):
+        has_pmax = any(p["partition_name"] == "pmax" for p in partitions)
+        if not partitions or not has_pmax:
             log.warning(
                 "probe_partition_maintain: partitioning is not enabled for "
                 "probe_results; skipping maintenance"
