@@ -41,11 +41,12 @@ services:
       --appendonly yes
       --appendfsync everysec
     environment:
+      # REDISCLI_AUTH lets redis-cli authenticate automatically in healthcheck
       REDISCLI_AUTH: ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
