@@ -295,19 +295,6 @@ EOF
 # /etc/vps-dashboard/secrets.env
 # ⚠️  本文件包含敏感信息，请勿提交到版本库。
 # 确认所有 CHANGE_ME 字段后，重新运行 sudo ./install.sh
-#
-# 自动生成强密码/密钥
-    local gen_secret="python3 -c \"import secrets; print(secrets.token_hex(32))\""
-    local gen_pass="python3 -c \"import secrets, string; \
-print(''.join(secrets.choice(string.ascii_letters+string.digits) for _ in range(24)))\""
-
-    cat > "${SECRETS_FILE}" <<EOF
-# /etc/vps-dashboard/secrets.env
-# ⚠️  本文件包含敏感信息，请勿提交到版本库。
-  # 确保权限正确
-  chmod 600 "${SECRETS_FILE}"
-  log_ok "Secrets 文件：${SECRETS_FILE}（权限 600）"
-}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 校验必填环境变量
