@@ -286,8 +286,12 @@ AGENT_PUSH_RATE_LIMIT=60 per minute
 AGENT_POLL_RATE_LIMIT=120 per minute
 EOF
     chmod 600 "${SECRETS_FILE}"
-    log_ok "已自动生成密钥和配置：${SECRETS_FILE}（权限 600）"
-fi
+    log_ok "已自动生成安全 Secrets 文件（权限 600）：${SECRETS_FILE}"
+  fi
+
+  chmod 600 "${SECRETS_FILE}"
+  log_ok "Secrets 文件：${SECRETS_FILE}（权限 600）"
+}
 # /etc/vps-dashboard/secrets.env
 # ⚠️  本文件包含敏感信息，请勿提交到版本库。
 # 确认所有 CHANGE_ME 字段后，重新运行 sudo ./install.sh
