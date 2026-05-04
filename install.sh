@@ -261,8 +261,33 @@ manage_secrets() {
   chmod 700 "${SECRETS_DIR}"
 
   if [[ ! -f "${SECRETS_FILE}" ]]; then
-    log_warn "Secrets 文件不存在，正在生成模板：${SECRETS_FILE}"
-    cat > "${SECRETS_FILE}" <<'EOF'
+    log_warn "Secrets 文件不存在，正在自动生成安全配置：${SECRETS_FILE}"
+    cat > "${SECRETS_FILE}" <<EOF
+SECRET_KEY=$(openssl rand -hex 32)
+JWT_SECRET_KEY=$(openssl rand -hex 32)
+MYSQL_ROOT_PASSWORD=$(openssl rand -base64 24)
+MYSQL_USER=vps_user
+MYSQL_PASSWORD=$(openssl rand -base64 24)
+MYSQL_DB=vps_dashboard
+REDIS_PASSWORD=$(openssl rand -base64 24)
+MASTER_ENCRYPTION_KEY=$(openssl rand -hex 32)
+CORS_ORIGINS=http://127.0.0.1
+FRONTEND_URL=http://127.0.0.1
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+PROBE_TIMEOUT_S=5
+PROBE_CACHE_TTL=15
+TILE_CACHE_TTL=86400
+GUNICORN_WORKERS=1
+GUNICORN_THREADS=4
+TRUST_PROXY=1
+AGENT_REQUIRE_TLS=1
+AGENT_PUSH_RATE_LIMIT=60 per minute
+AGENT_POLL_RATE_LIMIT=120 per minute
+EOF
+    chmod 600 "${SECRETS_FILE}"
+    log_ok "已自动生成密钥和配置：${SECRETS_FILE}（权限 600）"
+fi
 # /etc/vps-dashboard/secrets.env
 # ⚠️  本文件包含敏感信息，请勿提交到版本库。
 # 确认所有 CHANGE_ME 字段后，重新运行 sudo ./install.sh
