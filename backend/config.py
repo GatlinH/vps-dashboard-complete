@@ -10,6 +10,7 @@ import sys
 import logging
 from datetime import timedelta
 from dotenv import load_dotenv
+from urllib.parse import quote as _url_quote
 
 load_dotenv()
 
