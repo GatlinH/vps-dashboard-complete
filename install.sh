@@ -304,54 +304,6 @@ print(''.join(secrets.choice(string.ascii_letters+string.digits) for _ in range(
     cat > "${SECRETS_FILE}" <<EOF
 # /etc/vps-dashboard/secrets.env
 # ⚠️  本文件包含敏感信息，请勿提交到版本库。
-# ⚠️  MASTER_ENCRYPTION_KEY 一旦使用不可更改，请务必备份！
-
-# ─── Flask & JWT ───────────────────────────────────────────────────────────
-SECRET_KEY=$(openssl rand -hex 32)
-JWT_SECRET_KEY=$(openssl rand -hex 32)
-
-# ─── MySQL ─────────────────────────────────────────────────────────────────
-MYSQL_ROOT_PASSWORD=$(openssl rand -base64 24)
-MYSQL_USER=vps_user
-MYSQL_PASSWORD=$(openssl rand -base64 24)
-MYSQL_DB=vps_dashboard
-
-# ─── Redis ─────────────────────────────────────────────────────────────────
-REDIS_PASSWORD=$(openssl rand -base64 24)
-
-# ─── 加密密钥 ──────────────────────────────────────────────────────────────
-MASTER_ENCRYPTION_KEY=$(openssl rand -hex 32)
-
-# ─── CORS（替换为你的实际域名） ──────────────────────────────────────────
-CORS_ORIGINS=https://your-domain.example.com
-FRONTEND_URL=https://your-domain.example.com
-
-# ─── 可选：Telegram 告警 ───────────────────────────────────────────────────
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHAT_ID=
-
-# ─── 可选：调优参数 ────────────────────────────────────────────────────────
-PROBE_TIMEOUT_S=5
-PROBE_CACHE_TTL=15
-TILE_CACHE_TTL=86400
-GUNICORN_WORKERS=1
-GUNICORN_THREADS=4
-TRUST_PROXY=1
-AGENT_REQUIRE_TLS=1
-AGENT_PUSH_RATE_LIMIT=60 per minute
-AGENT_POLL_RATE_LIMIT=120 per minute
-EOF
-    chmod 600 "${SECRETS_FILE}"
-    log_warn ""
-    log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    log_warn "  已生成 Secrets 模板：${SECRETS_FILE}"
-    log_warn "  请编辑文件，填写所有 CHANGE_ME 字段，然后重新运行："
-    log_warn "    sudo nano ${SECRETS_FILE}"
-    log_warn "    sudo ./install.sh"
-    log_warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    exit 1
-  fi
-
   # 确保权限正确
   chmod 600 "${SECRETS_FILE}"
   log_ok "Secrets 文件：${SECRETS_FILE}（权限 600）"
