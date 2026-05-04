@@ -170,10 +170,10 @@ class Config:
     # REDIS_URL is auto-assembled from REDIS_HOST/PORT/PASSWORD/DB above.
     # The REDIS_URL env var is intentionally NOT read; set the component vars instead.
     REDIS_URL          = (
-        f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
-        if REDIS_PASSWORD
-        else f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
-    )
+        f"redis://:{_url_quote(REDIS_PASSWORD, safe='')}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+    if REDIS_PASSWORD
+    else f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+)
 
     # ── JWT ──────────────────────────────────────────────────────────────────
     JWT_SECRET_KEY            = os.getenv("JWT_SECRET_KEY", SECRET_KEY)
