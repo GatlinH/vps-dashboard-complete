@@ -39,8 +39,8 @@ ENV GUNICORN_WORKERS=1
 ENV GUNICORN_THREADS=4
 
 # 健康检查
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:5000/health', timeout=5)"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=5 \
+    CMD python3 -c "import requests,sys; r=requests.get('http://localhost:5000/health',timeout=5); sys.exit(0 if r.status_code in (200,503) else 1)"
 
 # 启动应用
 CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:5000 --workers ${GUNICORN_WORKERS} --threads ${GUNICORN_THREADS} --worker-class gthread --timeout 30 --access-logfile - --error-logfile - 'app:create_app()'"]
