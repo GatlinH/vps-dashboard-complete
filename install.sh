@@ -429,6 +429,11 @@ prepare_log_dir() {
 # ─────────────────────────────────────────────────────────────────────────────
 # 启动服务
 # ─────────────────────────────────────────────────────────────────────────────
+setup_env_symlink() {
+  log_section "配置 .env 软链接"
+  ln -sf "${SECRETS_FILE}" "${REPO_DIR}/.env"
+  log_ok ".env → ${SECRETS_FILE}"
+}
 start_services() {
   log_section "启动服务"
 
@@ -539,6 +544,7 @@ main() {
   prepare_allowlist
   prepare_log_dir
   build_frontend
+  setup_env_symlink
   start_services
   show_status
 }
