@@ -15,15 +15,16 @@ USE vps_dashboard;
 -- Docker MySQL 镜像已通过 MYSQL_USER / MYSQL_PASSWORD 环境变量自动创建应用用户
 -- 此处只需补充授权，无需手动 CREATE USER
 
--- 确保应用用户对数据库有完整权限（兼容 Docker 自动创建的用户）
+-- 兼容处理：若用户未被 Docker 自动创建，则手动创建（密码占位，Docker 会覆盖）
+CREATE USER IF NOT EXISTS 'vps_user'@'%' IDENTIFIED WITH mysql_native_password BY '';
 GRANT ALL PRIVILEGES ON vps_dashboard.* TO 'vps_user'@'%';
 
 -- 备份用户（仅读取）
-CREATE USER IF NOT EXISTS 'vps_backup'@'localhost' IDENTIFIED BY 'backup_2024_secure';
+CREATE USER IF NOT EXISTS 'vps_backup'@'localhost' IDENTIFIED WITH mysql_native_password BY 'backup_secure_2024x';
 GRANT SELECT, LOCK TABLES ON vps_dashboard.* TO 'vps_backup'@'localhost';
 
 -- 监控用户（仅读取统计）
-CREATE USER IF NOT EXISTS 'vps_monitor'@'localhost' IDENTIFIED BY 'monitor_2024_secure';
+CREATE USER IF NOT EXISTS 'vps_monitor'@'localhost' IDENTIFIED WITH mysql_native_password BY 'monitor_secure_2024x';
 GRANT SELECT ON vps_dashboard.* TO 'vps_monitor'@'localhost';
 
 FLUSH PRIVILEGES;
