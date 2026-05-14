@@ -5,7 +5,7 @@
 #   pip-compile requirements.in -o requirements.txt
 flask>=2.3.0
 flask-sqlalchemy>=3.0.0
-flask-jwt-extended>=4.5.0
+flask-jwt-extended>=4.7.4
 flask-cors>=4.0.0
 flask-limiter>=3.3.0
 flask-talisman>=1.1.0
