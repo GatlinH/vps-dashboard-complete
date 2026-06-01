@@ -20,5 +20,5 @@ requests>=2.31.0
 werkzeug>=2.3.0
 cryptography>=47.0.0
 prometheus-client>=0.17.0
-fakeredis>=2.0
+fakeredis>=2.36.0
 pytest-cov>=4.0.0

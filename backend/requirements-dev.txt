@@ -1,6 +1,6 @@
 -r requirements.txt
 coverage[toml]==7.13.5
-fakeredis==2.35.1
+fakeredis==2.36.0
 iniconfig==2.3.0
 pluggy==1.6.0
 pytest==9.0.3
