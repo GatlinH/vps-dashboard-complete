@@ -15,12 +15,43 @@ import json
 import logging
 import urllib.request
 import urllib.error
+import socket
+from contextlib import contextmanager
+from urllib.parse import urlparse
 
 from typing import Optional
 
-from utils.validators import is_safe_outbound_url
+from utils.validators import is_safe_outbound_url, resolve_public_host_addresses
 
 log = logging.getLogger(__name__)
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+@contextmanager
+def _pinned_dns(hostname: str, port: int | None):
+    pinned = resolve_public_host_addresses(hostname, port)
+    if not pinned:
+        raise ValueError("probe_url 非法或存在安全风险")
+    original = socket.getaddrinfo
+
+    def patched_getaddrinfo(host, req_port, *args, **kwargs):
+        if str(host).lower().rstrip('.') == hostname.lower().rstrip('.'):
+            fixed = []
+            for family, socktype, proto, canonname, sockaddr in pinned:
+                addr = sockaddr[0]
+                fixed.append((family, socktype, proto, canonname, (addr, req_port or port or sockaddr[1])))
+            return fixed
+        return original(host, req_port, *args, **kwargs)
+
+    socket.getaddrinfo = patched_getaddrinfo
+    try:
+        yield
+    finally:
+        socket.getaddrinfo = original
 
 
 def fetch_and_parse_probe(
@@ -49,14 +80,19 @@ def fetch_and_parse_probe(
     if not is_safe_outbound_url(url):
         return None, "probe_url 非法或存在安全风险"
 
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return None, "probe_url 非法或存在安全风险"
+
     req_headers = {"User-Agent": "VPS-Dashboard/1.0"}
     if extra_headers:
         req_headers.update(extra_headers)
 
     try:
         req = urllib.request.Request(url, headers=req_headers, method="GET")
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            payload = json.loads(resp.read().decode())
+        opener = urllib.request.build_opener(_NoRedirectHandler)
+        with _pinned_dns(parsed.hostname, parsed.port), opener.open(req, timeout=timeout) as resp:
+            payload = json.loads(resp.read(1024 * 1024).decode())
     except urllib.error.HTTPError as exc:
         return None, f"HTTP {exc.code}"
     except urllib.error.URLError as exc:

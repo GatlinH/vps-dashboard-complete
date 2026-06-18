@@ -5,6 +5,8 @@
 -- ─────────────────────────────────────────────────────────────
 
 -- ===== 数据库创建与初始化 =====
+SET NAMES utf8mb4;
+
 
 CREATE DATABASE IF NOT EXISTS vps_dashboard
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

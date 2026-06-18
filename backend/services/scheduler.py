@@ -102,6 +102,12 @@ def create_scheduler(app):
             replace_existing=True, misfire_grace_time=30,
         )
         scheduler.add_job(
+            func=lambda: _job_tg_bot_updates(app),
+            trigger=IntervalTrigger(seconds=15),
+            id="tg_bot_updates", name="Telegram bot 命令轮询",
+            replace_existing=True, misfire_grace_time=10,
+        )
+        scheduler.add_job(
             func=lambda: _job_audit_log_cleanup(app),
             trigger="cron", day_of_week="sun", hour=3, minute=0,
             id="audit_log_cleanup", name="审计日志归档（每周日凌晨 3 点）",
@@ -432,9 +438,28 @@ def _job_check_alerts(app):
                     condition_args = ("offline", None, None)
                 elif rule.rule_type == "expiry" and s.expiry:
                     days_left = (s.expiry - now.date()).days
-                    if 0 <= days_left <= 7:
+                    if 0 <= days_left <= int(rule.threshold or 7):
                         condition_met = True
-                        condition_args = ("expiry", days_left, 7)
+                        condition_args = ("expiry", days_left, int(rule.threshold or 7))
+                elif rule.rule_type == "latency":
+                    latest_probe = ProbeResult.query.filter_by(server_id=s.id).order_by(ProbeResult.created_at.desc()).first()
+                    latency = latest_probe.latency_ms if latest_probe else None
+                    if latency is not None and latency >= rule.threshold:
+                        condition_met = True
+                        condition_args = ("latency", latency, rule.threshold)
+                elif rule.rule_type == "bandwidth":
+                    current_kbs = max(float(s.net_up or 0), float(s.net_down or 0))
+                    if current_kbs >= float(rule.threshold or 0):
+                        condition_met = True
+                        condition_args = ("bandwidth", current_kbs, rule.threshold)
+                elif rule.rule_type == "consecutive_failures":
+                    try:
+                        fail_count = int(redis_client.get(f"vps:probe_fail:{s.id}") or 0)
+                    except Exception:
+                        fail_count = 0
+                    if fail_count >= int(rule.threshold or 3):
+                        condition_met = True
+                        condition_args = ("consecutive_failures", fail_count, int(rule.threshold or 3))
 
                 if not condition_met:
                     continue
@@ -480,14 +505,18 @@ def _job_check_alerts(app):
 
 def _send_alert(cfg, server, rule_type, cur_val, threshold):
     from api.telegram import send_message, _full_msg
-    icons = {"cpu":"🔥","ram":"💾","disk":"💿","offline":"🔴","expiry":"📅"}
-    labels = {"cpu":"CPU","ram":"内存","disk":"磁盘"}
+    icons = {"cpu":"🔥","ram":"💾","disk":"💿","bandwidth":"📶","offline":"🔴","expiry":"📅","latency":"📡","consecutive_failures":"🚨"}
+    labels = {"cpu":"CPU","ram":"内存","disk":"磁盘","bandwidth":"带宽"}
     icon = icons.get(rule_type, "⚠️")
 
     if rule_type == "offline":
         body = f"{icon} <b>{server.name}</b> 已离线！\n位置: {server.location}"
     elif rule_type == "expiry":
         body = f"{icon} <b>{server.name}</b> 将在 <b>{int(cur_val)}</b> 天后到期\n到期日: {server.expiry}"
+    elif rule_type == "bandwidth":
+        body = (f"{icon} <b>{server.name}</b> 带宽告警\n"
+                f"当前: <b>{cur_val:.2f} KB/s</b> / 阈值: {threshold} KB/s\n"
+                f"位置: {server.location} | IP: {server.ip}")
     else:
         label = labels.get(rule_type, rule_type.upper())
         body  = (f"{icon} <b>{server.name}</b> {label} 告警\n"
@@ -581,9 +610,12 @@ def _job_cleanup(app):
 
 def _job_traffic_accumulate(app):
     """
-    根据当前实时网速（net_up / net_down MB/s）每30秒累加一次流量计数。
+    根据当前实时网速（net_up / net_down KB/s）每30秒累加一次流量计数。
     若探针上报了 bytes_out_snapshot / bytes_in_snapshot，则优先使用差值计算（精确模式）；
-    否则降级为速率估算：net_up MB/s × 30s ÷ 1024 = GB 增量
+    否则降级为速率估算：net_up KB/s × 30s ÷ 1024 ÷ 1024 = GB 增量。
+
+    注意：ProbeResult 与前端详情页均将 net_up/net_down 解释为 KB/s。
+    旧代码把它当 MB/s，累计流量会被放大约 1024 倍。
     """
     from extensions import db, redis_client
     from models.models import Server
@@ -595,9 +627,9 @@ def _job_traffic_accumulate(app):
             # 若无快照，则降级为速率估算。
             if s.bytes_out_snapshot and s.bytes_in_snapshot:
                 continue  # 精确模式：流量已由 push_metrics 实时累加，跳过估算
-            # 降级：速率估算
-            delta_up = (s.net_up   or 0) * 30 / 1024   # MB/s × 30s → GB
-            delta_dn = (s.net_down or 0) * 30 / 1024
+            # 降级：速率估算；net_up/net_down 单位是 KB/s。
+            delta_up = (s.net_up   or 0) * 30 / 1024 / 1024   # KB/s × 30s → GB
+            delta_dn = (s.net_down or 0) * 30 / 1024 / 1024
             if delta_up == 0 and delta_dn == 0:
                 continue
             s.traffic_up_gb   = round((s.traffic_up_gb   or 0) + delta_up, 6)
@@ -733,3 +765,11 @@ def _job_probe_partition_maintain(app):
             )
         else:
             log.info("probe_partition_maintain: all partitions up to date")
+
+
+def _job_tg_bot_updates(app):
+    with app.app_context():
+        from api.telegram import poll_bot_updates
+        res = poll_bot_updates()
+        if res.get("ok") and res.get("handled"):
+            log.info("[tg_bot] handled=%s offset=%s", res.get("handled"), res.get("offset"))

@@ -178,19 +178,19 @@ _BASE_HTML = """\
 
 def send_verification_email(to: str, username: str, token: str) -> bool:
     """发送邮箱验证邮件（注册激活）"""
-    verify_url = f"{_get_cfg().frontend_url}/verify-email?token={token}"
+    verify_url = f"{_get_cfg().frontend_url}/verify-email#token={token}"
 
     html_body_inner = f"""\
 <p>您好，<b>{username}</b>！</p>
 <p>感谢注册 <b>VPS 星图</b>。请点击下方按钮验证您的邮箱地址：</p>
 <a class="btn" href="{verify_url}">✉ 验证邮箱</a>
-<p class="note">链接有效期 <b>24 小时</b>。若非您本人操作，请忽略此邮件。</p>
+<p class="note">链接有效期 <b>2 小时</b>。若非您本人操作，请忽略此邮件。</p>
 <p class="note">如按钮无法点击，请复制以下链接到浏览器：<br>{verify_url}</p>"""
 
     html_body  = _BASE_HTML.format(body=html_body_inner)
     text_body  = (
         f"您好，{username}！\n\n"
-        f"请访问以下链接验证您的邮箱（24 小时内有效）：\n{verify_url}\n\n"
+        f"请访问以下链接验证您的邮箱（2 小时内有效）：\n{verify_url}\n\n"
         "若非您本人操作，请忽略此邮件。"
     )
 
@@ -199,7 +199,7 @@ def send_verification_email(to: str, username: str, token: str) -> bool:
 
 def send_password_reset_email(to: str, username: str, token: str) -> bool:
     """发送密码重置邮件"""
-    reset_url = f"{_get_cfg().frontend_url}/reset-password?token={token}"
+    reset_url = f"{_get_cfg().frontend_url}/reset-password#token={token}"
 
     html_body_inner = f"""\
 <p>您好，<b>{username}</b>！</p>

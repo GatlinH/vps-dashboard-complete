@@ -148,3 +148,429 @@ body {
     margin-bottom: 20px;
   }
 }
+
+.front-login-overlay {
+  align-items: center;
+  justify-content: center;
+}
+.front-login-modal {
+  width: min(420px, calc(100vw - 32px));
+}
+.front-login-desc {
+  color: var(--text-dim, #9aa3b2);
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+.front-login-form {
+  display: grid;
+  gap: 12px;
+}
+.front-login-input {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(10,14,24,0.78);
+  color: #eef3ff;
+  padding: 12px 14px;
+}
+.front-login-error {
+  min-height: 20px;
+  color: #ff8f8f;
+  font-size: 13px;
+}
+.front-login-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.front-login-overlay {
+  transition: opacity 220ms ease;
+}
+.front-login-overlay .front-login-modal {
+  transform: translateY(10px) scale(0.985);
+  transition: transform 220ms ease, opacity 220ms ease;
+}
+.front-login-overlay.open .front-login-modal {
+  transform: translateY(0) scale(1);
+}
+.front-login-overlay.is-entering .front-login-modal {
+  opacity: 0.92;
+}
+
+
+/* === Front astro login === */
+.front-login-overlay {
+  background: radial-gradient(circle at 18% 18%, rgba(255, 190, 82, 0.12), transparent 28%),
+    radial-gradient(circle at 78% 24%, rgba(105, 172, 255, 0.12), transparent 34%),
+    rgba(1, 5, 12, 0.68);
+  backdrop-filter: blur(14px);
+}
+.front-login-modal.astro-login-modal {
+  width: min(460px, calc(100vw - 32px));
+  padding: 30px 30px 26px;
+  border: 1px solid rgba(151, 199, 255, 0.22);
+  background: linear-gradient(180deg, rgba(10, 18, 32, 0.92), rgba(4, 8, 16, 0.94));
+  box-shadow: 0 26px 90px rgba(0,0,0,.58), inset 0 1px 0 rgba(255,255,255,.08);
+  overflow: hidden;
+}
+.astro-login-modal::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  background: radial-gradient(circle at 22% 0%, rgba(255,202,114,.16), transparent 32%), radial-gradient(circle at 86% 12%, rgba(80,165,255,.13), transparent 34%);
+  pointer-events: none;
+}
+.astro-login-logo {
+  position: relative;
+  width: 82px;
+  height: 82px;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+.astro-login-orbit {
+  position: absolute;
+  inset: 8px;
+  border: 1px solid rgba(144, 202, 255, .34);
+  border-radius: 50%;
+  transform: rotate(-24deg) scaleX(1.18);
+  box-shadow: 0 0 26px rgba(80, 160, 255, .16);
+}
+.astro-login-planet {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, #dff4ff 0%, #4da8ff 36%, #123d73 72%, #07162c 100%);
+  box-shadow: inset -10px -8px 16px rgba(0,0,0,.38), 0 0 26px rgba(89,174,255,.38);
+}
+.astro-login-sun {
+  position: absolute;
+  right: 7px;
+  top: 14px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff8d8 0%, #ffd269 56%, #ff9842 100%);
+  box-shadow: 0 0 18px rgba(255,184,72,.72);
+}
+.astro-login-kicker {
+  position: relative;
+  text-align: center;
+  color: rgba(153, 207, 255, .72);
+  font: 700 11px/1.2 Inter, system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: .18em;
+  margin-bottom: 8px;
+}
+.astro-login-title { position: relative; text-align: center; margin-bottom: 8px; }
+.astro-login-desc { position: relative; text-align: center; }
+.front-login-oauth {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 18px 0 14px;
+}
+.front-oauth-btn {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 8px;
+  padding: 11px 10px;
+  border-radius: 16px;
+  text-decoration: none;
+  color: #f4f8ff;
+  background: rgba(255,255,255,.065);
+  border: 1px solid rgba(178, 215, 255, .18);
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+.front-oauth-btn:hover { transform: translateY(-1px); border-color: rgba(255,213,136,.42); background: rgba(255,255,255,.09); }
+.front-oauth-btn.disabled { opacity: .52; cursor: not-allowed; }
+.front-oauth-mark {
+  grid-row: 1 / 3;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  background: rgba(255,255,255,.12);
+}
+.front-oauth-btn b { font-size: 12px; line-height: 1.15; }
+.front-oauth-btn small { color: rgba(190, 205, 224, .66); font-size: 10px; margin-top: 3px; }
+.front-login-separator {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(178, 194, 216, .68);
+  font-size: 12px;
+  margin: 4px 0 14px;
+}
+.front-login-separator::before,
+.front-login-separator::after { content:''; height:1px; flex:1; background: linear-gradient(90deg, transparent, rgba(151,199,255,.24), transparent); }
+.front-login-actions .ghost { background: rgba(255,255,255,.06); }
+.front-login-actions .primary { background: linear-gradient(135deg, #ffd06f, #ff9f43); color: #211102; border-color: rgba(255,217,142,.45); }
+@media (max-width: 520px) { .front-login-oauth { grid-template-columns: 1fr; } }
+
+
+/* === Standalone login scene + redesigned atlas mark === */
+.front-login-page-mode {
+  background: #020611;
+  overflow: hidden;
+}
+.standalone-login-scene {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 16%, rgba(255,190,82,.16), transparent 24%),
+    radial-gradient(circle at 78% 30%, rgba(72,156,255,.16), transparent 30%),
+    linear-gradient(180deg, #030714 0%, #071323 54%, #02050c 100%);
+}
+.login-starfield,
+.login-starfield::before,
+.login-starfield::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,.7) 0 1px, transparent 1.5px),
+    radial-gradient(circle, rgba(140,198,255,.5) 0 1px, transparent 1.5px);
+  background-size: 110px 110px, 170px 170px;
+  background-position: 12px 28px, 70px 50px;
+  opacity: .34;
+}
+.login-earth-arc {
+  position: absolute;
+  left: 50%;
+  bottom: -42vh;
+  width: 118vw;
+  height: 72vh;
+  transform: translateX(-50%);
+  border-radius: 50% 50% 0 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(86,174,255,.34), rgba(16,57,105,.18) 34%, rgba(2,8,18,.05) 64%, transparent 72%);
+  border-top: 1px solid rgba(145,211,255,.3);
+  filter: blur(.1px);
+}
+.login-sun-trace {
+  position: absolute;
+  left: -80px;
+  top: 6vh;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,231,158,.58), rgba(255,177,74,.16) 34%, transparent 66%);
+  filter: blur(2px);
+}
+.front-login-overlay.standalone {
+  background: transparent;
+  backdrop-filter: none;
+}
+.front-login-overlay.standalone .astro-login-modal {
+  transform: translateY(0) scale(1);
+}
+.astro-login-logo.atlas-mark {
+  width: 96px;
+  height: 96px;
+  margin-bottom: 10px;
+  background: radial-gradient(circle at 50% 50%, rgba(73, 167, 255, .12), transparent 68%);
+}
+.atlas-mark-svg {
+  width: 96px;
+  height: 96px;
+  overflow: visible;
+}
+.atlas-orbit {
+  fill: none;
+  stroke: rgba(129, 203, 255, .52);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+.atlas-v {
+  fill: none;
+  stroke: url(#atlasBeam);
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 8px rgba(91, 183, 255, .55));
+}
+.atlas-core {
+  fill: url(#atlasCore);
+  filter: drop-shadow(0 0 12px rgba(105, 190, 255, .55));
+}
+.atlas-node { fill: #9bd8ff; filter: drop-shadow(0 0 6px rgba(108, 198, 255, .9)); }
+.atlas-sun-dot { fill: #ffd46d; filter: drop-shadow(0 0 10px rgba(255, 190, 82, .9)); }
+.astro-login-planet,
+.astro-login-orbit,
+.astro-login-sun { display: none !important; }
+.front-login-modal.astro-login-modal {
+  width: min(440px, calc(100vw - 32px));
+}
+
+
+/* === Login page background redesign v2: orbital dawn, clean and restrained === */
+.front-login-page-mode {
+  background: #030711;
+  overflow: hidden;
+}
+.standalone-login-scene.login-orbital-scene {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 72% 24%, rgba(255, 193, 105, .13), transparent 22%),
+    radial-gradient(circle at 28% 70%, rgba(54, 132, 255, .18), transparent 34%),
+    linear-gradient(135deg, #050914 0%, #071427 44%, #02050d 100%);
+}
+.login-cosmos-gradient {
+  position: absolute;
+  inset: -12%;
+  background:
+    radial-gradient(circle at 18% 28%, rgba(106, 180, 255, .18), transparent 28%),
+    radial-gradient(circle at 80% 14%, rgba(255, 178, 79, .16), transparent 24%),
+    radial-gradient(circle at 55% 82%, rgba(33, 96, 190, .20), transparent 38%);
+  filter: blur(.2px);
+}
+.login-orbit-grid {
+  position: absolute;
+  inset: -20%;
+  opacity: .34;
+  background-image:
+    linear-gradient(rgba(128,190,255,.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(128,190,255,.07) 1px, transparent 1px);
+  background-size: 74px 74px;
+  transform: perspective(900px) rotateX(58deg) rotateZ(-18deg) translateY(10vh);
+  mask-image: radial-gradient(ellipse at 52% 62%, #000 0 36%, transparent 72%);
+}
+.login-dawn-planet {
+  position: absolute;
+  left: -18vw;
+  bottom: -30vh;
+  width: min(86vw, 920px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 58% 34%, rgba(48, 151, 255, .92) 0 4%, transparent 17%),
+    radial-gradient(circle at 38% 35%, #265f9c 0%, #0b315f 35%, #06172f 62%, #020812 100%);
+  box-shadow:
+    inset -58px -74px 110px rgba(0,0,0,.76),
+    inset 42px 28px 70px rgba(87,178,255,.20),
+    0 0 90px rgba(57,142,255,.16);
+  overflow: hidden;
+}
+.login-planet-glow {
+  position: absolute;
+  inset: -2%;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(122,205,255,.32), 0 0 48px rgba(91,184,255,.28);
+}
+.login-planet-surface {
+  position: absolute;
+  inset: 13% 8% 18% 18%;
+  border-radius: 47% 53% 45% 55%;
+  background:
+    radial-gradient(ellipse at 30% 28%, rgba(82,178,120,.44), transparent 18%),
+    radial-gradient(ellipse at 58% 46%, rgba(182,151,91,.28), transparent 22%),
+    radial-gradient(ellipse at 38% 68%, rgba(76,139,113,.34), transparent 18%);
+  filter: blur(10px);
+  opacity: .72;
+}
+.login-planet-night {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(120deg, transparent 0 40%, rgba(0,0,0,.52) 58%, rgba(0,0,0,.82) 100%);
+}
+.login-orbital-path {
+  position: absolute;
+  border: 1px solid rgba(132, 205, 255, .22);
+  border-radius: 50%;
+  pointer-events: none;
+  filter: drop-shadow(0 0 12px rgba(74,160,255,.18));
+}
+.login-orbital-path.path-a {
+  left: 7vw;
+  top: 17vh;
+  width: 64vw;
+  height: 28vw;
+  transform: rotate(-22deg);
+}
+.login-orbital-path.path-b {
+  right: -12vw;
+  top: 10vh;
+  width: 76vw;
+  height: 35vw;
+  transform: rotate(18deg);
+  opacity: .52;
+}
+.login-login-sun {
+  position: absolute;
+  right: 12vw;
+  top: 12vh;
+  width: 138px;
+  height: 138px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff6ce 0 12%, #ffd16c 25%, rgba(255,166,61,.28) 48%, transparent 72%);
+  filter: blur(.4px);
+  opacity: .74;
+  box-shadow: 0 0 110px rgba(255,184,79,.30);
+}
+.login-noise-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 46%, transparent 0 36%, rgba(0,0,0,.36) 100%),
+    radial-gradient(circle at 10% 12%, rgba(255,255,255,.45) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 86% 62%, rgba(255,255,255,.30) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 62% 18%, rgba(255,255,255,.35) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 38% 82%, rgba(255,255,255,.22) 0 1px, transparent 1.8px);
+  background-size: auto, 240px 240px, 320px 320px, 280px 280px, 360px 360px;
+  opacity: .72;
+}
+.front-login-overlay.standalone {
+  background: linear-gradient(90deg, rgba(0,0,0,.08), rgba(0,0,0,.22));
+  backdrop-filter: none;
+}
+.front-login-overlay.standalone .astro-login-modal {
+  background: linear-gradient(180deg, rgba(9, 18, 33, .88), rgba(5, 10, 20, .92));
+  border-color: rgba(143, 205, 255, .24);
+  box-shadow: 0 34px 120px rgba(0,0,0,.58), inset 0 1px 0 rgba(255,255,255,.08);
+}
+.login-starfield,
+.login-earth-arc,
+.login-sun-trace { display: none !important; }
+
+
+/* === Custom Gemini-sourced login/overview visuals (watermarks preserved) === */
+.standalone-login-scene.login-orbital-scene {
+  background-image:
+    linear-gradient(90deg, rgba(1,5,14,.44), rgba(1,5,14,.12) 46%, rgba(1,5,14,.50)),
+    url('/assets/custom/login-background.png') !important;
+  background-size: cover !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+}
+.standalone-login-scene.login-orbital-scene .login-cosmos-gradient,
+.standalone-login-scene.login-orbital-scene .login-orbit-grid,
+.standalone-login-scene.login-orbital-scene .login-dawn-planet,
+.standalone-login-scene.login-orbital-scene .login-orbital-path,
+.standalone-login-scene.login-orbital-scene .login-login-sun {
+  display: none !important;
+}
+.custom-login-logo.atlas-mark {
+  width: 136px !important;
+  height: 86px !important;
+  margin-bottom: 8px !important;
+  background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.08), transparent 70%) !important;
+}
+.custom-login-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 0 16px rgba(92,183,255,.38));
+}

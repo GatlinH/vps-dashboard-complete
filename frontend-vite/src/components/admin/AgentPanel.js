@@ -4,8 +4,12 @@ import {
   rotateAgentKey,
   getAgentOverview,
   updateAgentConfig,
-  enqueueAgentCommand,
+  fetchAgentInstallCommand,
 } from '../../api/servers.js';
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>\"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[ch]));
+}
 
 export class AgentPanel {
   constructor(mountId) {
@@ -41,13 +45,23 @@ export class AgentPanel {
       </div>
 
       <div class="admin-card">
+        <div class="admin-card-title">🛰 Komari / Agent 接入总览</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px">
+          <div class="metric-tile"><div class="metric-k">监控源</div><div class="metric-v">Agent + Komari</div><div class="metric-d">本项目负责星图、告警、资产管理</div></div>
+          <div class="metric-tile"><div class="metric-k">192 Komari</div><div class="metric-v"><a href="http://192.129.221.4:25774" target="_blank" rel="noreferrer">打开面板</a></div><div class="metric-d">端口 25774，适合做探针与节点监控</div></div>
+          <div class="metric-tile"><div class="metric-k">控制面</div><div class="metric-v">只读监控</div><div class="metric-d">不接受远程执行、在线终端、文件任务</div></div>
+        </div>
+      </div>
+
+      <div class="admin-card">
         <div class="admin-card-title">🔐 密钥与绑定状态</div>
         <div id="ap-overview" style="font-size:13px;line-height:1.8;color:var(--text2)">请选择服务器</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
           <button id="ap-gen" class="add-btn">生成新密钥</button>
           <button id="ap-rotate" style="padding:8px 18px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:13px">轮换密钥</button>
+          <button id="ap-install" style="padding:8px 18px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:13px">生成安装命令</button>
         </div>
-        <div id="ap-key" style="margin-top:10px;font-size:12px;color:var(--gold);word-break:break-all"></div>
+        <div id="ap-key" style="margin-top:10px;font-size:12px;color:var(--gold);word-break:break-all"></div><textarea id="ap-install-cmd" class="form-input" style="min-height:92px;margin-top:10px;font-family:var(--mono);resize:vertical" placeholder="生成 Agent Key 后，这里会出现安装命令"></textarea>
       </div>
 
       <div class="admin-card">
@@ -59,22 +73,14 @@ export class AgentPanel {
       </div>
 
       <div class="admin-card">
-        <div class="admin-card-title">📨 下发命令</div>
-        <div style="display:grid;grid-template-columns:1fr 160px;gap:10px">
-          <div class="form-group" style="margin:0">
-            <label class="form-label">命令类型</label>
-            <input id="ap-cmd-type" class="form-input" placeholder="如 sync / restart_service">
-          </div>
-          <div class="form-group" style="margin:0">
-            <label class="form-label">TTL(秒)</label>
-            <input id="ap-cmd-ttl" class="form-input" type="number" value="300" min="1" max="86400">
-          </div>
+        <div class="admin-card-title">🔒 只读监控模式</div>
+        <div style="font-size:13px;line-height:1.9;color:var(--text2)">
+          当前监控服务已切换为 <b>只读监控模式</b>。<br>
+          为避免监控面板/TG 机器人被爆破后反向操控 VPS，<br>
+          <b>远程命令下发能力已默认禁用</b>。<br>
+          该服务现在只允许：状态采集、告警推送、只读查询。
         </div>
-        <div class="form-group" style="margin-top:10px">
-          <label class="form-label">payload (JSON 对象)</label>
-          <textarea id="ap-cmd-payload" class="form-input" style="min-height:120px;font-family:var(--mono);resize:vertical">{}</textarea>
-        </div>
-        <button id="ap-send-cmd" class="add-btn">发送命令</button>
+        <button id="ap-send-cmd" class="add-btn" disabled style="opacity:.45;cursor:not-allowed;margin-top:10px">远程命令已禁用</button>
       </div>`;
   }
 
@@ -87,27 +93,31 @@ export class AgentPanel {
     this._el.querySelector('#ap-gen').addEventListener('click', () => this._createKey(false));
     this._el.querySelector('#ap-rotate').addEventListener('click', () => this._createKey(true));
     this._el.querySelector('#ap-save').addEventListener('click', () => this._saveConfig());
-    this._el.querySelector('#ap-send-cmd').addEventListener('click', () => this._sendCommand());
+    this._el.querySelector('#ap-install').addEventListener('click', () => this._buildInstallCommand());
   }
 
   _renderServerOptions() {
     const sel = this._el.querySelector('#ap-server');
-    sel.innerHTML = this._servers.map(s => `<option value="${s.id}">${s.flag || '🌐'} ${s.name}</option>`).join('');
+    sel.innerHTML = this._servers.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.flag || '🌐')} ${escapeHtml(s.name)}</option>`).join('');
   }
 
   async _loadOverview() {
     if (!this._selectedId) return;
     try {
       const data = await getAgentOverview(this._selectedId);
+      const komariUrl = 'http://192.129.221.4:25774';
       this._el.querySelector('#ap-overview').innerHTML = [
-        `UUID: <b>${data.uuid || '未绑定'}</b>`,
-        `密钥创建时间: ${data.agent_key_created_at || '—'}`,
-        `最近使用时间: ${data.agent_key_last_used || '—'}`,
-        `旧密钥重叠到期: ${data.agent_key_prev_expires_at || '—'}`,
-        `待执行命令: <b>${data.pending_commands}</b>`,
+        `UUID: <b>${escapeHtml(data.uuid || '未绑定')}</b>`,
+        `密钥创建时间: ${escapeHtml(data.agent_key_created_at || '—')}`,
+        `最近使用时间: ${escapeHtml(data.agent_key_last_used || '—')}`,
+        `旧密钥重叠到期: ${escapeHtml(data.agent_key_prev_expires_at || '—')}`,
+        `模式: <b>只读监控</b>`,
+        `能力: <b>exec=禁用 / terminal=禁用 / file_list=禁用</b>`,
+        `Komari 面板: <a href="${komariUrl}" target="_blank" rel="noreferrer">${komariUrl}</a>`,
       ].join('<br>');
-      this._el.querySelector('#ap-config').value = JSON.stringify(data.agent_config || {}, null, 2);
-      this._msg('已加载 Agent 概览', 'blue');
+      const cfg = data.readonly_policy || data.agent_config || {};
+      this._el.querySelector('#ap-config').value = JSON.stringify(cfg, null, 2);
+      this._msg('已加载 Agent 概览（只读模式）', 'blue');
     } catch (e) {
       this._msg(e.message, 'red');
     }
@@ -138,20 +148,7 @@ export class AgentPanel {
     }
   }
 
-  async _sendCommand() {
-    if (!this._selectedId) return;
-    const type = this._el.querySelector('#ap-cmd-type').value.trim();
-    if (!type) return this._msg('请填写命令类型', 'red');
-    try {
-      const ttl = Number(this._el.querySelector('#ap-cmd-ttl').value || 300);
-      const payload = JSON.parse(this._el.querySelector('#ap-cmd-payload').value || '{}');
-      await enqueueAgentCommand(this._selectedId, { command_type: type, payload, ttl_seconds: ttl });
-      this._msg(`命令已下发: ${type}`, 'green');
-      await this._loadOverview();
-    } catch (e) {
-      this._msg(`下发失败: ${e.message}`, 'red');
-    }
-  }
+
 
   _msg(text, type) {
     const el = this._el.querySelector('#ap-status');

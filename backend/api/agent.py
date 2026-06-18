@@ -3,9 +3,11 @@
 """
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
 import secrets
+import requests
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -16,9 +18,9 @@ from werkzeug.security import check_password_hash
 
 from extensions import db
 from middleware.rate_limit import limiter
-from middleware.rbac import admin_required
+from middleware.rbac import admin_required, owner_required
 from middleware.metrics_middleware import record_agent_push, record_agent_poll, record_agent_ack
-from models.models import AgentCommand, Server
+from models.models import AgentCommand, Server, format_server_location, record_ops_event
 from utils.errors import AuthenticationError, ValidationError
 
 agent_bp = Blueprint("agent", __name__)
@@ -155,8 +157,22 @@ def _enforce_transport_security():
     require_tls = current_app.config.get("AGENT_REQUIRE_TLS")
     if require_tls is None:
         require_tls = not current_app.config.get("TESTING", False)
-    if require_tls and not request.is_secure:
-        raise AuthenticationError("agent endpoints require HTTPS")
+    if not require_tls or request.is_secure:
+        return
+
+    # Live deployment runs the API behind Docker. The on-host agent may push to
+    # the published HTTP port and arrive as docker-bridge/private source
+    # (for example 172.18.0.1). Keep public HTTP rejected, but allow local/private
+    # agent transport because HMAC + nonce still authenticate the payload.
+    remote = request.remote_addr or ""
+    try:
+        ip = ipaddress.ip_address(remote)
+        if ip.is_loopback or ip.is_private or ip.is_link_local:
+            return
+    except ValueError:
+        pass
+
+    raise AuthenticationError("agent endpoints require HTTPS")
 
 
 def _agent_rate_limit_key() -> str:
@@ -182,6 +198,140 @@ def _record_metrics(server: Server, data: dict):
     ingest_metrics(server, data, strict=False, source="agent")
 
 
+def _num(v, cast):
+    try:
+        if v is None or v == '':
+            return None
+        return cast(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _geo_lookup_by_ip(ip: str) -> dict:
+    ip = (ip or '').strip()
+    if not ip:
+        return {}
+    try:
+        url = f"http://ip-api.com/json/{ip}?fields=status,country,regionName,city,lat,lon,isp,org,query&lang=zh-CN"
+        resp = requests.get(url, timeout=6)
+        d = resp.json() if resp.ok else {}
+        if d.get('status') != 'success':
+            return {}
+        return {
+            'country': d.get('country') or '',
+            'region': d.get('regionName') or '',
+            'city': d.get('city') or '',
+            'lat': d.get('lat'),
+            'lon': d.get('lon'),
+            'isp': d.get('isp') or '',
+            'org': d.get('org') or '',
+            'query': d.get('query') or ip,
+        }
+    except Exception:
+        return {}
+
+
+def _agent_readonly_policy(server: Server) -> dict:
+    cfg = server.agent_config if isinstance(server.agent_config, dict) else {}
+    caps = cfg.get("capabilities") if isinstance(cfg.get("capabilities"), dict) else {}
+    return {
+        "readonly": True,
+        "exec": False,
+        "terminal": False,
+        "file_list": False,
+        "reason": "监控面板与 TG 机器人仅允许只读监控，禁止远程执行/在线终端/文件列表任务。",
+        "capabilities": {
+            "exec": False,
+            "terminal": False,
+            "file_list": False,
+            **caps,
+            "exec": False,
+            "terminal": False,
+            "file_list": False,
+        },
+    }
+
+
+def _apply_agent_inventory(server: Server, data: dict):
+    inv = {}
+    for key in ('inventory', 'system', 'spec', 'hardware'):
+        val = data.get(key)
+        if isinstance(val, dict):
+            inv.update(val)
+    inv.update({k: v for k, v in data.items() if k in {
+        'hostname', 'os', 'os_name', 'arch', 'architecture', 'cpu_cores', 'cpu', 'ram_gb', 'memory_gb', 'disk_gb', 'storage_gb', 'bandwidth', 'ip'
+    }})
+
+    changed = False
+    cpu = _num(inv.get('cpu_cores', inv.get('cpu')), int)
+    ram = _num(inv.get('ram_gb', inv.get('memory_gb')), float)
+    disk = _num(inv.get('disk_gb', inv.get('storage_gb')), int)
+    bw = inv.get('bandwidth')
+    hostname = inv.get('hostname')
+    os_name = inv.get('os') or inv.get('os_name')
+    arch = inv.get('arch') or inv.get('architecture')
+    agent_ip = str(inv.get('ip') or data.get('ip') or server.ip or '').strip()
+
+    if cpu is not None and 0 < cpu <= 1024 and server.cpu_cores != cpu:
+        server.cpu_cores = cpu
+        changed = True
+    if ram is not None and 0 < ram <= 16384 and server.ram_gb != ram:
+        server.ram_gb = ram
+        changed = True
+    if disk is not None and 0 < disk <= 1048576 and server.disk_gb != disk:
+        server.disk_gb = disk
+        changed = True
+    if isinstance(bw, str) and bw.strip() and server.bandwidth != bw.strip():
+        server.bandwidth = bw.strip()
+        changed = True
+
+    cfg = dict(server.agent_config or {})
+    extra = dict(cfg.get('inventory_meta') or {})
+
+    if hostname:
+        extra['hostname'] = str(hostname).strip()
+    if os_name:
+        extra['os'] = str(os_name).strip()
+    if arch:
+        extra['arch'] = str(arch).strip()
+
+    if agent_ip:
+        extra['ip'] = agent_ip
+        if server.ip != agent_ip:
+            server.ip = agent_ip
+            changed = True
+
+    geo = _geo_lookup_by_ip(agent_ip) if agent_ip else {}
+    if geo:
+        for key in ('city', 'country', 'region', 'isp', 'org', 'query'):
+            value = str(geo.get(key) or '').strip()
+            if value:
+                extra[key] = value
+                cfg[key] = value
+        lat = geo.get('lat')
+        lon = geo.get('lon')
+        if lat is not None and lon is not None:
+            extra['lat'] = lat
+            extra['lon'] = lon
+            cfg['lat'] = lat
+            cfg['lon'] = lon
+        provider_guess = str(geo.get('org') or geo.get('isp') or '').strip()
+        if provider_guess:
+            extra['provider_guess'] = provider_guess
+            cfg['provider_guess'] = provider_guess
+
+        auto_location = format_server_location(extra.get('city'), extra.get('region'), extra.get('country'))
+        if auto_location and server.location != auto_location:
+            server.location = auto_location
+            changed = True
+
+    cfg['inventory_meta'] = extra
+    if server.agent_config != cfg:
+        server.agent_config = cfg
+        changed = True
+    return changed
+
+
 def _authenticate_agent(payload: dict) -> tuple[Server, str]:
     _enforce_transport_security()
     uuid = payload.get("uuid") or request.headers.get("X-Agent-UUID")
@@ -190,6 +340,11 @@ def _authenticate_agent(payload: dict) -> tuple[Server, str]:
 
     server = Server.query.filter_by(uuid=uuid).first()
     if not server:
+        try:
+            record_ops_event("agent_register_failed", "未知 Agent 认领失败", message="unknown agent", level="error", payload={"uuid": uuid})
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
         raise AuthenticationError("unknown agent")
 
     ts = request.headers.get("X-Agent-Timestamp", "")
@@ -226,7 +381,7 @@ def _authenticate_agent(payload: dict) -> tuple[Server, str]:
 
 
 @agent_bp.post("/claim")
-@admin_required
+@owner_required
 def claim_agent():
     data = request.get_json(silent=True) or {}
     sid = data.get("server_id")
@@ -295,6 +450,7 @@ def agent_push():
         else:
             try:
                 _record_metrics(server, data)
+                _apply_agent_inventory(server, data)
                 db.session.commit()
             except Exception:
                 db.session.rollback()
@@ -306,6 +462,12 @@ def agent_push():
         "agent push accepted",
         extra={"server_id": server.id, "uuid": uuid},
     )
+
+    try:
+        record_ops_event("agent_push_ok", f"Agent 上报成功 · {server.name}", message="metrics accepted", server_id=server.id, payload={"status": server.status, "ip": server.ip, "uuid": uuid})
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
     try:
         record_agent_push("accepted")
@@ -324,6 +486,24 @@ def agent_push():
 def agent_poll():
     data = {"uuid": request.headers.get("X-Agent-UUID")}
     server, _ = _authenticate_agent(data)
+
+    policy = _agent_readonly_policy(server)
+    if policy.get("readonly") or not current_app.config.get("AGENT_COMMANDS_ENABLED", False):
+        stale = AgentCommand.query.filter(AgentCommand.server_id == server.id, AgentCommand.status == "pending").all()
+        for cmd in stale:
+            cmd.status = "disabled"
+        if stale:
+            db.session.commit()
+        try:
+            record_agent_poll("ok")
+        except Exception as exc:
+            logger.debug("Failed to record agent poll metric: %s", exc)
+        return jsonify({
+            "config": server.agent_config or {},
+            "commands": [],
+            "readonly": True,
+            "policy": policy,
+        })
 
     now = _utc_now()
     commands = (
@@ -406,3 +586,252 @@ def agent_ack():
     )
 
     return jsonify({"ok": True, "updated": updated})
+
+@agent_bp.get("/install.sh")
+def agent_install_script():
+    script = r'''#!/usr/bin/env bash
+set -euo pipefail
+
+API_ROOT=""
+AGENT_UUID=""
+AGENT_KEY=""
+SERVER_ID=""
+INSTALL_DIR="/opt/vps-agent"
+SERVICE_NAME="vps-agent.service"
+INTERVAL="20"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --api-root) API_ROOT="$2"; shift 2 ;;
+    --uuid) AGENT_UUID="$2"; shift 2 ;;
+    --agent-key) AGENT_KEY="$2"; shift 2 ;;
+    --server-id) SERVER_ID="$2"; shift 2 ;;
+    --interval) INTERVAL="$2"; shift 2 ;;
+    *) echo "Unknown arg: $1" >&2; exit 1 ;;
+  esac
+done
+
+if [[ -z "$API_ROOT" || -z "$AGENT_UUID" || -z "$AGENT_KEY" || -z "$SERVER_ID" ]]; then
+  echo "Usage: install.sh --api-root URL --uuid UUID --agent-key KEY --server-id ID [--interval 20]" >&2
+  exit 1
+fi
+case "$API_ROOT" in http://*|https://*) ;; *) echo "Invalid --api-root" >&2; exit 1 ;; esac
+if [[ ! "$SERVER_ID" =~ ^[0-9]+$ ]]; then echo "Invalid --server-id" >&2; exit 1; fi
+if [[ ! "$INTERVAL" =~ ^[0-9]+$ ]]; then echo "Invalid --interval" >&2; exit 1; fi
+if (( INTERVAL < 10 || INTERVAL > 3600 )); then echo "Invalid --interval range" >&2; exit 1; fi
+
+mkdir -p "$INSTALL_DIR"
+umask 077
+{
+  printf 'API_ROOT=%q
+' "$API_ROOT"
+  printf 'AGENT_UUID=%q
+' "$AGENT_UUID"
+  printf 'AGENT_KEY=%q
+' "$AGENT_KEY"
+  printf 'SERVER_ID=%q
+' "$SERVER_ID"
+  printf 'INTERVAL=%q
+' "$INTERVAL"
+} > "$INSTALL_DIR/agent.env"
+
+cat > "$INSTALL_DIR/agent.py" <<'PY2'
+#!/usr/bin/env python3
+import hashlib
+import hmac
+import json
+import os
+import platform
+import shutil
+import socket
+import time
+import urllib.request
+from datetime import datetime
+
+API_ROOT = os.environ['API_ROOT'].rstrip('/')
+AGENT_UUID = os.environ['AGENT_UUID']
+AGENT_KEY = os.environ['AGENT_KEY']
+INTERVAL = max(10, int(os.environ.get('INTERVAL', '20')))
+STATE_PATH = '/opt/vps-agent/state.json'
+
+def read_os_name():
+    try:
+        data = {}
+        with open('/etc/os-release', 'r', encoding='utf-8') as f:
+            for line in f:
+                if '=' in line:
+                    k, v = line.rstrip().split('=', 1)
+                    data[k] = v.strip().strip('"')
+        return data.get('PRETTY_NAME') or data.get('NAME') or platform.platform()
+    except Exception:
+        return platform.platform()
+
+def get_ip():
+    try:
+        for fam, _, _, _, sockaddr in socket.getaddrinfo(socket.gethostname(), None):
+            if fam == socket.AF_INET and sockaddr and sockaddr[0] and not sockaddr[0].startswith('127.'):
+                return sockaddr[0]
+    except Exception:
+        pass
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(('8.8.8.8', 80))
+            return s.getsockname()[0]
+    except Exception:
+        return '127.0.0.1'
+
+def meminfo():
+    vals = {}
+    with open('/proc/meminfo', 'r', encoding='utf-8') as f:
+        for line in f:
+            key, rest = line.split(':', 1)
+            vals[key] = int(rest.strip().split()[0])
+    total = vals.get('MemTotal', 0) / 1024 / 1024
+    avail = vals.get('MemAvailable', 0) / 1024 / 1024
+    used_pct = 0 if total <= 0 else round((1 - avail / total) * 100, 2)
+    return round(total, 2), used_pct
+
+def diskinfo():
+    du = shutil.disk_usage('/')
+    total = du.total / 1024 / 1024 / 1024
+    used_pct = 0 if du.total <= 0 else round((du.used / du.total) * 100, 2)
+    return int(round(total)), used_pct
+
+def uptime_text():
+    try:
+        with open('/proc/uptime', 'r', encoding='utf-8') as f:
+            sec = int(float(f.read().split()[0]))
+        days, rem = divmod(sec, 86400)
+        hours, rem = divmod(rem, 3600)
+        mins, _ = divmod(rem, 60)
+        parts = []
+        if days:
+            parts.append(f'{days} days')
+        if hours:
+            parts.append(f'{hours} hours')
+        parts.append(f'{mins} minutes')
+        return ', '.join(parts)
+    except Exception:
+        return ''
+
+def net_totals():
+    rx = tx = 0
+    with open('/proc/net/dev', 'r', encoding='utf-8') as f:
+        lines = f.readlines()[2:]
+    for line in lines:
+        iface, rest = line.split(':', 1)
+        iface = iface.strip()
+        if iface == 'lo':
+            continue
+        parts = rest.split()
+        rx += int(parts[0])
+        tx += int(parts[8])
+    return rx, tx
+
+def net_rates():
+    now = time.time()
+    rx, tx = net_totals()
+    prev = {}
+    try:
+        with open(STATE_PATH, 'r', encoding='utf-8') as f:
+            prev = json.load(f)
+    except Exception:
+        prev = {}
+    prev_t = float(prev.get('t', now))
+    prev_rx = int(prev.get('rx', rx))
+    prev_tx = int(prev.get('tx', tx))
+    dt = max(1e-6, now - prev_t)
+    down = max(0.0, (rx - prev_rx) / 1024 / dt)
+    up = max(0.0, (tx - prev_tx) / 1024 / dt)
+    try:
+        with open(STATE_PATH, 'w', encoding='utf-8') as f:
+            json.dump({'t': now, 'rx': rx, 'tx': tx}, f)
+    except Exception:
+        pass
+    return round(up, 2), round(down, 2)
+
+def cpu_use(cpu_cores):
+    try:
+        load1 = os.getloadavg()[0]
+        return round(min(100.0, max(0.0, load1 / max(cpu_cores, 1) * 100)), 2)
+    except Exception:
+        return 0.0
+
+def payload():
+    cores = os.cpu_count() or 1
+    ram_gb, ram_use = meminfo()
+    disk_gb, disk_use = diskinfo()
+    net_up, net_down = net_rates()
+    return {
+        'uuid': AGENT_UUID,
+        'status': 'online',
+        'hostname': socket.gethostname(),
+        'os': read_os_name(),
+        'arch': platform.machine(),
+        'cpu_cores': cores,
+        'ram_gb': ram_gb,
+        'disk_gb': disk_gb,
+        'bandwidth': '待人工补充',
+        'ip': get_ip(),
+        'cpu_use': cpu_use(cores),
+        'ram_use': ram_use,
+        'disk_use': disk_use,
+        'net_up': net_up,
+        'net_down': net_down,
+        'uptime': uptime_text(),
+    }
+
+def sign(body: bytes, ts: str, nonce: str) -> str:
+    msg = f'{ts}.{nonce}.'.encode('utf-8') + body
+    return hmac.new(AGENT_KEY.encode('utf-8'), msg, hashlib.sha256).hexdigest()
+
+def push_once():
+    data = payload()
+    body = json.dumps(data, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+    ts = str(int(time.time()))
+    nonce = str(int(time.time() * 1000))
+    req = urllib.request.Request(API_ROOT + '/api/v1/agent/push', data=body, method='POST')
+    req.add_header('Content-Type', 'application/json')
+    req.add_header('X-Agent-UUID', AGENT_UUID)
+    req.add_header('X-Agent-Key', AGENT_KEY)
+    req.add_header('X-Agent-Timestamp', ts)
+    req.add_header('X-Agent-Nonce', nonce)
+    req.add_header('X-Agent-Signature', sign(body, ts, nonce))
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return resp.read().decode('utf-8', 'ignore')
+
+while True:
+    try:
+        push_once()
+    except Exception as e:
+        print(f'[{datetime.utcnow().isoformat()}] push failed: {e}', flush=True)
+    time.sleep(INTERVAL)
+PY2
+chmod +x "$INSTALL_DIR/agent.py"
+
+install -m 0644 /dev/null "/etc/systemd/system/$SERVICE_NAME"
+cat > "/etc/systemd/system/$SERVICE_NAME" <<EOF
+[Unit]
+Description=VPS Readonly Metrics Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=$INSTALL_DIR/agent.env
+ExecStart=/usr/bin/python3 $INSTALL_DIR/agent.py
+Restart=always
+RestartSec=5
+User=root
+WorkingDirectory=$INSTALL_DIR
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now "$SERVICE_NAME"
+systemctl status "$SERVICE_NAME" --no-pager --full | sed -n "1,20p"
+echo "installed: $SERVICE_NAME"
+'''
+    return current_app.response_class(script, mimetype='text/plain; charset=utf-8')

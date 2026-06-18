@@ -4,7 +4,8 @@
  * 从 frontend/api-public.js 迁移，改为 ES Module 标准导出格式
  */
 
-const BASE = '/api/v1'
+const API_ROOT = window.__API_ROOT__ || (location.port === "5000" ? `${location.protocol}//${location.hostname}:5000` : location.origin);
+const BASE = `${API_ROOT}/api/v1`
 const API_SCHEMA_VERSION = '2026-04-23'
 
 /**
@@ -13,9 +14,16 @@ const API_SCHEMA_VERSION = '2026-04-23'
  * @returns {Promise<any>}
  */
 async function publicGet(path) {
-  const resp = await fetch(BASE + path, {
+  const url = new URL(BASE + path, location.origin)
+  url.searchParams.set('_ts', String(Date.now()))
+  const resp = await fetch(url.toString(), {
     method: 'GET',
-    headers: { Accept: 'application/json', 'X-Client-Schema-Version': API_SCHEMA_VERSION },
+    headers: {
+      Accept: 'application/json',
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
+    },
+    cache: 'no-store',
   })
   if (!resp.ok) {
     const payload = await resp.json().catch(() => ({}))
@@ -52,7 +60,7 @@ export async function getServerCoords(options = {}) {
 /** 查询 IP 地理信息（公开，无需鉴权） */
 export async function getIPInfo(ip = '') {
   const qs = ip ? `?ip=${encodeURIComponent(ip)}` : ''
-  return publicGet(`/probe/ip-info${qs}`)
+  return publicGet(`/geo/ip${qs}`)
 }
 
 /** 获取 AFF 列表 */

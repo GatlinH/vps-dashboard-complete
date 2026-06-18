@@ -29,7 +29,7 @@ class SecurityConfig:
         # 1. 安全头配置（完善版本）
         Talisman(
             app,
-            force_https=app.config.get('FORCE_HTTPS', True),
+            force_https=app.config.get('FORCE_HTTPS', False),
             strict_transport_security=app.config.get('HSTS_ENABLED', True),
             strict_transport_security_max_age=app.config.get('HSTS_MAX_AGE', 31536000),
             strict_transport_security_include_subdomains=app.config.get('HSTS_INCLUDE_SUBDOMAINS', True),
@@ -62,7 +62,8 @@ class SecurityConfig:
             response.headers['X-XSS-Protection'] = '1; mode=block'
 
             # Referrer 政策
-            response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+            if 'Referrer-Policy' not in response.headers:
+                response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
 
             # 功能政策
             response.headers['Permissions-Policy'] = (
@@ -87,7 +88,7 @@ class SecurityConfig:
 
         # 4. 会话配置
         app.config.update(
-            SESSION_COOKIE_SECURE=True,
+            SESSION_COOKIE_SECURE=app.config.get('SESSION_COOKIE_SECURE', False),
             SESSION_COOKIE_HTTPONLY=True,
             SESSION_COOKIE_SAMESITE='Lax',
             SESSION_COOKIE_NAME='__Host-session',

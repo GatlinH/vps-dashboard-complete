@@ -1,256 +1,374 @@
 /**
  * components/admin/ServerManager.js
- * 管理后台「服务器管理」面板
- *   - 从 API 加载服务器列表
- *   - 快速导入（点击卡片填充表单）
- *   - 手动添加 / 删除（调用 API）
+ * Komari-like VPS / Agent node manager.
  */
-import { fetchServers, createServer, deleteServer } from '../../api/servers.js';
+import {
+  fetchServers,
+  createServer,
+  updateServer,
+  deleteServer,
+  updateAgentConfig,
+  generateAgentKey,
+  rotateAgentKey,
+  getAgentOverview,
+  fetchAgentInstallCommand,
+} from '../../api/servers.js';
 
 export class ServerManager {
-  /**
-   * @param {string} mountId  挂载到的容器 ID（admin-page 区域）
-   */
   constructor(mountId) {
-    this._el      = document.getElementById(mountId);
+    this._el = document.getElementById(mountId);
     this._servers = [];
+    this._busy = false;
+    this._editingId = null;
+    this._selectedIds = new Set();
+    this._query = '';
+    this._serversChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('vps-servers') : null;
     this._render();
     this._bind();
-    this._busy = false;
   }
 
-  // ── 公开 ─────────────────────────────────────────────────────────────────
-
-  /** 加载 / 刷新服务器列表 */
   async reload() {
     try {
       this._servers = await fetchServers();
-      this._renderMonitorList();
-      this._renderExistingTable();
-    } catch (e) {
-      this._msg(e.message, 'red');
-    }
+      this._renderTable();
+    } catch (e) { this._toast(e.message, 'red'); }
   }
 
-  /** 返回当前服务器列表（供其他面板使用，如 Ping） */
   get servers() { return this._servers; }
 
-  // ── 骨架渲染 ─────────────────────────────────────────────────────────────
+  openEditById(id) { this._openInfoModal(id); }
 
   _render() {
     this._el.innerHTML = /* html */`
-      <!-- 快速导入 -->
-      <div class="admin-card">
-        <div class="admin-card-title">🔗 从监控 VPS 快速导入</div>
-        <div id="sm-monitor-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin-bottom:14px"></div>
-        <div style="font-size:12px;color:var(--text3)">点击卡片选中，填写价格信息后保存</div>
-      </div>
-
-      <!-- 手动添加 -->
-      <div class="admin-card">
-        <div class="admin-card-title">✏️ 手动添加 / 编辑</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div class="form-group"><label class="form-label">服务器名称 *</label><input class="form-input" id="sm-name" placeholder="my-vps-01"></div>
-          <div class="form-group"><label class="form-label">分组</label><input class="form-input" id="sm-group" placeholder="生产环境"></div>
-          <div class="form-group"><label class="form-label">旗帜 Emoji</label><input class="form-input" id="sm-flag" placeholder="🇺🇸"></div>
-          <div class="form-group"><label class="form-label">IP 地址 <span style="color:var(--green);font-size:10px">自动</span></label><input class="form-input" id="sm-ip" placeholder="1.2.3.4"></div>
-          <div class="form-group"><label class="form-label">位置 <span style="color:var(--green);font-size:10px">自动</span></label><input class="form-input" id="sm-location" placeholder="美国洛杉矶"></div>
-          <div class="form-group"><label class="form-label">带宽 <span style="color:var(--green);font-size:10px">自动</span></label><input class="form-input" id="sm-bw" placeholder="1Gbps不限"></div>
-          <div class="form-group"><label class="form-label">CPU (核) <span style="color:var(--green);font-size:10px">自动</span></label><input class="form-input" id="sm-cpu" type="number" placeholder="4"></div>
-          <div class="form-group"><label class="form-label">内存 (GB) <span style="color:var(--green);font-size:10px">自动</span></label><input class="form-input" id="sm-ram" type="number" placeholder="8"></div>
-          <div class="form-group"><label class="form-label">存储 (GB) <span style="color:var(--green);font-size:10px">自动</span></label><input class="form-input" id="sm-disk" type="number" placeholder="100"></div>
-          <div class="form-group"><label class="form-label">价格 (元) *</label><input class="form-input" id="sm-price" type="number" placeholder="99"></div>
-          <div class="form-group"><label class="form-label">付费周期</label>
-            <select class="form-input" id="sm-period">
-              <option value="monthly">月付</option>
-              <option value="yearly">年付</option>
-              <option value="quarterly">季付</option>
-            </select>
+      <div class="komari-node-page">
+        <div class="komari-node-toolbar">
+          <h2>节点列表</h2>
+          <div class="komari-node-actions">
+            <input id="sm-search" class="form-input komari-search" placeholder="找到服务器">
+            <button id="sm-add-node" class="add-btn">＋ 添加节点</button>
           </div>
-          <div class="form-group"><label class="form-label">到期日期</label><input class="form-input" id="sm-expiry" type="date"></div>
-          <div class="form-group" style="grid-column:1/-1"><label class="form-label">探针 URL</label><input class="form-input" id="sm-probe" placeholder="https://..."></div>
-          <div class="form-group" style="grid-column:1/-1"><label class="form-label">备注</label><input class="form-input" id="sm-note" placeholder="这台机子用于..."></div>
         </div>
-        <div style="display:flex;gap:10px;margin-top:1rem">
-          <button class="add-btn" id="sm-submit">确认添加</button>
-          <button id="sm-clear" style="padding:8px 18px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:13px">清空</button>
+        <div class="komari-table-wrap">
+          <table class="komari-node-table">
+            <thead>
+              <tr>
+                <th style="width:34px"></th>
+                <th style="width:36px"><input id="sm-check-all" type="checkbox"></th>
+                <th>名称</th>
+                <th>IP地址</th>
+                <th>客户端版本</th>
+                <th>包</th>
+                <th>外形备注</th>
+                <th>账单</th>
+                <th style="width:150px;text-align:right">操作</th>
+              </tr>
+            </thead>
+            <tbody id="sm-existing"></tbody>
+          </table>
         </div>
-        <div id="sm-msg" style="margin-top:8px;font-size:12px;min-height:18px"></div>
+        <div id="sm-msg" class="komari-msg"></div>
       </div>
-
-      <!-- 已有服务器 -->
-      <div class="admin-card">
-        <div class="admin-card-title">📋 已有服务器</div>
-        <div id="sm-existing"></div>
-      </div>`;
+      <div id="sm-modal-root"></div>`;
   }
-
-  // ── 事件绑定 ─────────────────────────────────────────────────────────────
 
   _bind() {
-    this._el.querySelector('#sm-submit').addEventListener('click', () => this._submit());
-    this._el.querySelector('#sm-clear').addEventListener('click',  () => this._clearForm());
-
-    // 已有列表委托删除
+    this._el.querySelector('#sm-add-node').addEventListener('click', () => this._openAddModal());
+    this._el.querySelector('#sm-search').addEventListener('input', e => { this._query = e.target.value.trim().toLowerCase(); this._renderTable(); });
+    this._el.querySelector('#sm-check-all').addEventListener('change', e => {
+      const rows = this._filteredServers();
+      this._selectedIds = e.target.checked ? new Set(rows.map(s => String(s.id))) : new Set();
+      this._renderTable();
+    });
     this._el.querySelector('#sm-existing').addEventListener('click', e => {
-      const btn = e.target.closest('[data-delete-id]');
-      if (btn) this._delete(btn.dataset.deleteId);
+      const btn = e.target.closest('[data-action]');
+      const check = e.target.closest('[data-row-check]');
+      if (check) {
+        const id = check.dataset.rowCheck;
+        check.checked ? this._selectedIds.add(id) : this._selectedIds.delete(id);
+        return;
+      }
+      if (!btn) return;
+      const id = btn.dataset.id;
+      const action = btn.dataset.action;
+      if (action === 'install') return this._openInstallModal(id);
+      if (action === 'terminal') return this._openAgentModal(id);
+      if (action === 'edit') return this._openInfoModal(id);
+      if (action === 'billing') return this._openBillingModal(id);
+      if (action === 'delete') return this._delete(id);
+    });
+    this._el.querySelector('#sm-modal-root').addEventListener('click', e => {
+      if (e.target.matches('[data-modal-close], .komari-modal-backdrop')) this._closeModal();
     });
   }
 
-  // ── 监控列表（快速导入） ──────────────────────────────────────────────────
-
-  _renderMonitorList() {
-    const el = this._el.querySelector('#sm-monitor-list');
-    el.innerHTML = this._servers.map(s => /* html */`
-      <div class="ping-server-item" data-fill-id="${s.id}" style="cursor:pointer">
-        <span style="font-size:18px">${s.flag}</span>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;color:var(--text);font-weight:600">${s.name}</div>
-          <div style="font-size:11px;color:var(--text3);font-family:var(--mono)">${s.ip} · ${s.location}</div>
-        </div>
-        <div style="font-size:10px;padding:2px 8px;border-radius:6px;
-          background:${s.status==='online'?'rgba(56,239,125,.12)':s.status==='warn'?'rgba(255,159,67,.12)':'rgba(255,107,107,.12)'};
-          color:${s.status==='online'?'var(--green)':s.status==='warn'?'var(--orange)':'var(--red)'}">
-          ${s.status==='online'?'在线':s.status==='warn'?'预警':'离线'}
-        </div>
-      </div>`).join('');
-
-    // 事件委托
-    el.addEventListener('click', e => {
-      const card = e.target.closest('[data-fill-id]');
-      if (card) this._fillFromServer(Number(card.dataset.fillId));
-    });
+  _filteredServers() {
+    if (!this._query) return this._servers;
+    return this._servers.filter(s => [s.name, s.ip, s.location, s.note, s.provider, s.bw, (s.tags || []).join(',')]
+      .some(v => String(v || '').toLowerCase().includes(this._query)));
   }
 
-  _fillFromServer(id) {
-    const s = this._servers.find(x => x.id === id);
-    if (!s) return;
-    const map = { 'sm-name': s.name, 'sm-group': s.group, 'sm-flag': s.flag,
-      'sm-ip': s.ip, 'sm-location': s.location, 'sm-bw': s.bw,
-      'sm-cpu': s.cpu, 'sm-ram': s.ram, 'sm-disk': s.disk,
-      'sm-probe': s.probe || '', 'sm-price': s.price || '',
-      'sm-expiry': s.expiry || '', 'sm-note': s.note || '' };
-    for (const [id, val] of Object.entries(map)) {
-      const el = this._el.querySelector(`#${id}`);
-      if (el) el.value = val;
-    }
-    if (s.period) this._el.querySelector('#sm-period').value = s.period;
-
-    // 绿色闪烁提示
-    ['sm-ip','sm-location','sm-bw','sm-cpu','sm-ram','sm-disk'].forEach(fid => {
-      const el = this._el.querySelector(`#${fid}`);
-      if (el) { el.style.borderColor = 'var(--green)'; setTimeout(() => el.style.borderColor = '', 1200); }
-    });
-    this._el.querySelector('#sm-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
-
-  // ── 已有服务器表格 ────────────────────────────────────────────────────────
-
-  _renderExistingTable() {
+  _renderTable() {
     const el = this._el.querySelector('#sm-existing');
-    if (!this._servers.length) { el.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:1.5rem">暂无服务器</div>'; return; }
-    el.innerHTML = /* html */`
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead><tr style="border-bottom:1px solid var(--border)">
-          ${['名称','位置','规格','状态','操作'].map(h =>
-            `<td style="padding:6px 8px;color:var(--text3)">${h}</td>`).join('')}
-        </tr></thead>
-        <tbody>
-          ${this._servers.map(s => /* html */`
-            <tr style="border-bottom:1px solid rgba(255,255,255,.04)">
-              <td style="padding:6px 8px;color:var(--text)">${s.flag} ${s.name}</td>
-              <td style="padding:6px 8px;color:var(--text2);font-size:12px">${s.location}</td>
-              <td style="padding:6px 8px;color:var(--text3);font-family:var(--mono);font-size:11px">${s.cpu}C/${s.ram}G/${s.disk}G</td>
-              <td style="padding:6px 8px">
-                <span style="font-size:11px;padding:2px 8px;border-radius:6px;
-                  background:${s.status==='online'?'rgba(56,239,125,.12)':'rgba(255,107,107,.12)'};
-                  color:${s.status==='online'?'var(--green)':'var(--red)'}">
-                  ${s.status==='online'?'在线':'离线/预警'}</span>
-              </td>
-              <td style="padding:6px 8px">
-                <button data-delete-id="${s.id}"
-                  style="font-size:11px;padding:3px 10px;border-radius:6px;background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.2);color:var(--red);cursor:pointer">
-                  删除
-                </button>
-              </td>
-            </tr>`).join('')}
-        </tbody>
-      </table>`;
+    const rows = this._filteredServers();
+    if (!rows.length) {
+      el.innerHTML = `<tr><td colspan="9" class="komari-empty">暂无节点</td></tr>`;
+      return;
+    }
+    el.innerHTML = rows.map(s => {
+      const id = String(s.id);
+      const price = Number(s.price || 0);
+      const currency = this._billingCurrency(s);
+      const billing = price < 0 ? '免费' : price === 0 ? '—' : `${currency}${price.toFixed(2)} / ${this._periodLabel(s.period)}`;
+      const clientVersion = this._agentVersion(s) || '—';
+      const pkg = s.group || s.provider || '—';
+      return /* html */`
+        <tr>
+          <td class="komari-drag">☰</td>
+          <td><input type="checkbox" data-row-check="${id}" ${this._selectedIds.has(id) ? 'checked' : ''}></td>
+          <td class="komari-node-name">
+            <span class="komari-node-badge">${this._escape((s.flag || 'V').slice(0, 2))}</span>
+            <div><strong>${this._escape(s.name || s.ip || '未命名节点')}</strong><small>${this._escape(s.status || 'unknown')}</small></div>
+          </td>
+          <td>${this._escape(s.ip || '—')}</td>
+          <td>${this._escape(clientVersion)}</td>
+          <td>${this._escape(pkg)}</td>
+          <td>${this._escape(s.note || s.location || '—')}</td>
+          <td>${this._escape(billing)}<br><small>${this._escape(s.expiry || '长期')}</small></td>
+          <td class="komari-row-actions">
+            <button title="一键配置命令" data-action="install" data-id="${id}">⬇</button>
+            <button title="Agent 状态" data-action="terminal" data-id="${id}">⌘</button>
+            <button title="编辑信息" data-action="edit" data-id="${id}">✎</button>
+            <button title="账单" data-action="billing" data-id="${id}">¤</button>
+            <button class="danger" title="删除" data-action="delete" data-id="${id}">🗑</button>
+          </td>
+        </tr>`;
+    }).join('');
   }
 
-  // ── 添加 ─────────────────────────────────────────────────────────────────
+  _openAddModal() {
+    this._editingId = null;
+    this._modal('添加节点', /* html */`
+      <div class="komari-form-grid one">
+        <input class="form-input" id="sm-add-name" placeholder="名称（可选）">
+        <input class="form-input" id="sm-add-ip" placeholder="IP地址 / 主机名（必填）">
+      </div>
+      <div class="komari-modal-actions"><button class="add-btn" id="sm-add-save">添加节点</button></div>`);
+    this._el.querySelector('#sm-add-save').addEventListener('click', () => this._createFromModal());
+  }
 
-  async _submit() {
+  async _createFromModal() {
     if (this._busy) return;
-    const v = id => this._el.querySelector(`#${id}`)?.value?.trim();
-    if (!v('sm-name')) { this._msg('请填写服务器名称', 'red'); return; }
-    if (!v('sm-ip'))   { this._msg('请填写 IP 地址',   'red'); return; }
-
+    const ip = this._val('sm-add-ip');
+    const name = this._val('sm-add-name') || ip;
+    if (!ip) return this._modalMsg('请填写 IP 地址 / 主机名', 'red');
     try {
       this._busy = true;
-      this._toggleSubmit(true);
-      const created = await createServer({
-        name: v('sm-name'), ip: v('sm-ip'), group: v('sm-group'), flag: v('sm-flag'),
-        location: v('sm-location'), bw: v('sm-bw'),
-        cpu: v('sm-cpu'), ram: v('sm-ram'), disk: v('sm-disk'),
-        price: v('sm-price'), period: this._el.querySelector('#sm-period')?.value,
-        expiry: v('sm-expiry'), probe: v('sm-probe'), note: v('sm-note'),
-      });
-      this._msg(`✅ 已添加 "${v('sm-name')}"`, 'green');
-      this._servers.unshift(created);
-      this._renderExistingTable();
-      this._renderMonitorList();
-      this._clearForm();
-    } catch (e) {
-      this._msg(e.message, 'red');
-    } finally {
-      this._busy = false;
-      this._toggleSubmit(false);
-    }
+      const saved = await createServer({ name, ip, price: 0, period: 'monthly', provisionAgent: true });
+      this._servers.unshift(saved);
+      this._notifyServersChanged('created', saved.id);
+      this._renderTable();
+      this._closeModal();
+      this._toast(`✅ 已添加 ${name}`, 'green');
+      if (saved._agent) this._showInstallPayload(saved, saved._agent);
+    } catch (e) { this._modalMsg(e.message, 'red'); }
+    finally { this._busy = false; }
   }
 
-  // ── 删除 ─────────────────────────────────────────────────────────────────
+  _openInfoModal(id) {
+    const s = this._find(id); if (!s) return;
+    this._editingId = s.id;
+    this._modal('编辑信息', /* html */`
+      <div class="komari-form-grid one">
+        <label>名称<input class="form-input" id="sm-info-name" value="${this._attr(s.name || '')}"></label>
+        <label>IP 地址<input class="form-input" id="sm-info-ip" value="${this._attr(s.ip || '')}"></label>
+        <label>标签 <small>多个标签用逗号分隔</small><input class="form-input" id="sm-info-tags" value="${this._attr((s.tags || []).join(', '))}"></label>
+        <label>包<input class="form-input" id="sm-info-group" value="${this._attr(s.group || '')}"></label>
+        <label>外形备注<textarea class="form-input" id="sm-info-note" placeholder="请输入内部备注">${this._escape(s.note || '')}</textarea></label>
+        <label>公开备注<textarea class="form-input" id="sm-info-location" placeholder="请输入公开备注 / 地理位置">${this._escape(s.location || '')}</textarea></label>
+        <div class="komari-form-grid two">
+          <label>月流量 <small>单位 GB；0 表示不限/不显示</small><input class="form-input" id="sm-info-traffic-limit" type="number" min="0" step="0.01" value="${this._attr(s.traffic_limit_gb ?? 0)}"></label>
+          <label>流量重置日 <small>每月 1-31 日</small><input class="form-input" id="sm-info-traffic-reset" type="number" min="1" max="31" step="1" value="${this._attr(s.traffic_reset_day ?? 1)}"></label>
+        </div>
+        <div class="komari-toggle-row"><div><strong>隐藏节点</strong><small>在未到期的情况下隐藏该节点（当前仅保存为标签 hidden）</small></div><input id="sm-info-hidden" type="checkbox" ${(s.tags || []).includes('hidden') ? 'checked' : ''}></div>
+      </div>
+      <div id="sm-modal-msg" class="komari-msg"></div>
+      <div class="komari-modal-actions"><button class="add-btn" id="sm-info-save">保存</button></div>`);
+    this._el.querySelector('#sm-info-save').addEventListener('click', () => this._saveInfoModal(id));
+  }
+
+  async _saveInfoModal(id) {
+    if (this._busy) return;
+    const tags = this._val('sm-info-tags').split(',').map(x => x.trim()).filter(Boolean);
+    const hidden = this._el.querySelector('#sm-info-hidden')?.checked;
+    const finalTags = hidden ? Array.from(new Set([...tags, 'hidden'])) : tags.filter(x => x !== 'hidden');
+    const trafficLimitGb = Number(this._val('sm-info-traffic-limit') || 0);
+    const trafficResetDay = Number(this._val('sm-info-traffic-reset') || 1);
+    const payload = { name: this._val('sm-info-name'), ip: this._val('sm-info-ip'), group: this._val('sm-info-group'), note: this._val('sm-info-note'), location: this._val('sm-info-location'), tags: finalTags, traffic_limit_gb: trafficLimitGb, traffic_reset_day: trafficResetDay };
+    if (!payload.name || !payload.ip) return this._modalMsg('名称和 IP 不能为空', 'red');
+    if (!Number.isFinite(trafficLimitGb) || trafficLimitGb < 0) return this._modalMsg('月流量必须是 0 或更大的数字', 'red');
+    if (!Number.isInteger(trafficResetDay) || trafficResetDay < 1 || trafficResetDay > 31) return this._modalMsg('流量重置日必须是 1-31 的整数', 'red');
+    try {
+      this._busy = true;
+      const saved = await updateServer(id, payload);
+      this._servers = this._servers.map(x => String(x.id) === String(id) ? { ...x, ...saved, tags: finalTags } : x);
+      this._notifyServersChanged('updated', id);
+      this._renderTable();
+      this._closeModal();
+      this._toast('✅ 信息已保存', 'green');
+    } catch(e) { this._modalMsg(e.message, 'red'); }
+    finally { this._busy = false; }
+  }
+
+  _openBillingModal(id) {
+    const s = this._find(id); if (!s) return;
+    const cfg = s.agent_config && typeof s.agent_config === 'object' ? s.agent_config : {};
+    const billing = cfg.billing && typeof cfg.billing === 'object' ? cfg.billing : {};
+    const periodDays = billing.period_days ?? this._periodDays(s.period);
+    const expiryText = s.expiry || billing.expiry_text || '0001-01-01';
+    this._modal('账单', /* html */`
+      <div class="komari-form-grid one komari-billing-form">
+        <label>价格 <small>0不显示，-1表示免费</small><input class="form-input" id="sm-bill-price" type="number" step="0.01" value="${this._attr(s.price ?? 0)}"></label>
+        <label>货币 <small>¥-人民币，$-美元，€-欧元，£-英镑，₽-卢布，₣-法郎，₩-韩元，₺-土耳其，฿-泰铢</small><input class="form-input" id="sm-bill-currency" value="${this._attr(this._billingCurrency(s))}"></label>
+        <label class="komari-period-label"><span>周期护理 <button type="button" id="sm-bill-info" class="komari-info-dot" aria-label="周期规则">i</button></span><input class="form-input" id="sm-bill-period-days" type="number" min="-1" step="1" value="${this._attr(periodDays ?? '')}"></label>
+        <div class="komari-expiry-row">
+          <label>接近时间<input class="form-input" id="sm-bill-expiry" type="date" value="${this._attr(expiryText)}"></label>
+          <button type="button" id="sm-bill-long" class="komari-text-btn">设定为长期</button>
+        </div>
+        <div class="komari-toggle-row komari-renew-row"><div><strong>自动续费</strong><small>如果服务器超时时且当前在线，Komari 将自动将超时时间设置为下个自然月（年）。</small></div><label class="komari-switch"><input id="sm-bill-renew" type="checkbox" ${billing.auto_renew ? 'checked' : ''}><span></span></label></div>
+      </div>
+      <div id="sm-period-popover" class="komari-period-popover" hidden>
+        <strong>周期规则</strong>
+        <b>按预设周期（日历续费）</b>
+        <p>当输入的天数与预设方案（如月付、季付、年付）的数值相近时，将转换为对应的日历周期续费。</p>
+        <p>常用数值：30（月）、92（季）、365（年）、730（二年）等。</p>
+        <p>示例：输入 30，服务从 3 月 15 日续费，新的账单日为 4 月 15 日。</p>
+        <b>按自定义天数</b>
+        <p>输入其他天数时（如 7、45、100），将严格按天数续费。</p>
+        <p>示例：输入45，服务从3月15日续费，新的账单日为4月29日（45天后）。</p>
+        <b>立即</b>
+        <p>输入付费 -1 表示一次性付费。</p>
+      </div>
+      <div id="sm-modal-msg" class="komari-msg"></div>
+      <div class="komari-modal-actions"><button class="add-btn komari-wide-save" id="sm-bill-save">保存</button></div>`);
+    this._el.querySelector('#sm-bill-long').addEventListener('click', () => { this._el.querySelector('#sm-bill-expiry').value = '0001-01-01'; });
+    this._el.querySelector('#sm-bill-info').addEventListener('click', e => {
+      e.preventDefault();
+      const pop = this._el.querySelector('#sm-period-popover');
+      pop.hidden = !pop.hidden;
+    });
+    this._el.querySelector('#sm-bill-save').addEventListener('click', () => this._saveBillingModal(id));
+  }
+
+  async _saveBillingModal(id) {
+    if (this._busy) return;
+    const s = this._find(id); if (!s) return;
+    const price = Number(this._val('sm-bill-price') || 0);
+    const periodDays = Number(this._val('sm-bill-period-days') || 0);
+    if (Number.isNaN(price) || price < -1) return this._modalMsg('价格只能为 -1 或更大的数字', 'red');
+    if (Number.isNaN(periodDays) || periodDays < -1) return this._modalMsg('周期天数只能为 -1 或更大的整数', 'red');
+    const period = this._periodFromDays(periodDays);
+    const prevCfg = s.agent_config && typeof s.agent_config === 'object' ? s.agent_config : {};
+    const billing = {
+      ...(prevCfg.billing || {}),
+      currency: this._val('sm-bill-currency') || '$',
+      period_days: periodDays,
+      auto_renew: !!this._el.querySelector('#sm-bill-renew')?.checked,
+      expiry_text: this._val('sm-bill-expiry') || '0001-01-01',
+    };
+    const agentConfig = { ...prevCfg, billing };
+    const expiryVal = this._val('sm-bill-expiry');
+    const payload = { name: s.name, ip: s.ip, price, period, expiry: expiryVal && expiryVal !== '0001-01-01' ? expiryVal : null };
+    try {
+      this._busy = true;
+      const saved = await updateServer(id, payload);
+      try { await updateAgentConfig(id, agentConfig); } catch (_) {}
+      this._servers = this._servers.map(x => String(x.id) === String(id) ? { ...x, ...saved, price, period: payload.period, expiry: payload.expiry, agent_config: agentConfig } : x);
+      this._notifyServersChanged('updated', id);
+      this._renderTable();
+      this._closeModal();
+      this._toast('✅ 账单已保存', 'green');
+    } catch(e) { this._modalMsg(e.message, 'red'); }
+    finally { this._busy = false; }
+  }
+
+  async _openInstallModal(id) {
+    const s = this._find(id); if (!s) return;
+    this._modal('一键配置命令', `<div class="komari-loading">正在生成安装命令...</div>`);
+    try {
+      const agent = await generateAgentKey(id);
+      let cmd = '';
+      try { const res = await fetchAgentInstallCommand(id, agent.agent_key); cmd = res.install_command || res.command || ''; } catch (_) { cmd = agent.install_command || ''; }
+      this._showInstallPayload(s, { ...agent, install_command: cmd });
+    } catch (e) { this._modal('一键配置命令', `<div class="komari-error">${this._escape(e.message)}</div>`); }
+  }
+
+  _showInstallPayload(server, agent) {
+    this._modal('一键配置命令', /* html */`
+      <div class="komari-form-grid one">
+        <label>Agent Key<textarea readonly class="form-input komari-code" id="sm-copy-key">${this._escape(agent?.agent_key || '')}</textarea></label>
+        <label>Install URL<textarea readonly class="form-input komari-code">${this._escape(agent?.install_url || '')}</textarea></label>
+        <label>Install Command<textarea readonly class="form-input komari-code" id="sm-copy-cmd">${this._escape(agent?.install_command || '')}</textarea></label>
+      </div>
+      <div id="sm-modal-msg" class="komari-msg"></div>
+      <div class="komari-modal-actions"><button class="add-btn" id="sm-copy-install">复制命令</button></div>`);
+    this._el.querySelector('#sm-copy-install').addEventListener('click', () => this._copy(this._el.querySelector('#sm-copy-cmd').value));
+  }
+
+  async _openAgentModal(id) {
+    const s = this._find(id); if (!s) return;
+    this._modal('Agent 状态', `<div class="komari-loading">加载中...</div>`);
+    try {
+      const data = await getAgentOverview(id);
+      this._modal('Agent 状态', /* html */`
+        <div class="komari-agent-state">
+          <div><b>节点</b><span>${this._escape(s.name)}</span></div>
+          <div><b>UUID</b><span>${this._escape(data.uuid || '未绑定')}</span></div>
+          <div><b>密钥创建</b><span>${this._escape(data.agent_key_created_at || '—')}</span></div>
+          <div><b>最近使用</b><span>${this._escape(data.agent_key_last_used || '—')}</span></div>
+          <div><b>能力策略</b><span>只读监控 / exec 禁用 / terminal 禁用 / file_list 禁用</span></div>
+        </div>
+        <div class="komari-modal-actions"><button class="add-btn" id="sm-agent-rotate">轮换密钥</button></div>`);
+      this._el.querySelector('#sm-agent-rotate').addEventListener('click', async () => {
+        const agent = await rotateAgentKey(id);
+        this._showInstallPayload(s, agent);
+      });
+    } catch(e) { this._modal('Agent 状态', `<div class="komari-error">${this._escape(e.message)}</div>`); }
+  }
 
   async _delete(id) {
-    if (this._busy) return;
-    if (!confirm('确认删除该服务器？')) return;
+    if (this._busy || !confirm('确认删除该节点？')) return;
     try {
       this._busy = true;
       await deleteServer(id);
       this._servers = this._servers.filter(s => String(s.id) !== String(id));
-      this._renderExistingTable();
-      this._renderMonitorList();
-      this._msg('🗑️ 删除成功，列表已更新', 'blue');
-    } catch (e) {
-      this._msg(e.message, 'red');
-    } finally {
-      this._busy = false;
-    }
+      this._notifyServersChanged('deleted', id);
+      this._renderTable();
+      this._toast('🗑️ 删除成功', 'blue');
+    } catch(e){ this._toast(e.message,'red'); }
+    finally { this._busy=false; }
   }
 
-  // ── 工具 ─────────────────────────────────────────────────────────────────
-
-  _clearForm() {
-    ['sm-name','sm-group','sm-flag','sm-ip','sm-location','sm-bw',
-     'sm-cpu','sm-ram','sm-disk','sm-price','sm-probe','sm-note','sm-expiry']
-      .forEach(id => { const el = this._el.querySelector(`#${id}`); if (el) el.value = ''; });
+  _modal(title, body) {
+    this._el.querySelector('#sm-modal-root').innerHTML = /* html */`
+      <div class="komari-modal-backdrop">
+        <div class="komari-modal" role="dialog" aria-modal="true">
+          <div class="komari-modal-title"><span>${this._escape(title)}</span><button data-modal-close>×</button></div>
+          <div class="komari-modal-body">${body}</div>
+        </div>
+      </div>`;
   }
-
-  _msg(text, type) {
-    const el = this._el.querySelector('#sm-msg');
-    if (!el) return;
-    const colors = { green: 'var(--green)', red: 'var(--red)', blue: 'var(--accent)' };
-    el.style.color = colors[type] || 'var(--text2)';
-    el.textContent = text;
-    setTimeout(() => { if (el.textContent === text) el.textContent = ''; }, 3500);
-  }
-
-  _toggleSubmit(disabled) {
-    const btn = this._el.querySelector('#sm-submit');
-    if (!btn) return;
-    btn.disabled = disabled;
-    btn.textContent = disabled ? '提交中...' : '确认添加';
-    btn.style.opacity = disabled ? '0.7' : '1';
-  }
+  _closeModal(){ this._el.querySelector('#sm-modal-root').innerHTML = ''; }
+  _find(id){ return this._servers.find(x => String(x.id) === String(id)); }
+  _val(id){ return this._el.querySelector(`#${id}`)?.value?.trim() || ''; }
+  _periodLabel(p){ return {monthly:'月付', quarterly:'季付', yearly:'年付', biennial:'二年付', one_time:'一次性', custom:'自定义'}[p] || p || 'monthly'; }
+  _periodDays(p){ return {monthly:30, quarterly:92, yearly:365, biennial:730, one_time:-1}[p] ?? ''; }
+  _periodFromDays(days){ if (days === -1) return 'one_time'; if (days >= 27 && days <= 33) return 'monthly'; if (days >= 86 && days <= 98) return 'quarterly'; if (days >= 350 && days <= 380) return 'yearly'; if (days >= 710 && days <= 750) return 'biennial'; return 'custom'; }
+  _billingCurrency(s){ const cfg=s.agent_config&&typeof s.agent_config==='object'?s.agent_config:{}; const billing=cfg.billing&&typeof cfg.billing==='object'?cfg.billing:{}; return billing.currency || s.currency || '¥'; }
+  _agentVersion(s){ const m=s.agent_config?.inventory_meta || {}; return m.agent_version || s.agent_version || ''; }
+  _escape(v){ return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+  _attr(v){ return this._escape(v).replace(/`/g, '&#96;'); }
+  _modalMsg(text,type){ const el=this._el.querySelector('#sm-modal-msg'); if(el){ el.style.color=type==='red'?'var(--red)':type==='green'?'var(--green)':'var(--accent)'; el.textContent=text; } }
+  _toast(text,type){ const el=this._el.querySelector('#sm-msg'); if(!el)return; const colors={green:'var(--green)',red:'var(--red)',blue:'var(--accent)'}; el.style.color=colors[type]||'var(--text2)'; el.textContent=text; setTimeout(()=>{ if(el.textContent===text) el.textContent=''; }, 5000); }
+  async _copy(text){ try { await navigator.clipboard.writeText(text); this._modalMsg('✅ 已复制', 'green'); } catch (_) { this._modalMsg('复制失败：请手动选中复制', 'red'); } }
+  _notifyServersChanged(action,id){ window.dispatchEvent(new CustomEvent('servers-changed',{detail:{action,id}})); localStorage.setItem('vps-servers-version',String(Date.now())); this._serversChannel?.postMessage({action,id,at:Date.now()}); }
 }

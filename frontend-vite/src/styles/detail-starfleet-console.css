@@ -1,0 +1,1739 @@
+/* Effect-shot detail page: Starfleet dense diagnostics console */
+.detail-page-shell:has(.fleet-detail-console){
+  padding:14px !important; min-height:100vh; overflow-x:auto;
+  background: radial-gradient(circle at 18% 10%, rgba(0,180,190,.16), transparent 34%), #020812 !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-page-hero{display:none!important}
+.detail-page-grid:has(.fleet-detail-console){display:block!important; max-width:none!important; width:100%;}
+.fleet-detail-console{--cyan:#62f5ee;--cyan2:#25b9d8;--muted:#8fb7c1;--amber:#ffb15d;--panel:rgba(2,16,27,.74);--line:rgba(98,245,238,.34);width:100%;min-height:820px;position:relative;display:grid;grid-template-columns:minmax(205px,.82fr) minmax(390px,1.45fr) minmax(430px,1.7fr);grid-template-rows:92px 1fr 38px;gap:8px;padding:10px;color:#d7ffff;font:11px/1.32 "Roboto Condensed","DIN Condensed","JetBrains Mono",monospace;letter-spacing:.03em;background:linear-gradient(180deg,rgba(4,13,24,.94),rgba(1,8,15,.98)),repeating-linear-gradient(0deg,rgba(98,245,238,.035) 0 1px,transparent 1px 7px),repeating-linear-gradient(90deg,rgba(98,245,238,.025) 0 1px,transparent 1px 72px);box-shadow:inset 0 0 90px rgba(0,255,240,.07),0 0 70px rgba(0,0,0,.75)}
+.fleet-detail-console:before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 72% 38%,rgba(98,245,238,.12),transparent 28%),linear-gradient(90deg,transparent 49.8%,rgba(98,245,238,.08) 50%,transparent 50.2%);mix-blend-mode:screen}.fleet-detail-console>*{position:relative;z-index:1}.fleet-console-header{grid-column:1/-1;display:grid;grid-template-columns:390px 1fr;gap:10px}.fleet-node-identity,.fleet-status-bank>div,.fleet-panel,.fleet-chart-card{background:linear-gradient(180deg,rgba(5,27,42,.78),rgba(2,11,21,.74));border:1px solid var(--line);box-shadow:0 0 20px rgba(38,221,220,.08),inset 0 0 18px rgba(38,221,220,.035);clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px))}.fleet-node-identity{display:flex;align-items:center;gap:14px;padding:8px 12px}.fleet-node-caption h1{font-size:20px;margin:0;color:#f3ffff;text-shadow:0 0 12px rgba(98,245,238,.45);white-space:nowrap}.fleet-node-caption p,.fleet-micro{margin:2px 0;color:var(--muted);text-transform:uppercase}.fleet-status-bank{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.fleet-status-bank>div{padding:12px 14px}.fleet-status-bank span{display:block;color:#7eaab4;font-size:10px;text-transform:uppercase}.fleet-status-bank strong{display:block;margin-top:4px;color:#eaffff;font-size:15px}.fleet-online{background:linear-gradient(180deg,rgba(110,65,18,.92),rgba(43,18,8,.86))!important;border-color:rgba(255,177,93,.58)!important}.fleet-online strong{color:var(--amber)!important}.fleet-left-rail{grid-column:1;grid-row:2;display:grid;grid-template-rows:auto 1fr;gap:12px}.fleet-panel{padding:12px;overflow:hidden}.fleet-title{font-size:13px;text-transform:uppercase;color:#bffffb;margin-bottom:9px;border-bottom:1px solid rgba(98,245,238,.18);padding-bottom:6px}.fleet-title.warn{color:var(--amber)}.fleet-info-list{display:grid;gap:8px}.fleet-info-list div{padding:8px;border-left:2px solid rgba(98,245,238,.45);background:rgba(98,245,238,.045)}.fleet-info-list span{display:block;color:#7faab3;text-transform:uppercase;font-size:10px}.fleet-info-list strong{display:block;color:#eaffff;font-size:13px;word-break:break-all}.fleet-info-list em{display:block;color:#7fcbd0;font-style:normal;font-size:10px}.fleet-ship-holo{width:118px;height:62px;position:relative;filter:drop-shadow(0 0 12px rgba(98,245,238,.75))}.ship-saucer{position:absolute;left:2px;top:5px;width:70px;height:34px;border:2px solid var(--cyan);border-radius:50%;transform:skewX(-18deg);box-shadow:inset 0 0 18px rgba(98,245,238,.2)}.ship-neck{position:absolute;left:60px;top:27px;width:32px;height:8px;border-top:2px solid var(--cyan);transform:rotate(8deg)}.ship-body{position:absolute;left:72px;top:29px;width:43px;height:18px;border:2px solid var(--cyan);border-radius:45% 55% 50% 50%;transform:skewX(-16deg)}.ship-nacelle{position:absolute;width:46px;height:6px;border:1px solid var(--cyan);border-radius:12px;right:0}.nacelle-a{top:11px}.nacelle-b{bottom:5px}.ship-scanline{position:absolute;inset:0;background:repeating-linear-gradient(180deg,transparent 0 5px,rgba(98,245,238,.22) 5px 6px);opacity:.5}.fleet-insignia{align-self:end;justify-self:center;width:145px;height:145px;border:1px solid rgba(98,245,238,.4);border-radius:50%;box-shadow:0 0 28px rgba(98,245,238,.25),inset 0 0 28px rgba(98,245,238,.12);position:relative}.fleet-insignia:before{content:"";position:absolute;inset:20px;border:1px solid rgba(98,245,238,.35);border-radius:50%;transform:rotate(-24deg) scaleX(1.32)}.fleet-insignia span{position:absolute;left:51px;top:24px;width:38px;height:88px;background:linear-gradient(150deg,transparent 0 29%,var(--cyan) 30% 42%,transparent 43%),linear-gradient(25deg,transparent 0 43%,rgba(220,255,255,.9) 44% 56%,transparent 57%);clip-path:polygon(48% 0,82% 100%,50% 78%,16% 100%);filter:drop-shadow(0 0 10px var(--cyan))}.fleet-chart-matrix{grid-column:2;grid-row:2;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,1fr);gap:10px}.fleet-chart-card{padding:10px;min-height:150px;position:relative}.fleet-chart-head{display:flex;align-items:center;justify-content:space-between;color:#bffffb;margin-bottom:6px;text-transform:uppercase}.fleet-chart-head strong{color:#eaffff;text-shadow:0 0 9px rgba(98,245,238,.5)}.fleet-chart-card canvas{width:100%!important;height:112px!important}.fleet-chart-card.pseudo .mini-sparkline{height:112px;margin-top:8px;background:linear-gradient(rgba(98,245,238,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(98,245,238,.05) 1px,transparent 1px);background-size:100% 22px,42px 100%;align-items:end}.fleet-chart-card.pseudo .mini-sparkline i{background:linear-gradient(180deg,rgba(98,245,238,.85),rgba(69,194,126,.28));box-shadow:0 0 8px rgba(98,245,238,.5);width:6px}.fleet-right-zone{grid-column:3;grid-row:2;display:grid;grid-template-rows:150px 1fr 188px;gap:10px}.fleet-table-wrap{overflow:auto}.fleet-table{width:100%;border-collapse:collapse;font-size:10px;color:#c9f7fa}.fleet-table th{color:#7edfe4;text-align:left;font-weight:600;border-bottom:1px solid rgba(98,245,238,.25);padding:5px 6px;text-transform:uppercase}.fleet-table td{padding:5px 6px;border-bottom:1px solid rgba(98,245,238,.09);white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis}.fleet-table.compact td,.fleet-table.compact th{padding:4px 5px}.fleet-probe-grid{display:grid;grid-template-columns:1fr 205px;gap:10px;min-height:300px}.fleet-globe-panel{position:relative}.quantum-globe-wrap{height:260px;position:relative}.quantum-globe{position:absolute;left:50%;top:50%;width:245px;height:245px;border-radius:50%;transform:translate(-50%,-50%);border:1px solid rgba(98,245,238,.65);background:radial-gradient(circle at 48% 45%,rgba(98,245,238,.22),transparent 18%),radial-gradient(circle at 55% 55%,rgba(5,40,55,.72),rgba(1,12,24,.82) 70%);box-shadow:0 0 34px rgba(98,245,238,.28),inset 0 0 38px rgba(98,245,238,.2);overflow:hidden}.quantum-globe:before{content:"";position:absolute;inset:14px;border-radius:50%;background:repeating-linear-gradient(0deg,transparent 0 18px,rgba(98,245,238,.22) 19px 20px),repeating-linear-gradient(90deg,transparent 0 25px,rgba(98,245,238,.16) 26px 27px);clip-path:circle(50%)}.quantum-globe i{position:absolute;inset:40px;border:1px solid rgba(98,245,238,.35);border-radius:50%;transform:rotate(28deg) scaleX(1.5)}.quantum-globe i:nth-child(2){transform:rotate(-35deg) scaleX(1.38)}.quantum-globe i:nth-child(3){inset:86px;transform:none}.quantum-globe b{position:absolute;left:42px;top:125px;width:160px;height:60px;border-top:1px solid rgba(255,177,93,.8);border-radius:50%;transform:rotate(-19deg);filter:drop-shadow(0 0 7px var(--amber))}.q-node{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 12px var(--cyan)}.q-node.n0{left:132px;top:102px;background:var(--amber)}.q-node.n1{left:72px;top:118px}.q-node.n2{left:174px;top:88px}.q-node.n3{left:155px;top:154px}.q-node.n4{left:95px;top:76px}.q-node.n5{left:198px;top:136px}.quantum-globe-copy{position:absolute;color:#dfffff;text-shadow:0 0 8px rgba(98,245,238,.45);font-size:10px}.quantum-globe-copy strong,.quantum-globe-copy span,.quantum-globe-copy em{display:block;font-style:normal}.quantum-globe-copy.top{left:18px;top:42px}.quantum-globe-copy.bottom{left:34px;bottom:26px}.fleet-bottom-grid{display:grid;grid-template-columns:1fr 1fr 230px;gap:10px}.fleet-rule-row{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:6px 0;border-bottom:1px solid rgba(98,245,238,.12)}.fleet-rule-row strong{color:#eaffff}.fleet-rule-row span{color:#7edfe4}.fleet-rule-row em{grid-column:1/-1;color:#789ca5;font-style:normal;font-size:10px}.fleet-error-panel{border-color:rgba(255,177,93,.55);background:linear-gradient(180deg,rgba(68,31,9,.78),rgba(23,10,6,.82))}.fleet-error-panel h3{margin:4px 0 8px;color:#ffd29c;font-size:13px}.fleet-error-panel h3 span{float:right;color:#ffb15d}.fleet-error-panel div:not(.fleet-title){color:#ffd9aa;border-top:1px solid rgba(255,177,93,.18);padding:5px 0;font-size:10px}.fleet-console-footer{grid-column:1/-1;grid-row:3;text-align:center;font-size:19px;color:#d9ffff;text-shadow:0 0 16px rgba(98,245,238,.6);letter-spacing:.09em;padding-top:6px}.detail-page-shell:has(.fleet-detail-console) .detail-page-topbar{margin-bottom:8px}.detail-page-shell:has(.fleet-detail-console) .detail-back-link{border-color:rgba(98,245,238,.45)!important;color:#cfffff!important}.detail-page-shell:has(.fleet-detail-console) .currency-btn,.detail-page-shell:has(.fleet-detail-console) .theme-toggle{border-color:rgba(98,245,238,.35)!important;background:rgba(4,25,38,.78)!important;color:#cfffff!important}
+@media(max-width:1200px){.fleet-detail-console{min-width:0;display:block}.fleet-console-header,.fleet-left-rail,.fleet-chart-matrix,.fleet-right-zone,.fleet-probe-grid,.fleet-bottom-grid{display:grid;grid-template-columns:1fr;margin-bottom:10px}.fleet-status-bank{grid-template-columns:repeat(2,1fr)}}
+.fleet-probe-grid{grid-template-columns:minmax(0,1fr) minmax(148px,180px)!important;min-height:286px!important}.fleet-bottom-grid{grid-template-columns:minmax(0,1fr) minmax(0,.95fr) minmax(168px,.8fr)!important}.quantum-globe{width:225px!important;height:225px!important}.quantum-globe-wrap{height:238px!important}.fleet-status-bank>div{padding:10px!important}.fleet-table td{max-width:105px!important}.fleet-chart-card{min-height:142px!important}.fleet-chart-card canvas{height:105px!important}.fleet-ship-holo{transform:scale(1.16);transform-origin:left center}
+
+/* Code-generated hologram components: no bitmap references */
+.detail-page-shell:has(.fleet-detail-console) .fleet-code-ship{
+  width:168px;height:88px;flex:0 0 168px;position:relative;overflow:visible;
+  filter:drop-shadow(0 0 13px rgba(98,245,238,.65));
+}
+.fleet-code-ship svg{width:100%;height:100%;display:block;overflow:visible}
+.ship-grid path{stroke:#62f5ee;stroke-width:.7;fill:none}.ship-body-code path,.ship-body-code ellipse{stroke:url(#shipGlow);stroke-width:2.1;fill:rgba(98,245,238,.035);stroke-linecap:round;stroke-linejoin:round}.ship-reg{fill:#dfffff;font:700 8px 'JetBrains Mono',monospace;letter-spacing:.08em;text-shadow:0 0 8px #62f5ee}.fleet-code-ship:after{content:"";position:absolute;left:8%;right:8%;bottom:2px;height:1px;background:linear-gradient(90deg,transparent,#62f5ee,transparent);box-shadow:0 0 12px #62f5ee;animation:shipScan 2.8s linear infinite}@keyframes shipScan{0%{transform:translateY(-70px);opacity:.05}40%,70%{opacity:.65}100%{transform:translateY(4px);opacity:.05}}
+.detail-page-shell:has(.fleet-detail-console) .fleet-code-insignia{align-self:end;justify-self:center;width:154px;height:154px;filter:drop-shadow(0 0 18px rgba(98,245,238,.38))}.fleet-code-insignia svg{width:100%;height:100%;display:block}.insig-ring{fill:rgba(3,18,29,.28);stroke:rgba(98,245,238,.62);stroke-width:1.4}.insig-orbit{fill:none;stroke:rgba(98,245,238,.34);stroke-width:1}.insig-orbit.thin{stroke:rgba(255,255,255,.18)}.insig-delta{fill:url(#insigCore);stroke:#cfffff;stroke-width:1.2}.insig-cut{fill:rgba(1,10,18,.78);stroke:rgba(98,245,238,.55);stroke-width:.8}.fleet-code-insignia text{fill:#dfffff;font:700 10px 'JetBrains Mono',monospace;letter-spacing:.16em;text-shadow:0 0 8px #62f5ee}
+.detail-page-shell:has(.fleet-detail-console) .quantum-code-globe{height:292px;position:relative;overflow:hidden;background:radial-gradient(circle at 50% 45%,rgba(98,245,238,.09),transparent 46%)}.quantum-code-globe svg{width:100%;height:100%;display:block;overflow:visible}.globe-sphere{cx:130;cy:130;r:104;fill:url(#globeCore);stroke:rgba(98,245,238,.66);stroke-width:1.2}.globe-lines ellipse,.globe-lines path{fill:none;stroke:rgba(98,245,238,.45);stroke-width:.9}.globe-lines .net-arc{stroke:#62f5ee;stroke-width:1.8}.globe-lines .net-arc.amber{stroke:#ffb15d}.net-node{fill:#8fffff;stroke:#eaffff;stroke-width:.8;filter:drop-shadow(0 0 5px #62f5ee)}.net-node.n0{fill:#ffb15d;filter:drop-shadow(0 0 6px #ffb15d)}.globe-callouts path{stroke:rgba(255,177,93,.72);stroke-width:1;fill:none}.globe-callouts text{fill:#eaffff;font:700 8px 'JetBrains Mono',monospace;text-shadow:0 0 8px rgba(98,245,238,.8)}
+
+/* HTML-converted reference images */
+.detail-page-shell:has(.fleet-detail-console) .fleet-html-image{
+  position:relative;
+  overflow:visible;
+  filter:drop-shadow(0 0 14px rgba(98,245,238,.42));
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-html-image svg,
+.detail-page-shell:has(.fleet-detail-console) .quantum-html-globe svg{
+  width:100%;
+  height:100%;
+  display:block;
+  overflow:visible;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-html-ship{
+  width:168px;
+  height:92px;
+  flex:0 0 168px;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-html-badge{
+  align-self:end;
+  justify-self:center;
+  width:160px;
+  height:122px;
+  padding:6px;
+  background:radial-gradient(circle at 50% 50%, rgba(98,245,238,.08), transparent 62%);
+}
+.detail-page-shell:has(.fleet-detail-console) .quantum-html-globe{
+  height:292px;
+  position:relative;
+  overflow:hidden;
+  background:rgba(0,8,14,.54);
+  border:1px solid rgba(98,245,238,.24);
+  box-shadow:inset 0 0 34px rgba(98,245,238,.07);
+}
+.detail-page-shell:has(.fleet-detail-console) .quantum-html-globe svg{
+  opacity:.96;
+  filter:saturate(1.08) contrast(1.05) drop-shadow(0 0 12px rgba(98,245,238,.28));
+}
+.detail-page-shell:has(.fleet-detail-console) .quantum-html-globe:after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:repeating-linear-gradient(180deg,transparent 0 5px,rgba(98,245,238,.04) 5px 6px);
+  mix-blend-mode:screen;
+}
+
+/* Dense target-screen pass */
+.detail-page-shell:has(.fleet-detail-console){
+  min-height:100vh!important;
+  padding:6px 8px 4px!important;
+  background:
+    radial-gradient(circle at 72% 38%,rgba(30,255,230,.08),transparent 31%),
+    linear-gradient(180deg,#020910 0%,#01050a 100%)!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-page-topbar{
+  margin-bottom:4px!important;
+  transform:scale(.92);
+  transform-origin:left top;
+  height:34px;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-back-link,
+.detail-page-shell:has(.fleet-detail-console) .currency-btn,
+.detail-page-shell:has(.fleet-detail-console) .theme-toggle{
+  padding:5px 9px!important;
+  font-size:10px!important;
+  border-radius:2px!important;
+}
+.detail-page-grid:has(.fleet-detail-console){
+  margin:0!important;
+}
+.fleet-detail-console{
+  min-height:calc(100vh - 58px)!important;
+  height:calc(100vh - 58px)!important;
+  grid-template-columns:18% 35% 30% 17%!important;
+  grid-template-rows:72px minmax(0,1fr) 30px!important;
+  gap:6px!important;
+  padding:8px!important;
+  overflow:hidden!important;
+  font-size:9.5px!important;
+  line-height:1.18!important;
+  background:
+    radial-gradient(circle at 76% 40%,rgba(55,255,231,.10),transparent 25%),
+    repeating-linear-gradient(0deg,rgba(98,245,238,.034) 0 1px,transparent 1px 6px),
+    repeating-linear-gradient(90deg,rgba(98,245,238,.023) 0 1px,transparent 1px 58px),
+    linear-gradient(180deg,rgba(2,13,22,.96),rgba(0,5,9,.985))!important;
+  box-shadow:inset 0 0 95px rgba(0,255,230,.08),0 0 60px rgba(0,0,0,.82)!important;
+}
+.fleet-console-header{grid-column:1/-1!important;grid-template-columns:18% 82%!important;gap:6px!important;min-height:0!important}.fleet-node-identity{padding:6px 8px!important;gap:8px!important}.fleet-node-caption h1{font-size:16px!important;max-width:100%;overflow:hidden;text-overflow:ellipsis}.fleet-node-caption p{font-size:9px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fleet-status-bank{grid-template-columns:repeat(5,1fr)!important;gap:6px!important}.fleet-status-bank>div{padding:8px 10px!important}.fleet-status-bank span{font-size:8.5px!important}.fleet-status-bank strong{font-size:12px!important}.fleet-left-rail{grid-column:1!important;grid-row:2!important;grid-template-rows:1fr 128px!important;gap:7px!important;min-height:0}.fleet-panel{padding:8px!important}.fleet-title{font-size:10.5px!important;margin-bottom:6px!important;padding-bottom:4px!important}.fleet-info-list{gap:5px!important}.fleet-info-list div{padding:5px 6px!important}.fleet-info-list span,.fleet-info-list em{font-size:8px!important}.fleet-info-list strong{font-size:10px!important}.fleet-html-ship{width:108px!important;height:64px!important;flex-basis:108px!important}.fleet-html-badge{width:120px!important;height:92px!important}.fleet-chart-matrix{grid-column:2!important;grid-row:2!important;grid-template-columns:1fr 1fr!important;grid-template-rows:repeat(3,minmax(0,1fr))!important;gap:6px!important;min-height:0}.fleet-chart-card{min-height:0!important;padding:7px!important}.fleet-chart-head{font-size:9px!important;margin-bottom:3px!important}.fleet-chart-head strong{font-size:11px!important}.fleet-chart-card canvas{height:calc((100vh - 190px)/3)!important;max-height:118px!important;min-height:88px!important}.fleet-chart-card.pseudo .mini-sparkline{height:calc((100vh - 190px)/3)!important;max-height:118px!important;min-height:88px!important;margin-top:2px!important}.fleet-right-zone{grid-column:3 / span 2!important;grid-row:2!important;display:grid!important;grid-template-columns:64% 36%!important;grid-template-rows:128px 1fr 152px!important;gap:6px!important;min-height:0}.fleet-database-panel{grid-column:1/-1!important;grid-row:1!important}.fleet-probe-grid{grid-column:1/-1!important;grid-row:2!important;display:grid!important;grid-template-columns:64% 36%!important;gap:6px!important;min-height:0!important}.fleet-globe-panel,.fleet-probe-table-panel{min-height:0!important}.fleet-bottom-grid{grid-column:1/-1!important;grid-row:3!important;display:grid!important;grid-template-columns:36% 34% 30%!important;gap:6px!important;min-height:0}.fleet-table{font-size:8.3px!important}.fleet-table th,.fleet-table td{padding:3px 4px!important;max-width:108px!important}.fleet-rule-row{padding:3px 0!important;font-size:8.3px!important}.fleet-error-panel h3{font-size:11px!important;margin:2px 0 5px!important}.fleet-error-panel div:not(.fleet-title){font-size:8px!important;padding:3px 0!important}.quantum-html-globe{height:100%!important;min-height:230px!important}.quantum-html-globe svg{transform:scale(1.08)}.quantum-globe-copy{font-size:8px!important}.quantum-globe-copy.top{left:10px!important;top:26px!important}.quantum-globe-copy.bottom{left:14px!important;bottom:16px!important}.fleet-console-footer{font-size:16px!important;grid-row:3!important;padding-top:3px!important;letter-spacing:.08em!important}
+@media(max-width:1200px){.fleet-detail-console{height:auto!important;min-height:820px!important;overflow:visible!important;display:block!important}.fleet-right-zone,.fleet-chart-matrix,.fleet-left-rail,.fleet-probe-grid,.fleet-bottom-grid{display:grid!important;grid-template-columns:1fr!important;margin-bottom:8px!important}.fleet-chart-card canvas{height:112px!important}}
+
+/* Final target-image proportion pass */
+.fleet-left-rail{grid-template-rows:minmax(0,1fr) 148px!important}.fleet-html-badge{width:150px!important;height:112px!important;filter:drop-shadow(0 0 18px rgba(98,245,238,.45))}.fleet-html-ship{width:132px!important;height:78px!important;flex-basis:132px!important;filter:drop-shadow(0 0 18px rgba(98,245,238,.55))}.fleet-info-list div:nth-child(6){min-height:36px}.fleet-detail-console{grid-template-columns:18.5% 35% 30.5% 16%!important}.fleet-right-zone{grid-template-columns:66% 34%!important;grid-template-rows:118px 1fr 130px!important}.fleet-probe-grid{grid-template-columns:68% 32%!important}.fleet-bottom-grid{grid-template-columns:34% 40% 26%!important}.quantum-html-globe{min-height:268px!important}.quantum-html-globe svg{transform:scale(1.26)!important;filter:drop-shadow(0 0 20px rgba(98,245,238,.34)) saturate(1.24) contrast(1.08)}.fleet-globe-panel{box-shadow:0 0 28px rgba(98,245,238,.12),inset 0 0 26px rgba(98,245,238,.07)!important}.fleet-globe-panel .fleet-title{color:#e8ffff;text-shadow:0 0 10px rgba(98,245,238,.5)}.fleet-inventory-panel .fleet-table-wrap{height:calc(100% - 22px);overflow:hidden}.fleet-inventory-panel .fleet-table{font-size:7.7px!important}.fleet-inventory-panel .fleet-table th,.fleet-inventory-panel .fleet-table td{padding:2px 3px!important}.fleet-error-panel{box-shadow:0 0 24px rgba(255,144,62,.17),inset 0 0 22px rgba(255,144,62,.08)!important}.fleet-chart-card.pseudo .mini-sparkline{display:flex!important;gap:3px!important;padding:7px 5px 0!important;overflow:hidden!important;background:linear-gradient(rgba(98,245,238,.09) 1px,transparent 1px),linear-gradient(90deg,rgba(98,245,238,.06) 1px,transparent 1px),radial-gradient(circle at 50% 100%,rgba(98,245,238,.09),transparent 55%)!important;background-size:100% 18px,32px 100%,100% 100%!important}.fleet-chart-card.pseudo .mini-sparkline i{flex:1 1 0!important;min-width:3px!important;border-radius:5px 5px 0 0!important;background:linear-gradient(180deg,rgba(154,255,248,.95),rgba(57,225,190,.28))!important;box-shadow:0 0 9px rgba(98,245,238,.55)!important}.fleet-chart-head strong{font-size:12px!important;color:#f2ffff!important}.fleet-chart-card:after,.fleet-panel:after{content:"";position:absolute;right:7px;top:7px;width:18px;height:7px;border-top:1px solid rgba(98,245,238,.32);border-right:1px solid rgba(98,245,238,.32);pointer-events:none}.fleet-panel{position:relative}.fleet-database-panel{opacity:.96}.fleet-database-panel .fleet-table{font-size:7.6px!important}.fleet-database-panel .fleet-table td,.fleet-database-panel .fleet-table th{padding:2px 3px!important}.fleet-probe-table-panel .fleet-table{font-size:7.7px!important}.fleet-console-footer{background:linear-gradient(90deg,transparent,rgba(98,245,238,.08),transparent);border-top:1px solid rgba(98,245,238,.16)}
+
+/* Crisp reference assets pass */
+.fleet-html-image,
+.fleet-html-image svg,
+.quantum-html-globe,
+.quantum-html-globe svg{
+  border:0!important;
+  outline:0!important;
+  box-shadow:none!important;
+  filter:none!important;
+  clip-path:none!important;
+  background:transparent!important;
+}
+.fleet-html-image svg image,
+.quantum-html-globe svg image{
+  filter:none!important;
+  image-rendering:auto!important;
+}
+.fleet-html-ship{
+  width:118px!important;
+  height:72px!important;
+  flex-basis:118px!important;
+  overflow:visible!important;
+}
+.fleet-html-ship svg{
+  width:118px!important;
+  height:72px!important;
+  transform:none!important;
+}
+.fleet-html-badge{
+  width:126px!important;
+  height:126px!important;
+  justify-self:center!important;
+  align-self:center!important;
+  overflow:visible!important;
+}
+.fleet-html-badge svg{
+  width:126px!important;
+  height:126px!important;
+  transform:none!important;
+}
+.quantum-html-globe{
+  min-height:244px!important;
+  height:244px!important;
+  overflow:visible!important;
+}
+.quantum-html-globe svg{
+  width:100%!important;
+  height:100%!important;
+  transform:none!important;
+  filter:none!important;
+}
+.fleet-node-identity,
+.fleet-globe-panel{
+  clip-path:none!important;
+}
+.fleet-node-identity:after,
+.fleet-globe-panel:after{
+  display:none!important;
+}
+.fleet-left-rail{grid-template-rows:minmax(0,1fr) 132px!important}
+.quantum-globe-copy{background:rgba(1,10,17,.42);padding:3px 5px;border-radius:2px}
+.quantum-globe-copy.top{top:18px!important}
+.quantum-globe-copy.bottom{bottom:10px!important}
+
+/* Pure vector reference drawing pass */
+.fleet-vector{display:block;background:transparent!important;border:0!important;box-shadow:none!important;filter:none!important;overflow:visible!important}.fleet-vector svg{display:block;width:100%;height:100%;overflow:visible}.fleet-vector-ship{width:136px!important;height:78px!important;flex:0 0 136px!important}.fleet-vector-badge{width:134px!important;height:134px!important;justify-self:center;align-self:center}.fleet-html-image{display:none!important}.fleet-node-identity{gap:10px!important}.ship-grid path{stroke:rgba(98,245,238,.13);stroke-width:1;fill:none}.ship-drawn *{fill:none;stroke:url(#shipLine);stroke-width:2.2;vector-effect:non-scaling-stroke}.ship-saucer-main{fill:rgba(98,245,238,.055)}.ship-saucer-inner{stroke-width:1.3;opacity:.75}.ship-hull{fill:rgba(98,245,238,.045)}.ship-nacelle{fill:rgba(98,245,238,.04)}.ship-warp{stroke:#ffbf69!important;stroke-width:1.4!important;opacity:.9}.ship-core{fill:#bfffff!important;stroke:#bfffff!important}.ship-scan path{stroke:rgba(98,245,238,.16);stroke-width:1}.badge-orbits *{fill:none;stroke:rgba(98,245,238,.42);stroke-width:1.4;vector-effect:non-scaling-stroke}.badge-orbits circle{opacity:.38}.badge-mark *{stroke:url(#badgeLine);vector-effect:non-scaling-stroke}.badge-delta{fill:rgba(98,245,238,.055);stroke-width:2.8}.badge-cut{fill:rgba(1,9,15,.75);stroke-width:1.6}.badge-star{fill:#dfffff;stroke:#dfffff;stroke-width:.8}.badge-ticks path{stroke:rgba(98,245,238,.5);stroke-width:1.5}.quantum-vector-globe{height:252px!important;min-height:252px!important;overflow:visible!important;border:0!important;box-shadow:none!important;background:transparent!important}.quantum-vector-globe svg{width:100%;height:100%;filter:none!important;overflow:visible}.qv-bg path{stroke:rgba(98,245,238,.09);stroke-width:1}.qv-rim{fill:none;stroke:rgba(126,255,249,.82);stroke-width:1.6}.qv-grid{fill:none;stroke:rgba(98,245,238,.28);stroke-width:1}.qv-continent{fill:rgba(87,229,197,.13);stroke:rgba(122,255,238,.45);stroke-width:1.1}.qv-link{fill:none;stroke:rgba(98,245,238,.55);stroke-width:1.4}.qv-link.hot{stroke:#ffbd62;stroke-width:1.8}.qv-node{fill:#7ff8ff;filter:drop-shadow(0 0 5px #7ff8ff)}.qv-node.hot{fill:#ffbd62;filter:drop-shadow(0 0 7px #ffbd62)}.qv-label,.qv-readout text{fill:#cfffff;font-size:8px;letter-spacing:.04em;text-shadow:0 0 5px rgba(98,245,238,.7)}.qv-readout text:nth-child(1){font-size:10px;font-weight:700}.quantum-html-globe{display:none!important}.fleet-left-rail{grid-template-rows:minmax(0,1fr) 138px!important}
+
+/* Reference likeness v2 ship and badge */
+.fleet-ufo-node{width:124px!important;height:124px!important;flex:0 0 124px!important;margin-left:-4px!important}.fleet-delta-badge{width:128px!important;height:128px!important}.ufo-outer *,.ufo-body *,.ufo-micro *,.delta-orbit *,.delta-mark *,.delta-sparks *{vector-effect:non-scaling-stroke}.ufo-outer circle,.ufo-outer path{fill:none;stroke:rgba(99,245,238,.42);stroke-width:1.15}.ufo-body *{fill:none;stroke:url(#ufoLine);stroke-width:2.1}.ufo-dome,.ufo-saucer,.ufo-belly,.ufo-core,.ufo-pod{fill:rgba(83,243,237,.045)}.ufo-inner,.ufo-ribs,.ufo-core-detail,.ufo-pod-line{stroke-width:1.25;opacity:.84}.ufo-lights circle{fill:#dbffff!important;stroke:#dbffff!important;filter:drop-shadow(0 0 4px #7ff8ff)}.ufo-micro path{fill:none;stroke:rgba(99,245,238,.24);stroke-width:1}.delta-orbit path{fill:none;stroke:rgba(103,247,239,.55);stroke-width:1.65}.delta-mark *{stroke:url(#deltaLine)}.delta-shell{fill:rgba(103,247,239,.055);stroke-width:2.8}.delta-inner{fill:rgba(3,13,22,.72);stroke-width:1.7}.delta-starcut{fill:rgba(232,255,255,.86);stroke:#dfffff!important;stroke-width:.9}.delta-sparks circle{fill:#dfffff;stroke:#dfffff;filter:drop-shadow(0 0 4px #7ff8ff)}.delta-sparks path{fill:none;stroke:rgba(103,247,239,.45);stroke-width:1.3}.ship-grid,.ship-drawn,.ship-scan,.badge-orbits,.badge-mark,.badge-ticks{display:none!important}.fleet-node-identity{grid-template-columns:124px minmax(0,1fr)!important;align-items:center!important}.fleet-node-caption h1{font-size:19px!important}.fleet-left-rail{grid-template-rows:minmax(0,1fr) 132px!important}
+
+
+/* 2026-06 spacious realtime detail pass: no forced single-screen cram */
+.detail-page-shell:has(.fleet-detail-console){
+  padding:18px 22px 42px!important;
+  overflow-x:hidden!important;
+}
+.detail-page-grid:has(.fleet-detail-console){
+  width:100%!important;
+  max-width:1480px!important;
+  margin:0 auto!important;
+}
+.fleet-detail-console{
+  height:auto!important;
+  min-height:0!important;
+  overflow:visible!important;
+  display:grid!important;
+  grid-template-columns:minmax(300px,360px) minmax(620px,1fr)!important;
+  grid-template-rows:auto auto auto auto!important;
+  gap:18px!important;
+  padding:22px!important;
+  font-size:12px!important;
+  line-height:1.48!important;
+}
+.fleet-console-header{
+  grid-column:1/-1!important;
+  grid-row:1!important;
+  grid-template-columns:minmax(360px,480px) minmax(0,1fr)!important;
+  gap:16px!important;
+}
+.fleet-node-identity{padding:16px 18px!important;gap:16px!important;grid-template-columns:124px minmax(0,1fr)!important;}
+.fleet-node-caption h1{font-size:24px!important;line-height:1.1!important;}
+.fleet-node-caption p{font-size:11px!important;white-space:normal!important;line-height:1.45!important;}
+.fleet-status-bank{grid-template-columns:repeat(5,minmax(120px,1fr))!important;gap:12px!important;}
+.fleet-status-bank>div{padding:15px 16px!important;min-height:72px!important;}
+.fleet-status-bank span{font-size:10px!important;}
+.fleet-status-bank strong{font-size:15px!important;}
+.fleet-left-rail{grid-column:1!important;grid-row:2!important;display:grid!important;grid-template-rows:auto 170px!important;gap:18px!important;}
+.fleet-panel{padding:16px!important;}
+.fleet-title{font-size:13px!important;margin-bottom:12px!important;padding-bottom:8px!important;}
+.fleet-info-list{gap:10px!important;}
+.fleet-info-list div{padding:10px 12px!important;}
+.fleet-info-list span,.fleet-info-list em{font-size:10px!important;}
+.fleet-info-list strong{font-size:13px!important;}
+.fleet-chart-matrix{grid-column:2!important;grid-row:2!important;display:grid!important;grid-template-columns:repeat(2,minmax(280px,1fr))!important;grid-template-rows:none!important;gap:16px!important;}
+.fleet-chart-card{min-height:210px!important;padding:16px!important;}
+.fleet-chart-head{font-size:12px!important;margin-bottom:10px!important;}
+.fleet-chart-head strong{font-size:14px!important;}
+.fleet-chart-card canvas,.fleet-chart-card.pseudo .mini-sparkline{height:155px!important;max-height:none!important;min-height:155px!important;}
+.mini-sparkline.no-live-data{display:flex!important;align-items:center!important;justify-content:center!important;border:1px dashed rgba(98,245,238,.22)!important;background:rgba(98,245,238,.035)!important;color:#8fb7c1!important;font-size:13px!important;}
+.mini-sparkline.no-live-data span{opacity:.9;}
+.fleet-right-zone{grid-column:1/-1!important;grid-row:3!important;display:grid!important;grid-template-columns:1fr!important;grid-template-rows:auto auto auto!important;gap:18px!important;}
+.fleet-database-panel{grid-column:1!important;grid-row:auto!important;}
+.fleet-probe-grid{grid-column:1!important;grid-row:auto!important;display:grid!important;grid-template-columns:minmax(420px,1.25fr) minmax(320px,.75fr)!important;gap:18px!important;min-height:360px!important;}
+.fleet-bottom-grid{grid-column:1!important;grid-row:auto!important;display:grid!important;grid-template-columns:repeat(3,minmax(260px,1fr))!important;gap:18px!important;}
+.fleet-table{font-size:11px!important;}
+.fleet-table th,.fleet-table td{padding:8px 10px!important;max-width:220px!important;}
+.quantum-vector-globe{height:330px!important;min-height:330px!important;}
+.fleet-console-footer{grid-column:1/-1!important;grid-row:4!important;font-size:17px!important;padding:14px 0 4px!important;}
+@media(max-width:1100px){
+  .fleet-detail-console{display:block!important;padding:16px!important;}
+  .fleet-console-header,.fleet-left-rail,.fleet-chart-matrix,.fleet-right-zone,.fleet-probe-grid,.fleet-bottom-grid{display:grid!important;grid-template-columns:1fr!important;margin-bottom:16px!important;}
+  .fleet-status-bank{grid-template-columns:repeat(2,minmax(0,1fr))!important;}
+}
+
+
+/* 2026-06 detail hard cleanup: remove legacy hero/loading shell and use full width */
+.detail-page-shell.starship-console-page::before,
+.detail-page-shell:has(.fleet-detail-console)::before,
+.detail-page-grid::before{
+  display:none!important;
+  content:none!important;
+}
+.detail-page-shell:has(.fleet-detail-console){
+  padding:14px 16px 36px!important;
+  width:100vw!important;
+  max-width:none!important;
+  box-sizing:border-box!important;
+}
+.detail-page-grid:has(.fleet-detail-console){
+  width:100%!important;
+  max-width:none!important;
+  margin:0!important;
+}
+.fleet-detail-console{
+  width:100%!important;
+  max-width:none!important;
+  grid-template-columns:minmax(320px,380px) minmax(720px,1fr)!important;
+}
+.detail-page-hero,
+.detail-page-hero > div:first-child,
+.detail-page-hero::before,
+.detail-page-hero::after,
+.detail-loading{
+  display:none!important;
+}
+
+
+/* 2026-06 remove LCARS banner and bar charts */
+.starship-console-page::before,
+.detail-page-shell::before,
+.public-overview-page::before{
+  content:none!important;
+  display:none!important;
+}
+.fleet-chart-card.pseudo .mini-sparkline,
+.fleet-chart-card.pseudo .mini-sparkline i{
+  display:none!important;
+}
+.fleet-chart-card.pseudo .mini-linechart{
+  display:block!important;
+  width:100%!important;
+  height:155px!important;
+  min-height:155px!important;
+  margin-top:6px!important;
+  overflow:visible!important;
+  background:linear-gradient(rgba(98,245,238,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(98,245,238,.045) 1px,transparent 1px)!important;
+  background-size:100% 28px,52px 100%!important;
+}
+.fleet-chart-card.pseudo .mini-linechart polygon{fill:rgba(98,245,238,.10)!important;}
+.fleet-chart-card.pseudo .mini-linechart polyline{fill:none!important;stroke:#62f5ee!important;stroke-width:2.2!important;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 5px rgba(98,245,238,.62));}
+.fleet-chart-card.pseudo .mini-linechart.no-live-data{display:flex!important;align-items:center!important;justify-content:center!important;border:1px dashed rgba(98,245,238,.22)!important;color:#8fb7c1!important;}
+
+/* hard-kill LCARS text strip */
+.public-overview-page::after,
+.detail-page-shell::after,
+.starship-console-page::after{
+  content:none!important;
+  display:none!important;
+}
+
+/* Probe style resource panels + realtime bandwidth */
+.probe-observability-grid{grid-column:2;grid-row:2;display:grid;grid-template-columns:1fr;grid-auto-rows:minmax(0,auto);gap:10px;align-self:start}.probe-card{background:linear-gradient(180deg,rgba(244,230,199,.96),rgba(227,207,166,.9));border:1px solid rgba(77,58,30,.34);border-radius:14px;padding:14px;color:#1f211d;box-shadow:0 18px 38px rgba(0,0,0,.22),inset 0 0 0 1px rgba(255,255,255,.34);font-family:"JetBrains Mono","SFMono-Regular",monospace}.probe-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.probe-card-head h2{margin:0;font:700 15px/1.1 "Inter","JetBrains Mono",sans-serif;letter-spacing:.01em;color:#222}.probe-card-head span{border:1px solid rgba(41,34,23,.35);border-radius:999px;padding:3px 7px;font-size:9px;color:#554832;background:rgba(255,255,255,.22)}.probe-meter-list{display:grid;gap:12px}.probe-meter-list.compact{gap:8px}.probe-meter-row{padding-bottom:10px;border-bottom:1px dotted rgba(55,43,25,.3)}.probe-meter-row:last-child{border-bottom:0;padding-bottom:0}.probe-meter-top{display:flex;justify-content:space-between;gap:10px;font-size:10px;color:#6b6255}.probe-meter-top span{font-weight:800;letter-spacing:.08em;color:#595043}.probe-meter-top strong{font-weight:700;color:#2a2925}.probe-meter-track,.probe-resource-track{height:5px;margin-top:7px;background:rgba(76,69,56,.18);border-radius:99px;overflow:hidden}.probe-meter-track i,.probe-resource-track i{display:block;height:100%;background:linear-gradient(90deg,#b88639,#d6a95a);border-radius:inherit;box-shadow:0 0 8px rgba(184,134,57,.28)}.probe-meter-extra{margin-top:7px;color:#6d614f;font-size:10px}.probe-resource-list{display:grid;gap:10px}.probe-resource-line{display:grid;grid-template-columns:42px 64px minmax(70px,1fr) auto;align-items:center;gap:10px;padding-bottom:9px;border-bottom:1px dotted rgba(55,43,25,.28);font-size:10px}.probe-resource-line:last-child{border-bottom:0}.probe-resource-pill{width:34px;height:34px;border:1px solid rgba(42,36,26,.38);border-radius:50%;display:grid;place-items:center;font-size:8px;font-weight:800;color:#3d382f;background:rgba(255,255,255,.2)}.probe-resource-line strong{font-size:13px;color:#222}.probe-resource-line em{font-style:normal;color:#5f5648;white-space:nowrap}.probe-resource-track{margin:0}.probe-bandwidth-now{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}.probe-bandwidth-now>div{border:1px solid rgba(55,43,25,.24);border-radius:10px;padding:9px;background:rgba(255,255,255,.18)}.probe-bandwidth-now span{display:block;color:#6b6255;font-size:9px;font-weight:800;letter-spacing:.08em}.probe-bandwidth-now strong{display:block;margin-top:4px;color:#23231f;font-size:14px}.fleet-detail-console:has(.probe-observability-grid){grid-template-columns:18.5% 24% 27.5% 30%!important}.fleet-detail-console:has(.probe-observability-grid) .fleet-chart-matrix{grid-column:3!important}.fleet-detail-console:has(.probe-observability-grid) .fleet-right-zone{grid-column:4!important;grid-template-columns:1fr!important}.fleet-detail-console:has(.probe-observability-grid) .fleet-status-bank{grid-template-columns:repeat(5,1fr)!important}@media(max-width:1200px){.probe-observability-grid{display:grid!important;grid-template-columns:1fr!important;margin-bottom:10px}.probe-resource-line{grid-template-columns:42px 64px 1fr}.probe-resource-line em{grid-column:2/-1}.fleet-detail-console:has(.probe-observability-grid) .fleet-chart-matrix,.fleet-detail-console:has(.probe-observability-grid) .fleet-right-zone{grid-column:auto!important}}
+
+
+/* Unified Starfleet resource panels + cleaner detail layout */
+.fleet-detail-console:has(.probe-observability-grid){
+  grid-template-columns:18.5% minmax(520px,45%) minmax(430px,36.5%)!important;
+  grid-template-rows:92px auto minmax(620px,auto) 38px!important;
+  gap:10px!important;
+  min-height:980px!important;
+}
+.fleet-detail-console:has(.probe-observability-grid) .fleet-left-rail{
+  grid-column:1!important;
+  grid-row:2 / span 2!important;
+}
+.probe-observability-grid{
+  grid-column:2 / span 2!important;
+  grid-row:2!important;
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:10px!important;
+  align-self:stretch!important;
+  margin:0!important;
+}
+.fleet-detail-console:has(.probe-observability-grid) .fleet-chart-matrix{
+  grid-column:2!important;
+  grid-row:3!important;
+  grid-template-columns:1fr 1fr!important;
+  grid-template-rows:repeat(3,minmax(190px,1fr))!important;
+  gap:10px!important;
+}
+.fleet-detail-console:has(.probe-observability-grid) .fleet-right-zone{
+  grid-column:3!important;
+  grid-row:3!important;
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  grid-template-rows:minmax(150px,auto) minmax(320px,1fr) minmax(190px,auto)!important;
+  gap:10px!important;
+}
+.fleet-detail-console:has(.probe-observability-grid) .fleet-console-footer{
+  grid-column:1/-1!important;
+  grid-row:4!important;
+}
+.probe-card{
+  --probe-line:rgba(98,245,238,.34);
+  --probe-soft:rgba(98,245,238,.08);
+  --probe-amber:#ffb15d;
+  background:linear-gradient(180deg,rgba(5,27,42,.82),rgba(2,11,21,.78))!important;
+  border:1px solid var(--probe-line)!important;
+  border-radius:0!important;
+  clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px))!important;
+  color:#d7ffff!important;
+  box-shadow:0 0 20px rgba(38,221,220,.08),inset 0 0 18px rgba(38,221,220,.035)!important;
+  font-family:"Roboto Condensed","DIN Condensed","JetBrains Mono",monospace!important;
+  min-height:174px!important;
+  position:relative!important;
+  overflow:hidden!important;
+}
+.probe-card:before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 82% 12%,rgba(98,245,238,.12),transparent 34%),repeating-linear-gradient(0deg,rgba(98,245,238,.035) 0 1px,transparent 1px 9px);mix-blend-mode:screen;opacity:.75}.probe-card>*{position:relative;z-index:1}
+.probe-card-head{margin-bottom:13px!important;border-bottom:1px solid rgba(98,245,238,.16);padding-bottom:7px}.probe-card-head h2{font:700 13px/1.1 "Roboto Condensed","JetBrains Mono",monospace!important;text-transform:uppercase!important;letter-spacing:.08em!important;color:#bffffb!important;text-shadow:0 0 10px rgba(98,245,238,.35)!important}.probe-card-head span{border:1px solid rgba(98,245,238,.35)!important;border-radius:0!important;background:rgba(98,245,238,.07)!important;color:#7edfe4!important;font-size:9px!important;letter-spacing:.08em!important}
+.probe-meter-row{border-bottom:1px dotted rgba(98,245,238,.18)!important}.probe-meter-top{color:#8fb7c1!important}.probe-meter-top span{color:#7edfe4!important}.probe-meter-top strong{color:#eaffff!important;text-shadow:0 0 8px rgba(98,245,238,.25)}.probe-meter-track,.probe-resource-track{height:6px!important;background:rgba(98,245,238,.09)!important;border:1px solid rgba(98,245,238,.12)!important;border-radius:0!important}.probe-meter-track i,.probe-resource-track i{background:linear-gradient(90deg,#25b9d8,#62f5ee 68%,#ffb15d)!important;border-radius:0!important;box-shadow:0 0 10px rgba(98,245,238,.42)!important}.probe-meter-extra{color:#8fb7c1!important}
+.probe-resource-line{grid-template-columns:42px 58px minmax(62px,1fr) auto!important;border-bottom:1px dotted rgba(98,245,238,.18)!important}.probe-resource-pill{border-color:rgba(98,245,238,.45)!important;background:rgba(98,245,238,.07)!important;color:#bffffb!important;border-radius:50%!important;box-shadow:inset 0 0 12px rgba(98,245,238,.1)}.probe-resource-line strong{color:#eaffff!important;text-shadow:0 0 8px rgba(98,245,238,.3)}.probe-resource-line em{color:#8fb7c1!important}.probe-bandwidth-now>div{border:1px solid rgba(98,245,238,.2)!important;background:rgba(98,245,238,.045)!important;border-radius:0!important}.probe-bandwidth-now span{color:#7edfe4!important}.probe-bandwidth-now strong{color:#eaffff!important;text-shadow:0 0 9px rgba(98,245,238,.35)}
+@media(max-width:1200px){
+  .fleet-detail-console:has(.probe-observability-grid){display:block!important;min-height:820px!important}.probe-observability-grid{grid-template-columns:1fr!important;margin-bottom:10px!important}.fleet-detail-console:has(.probe-observability-grid) .fleet-chart-matrix,.fleet-detail-console:has(.probe-observability-grid) .fleet-right-zone,.fleet-detail-console:has(.probe-observability-grid) .fleet-left-rail{display:grid!important;grid-template-columns:1fr!important;margin-bottom:10px!important}
+}
+
+
+/* hotfix-detail-controls-language-errorlog-final */
+.detail-page-shell:has(.fleet-detail-console) .detail-page-topbar{
+  width: min(100%, 1248px) !important;
+  margin: 0 auto 12px !important;
+  padding: 0 16px 14px !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  gap:16px !important;
+  box-sizing:border-box !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-page-tools{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-end !important;
+  flex-wrap:wrap !important;
+  gap:9px !important;
+  max-width: calc(100% - 170px) !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-back-link,
+.detail-page-shell:has(.fleet-detail-console) .theme-toggle,
+.detail-page-shell:has(.fleet-detail-console) .currency-btn,
+.detail-page-shell:has(.fleet-detail-console) .language-select{
+  min-height:38px !important;
+  height:38px !important;
+  padding:9px 14px !important;
+  font-size:12px !important;
+  line-height:1 !important;
+  border-radius:10px !important;
+  letter-spacing:.05em !important;
+  border:1px solid rgba(98,245,238,.38) !important;
+  background:rgba(4,25,38,.86) !important;
+  color:#cfffff !important;
+  box-shadow:0 0 18px rgba(98,245,238,.10), inset 0 0 12px rgba(98,245,238,.05) !important;
+  transform:none !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-back-link{
+  display:inline-flex !important;
+  align-items:center !important;
+  white-space:nowrap !important;
+  min-width:118px !important;
+  justify-content:center !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .theme-toggle{
+  display:inline-flex !important;
+  align-items:center !important;
+  min-width:92px !important;
+  justify-content:center !important;
+  gap:7px !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .language-select{
+  min-width:112px !important;
+  max-width:132px !important;
+  cursor:pointer !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-currency-switch{
+  min-height:38px !important;
+  height:38px !important;
+  display:flex !important;
+  align-items:center !important;
+  gap:5px !important;
+  transform:none !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .rate-display{
+  min-height:38px !important;
+  display:flex !important;
+  align-items:center !important;
+  font-size:12px !important;
+  color:#aeefff !important;
+  white-space:nowrap !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-right-zone,
+.detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid,
+.detail-page-shell:has(.fleet-detail-console) .fleet-panel,
+.detail-page-shell:has(.fleet-detail-console) .fleet-table-wrap{
+  min-width:0 !important;
+  max-width:100% !important;
+  box-sizing:border-box !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid{
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(180px,210px) !important;
+  overflow:hidden !important;
+  gap:10px !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-error-panel{
+  overflow:hidden !important;
+  max-width:100% !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-error-panel h3{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  gap:8px !important;
+  margin:4px 0 8px !important;
+  white-space:nowrap !important;
+  font-size:12px !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-error-panel h3 span{
+  float:none !important;
+  min-width:0 !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-error-panel div:not(.fleet-title){
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  white-space:nowrap !important;
+  max-width:100% !important;
+}
+@media (max-width:900px){
+  .detail-page-shell:has(.fleet-detail-console) .detail-page-topbar{align-items:flex-start!important;}
+  .detail-page-shell:has(.fleet-detail-console) .detail-page-tools{max-width:100%!important;}
+  .detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid{grid-template-columns:1fr!important;}
+}
+
+
+/* hotfix-detail-errorlog-contained-right-zone */
+/* The bottom rule/inventory/error strip lives inside the narrow right zone; stack it so Error Log never protrudes beyond the page. */
+.detail-page-shell:has(.fleet-detail-console) .fleet-right-zone .fleet-bottom-grid{
+  width:100% !important;
+  max-width:100% !important;
+  grid-template-columns:1fr !important;
+  grid-auto-rows:minmax(0, auto) !important;
+  overflow:hidden !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-right-zone .fleet-bottom-grid > .fleet-panel{
+  width:100% !important;
+  max-width:100% !important;
+  min-width:0 !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-error-panel,
+.detail-page-shell:has(.fleet-detail-console) .fleet-error-panel *{
+  max-width:100% !important;
+  box-sizing:border-box !important;
+}
+
+
+/* hotfix-detail-errorlog-force-width */
+.detail-page-shell:has(.fleet-detail-console) .fleet-right-zone .fleet-bottom-grid{
+  width:435px !important;
+  max-width:435px !important;
+  justify-self:start !important;
+}
+@media (max-width:1200px){
+  .detail-page-shell:has(.fleet-detail-console) .fleet-right-zone .fleet-bottom-grid{
+    width:100% !important;
+    max-width:100% !important;
+  }
+}
+
+
+
+/* hotfix-detail-realtime-units-i18n-theme-v2 */
+.detail-page-shell:has(.fleet-detail-console) .detail-page-topbar{
+  width:100%!important;max-width:none!important;margin:0 0 12px!important;padding:0 0 14px!important;
+  display:flex!important;align-items:center!important;justify-content:space-between!important;gap:16px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-back-link{margin-right:auto!important;margin-left:0!important;justify-self:flex-start!important;}
+.detail-page-shell:has(.fleet-detail-console) .detail-page-tools{margin-left:auto!important;justify-content:flex-end!important;max-width:calc(100% - 150px)!important;}
+[data-theme="light"] body{background:#ede4d1!important;color:#263238!important;}
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console){
+  background:radial-gradient(circle at 70% 12%,rgba(255,247,218,.75),transparent 34%),linear-gradient(135deg,#efe5d0 0%,#ded0b6 52%,#cdbd9f 100%)!important;
+  color:#263238!important;
+}
+[data-theme="light"] .fleet-detail-console{--cyan:#2b7f8a;--amber:#9c5d16;--line:rgba(53,91,94,.34);--muted:#6d6a5d;background:linear-gradient(180deg,rgba(255,250,237,.92),rgba(232,220,194,.88))!important;border-color:rgba(93,111,98,.38)!important;box-shadow:0 16px 48px rgba(83,64,36,.18)!important;color:#263238!important;}
+[data-theme="light"] .fleet-detail-console:before{background:linear-gradient(90deg,transparent 49.8%,rgba(75,109,112,.09) 50%,transparent 50.2%),radial-gradient(circle at 72% 38%,rgba(213,164,82,.13),transparent 30%)!important;mix-blend-mode:multiply!important;}
+[data-theme="light"] .fleet-node-identity,
+[data-theme="light"] .fleet-status-bank>div,
+[data-theme="light"] .fleet-panel,
+[data-theme="light"] .fleet-chart-card,
+[data-theme="light"] .probe-card{background:linear-gradient(180deg,rgba(255,252,241,.92),rgba(232,222,199,.90))!important;border-color:rgba(70,95,97,.30)!important;box-shadow:0 0 0 1px rgba(255,255,255,.35) inset,0 10px 24px rgba(90,72,42,.10)!important;color:#263238!important;}
+[data-theme="light"] .fleet-node-caption h1,
+[data-theme="light"] .fleet-status-bank strong,
+[data-theme="light"] .fleet-info-list strong,
+[data-theme="light"] .fleet-chart-head strong,
+[data-theme="light"] .probe-card strong{color:#17282b!important;text-shadow:none!important;}
+[data-theme="light"] .fleet-title,
+[data-theme="light"] .fleet-chart-head,
+[data-theme="light"] .probe-card-head h2{color:#176d78!important;border-color:rgba(42,113,122,.22)!important;}
+[data-theme="light"] .fleet-info-list div,
+[data-theme="light"] .probe-resource-line,
+[data-theme="light"] .probe-meter-row{background:rgba(61,121,126,.07)!important;border-color:rgba(42,113,122,.35)!important;}
+[data-theme="light"] .fleet-table{color:#263238!important;}
+[data-theme="light"] .fleet-table th{color:#176d78!important;border-color:rgba(42,113,122,.24)!important;}
+[data-theme="light"] .fleet-table td{border-color:rgba(42,113,122,.12)!important;}
+[data-theme="light"] .fleet-error-panel{background:linear-gradient(180deg,rgba(255,239,214,.95),rgba(239,221,193,.92))!important;border-color:rgba(157,93,22,.45)!important;}
+[data-theme="light"] .fleet-error-panel h3,
+[data-theme="light"] .fleet-title.warn,
+[data-theme="light"] .fleet-error-panel div:not(.fleet-title){color:#7a3e10!important;}
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-back-link,
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .theme-toggle,
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .currency-btn,
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .language-select{background:#f7edda!important;color:#243235!important;border-color:rgba(92,103,91,.42)!important;box-shadow:0 8px 20px rgba(93,75,43,.10)!important;}
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .rate-display{color:#394a4c!important;}
+
+
+/* hotfix-detail-currency-light-stable-v3 */
+.detail-page-shell:has(.fleet-detail-console) .detail-page-tools{
+  display:grid!important;
+  grid-template-columns:96px 128px 176px 156px!important;
+  align-items:center!important;
+  justify-content:end!important;
+  justify-items:stretch!important;
+  column-gap:9px!important;
+  width:auto!important;
+  min-width:586px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .theme-toggle{width:96px!important;min-width:96px!important;}
+.detail-page-shell:has(.fleet-detail-console) .language-select{width:128px!important;min-width:128px!important;max-width:128px!important;}
+.detail-page-shell:has(.fleet-detail-console) .detail-currency-switch{
+  width:176px!important;
+  min-width:176px!important;
+  max-width:176px!important;
+  display:grid!important;
+  grid-template-columns:repeat(3,54px)!important;
+  gap:5px!important;
+  align-items:center!important;
+  justify-content:center!important;
+  padding:0 4px!important;
+  box-sizing:border-box!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-currency-switch .currency-btn{
+  width:54px!important;
+  min-width:54px!important;
+  max-width:54px!important;
+  text-align:center!important;
+  padding-left:0!important;
+  padding-right:0!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .rate-display{
+  width:156px!important;
+  min-width:156px!important;
+  max-width:156px!important;
+  justify-content:flex-start!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-currency-switch{
+  background:#f7edda!important;
+  border:1px solid rgba(92,103,91,.42)!important;
+  box-shadow:0 8px 20px rgba(93,75,43,.10)!important;
+}
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-currency-switch .currency-btn{
+  background:#fff6e6!important;
+  color:#243235!important;
+  border-color:rgba(92,103,91,.38)!important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.45)!important;
+}
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-currency-switch .currency-btn.active{
+  background:linear-gradient(180deg,#f0c77d,#d99b43)!important;
+  color:#24180b!important;
+  border-color:rgba(148,92,20,.55)!important;
+}
+@media(max-width:760px){
+  .detail-page-shell:has(.fleet-detail-console) .detail-page-tools{display:flex!important;min-width:0!important;max-width:100%!important;flex-wrap:wrap!important;}
+}
+
+
+/* hotfix-detail-scrollbar-large-charts-fast-sample-v4 */
+html,body{scrollbar-width:thin!important;}
+[data-theme="dark"] html,[data-theme="dark"] body{scrollbar-color:#55dfe8 #061522!important;}
+[data-theme="light"] html,[data-theme="light"] body{scrollbar-color:#b99055 #efe4cd!important;}
+[data-theme="dark"] ::-webkit-scrollbar{width:12px;height:12px;}
+[data-theme="dark"] ::-webkit-scrollbar-track{background:#061522!important;}
+[data-theme="dark"] ::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#62f5ee,#236f7a)!important;border:2px solid #061522!important;border-radius:999px!important;}
+[data-theme="light"] ::-webkit-scrollbar{width:12px;height:12px;}
+[data-theme="light"] ::-webkit-scrollbar-track{background:#efe4cd!important;}
+[data-theme="light"] ::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#d7ad6d,#9b7442)!important;border:2px solid #efe4cd!important;border-radius:999px!important;}
+.detail-page-shell:has(.fleet-detail-console) .fleet-table-wrap,
+.detail-page-shell:has(.fleet-detail-console) .fleet-panel{scrollbar-width:thin!important;}
+[data-theme="dark"] .detail-page-shell:has(.fleet-detail-console) .fleet-table-wrap,
+[data-theme="dark"] .detail-page-shell:has(.fleet-detail-console) .fleet-panel{scrollbar-color:#55dfe8 #061522!important;}
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-table-wrap,
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-panel{scrollbar-color:#b99055 #efe4cd!important;}
+
+.detail-page-shell:has(.fleet-detail-console) .fleet-detail-console{
+  grid-template-columns:minmax(300px,360px) minmax(620px,1fr)!important;
+  grid-template-rows:auto auto auto auto auto!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{
+  grid-column:1/-1!important;
+  grid-row:3!important;
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(420px,1fr))!important;
+  gap:18px!important;
+  width:100%!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card{
+  min-height:330px!important;
+  padding:18px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-head{
+  font-size:14px!important;
+  margin-bottom:12px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-head strong{
+  font-size:16px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card canvas,
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-sparkline{
+  height:250px!important;
+  min-height:250px!important;
+  max-height:none!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-linechart{
+  height:250px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-right-zone{
+  grid-column:1/-1!important;
+  grid-row:4!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-console-footer{
+  grid-column:1/-1!important;
+  grid-row:5!important;
+}
+@media(max-width:980px){
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{grid-template-columns:1fr!important;}
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card{min-height:300px!important;}
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card canvas,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-sparkline{height:220px!important;min-height:220px!important;}
+}
+
+
+/* hotfix-detail-scrollbar-root-selector-v5 */
+html[data-theme="dark"],html[data-theme="dark"] body{scrollbar-width:thin!important;scrollbar-color:#55dfe8 #061522!important;}
+html[data-theme="light"],html[data-theme="light"] body{scrollbar-width:thin!important;scrollbar-color:#b99055 #efe4cd!important;}
+html[data-theme="dark"] ::-webkit-scrollbar{width:12px!important;height:12px!important;}
+html[data-theme="dark"] ::-webkit-scrollbar-track{background:#061522!important;}
+html[data-theme="dark"] ::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#62f5ee,#236f7a)!important;border:2px solid #061522!important;border-radius:999px!important;}
+html[data-theme="light"] ::-webkit-scrollbar{width:12px!important;height:12px!important;}
+html[data-theme="light"] ::-webkit-scrollbar-track{background:#efe4cd!important;}
+html[data-theme="light"] ::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#d7ad6d,#9b7442)!important;border:2px solid #efe4cd!important;border-radius:999px!important;}
+html[data-theme="dark"] .detail-page-shell:has(.fleet-detail-console) .fleet-table-wrap,
+html[data-theme="dark"] .detail-page-shell:has(.fleet-detail-console) .fleet-panel{scrollbar-color:#55dfe8 #061522!important;}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-table-wrap,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-panel{scrollbar-color:#b99055 #efe4cd!important;}
+
+
+/* hotfix-detail-bottom-horizontal-no-midline-freshness-v6 */
+.detail-page-shell:has(.fleet-detail-console) .fleet-detail-console:before{
+  background:radial-gradient(circle at 72% 38%,rgba(98,245,238,.10),transparent 28%)!important;
+  mix-blend-mode:screen!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console:before,
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console:before{
+  background:radial-gradient(circle at 72% 38%,rgba(213,164,82,.13),transparent 30%)!important;
+  mix-blend-mode:multiply!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-right-zone{
+  grid-column:1/-1!important;
+  grid-row:4!important;
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  grid-template-rows:auto auto auto!important;
+  gap:18px!important;
+  width:100%!important;
+  min-width:0!important;
+  overflow:visible!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid{
+  display:grid!important;
+  grid-template-columns:minmax(520px,1fr) minmax(300px,380px)!important;
+  gap:18px!important;
+  min-height:440px!important;
+  overflow:visible!important;
+  position:relative!important;
+  z-index:2!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-globe-panel,
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel{
+  min-width:0!important;
+  overflow:hidden!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel .fleet-table-wrap{
+  max-height:380px!important;
+  overflow:auto!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-right-zone .fleet-bottom-grid,
+.detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid{
+  width:100%!important;
+  max-width:100%!important;
+  justify-self:stretch!important;
+  grid-column:1/-1!important;
+  display:grid!important;
+  grid-template-columns:minmax(280px,1fr) minmax(360px,1.25fr) minmax(280px,1fr)!important;
+  gap:18px!important;
+  overflow:visible!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-right-zone .fleet-bottom-grid > .fleet-panel,
+.detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid > .fleet-panel{
+  width:100%!important;
+  min-width:0!important;
+  max-width:100%!important;
+  min-height:260px!important;
+  overflow:hidden!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-inventory-panel .fleet-table-wrap,
+.detail-page-shell:has(.fleet-detail-console) .fleet-rules-panel,
+.detail-page-shell:has(.fleet-detail-console) .fleet-error-panel{
+  max-height:320px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .data-freshness-card .freshness-meta{
+  display:flex!important;
+  justify-content:space-between!important;
+  gap:12px!important;
+  margin:0 0 8px!important;
+  color:#8fb7c1!important;
+  font-size:12px!important;
+  text-transform:uppercase!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .data-freshness-card .freshness-meta{color:#6d6252!important;}
+@media(max-width:980px){
+  .detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-right-zone .fleet-bottom-grid,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid{grid-template-columns:1fr!important;}
+}
+
+
+/* hotfix-detail-telemetry-frame-tight-badge-v7 */
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail{
+  align-self:start!important;
+  grid-template-rows:auto auto!important;
+  gap:18px!important;
+  min-height:0!important;
+  height:auto!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .node-card{
+  align-self:start!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  padding-bottom:14px!important;
+  overflow:visible!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-info-list{
+  margin-bottom:0!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-reference-badge,
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-html-badge,
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-insignia{
+  position:relative!important;
+  left:auto!important;
+  top:auto!important;
+  right:auto!important;
+  bottom:auto!important;
+  justify-self:center!important;
+  align-self:start!important;
+  margin:8px auto 0!important;
+  z-index:1!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-reference-badge img,
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-html-badge img{
+  display:block!important;
+}
+@media(max-width:1200px){
+  .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail{grid-template-rows:auto auto!important;}
+}
+
+
+/* hotfix-detail-doc-canvas-globe-v8 */
+.detail-page-shell:has(.fleet-detail-console) .quantum-vector-globe{display:none!important;}
+.detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe{
+  display:block!important;
+  position:relative!important;
+  height:430px!important;
+  min-height:430px!important;
+  width:100%!important;
+  overflow:hidden!important;
+  border:0!important;
+  background:
+    radial-gradient(circle at 50% 50%,rgba(98,245,238,.10),transparent 48%),
+    linear-gradient(180deg,rgba(3,18,30,.22),rgba(0,5,10,.04))!important;
+  box-shadow:none!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-probe-globe-canvas{
+  position:absolute!important;
+  inset:0!important;
+  width:100%!important;
+  height:100%!important;
+  display:block!important;
+  cursor:grab;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-probe-globe-canvas:active{cursor:grabbing;}
+.detail-page-shell:has(.fleet-detail-console) .detail-probe-globe-tooltip{
+  position:absolute;
+  z-index:5;
+  display:none;
+  pointer-events:none;
+  min-width:132px;
+  padding:7px 9px;
+  border:1px solid rgba(98,245,238,.42);
+  background:rgba(2,12,20,.90);
+  box-shadow:0 0 16px rgba(98,245,238,.18);
+  color:#dfffff;
+  font:10px 'JetBrains Mono',monospace;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-probe-globe-tooltip strong,
+.detail-page-shell:has(.fleet-detail-console) .detail-probe-globe-tooltip span{display:block;}
+.detail-page-shell:has(.fleet-detail-console) .detail-probe-globe-tooltip span{color:#8fd9dc;margin-top:3px;}
+.detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe .quantum-globe-copy{
+  z-index:4!important;
+  border-left:1px solid rgba(98,245,238,.40);
+  background:rgba(1,10,17,.48)!important;
+  color:#dfffff!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid{
+  grid-template-columns:minmax(560px,1fr) minmax(300px,380px)!important;
+  min-height:470px!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe{
+  background:radial-gradient(circle at 50% 50%,rgba(32,110,132,.12),transparent 48%),linear-gradient(180deg,rgba(236,229,208,.30),rgba(244,238,220,.08))!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-probe-globe-tooltip{
+  background:rgba(248,241,222,.94);
+  color:#26343b;
+  border-color:rgba(32,110,132,.32);
+}
+@media(max-width:980px){
+  .detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe{height:340px!important;min-height:340px!important;}
+}
+
+
+/* Detail React GlobeStarmap embed */
+.fleet-starmap-panel {
+  min-height: 500px;
+  overflow: hidden;
+}
+
+
+
+.detail-globe-starmap-mount {
+  width: 100%;
+  min-height: 470px;
+  max-width: 820px;
+  margin: 0 auto;
+}
+
+
+
+.detail-globe-starmap-mount > div {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 !important;
+  background: transparent !important;
+}
+.detail-globe-starmap-mount canvas {
+  width: 100% !important;
+  height: auto !important;
+  min-height: 360px;
+  background: #070b14;
+}
+
+
+
+@media (max-width: 900px) {
+  .fleet-starmap-panel { min-height: 420px; }
+  .detail-globe-starmap-mount { min-height: 390px; max-width: 100%; }
+  .detail-globe-starmap-mount canvas { min-height: 320px; }
+}
+
+/* detail-monitor-ux-pro-pass-20260608 */
+.detail-page-shell:has(.fleet-detail-console) .fleet-detail-console{
+  grid-template-rows:auto auto auto auto auto!important;
+  height:auto!important;
+  min-height:100vh!important;
+  overflow:visible!important;
+  row-gap:14px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-health-summary{
+  grid-column:1/-1!important;
+  display:grid!important;
+  grid-template-columns:1.15fr repeat(3,1fr)!important;
+  gap:10px!important;
+  padding:10px!important;
+  border:1px solid rgba(98,245,238,.34)!important;
+  background:linear-gradient(180deg,rgba(7,25,36,.88),rgba(3,13,24,.78))!important;
+  box-shadow:0 12px 30px rgba(0,0,0,.18), inset 0 0 20px rgba(98,245,238,.045)!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-health-summary>div{border-left:3px solid rgba(98,245,238,.45);padding:7px 10px;background:rgba(98,245,238,.045)}
+.detail-health-summary span{display:block;color:#8fb7c1;font-size:11px;text-transform:uppercase}.detail-health-summary strong{display:block;margin-top:2px;color:#efffff;font-size:18px}.detail-health-summary em{display:block;margin-top:4px;color:#badce2;font-style:normal;font-size:12px}.detail-health-summary.is-ok .health-main{border-left-color:#3fe58b}.detail-health-summary.is-warn .health-main{border-left-color:#ffcb66}.detail-health-summary.is-danger .health-main{border-left-color:#ff5d73}.detail-health-summary.is-ok .health-main strong{color:#7dffb5}.detail-health-summary.is-warn .health-main strong{color:#ffd66b}.detail-health-summary.is-danger .health-main strong{color:#ff8b9c}
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail{grid-row:3!important}.detail-page-shell:has(.fleet-detail-console) .probe-observability-grid{grid-row:3!important}.detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{grid-row:3!important}.detail-page-shell:has(.fleet-detail-console) .fleet-right-zone{grid-row:4!important}.detail-page-shell:has(.fleet-detail-console) .fleet-console-footer{grid-row:5!important}
+.detail-more-facts{border-left:2px solid rgba(98,245,238,.28);background:rgba(98,245,238,.045);padding:6px}.detail-more-facts summary{cursor:pointer;color:#dfffff;font-weight:800}.detail-more-facts div{display:grid!important;grid-template-columns:72px minmax(0,1fr);gap:8px;border:0!important;background:transparent!important;padding:5px 0!important}.detail-more-facts code{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ffda83}
+.detail-page-shell:has(.fleet-detail-console) .fleet-status-bank strong{font-size:14px!important}.detail-page-shell:has(.fleet-detail-console) .fleet-online strong{text-transform:none!important}.detail-page-shell:has(.fleet-detail-console) .fleet-chart-head span{color:#f1ffff!important;font-size:13px!important}.detail-page-shell:has(.fleet-detail-console) .fleet-chart-head strong{color:#fff2bd!important;font-size:14px!important}.detail-page-shell:has(.fleet-detail-console) .fleet-title{color:#f2ffff!important;font-size:13px!important}.detail-page-shell:has(.fleet-detail-console) canvas{image-rendering:auto}.detail-page-shell:has(.fleet-detail-console) .fleet-table{font-size:12px!important}.detail-page-shell:has(.fleet-detail-console) .fleet-table th{color:#f1ffff!important}.detail-page-shell:has(.fleet-detail-console) .fleet-table td{color:#cce7e9!important}.detail-page-shell:has(.fleet-detail-console) .fleet-starmap-panel{min-height:390px!important}.detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount{min-height:340px!important;max-width:680px!important}.detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{min-height:300px!important}.detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid{grid-template-columns:minmax(420px,.95fr) minmax(320px,420px)!important;min-height:390px!important}.detail-page-shell:has(.fleet-detail-console) .network-throughput-card canvas,.detail-page-shell:has(.fleet-detail-console) .ping-multi-card canvas{min-height:210px!important;max-height:280px!important}.detail-page-shell:has(.fleet-detail-console) .resource-mini-card canvas,.detail-page-shell:has(.fleet-detail-console) .data-freshness-card canvas{min-height:150px!important;max-height:210px!important}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-health-summary{background:rgba(255,252,241,.94)!important;border-color:rgba(72,126,130,.32)!important}html[data-theme="light"] .detail-health-summary span{color:#756b5c!important}html[data-theme="light"] .detail-health-summary strong{color:#183640!important}html[data-theme="light"] .detail-health-summary em{color:#665d51!important}html[data-theme="light"] .detail-more-facts{background:rgba(255,255,255,.5)}html[data-theme="light"] .detail-more-facts summary{color:#183640!important}html[data-theme="light"] .detail-more-facts code{color:#7c4c00!important}
+@media(max-width:1100px){.detail-page-shell:has(.fleet-detail-console) .detail-health-summary{grid-template-columns:1fr!important}.detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid{grid-template-columns:1fr!important}}
+
+/* detail-resource-value-no-truncate-20260608 */
+.detail-page-shell:has(.fleet-detail-console) .probe-resource-line{
+  grid-template-columns:42px minmax(54px,72px) minmax(84px,1fr) minmax(112px,max-content)!important;
+  column-gap:8px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .probe-resource-line em{
+  overflow:visible!important;
+  text-overflow:clip!important;
+  white-space:nowrap!important;
+  justify-self:end!important;
+  font-size:9.5px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .probe-resource-line strong{white-space:nowrap!important;}
+@media(max-width:1280px){
+  .detail-page-shell:has(.fleet-detail-console) .probe-resource-line{grid-template-columns:42px 60px minmax(90px,1fr)!important;}
+  .detail-page-shell:has(.fleet-detail-console) .probe-resource-line em{grid-column:2/-1!important;justify-self:start!important;margin-top:-4px!important;}
+}
+
+
+
+/* detail-day-readability-and-chart-axis-20260608 */
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console),
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) *{
+  text-shadow:none!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-status-bank span,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-info-list span,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-info-list code,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-table td,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .probe-meter-top,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .probe-meter-extra,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .probe-resource-line em,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .network-legend,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-health-card span{
+  color:#37484b!important;
+  opacity:1!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-title,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-chart-head span,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .probe-card-head h2,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .probe-meter-top span{
+  color:#075e69!important;
+  opacity:1!important;
+  font-weight:800!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .probe-meter-track,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .probe-resource-track{
+  height:8px!important;
+  border-radius:999px!important;
+  overflow:hidden!important;
+  background:rgba(34,69,73,.16)!important;
+  box-shadow:inset 0 0 0 1px rgba(34,69,73,.16)!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .probe-meter-track i,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .probe-resource-track i{
+  border-radius:999px!important;
+  transform:none!important;
+  clip-path:none!important;
+  background:linear-gradient(90deg,#128b91,#20b8b7)!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-starmap-panel,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount{
+  background:linear-gradient(180deg,#f7efdc,#e8dbc0)!important;
+  border-color:rgba(67,101,104,.34)!important;
+  box-shadow:0 10px 28px rgba(87,67,36,.12), inset 0 0 0 1px rgba(255,255,255,.42)!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe canvas,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
+  filter:brightness(1.18) contrast(.92) saturate(.82)!important;
+  opacity:.72!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe .quantum-globe-copy,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe .quantum-globe-legend{
+  background:rgba(255,250,235,.84)!important;
+  color:#1e3d42!important;
+  border-color:rgba(43,91,96,.26)!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid,
+.detail-page-shell:has(.fleet-detail-console) .fleet-panel,
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-side,
+.detail-page-shell:has(.fleet-detail-console) .probe-link-bar{
+  min-width:0!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-side{
+  overflow:hidden!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .probe-link-bar{
+  width:100%!important;
+  max-width:100%!important;
+  box-sizing:border-box!important;
+  overflow:hidden!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .probe-link-bar i{
+  max-width:100%!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card canvas{
+  filter:contrast(1.08)!important;
+}
+
+
+/* detail-day-final-readability-pass-20260608 */
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe canvas,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
+  filter:brightness(1.07) contrast(1.06) saturate(.96)!important;
+  opacity:1!important;
+  background:linear-gradient(180deg,#edf3e6,#d8e3d2)!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-chart-head strong,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .network-legend,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-table th,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-table td,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .probe-row,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .probe-row span,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .probe-row strong,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .probe-link-bar,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .freshness-latest{
+  color:#183c42!important;
+  text-shadow:none!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-chart-head span,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .probe-card-head h2,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-title{
+  color:#064f58!important;
+  font-weight:850!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-panel,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-probe-side{
+  color:#17383e!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .probe-link-bar{
+  padding-right:8px!important;
+  border-color:rgba(30,85,92,.20)!important;
+  background:rgba(255,250,235,.52)!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .probe-link-bar i{
+  background:linear-gradient(90deg,#0e8e99,#f0b63f)!important;
+}
+
+
+/* responsive-pc-mobile-pass-20260608 */
+html, body, #app{
+  max-width:100%;
+  overflow-x:hidden;
+}
+.detail-page-shell:has(.fleet-detail-console),
+.detail-page-shell:has(.fleet-detail-console) *{
+  box-sizing:border-box;
+}
+.detail-page-shell:has(.fleet-detail-console){
+  width:100%;
+  max-width:100vw;
+  overflow-x:hidden;
+}
+.detail-page-shell:has(.fleet-detail-console) canvas,
+.detail-page-shell:has(.fleet-detail-console) svg,
+.detail-page-shell:has(.fleet-detail-console) img{
+  max-width:100%;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-table-wrap,
+.detail-page-shell:has(.fleet-detail-console) .fleet-table,
+.detail-page-shell:has(.fleet-detail-console) .detail-more-facts{
+  max-width:100%;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-table{
+  min-width:720px;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount,
+.detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount>div,
+.detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
+  width:100%!important;
+  max-width:100%!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-side,
+.detail-page-shell:has(.fleet-detail-console) .probe-row,
+.detail-page-shell:has(.fleet-detail-console) .probe-link-bar{
+  min-width:0!important;
+}
+
+@media (max-width: 1180px){
+  .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console,
+  .detail-page-shell:has(.fleet-detail-console) .probe-observability-grid,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{
+    grid-template-columns:1fr!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail,
+  .detail-page-shell:has(.fleet-detail-console) .probe-observability-grid,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-right-zone,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-console-footer{
+    grid-column:1/-1!important;
+  }
+}
+
+@media (max-width: 820px){
+  .detail-page-shell:has(.fleet-detail-console){
+    padding:10px!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:12px!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-topbar,
+  .detail-page-shell:has(.fleet-detail-console) .display-topbar,
+  .detail-page-shell:has(.fleet-detail-console) .topbar,
+  .detail-page-shell:has(.fleet-detail-console) .toolbar,
+  .detail-page-shell:has(.fleet-detail-console) .currency-switcher,
+  .detail-page-shell:has(.fleet-detail-console) .language-switcher{
+    flex-wrap:wrap!important;
+    row-gap:8px!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .detail-health-summary,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-status-bank,
+  .detail-page-shell:has(.fleet-detail-console) .probe-card-grid,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid{
+    grid-template-columns:1fr!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .probe-observability-grid,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix,
+  .detail-page-shell:has(.fleet-detail-console) .resource-mini-grid{
+    grid-template-columns:1fr!important;
+    gap:12px!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-panel,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card,
+  .detail-page-shell:has(.fleet-detail-console) .probe-card,
+  .detail-page-shell:has(.fleet-detail-console) .compact-metric-card{
+    width:100%!important;
+    min-width:0!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .network-throughput-card canvas,
+  .detail-page-shell:has(.fleet-detail-console) .ping-multi-card canvas{
+    min-height:220px!important;
+    height:240px!important;
+    max-height:260px!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .resource-mini-card canvas,
+  .detail-page-shell:has(.fleet-detail-console) .data-freshness-card canvas{
+    min-height:170px!important;
+    height:180px!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount{
+    min-height:300px!important;
+    height:auto!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
+    min-height:250px!important;
+    height:260px!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-head{
+    flex-wrap:wrap!important;
+    gap:6px!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-head strong{
+    font-size:12px!important;
+  }
+}
+
+@media (max-width: 520px){
+  .detail-page-shell:has(.fleet-detail-console){
+    padding:8px!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-id-card,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-panel,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card,
+  .detail-page-shell:has(.fleet-detail-console) .probe-card,
+  .detail-page-shell:has(.fleet-detail-console) .detail-health-summary>div{
+    border-radius:14px!important;
+    padding:12px!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-status-bank{
+    grid-template-columns:1fr 1fr!important;
+    gap:8px!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-status-bank strong,
+  .detail-page-shell:has(.fleet-detail-console) .detail-health-summary strong{
+    font-size:15px!important;
+    line-height:1.25!important;
+    word-break:break-word!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .probe-meter-top,
+  .detail-page-shell:has(.fleet-detail-console) .probe-resource-line{
+    grid-template-columns:1fr!important;
+    gap:5px!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .probe-resource-line em,
+  .detail-page-shell:has(.fleet-detail-console) .probe-resource-line strong{
+    grid-column:auto!important;
+    justify-self:start!important;
+    white-space:normal!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-table{
+    min-width:620px;
+    font-size:11px!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount{
+    min-height:260px!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
+    min-height:220px!important;
+    height:230px!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .network-throughput-card canvas,
+  .detail-page-shell:has(.fleet-detail-console) .ping-multi-card canvas{
+    min-height:210px!important;
+    height:220px!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-console-footer,
+  .detail-page-shell:has(.fleet-detail-console) .sticky-health-footer,
+  .detail-page-shell:has(.fleet-detail-console) .detail-health-footer{
+    position:static!important;
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:8px!important;
+  }
+}
+
+
+/* responsive-overflow-fix-pass-20260608 */
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel,
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-side{
+  overflow:hidden!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel .fleet-table,
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-side .fleet-table{
+  min-width:0!important;
+  width:100%!important;
+  table-layout:fixed!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel .fleet-table th,
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel .fleet-table td,
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-side .fleet-table th,
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-side .fleet-table td{
+  max-width:none!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-inventory-panel .fleet-table,
+.detail-page-shell:has(.fleet-detail-console) .fleet-database-panel .fleet-table{
+  min-width:680px!important;
+}
+@media (max-width: 900px){
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr)!important;
+    width:100%!important;
+    max-width:100%!important;
+    overflow:hidden!important;
+  }
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card,
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card,
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .compact-metric-card,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .compact-metric-card{
+    grid-column:auto!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    left:auto!important;
+    right:auto!important;
+    transform:none!important;
+    overflow:hidden!important;
+  }
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card canvas,
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card canvas,
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .compact-metric-card canvas,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card canvas,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card canvas,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .compact-metric-card canvas{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+  }
+}
+@media (max-width: 520px){
+  .detail-page-shell:has(.fleet-detail-console) .fleet-inventory-panel .fleet-table,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-database-panel .fleet-table{
+    min-width:560px!important;
+  }
+}
+
+
+/* responsive-mobile-readable-header-pass-20260608 */
+@media (max-width: 520px){
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-console-header,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-console-header{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:10px!important;
+    width:100%!important;
+    max-width:100%!important;
+  }
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-node-identity,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-node-identity{
+    display:grid!important;
+    grid-template-columns:76px minmax(0,1fr)!important;
+    align-items:center!important;
+    width:100%!important;
+    max-width:100%!important;
+    overflow:hidden!important;
+  }
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-node-caption,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-node-caption{
+    min-width:0!important;
+    max-width:100%!important;
+    overflow:hidden!important;
+  }
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-node-caption h1,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-node-caption h1{
+    white-space:normal!important;
+    overflow-wrap:anywhere!important;
+    word-break:break-word!important;
+    font-size:16px!important;
+    line-height:1.16!important;
+  }
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-node-caption p,
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-micro,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-node-caption p,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-micro{
+    white-space:normal!important;
+    overflow-wrap:anywhere!important;
+    word-break:break-word!important;
+    max-width:100%!important;
+  }
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-status-bank,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-status-bank{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:8px!important;
+    width:100%!important;
+    max-width:100%!important;
+  }
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-status-bank>div,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-status-bank>div{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    padding:10px 12px!important;
+  }
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-status-bank strong,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-status-bank strong{
+    white-space:normal!important;
+    overflow-wrap:anywhere!important;
+    word-break:break-word!important;
+  }
+}
+
+
+/* mobile-asset-table-card-pass-20260608 */
+@media (max-width: 520px){
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-database-panel .fleet-table-wrap,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-database-panel .fleet-table-wrap{
+    overflow:visible!important;
+    max-width:100%!important;
+  }
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-database-panel .fleet-table,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-database-panel .fleet-table{
+    display:block!important;
+    min-width:0!important;
+    width:100%!important;
+    border-collapse:separate!important;
+  }
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-database-panel .fleet-table thead,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-database-panel .fleet-table thead{
+    display:none!important;
+  }
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-database-panel .fleet-table tbody,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-database-panel .fleet-table tbody{
+    display:grid!important;
+    gap:10px!important;
+    width:100%!important;
+  }
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-database-panel .fleet-table tr,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-database-panel .fleet-table tr{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:6px!important;
+    width:100%!important;
+    max-width:100%!important;
+    padding:10px!important;
+    border:1px solid rgba(98,245,238,.22)!important;
+    border-radius:12px!important;
+    background:rgba(8,32,45,.18)!important;
+  }
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-database-panel .fleet-table td,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-database-panel .fleet-table td{
+    display:grid!important;
+    grid-template-columns:76px minmax(0,1fr)!important;
+    gap:8px!important;
+    width:100%!important;
+    max-width:100%!important;
+    padding:5px 0!important;
+    border:0!important;
+    white-space:normal!important;
+    overflow-wrap:anywhere!important;
+    word-break:break-word!important;
+    overflow:visible!important;
+    text-overflow:clip!important;
+  }
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-database-panel .fleet-table td::before,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-database-panel .fleet-table td::before{
+    content:attr(data-label);
+    color:#77dfe2!important;
+    font-size:10px!important;
+    text-transform:uppercase!important;
+    letter-spacing:.04em!important;
+  }
+  html[data-theme="light"] body .detail-page-shell:has(.fleet-detail-console) .fleet-database-panel .fleet-table tr{
+    background:rgba(255,255,255,.56)!important;
+    border-color:rgba(54,125,132,.22)!important;
+  }
+  html[data-theme="light"] body .detail-page-shell:has(.fleet-detail-console) .fleet-database-panel .fleet-table td::before{
+    color:#0b6873!important;
+  }
+}
+
+
+/* chart-starmap-regression-fix-20260608 */
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix > .network-throughput-card{
+  min-height:440px!important;
+  grid-column:1 / -1!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .network-throughput-card canvas#detailNetworkChart{
+  height:340px!important;
+  min-height:340px!important;
+  max-height:none!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .network-throughput-card .fleet-chart-head{
+  margin-bottom:8px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .network-throughput-card .network-legend{
+  margin-bottom:8px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-starmap-panel{
+  min-height:620px!important;
+  overflow:visible!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-starmap-title{
+  font-size:15px!important;
+  letter-spacing:.12em!important;
+  color:#dfffff!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount{
+  min-height:560px!important;
+  max-width:960px!important;
+  overflow:visible!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
+  padding:14px!important;
+  overflow:visible!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
+  height:440px!important;
+  min-height:440px!important;
+  max-height:none!important;
+  filter:none!important;
+  opacity:1!important;
+  image-rendering:auto!important;
+  background:#070b14!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe,
+.detail-page-shell:has(.fleet-detail-console) [data-doc-globe="1"]{
+  display:none!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-starmap-title{
+  color:#064f58!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
+  filter:none!important;
+  opacity:1!important;
+  background:#eef3e7!important;
+}
+@media (max-width:900px){
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix > .network-throughput-card{min-height:400px!important;}
+  .detail-page-shell:has(.fleet-detail-console) .network-throughput-card canvas#detailNetworkChart{height:300px!important;min-height:300px!important;}
+  .detail-page-shell:has(.fleet-detail-console) .fleet-starmap-panel{min-height:520px!important;}
+  .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount{min-height:470px!important;}
+  .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{height:360px!important;min-height:360px!important;}
+}
+@media (max-width:520px){
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix > .network-throughput-card{min-height:380px!important;}
+  .detail-page-shell:has(.fleet-detail-console) .network-throughput-card canvas#detailNetworkChart{height:280px!important;min-height:280px!important;}
+  .detail-page-shell:has(.fleet-detail-console) .fleet-starmap-panel{min-height:430px!important;}
+  .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount{min-height:390px!important;}
+  .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount > div{padding:8px!important;}
+  .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{height:300px!important;min-height:300px!important;}
+}
+
+/* mobile-detail-height-polish-20260618 */
+@media (max-width: 720px) {
+  .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console {
+    padding: 8px !important;
+    margin-top: 6px !important;
+    min-height: 0 !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-status-bank > div {
+    min-height: 50px !important;
+    padding: 7px 8px !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-panel,
+  .detail-page-shell:has(.fleet-detail-console) .probe-card,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card {
+    padding: 8px !important;
+    margin-bottom: 7px !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .probe-card {
+    min-height: 0 !important;
+    height: auto !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .probe-card.allocation-card,
+  .detail-page-shell:has(.fleet-detail-console) .probe-card.resources-card,
+  .detail-page-shell:has(.fleet-detail-console) .probe-card.bandwidth-card {
+    max-height: 245px !important;
+    overflow: auto !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .probe-meter-list,
+  .detail-page-shell:has(.fleet-detail-console) .probe-resource-list {
+    gap: 5px !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .probe-meter-row,
+  .detail-page-shell:has(.fleet-detail-console) .probe-resource-line {
+    padding-bottom: 5px !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .probe-card-head {
+    margin-bottom: 6px !important;
+    padding-bottom: 4px !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card {
+    min-height: 190px !important;
+    max-height: 230px !important;
+    overflow: hidden !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.resource-mini-card,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.data-freshness-card {
+    min-height: 158px !important;
+    max-height: 180px !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card canvas,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-linechart {
+    height: 112px !important;
+    min-height: 96px !important;
+    max-height: 128px !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.resource-mini-card canvas,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.data-freshness-card .mini-linechart {
+    height: 88px !important;
+    min-height: 80px !important;
+    max-height: 96px !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-starmap-panel {
+    max-height: 330px !important;
+    overflow: hidden !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel {
+    max-height: 240px !important;
+    overflow: auto !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-database-panel {
+    max-height: 210px !important;
+    overflow: auto !important;
+  }
+}
+
+/* mobile-detail-hard-height-override-20260618 */
+@media (max-width: 720px) {
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.network-throughput-card,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.ping-multi-card {
+    min-height: 230px !important;
+    height: 230px !important;
+    max-height: 230px !important;
+    overflow: hidden !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.resource-mini-card,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.data-freshness-card {
+    min-height: 170px !important;
+    height: 170px !important;
+    max-height: 170px !important;
+    overflow: hidden !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-starmap-panel {
+    min-height: 330px !important;
+    height: 330px !important;
+    max-height: 330px !important;
+    overflow: hidden !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel {
+    min-height: 240px !important;
+    height: 240px !important;
+    max-height: 240px !important;
+    overflow: auto !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .network-throughput-card canvas,
+  .detail-page-shell:has(.fleet-detail-console) .ping-multi-card canvas {
+    height: 132px !important;
+    max-height: 132px !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .resource-mini-card canvas,
+  .detail-page-shell:has(.fleet-detail-console) .data-freshness-card .mini-linechart {
+    height: 86px !important;
+    max-height: 86px !important;
+  }
+}
+
+/* mobile-detail-specific-height-override-20260618 */
+@media (max-width: 720px) {
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card,
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card {
+    height: 230px !important;
+    min-height: 230px !important;
+    max-height: 230px !important;
+    padding: 10px !important;
+    overflow: hidden !important;
+  }
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .resource-mini-card,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .resource-mini-card,
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .data-freshness-card,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .data-freshness-card {
+    height: 170px !important;
+    min-height: 170px !important;
+    max-height: 170px !important;
+    padding: 10px !important;
+    overflow: hidden !important;
+  }
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-right-zone > .fleet-starmap-panel,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-right-zone > .fleet-starmap-panel,
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-bottom-grid > .fleet-starmap-panel,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-bottom-grid > .fleet-starmap-panel {
+    height: 330px !important;
+    min-height: 330px !important;
+    max-height: 330px !important;
+    padding: 10px !important;
+    overflow: hidden !important;
+  }
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-right-zone > .fleet-probe-table-panel,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-right-zone > .fleet-probe-table-panel,
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-bottom-grid > .fleet-probe-table-panel,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-bottom-grid > .fleet-probe-table-panel {
+    height: 240px !important;
+    min-height: 240px !important;
+    max-height: 240px !important;
+    padding: 10px !important;
+    overflow: auto !important;
+  }
+}
+
+/* mobile-detail-specific-panel-override-20260618 */
+@media (max-width: 720px) {
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel,
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-starmap-panel {
+    height: 330px !important;
+    min-height: 330px !important;
+    max-height: 330px !important;
+    padding: 10px !important;
+    overflow: hidden !important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel,
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel {
+    height: 240px !important;
+    min-height: 240px !important;
+    max-height: 240px !important;
+    padding: 10px !important;
+    overflow: auto !important;
+  }
+}

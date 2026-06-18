@@ -1,231 +1,35 @@
-<!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark">
+<!doctype html>
+<html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VPS 星图 · 实时监控中心</title>
-  <script>
-    (() => {
-      const key = 'vps-dashboard-theme';
-      const saved = localStorage.getItem(key);
-      const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
-      const initial = saved || (prefersDark ? 'dark' : 'light');
-      document.documentElement.dataset.theme = initial;
-      window.applyTheme = (theme) => {
-        const next = theme === 'light' ? 'light' : 'dark';
-        document.documentElement.dataset.theme = next;
-        localStorage.setItem(key, next);
-        const icon = document.getElementById('themeIcon');
-        const label = document.getElementById('themeLabel');
-        if (icon) icon.textContent = next === 'dark' ? '☾' : '☀';
-        if (label) label.textContent = next === 'dark' ? '夜晚' : '白天';
-      };
-      window.toggleTheme = () => {
-        window.applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
-      };
-      document.addEventListener('DOMContentLoaded', () => window.applyTheme(initial));
-    })();
-  </script>
-  <style>
-    :root {
-      --bg-dark: #05070a;
-      --bg-card: rgba(17, 25, 40, 0.75);
-      --glass-border: rgba(255, 255, 255, 0.1);
-      --accent: #4cc9f0;
-      --accent-glow: rgba(76, 201, 240, 0.3);
-      --text-bright: #f8fafc;
-      --text-dim: #94a3b8;
-      --success: #10b981;
-      --warning: #f59e0b;
-      --danger: #ef4444;
-      --sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-    body {
-      margin: 0;
-      padding: 0;
-      background-color: var(--bg-dark);
-      color: var(--text-bright);
-      font-family: var(--sans);
-      overflow-x: hidden;
-      min-height: 100vh;
-    }
-    #starfield {
-      position: fixed;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      z-index: -1;
-      background: radial-gradient(circle at center, #111827 0%, #05070a 100%);
-    }
-    nav {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 0 40px;
-      min-height: 70px;
-      background: rgba(15, 23, 42, 0.8);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--glass-border);
-    }
-    .nav-logo { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; color: var(--accent); }
-    .nav-logo span { color: var(--text-bright); }
-    .nav-tabs { display: flex; gap: 8px; background: rgba(0, 0, 0, 0.2); padding: 4px; border-radius: 12px; border: 1px solid var(--glass-border); }
-    .nav-tab { background: transparent; border: none; color: var(--text-dim); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: flex; align-items: center; gap: 6px; }
-    .nav-tab.active { background: var(--accent); color: #000; box-shadow: 0 4px 15px var(--accent-glow); }
-    .nav-right { display: flex; align-items: center; gap: 12px; }
-    .currency-switch { display: flex; background: rgba(255, 255, 255, 0.05); border-radius: 8px; overflow: hidden; border: 1px solid var(--glass-border); }
-    .currency-btn { background: transparent; border: none; color: var(--text-dim); padding: 6px 12px; font-size: 12px; cursor: pointer; transition: 0.2s; }
-    .currency-btn.active { background: rgba(255, 255, 255, 0.15); color: var(--text-bright); }
-    main, .page { max-width: 1400px; margin: 0 auto; padding: 40px; }
-    .page { display: none; animation: slideUp 0.5s ease-out; }
-    .page.active { display: block; }
-    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-    .page-title { font-size: 32px; font-weight: 800; margin-bottom: 30px; background: linear-gradient(to right, #fff, var(--text-dim)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .toolbar { display: flex; align-items: center; gap: 15px; margin-bottom: 25px; }
-    .search-box { flex: 1; background: var(--bg-card); border: 1px solid var(--glass-border); border-radius: 10px; padding: 12px 20px; color: #fff; outline: none; transition: border-color 0.3s; }
-    .search-box:focus { border-color: var(--accent); }
-    .add-btn { background: var(--accent); color: #000; border: none; padding: 12px 24px; border-radius: 10px; font-weight: 700; cursor: pointer; transition: transform 0.2s; text-decoration: none; }
-    .add-btn:hover { transform: scale(1.02); }
-    .server-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
-    .stats-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; margin-bottom: 24px; }
-    .modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(8px); display: none; place-items: center; z-index: 1000; }
-    .modal-overlay.open { display: grid; }
-    .modal { background: #111827; border: 1px solid var(--glass-border); border-radius: 20px; width: 90%; max-width: 780px; max-height: 86vh; overflow: auto; padding: 30px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
-    [data-theme="light"] body { background-color: #f8fafc; color: #1e293b; }
-    [data-theme="light"] #starfield { background: radial-gradient(circle at 18% 10%, rgba(67,97,238,.08), transparent 38%), radial-gradient(circle at 82% 90%, rgba(16,185,129,.08), transparent 34%), #f8fafc; }
-    [data-theme="light"] nav { background: rgba(255,255,255,.78); border-bottom-color: rgba(148,163,184,.25); }
-    [data-theme="light"] .nav-tabs, [data-theme="light"] .currency-switch { background: rgba(15,23,42,.04); border-color: rgba(148,163,184,.32); }
-    [data-theme="light"] .nav-tab, [data-theme="light"] .currency-btn { color: #64748b; }
-    [data-theme="light"] .search-box, [data-theme="light"] .modal { background: #fff; color: #1e293b; border-color: #e2e8f0; }
-    @media (max-width: 768px) {
-      nav { padding: 12px 15px; flex-direction: column; height: auto; }
-      .nav-tabs { width: 100%; overflow-x: auto; }
-      .nav-right { flex-wrap: wrap; justify-content: center; }
-      .toolbar { flex-direction: column; align-items: stretch; }
-      main, .page { padding: 24px 16px; }
-    }
-  </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link id="dynamic-favicon" rel="icon" href="/api/v1/ops/settings/site/favicon">
+  <title>VPS 星图展示</title>
+  <meta name="color-scheme" content="dark light" />
 </head>
 <body>
   <canvas id="starfield"></canvas>
-  <div id="app">
-    <nav>
-      <div class="nav-logo">VPS <span>·</span> 星图</div>
-      <div class="nav-tabs">
-        <button class="nav-tab active" onclick="switchPage('dashboard')"><span class="tab-icon">📡</span> 监控总览</button>
-        <button class="nav-tab" onclick="switchPage('aff')"><span class="tab-icon">🛒</span> AFF市场</button>
-        <button class="nav-tab" onclick="switchPage('globe')"><span class="tab-icon">🌍</span> 3D星图</button>
-        <button class="nav-tab" onclick="switchPage('calc')"><span class="tab-icon">💹</span> 交易计算</button>
-        <button class="nav-tab" onclick="switchPage('traffic')"><span class="tab-icon">📊</span> 流量统计</button>
-      </div>
-      <div class="nav-right">
-        <button class="theme-toggle" id="themeToggle" type="button" onclick="toggleTheme()" aria-label="切换主题" title="切换白天/夜晚模式"><span id="themeIcon">☾</span><span id="themeLabel">夜晚</span></button>
-        <div class="currency-switch">
-          <button class="currency-btn active" onclick="setCurrency('CNY')">CNY</button>
-          <button class="currency-btn" onclick="setCurrency('USD')">USD</button>
-          <button class="currency-btn" onclick="setCurrency('EUR')">EUR</button>
-        </div>
-        <div class="rate-display" id="rateDisplay"></div>
-        <a href="/admin.html" class="add-btn" style="padding:8px 16px;font-size:13px;">⚙ 管理后台</a>
-      </div>
-    </nav>
-    <main>
-      <div id="page-dashboard" class="page active">
-        <div class="page-title">服务器监控总览</div>
-        <div class="stats-bar" id="statsBar"></div>
-        <div class="toolbar">
-          <div class="group-tabs" id="groupTabs"></div>
-          <input class="search-box" id="searchBox" placeholder="搜索服务器、IP、位置..." oninput="filterServers()">
-          <button class="add-btn" onclick="window.location.href='/admin.html'">+ 添加服务器</button>
-        </div>
-        <div class="server-grid" id="serverGrid"></div>
-      </div>
-      <div id="page-aff" class="page">
-        <div class="page-title">AFF推荐市场</div>
-        <div class="toolbar" style="margin-bottom:2rem;flex-wrap:wrap">
-          <div class="group-tabs" id="affGroupTabs"></div>
-          <select class="form-input compact-select" onchange="setAffSort(this.value)" aria-label="AFF排序">
-            <option value="default">默认排序</option>
-            <option value="price_asc">价格从低到高</option>
-            <option value="price_desc">价格从高到低</option>
-            <option value="provider">按商家排序</option>
-          </select>
-        </div>
-        <div class="aff-grid" id="affGrid"></div>
-      </div>
-      <div id="page-globe" class="page">
-        <div class="page-title">3D 全球星图</div>
-        <div id="globe-container">
-          <canvas id="globe-canvas" width="1100" height="600"></canvas>
-          <div class="globe-legend">
-            <div class="legend-item"><span class="legend-dot" style="background:#10b981;color:#10b981"></span> 在线</div>
-            <div class="legend-item"><span class="legend-dot" style="background:#f59e0b;color:#f59e0b"></span> 预警</div>
-            <div class="legend-item"><span class="legend-dot" style="background:#ef233c;color:#ef233c"></span> 离线</div>
-          </div>
-          <div class="globe-toolbar">
-            <label><input type="checkbox" checked onchange="globeSetLines(this.checked)"> 连线</label>
-            <label><input type="checkbox" checked onchange="globeSetSpin(this.checked)"> 自动旋转</label>
-            <label><input type="checkbox" checked onchange="globeSetCountries(this.checked)"> 国界</label>
-            <button type="button" onclick="adjustZoom(-0.12)">-</button>
-            <button type="button" onclick="adjustZoom(0.12)">+</button>
-            <button type="button" onclick="manualGlobeFetch()">刷新</button>
-          </div>
-          <div class="globe-status"><span id="globeSpinner" class="spinner"></span><span id="globeStatusText">星图待命</span></div>
-          <div class="globe-tooltip" id="globeTooltip"></div>
-        </div>
-        <div class="globe-info-panel" id="globeInfoPanel"></div>
-      </div>
-      <div id="page-calc" class="page">
-        <div class="page-title">交易计算器</div>
-        <div class="calc-layout" id="calcLayout">
-          <section class="page-section">
-            <div class="tab-strip">
-              <button class="tab-btn active" type="button" onclick="switchCalcTab('probe')">探针填入</button>
-              <button class="tab-btn" type="button" onclick="switchCalcTab('manual')">手动计算</button>
-            </div>
-            <div id="calcTabProbe"><div id="scanStatus" class="muted-line">正在读取服务器探针数据...</div><div id="probeList" class="probe-list"></div></div>
-            <div id="calcTabManual" style="display:none">
-              <div class="form-grid">
-                <input id="calcName" class="form-input" placeholder="服务器名称">
-                <input id="calcLocation" class="form-input" placeholder="位置">
-                <input id="calcCpu" class="form-input" placeholder="CPU">
-                <input id="calcRam" class="form-input" placeholder="内存">
-                <input id="calcDisk" class="form-input" placeholder="存储">
-                <input id="calcBuyPrice" class="form-input" type="number" min="0" step="0.01" placeholder="购入价格">
-                <select id="calcPeriod" class="form-input"><option value="1">月付</option><option value="3">季付</option><option value="12">年付</option></select>
-                <input id="calcBuyDate" class="form-input" type="date">
-                <input id="calcPremium" class="form-input" type="number" min="0" step="1" value="20" placeholder="溢价百分比">
-              </div>
-              <button class="add-btn" type="button" onclick="calculateFromManual()">计算建议售价</button>
-            </div>
-          </section>
-          <section class="page-section"><div id="calcResults" class="calc-results muted-line">选择探针或填写信息后开始计算</div></section>
-        </div>
-      </div>
-      <div id="page-traffic" class="page">
-        <div class="page-title">流量统计与预警</div>
-        <div class="toolbar">
-          <div class="group-tabs" id="trafficGroupTabs"></div>
-          <label class="threshold-control">预警阈值 <input id="trafficAlertThreshold" class="form-input threshold-input" type="number" min="1" max="99" value="80" onchange="renderTrafficPage()"></label>
-          <button class="add-btn" type="button" onclick="openTrafficSettings()">流量配置</button>
-        </div>
-        <div class="stats-bar" id="trafficStatsBar"></div>
-        <div id="trafficAlertBanner"></div>
-        <div class="chart-grid">
-          <section class="page-section chart-panel"><canvas id="trafficBarChart"></canvas></section>
-          <section class="page-section chart-panel"><select id="trafficTrendServer" class="form-input compact-select" onchange="renderTrafficTrend()"></select><canvas id="trafficTrendChart"></canvas></section>
-        </div>
-        <div class="traffic-grid" id="trafficGrid"></div>
-        <div class="page-section data-table-wrapper"><table class="data-table" id="trafficTable"></table></div>
-      </div>
+  <div id="app" class="display-shell">
+    <main class="display-main">
+      <div id="pageRoot"></div>
     </main>
   </div>
-  <div class="modal-overlay" id="detailModal" onclick="if(event.target === this) this.classList.remove('open')"><div class="modal"><h2 id="modalTitle" class="modal-title"></h2><div id="modalContent"></div></div></div>
-  <div class="modal-overlay" id="trafficSettingsModal" onclick="if(event.target === this) this.classList.remove('open')"><div class="modal"><h2 class="modal-title">流量配置</h2><div id="trafficSettingsBody"></div></div></div>
+
+  <script>
+    (function () {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations?.().then(function (regs) {
+          regs.forEach(function (reg) { reg.unregister(); });
+        }).catch(function () {});
+      }
+      if (window.caches?.keys) {
+        caches.keys().then(function (keys) {
+          keys.filter(function (key) { return /workbox|precache|api-cache|runtime|external-cache|ipapi-cache/.test(key); })
+            .forEach(function (key) { caches.delete(key); });
+        }).catch(function () {});
+      }
+    })();
+  </script>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

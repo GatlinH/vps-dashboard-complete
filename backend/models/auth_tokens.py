@@ -3,11 +3,11 @@ backend/models/auth_tokens.py
 邮箱验证 Token 与密码重置 Token 模型
 
 生命周期：
-  EmailVerification   —— 注册时创建，用户点击邮件链接后标记 verified=True，24h 过期
+  EmailVerification   —— 注册时创建，用户点击邮件链接后标记 verified=True，2h 过期
   PasswordResetToken  —— 忘记密码时创建，重置成功或 1h 到期后标记 used=True
 
 安全设计：
-  - Token 值用 secrets.token_urlsafe(32) 生成，存数据库前不做散列（已足够随机）
+  - Token 值用 secrets.token_urlsafe(32) 生成；邮件链接使用 URL fragment，避免进入 HTTP 请求行/代理日志
   - 使用后立即标记 used=True，防止重放攻击
   - 过期由 expires_at 字段控制，查询时始终带过期过滤
 """
@@ -35,7 +35,7 @@ class EmailVerification(db.Model):
 
     # ── 工厂方法 ──────────────────────────────────────────────────────────────
     @classmethod
-    def create_for(cls, user_id: int, email: str, ttl_hours: int = 24) -> "EmailVerification":
+    def create_for(cls, user_id: int, email: str, ttl_hours: int = 2) -> "EmailVerification":
         """生成并持久化一条新验证记录，返回实例（调用方需 db.session.commit()）"""
         obj = cls(
             user_id    = user_id,

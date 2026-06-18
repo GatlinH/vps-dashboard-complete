@@ -7,33 +7,99 @@ import { state } from '../store/state.js';
 /** 将 CNY 金额格式化为当前货币字符串 */
 export function toDisplay(cnyAmount) {
   const { currency, exchangeRates } = state;
-  if (currency === 'CNY') return `¥${Number(cnyAmount).toFixed(0)}`;
-  if (currency === 'USD') return `$${(cnyAmount / exchangeRates.CNY).toFixed(2)}`;
-  if (currency === 'EUR') return `€${(cnyAmount / exchangeRates.CNY * exchangeRates.EUR).toFixed(2)}`;
-  return `¥${Number(cnyAmount).toFixed(0)}`;
+  const amount = Number(cnyAmount || 0);
+  const cnyRate = Number(exchangeRates.CNY || 7.26);
+  const eurRate = Number(exchangeRates.EUR || 0.92);
+  if (currency === 'CNY') return `¥${amount.toFixed(0)}`;
+  if (currency === 'USD') return `$${(amount / cnyRate).toFixed(2)}`;
+  if (currency === 'EUR') return `€${(amount / cnyRate * eurRate).toFixed(2)}`;
+  return `¥${amount.toFixed(0)}`;
+}
+
+export function sourceAmountToCny(amount, symbol = '') {
+  const value = Number(amount || 0);
+  const { exchangeRates } = state;
+  const cnyRate = Number(exchangeRates.CNY || 7.26);
+  const eurRate = Number(exchangeRates.EUR || 0.92);
+  const normalized = String(symbol || '').trim().toUpperCase();
+  if (!Number.isFinite(value)) return 0;
+  if (normalized === '$' || normalized === 'USD') return value * cnyRate;
+  if (normalized === '€' || normalized === 'EUR') return eurRate > 0 ? value / eurRate * cnyRate : value * cnyRate;
+  return value;
+}
+
+export function getSourceCurrency(server = {}) {
+  return server.currency || server.currency_sym || server.agent_config?.billing?.currency || server.billing?.currency || '¥';
 }
 
 /** 计算服务器剩余价值信息 */
 export function calcResidualValue(server) {
-  const now    = new Date();
+  const now = new Date();
   const expiry = new Date(server.expiry);
   const msLeft = expiry - now;
   if (msLeft <= 0) return { pct: 0, daysLeft: 0, value: 0, monthsLeft: '0.0' };
-  const daysLeft   = Math.ceil(msLeft / 86400000);
+  const daysLeft = Math.ceil(msLeft / 86400000);
   const monthsLeft = daysLeft / 30;
-  const totalDays  = server.period === 'yearly' ? 365 : server.period === 'quarterly' ? 92 : 30;
-  const pct        = Math.min(100, Math.max(0, (daysLeft / totalDays) * 100));
-  const dailyRate  = server.price / totalDays;
-  const value      = dailyRate * daysLeft;
+  const months = getBillingMonths(server);
+  const totalDays = months === 12 ? 365 : months === 6 ? 183 : months === 3 ? 92 : 30;
+  const sourcePriceCny = sourceAmountToCny(server.price, getSourceCurrency(server));
+  const pct = Math.min(100, Math.max(0, (daysLeft / totalDays) * 100));
+  const dailyRate = sourcePriceCny / totalDays;
+  const value = dailyRate * Math.min(daysLeft, totalDays);
   return { pct: Math.round(pct), daysLeft, value: Math.round(value), monthsLeft: monthsLeft.toFixed(1) };
+}
+
+function getPeriodMonths(period) {
+  const normalized = String(period || 'monthly').toLowerCase();
+  const map = {
+    monthly: 1, month: 1, '1': 1, '月': 1,
+    quarterly: 3, quarter: 3, '3': 3, '季': 3,
+    semiannual: 6, semi_annually: 6, halfyearly: 6, half_yearly: 6, halfyear: 6, '6': 6, '半年': 6,
+    yearly: 12, annual: 12, annually: 12, year: 12, '12': 12, '年': 12,
+  };
+  return map[normalized] || 1;
+}
+
+export function getBillingMonths(server = {}) {
+  return getPeriodMonths(server.period || server.agent_config?.billing?.period || server.agent_config?.billing?.period_months);
 }
 
 /** 获取服务器月均价格（CNY） */
 export function getMonthlyPrice(server) {
-  if (server.period === 'monthly')   return server.price;
-  if (server.period === 'yearly')    return server.price / 12;
-  if (server.period === 'quarterly') return server.price / 3;
-  return server.price;
+  const priceCny = sourceAmountToCny(server.price, getSourceCurrency(server));
+  return priceCny / getBillingMonths(server);
+}
+
+/** 实时获取汇率：USD 基准，失败时保留默认/上次值 */
+export async function refreshExchangeRates() {
+  const sources = [
+    'https://open.er-api.com/v6/latest/USD',
+    'https://api.frankfurter.app/latest?from=USD&to=CNY,EUR',
+  ];
+  for (const url of sources) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3500);
+      const res = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+      clearTimeout(timer);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const rates = data?.rates || {};
+      const cny = Number(rates.CNY);
+      const eur = Number(rates.EUR);
+      if (Number.isFinite(cny) && cny > 0 && Number.isFinite(eur) && eur > 0) {
+        state.exchangeRates = { USD: 1, CNY: Number(cny.toFixed(4)), EUR: Number(eur.toFixed(4)) };
+        state.exchangeRatesUpdatedAt = new Date().toISOString();
+        state.exchangeRatesSource = url;
+        updateRateDisplay();
+        return state.exchangeRates;
+      }
+    } catch (error) {
+      window.__EXCHANGE_RATE_ERROR__ = String(error?.message || error);
+    }
+  }
+  updateRateDisplay();
+  return state.exchangeRates;
 }
 
 /** 更新导航汇率显示文字 */
@@ -41,10 +107,12 @@ export function updateRateDisplay() {
   const el = document.getElementById('rateDisplay');
   if (!el) return;
   const { currency, exchangeRates } = state;
+  const cny = Number(exchangeRates.CNY || 0).toFixed(2);
+  const eur = Number(exchangeRates.EUR || 0).toFixed(4);
   const map = {
-    CNY: `1 USD = ${exchangeRates.CNY} CNY`,
+    CNY: `1 USD = ${cny} CNY`,
     USD: `基准货币 USD`,
-    EUR: `1 USD = ${exchangeRates.EUR} EUR`,
+    EUR: `1 USD = ${eur} EUR`,
   };
   el.textContent = map[currency] || '';
 }

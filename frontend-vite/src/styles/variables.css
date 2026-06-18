@@ -7,63 +7,85 @@
 
 :root {
   /* =========================================
-     2. 亮色模式 (Default Light Theme)
+     2. 默认主题 · Starfleet Bridge
+     非官方星际舰桥风格：深空蓝黑 / 琥珀指令色 / 青蓝传感器色
      ========================================= */
-  --primary: #4361ee;
-  --primary-hover: #3751d4;
-  --bg-base: #f8fafc;        /* 极淡的灰蓝底色 */
-  --bg-panel: #ffffff;      /* 纯白面板 */
-  --bg2: #eef2f7;
-  --bg3: #e2e8f0;
-  --text-main: #1e293b;     /* 深色主文字 */
-  --text-muted: #64748b;    /* 灰色副文字 */
+  --primary: #ffb454;
+  --primary-hover: #ffd27a;
+  --bg-base: #030711;
+  --bg-panel: rgba(9, 18, 34, 0.82);
+  --bg2: #07111f;
+  --bg3: #10243a;
+  --text-main: #edf6ff;
+  --text-muted: #8ea9c8;
   --text: var(--text-main);
-  --text2: #475569;
+  --text2: #c7dcf4;
   --text3: var(--text-muted);
-  --border: #e2e8f0;        /* 细微边框色 */
-  --border2: #cbd5e1;
-  
-  /* 语义化颜色 */
-  --green: #10b981;
-  --red: #ef233c;
-  --orange: #f59e0b;
-  --blue: #3b82f6;
-  --purple: #7c3aed;
-  --accent: #2563eb;
-  
-  /* 阴影系统 */
-  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+  --border: rgba(118, 184, 255, 0.18);
+  --border2: rgba(255, 180, 84, 0.34);
 
-  /* 基础设置 */
-  --radius: 14px;
-  --sans: 'Inter', -apple-system, sans-serif;
-  --mono: 'JetBrains Mono', monospace;
+  /* LCARS-inspired semantic palette, not a direct replica */
+  --green: #5df2b6;
+  --red: #ff5f7e;
+  --orange: #ff9f43;
+  --blue: #66d9ff;
+  --purple: #b794ff;
+  --accent: #66d9ff;
+  --command: #ffb454;
+  --science: #66d9ff;
+  --medical: #5df2b6;
+  --alert: #ff5f7e;
+  --panel-glow: rgba(102, 217, 255, 0.22);
+  --command-glow: rgba(255, 180, 84, 0.28);
+
+  --shadow: 0 16px 40px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow-lg: 0 26px 80px rgba(0, 0, 0, 0.52), 0 0 36px rgba(102, 217, 255, 0.08);
+
+  --radius: 22px;
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
 }
 
 /* =========================================
-   3. 暗色模式 (Dark Theme Overrides)
+   3. 暗色模式 (默认同 Starfleet Bridge，保留切换兼容)
    ========================================= */
 [data-theme="dark"] {
-  --primary: #4f46e5;
-  --primary-hover: #6366f1;
-  --bg-base: #0f172a;        /* 深蓝黑底色 */
-  --bg-panel: #1e293b;       /* 深色面板 */
-  --bg2: #111827;
-  --bg3: #334155;
-  --text-main: #f1f5f9;      /* 浅灰白主文字 */
-  --text-muted: #94a3b8;     /* 灰蓝色副文字 */
+  --primary: #ffb454;
+  --primary-hover: #ffd27a;
+  --bg-base: #030711;
+  --bg-panel: rgba(9, 18, 34, 0.84);
+  --bg2: #07111f;
+  --bg3: #10243a;
+  --text-main: #edf6ff;
+  --text-muted: #8ea9c8;
   --text: var(--text-main);
-  --text2: #cbd5e1;
+  --text2: #c7dcf4;
   --text3: var(--text-muted);
-  --border: rgba(255, 255, 255, 0.08); /* 半透明边框，适合毛玻璃效果 */
-  --border2: rgba(255, 255, 255, 0.14);
-  --purple: #a78bfa;
-  --accent: #63b3ed;
-  
-  /* 暗色模式专属阴影 */
-  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
+  --border: rgba(118, 184, 255, 0.18);
+  --border2: rgba(255, 180, 84, 0.34);
+  --purple: #b794ff;
+  --accent: #66d9ff;
+  --shadow: 0 16px 40px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow-lg: 0 26px 80px rgba(0, 0, 0, 0.54), 0 0 36px rgba(102, 217, 255, 0.08);
+}
+
+[data-theme="light"] {
+  --primary: #d77a00;
+  --primary-hover: #a95f00;
+  --bg-base: #eef4fb;
+  --bg-panel: rgba(255, 255, 255, 0.88);
+  --bg2: #dde9f5;
+  --bg3: #c7d8e9;
+  --text-main: #102033;
+  --text-muted: #52677e;
+  --text: var(--text-main);
+  --text2: #263f58;
+  --text3: var(--text-muted);
+  --border: rgba(29, 75, 122, 0.16);
+  --border2: rgba(215, 122, 0, 0.32);
+  --accent: #0077a8;
+  --shadow: 0 12px 30px rgba(34, 67, 103, 0.12);
+  --shadow-lg: 0 24px 70px rgba(34, 67, 103, 0.18);
 }
 
 /* =========================================

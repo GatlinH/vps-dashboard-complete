@@ -158,6 +158,14 @@ def countries():
 @geo_bp.get("/ip/<ip>")
 def ip_geo(ip=None):
     ip = (ip or request.args.get("ip", "")).strip()
+    # 访客信标定位修复: 未显式传 ip 时, 旧逻辑用空字符串请求 ip-api,
+    # 导致 ip-api 反查 API 容器自身出口 IP(=服务器所在地, 西雅图),
+    # 所有访客都被定位成西雅图。改为回退到 ProxyFix 解析出的真实访客 IP。
+    if not ip:
+        candidate = (request.remote_addr or "").strip()
+        # 跳过本地/私有地址(本机自测或容器内网), 让 ip-api 自检公网出口
+        if candidate and not candidate.startswith(("127.", "10.", "192.168.", "172.")) and candidate != "::1":
+            ip = candidate
     cache_key = f"vps:ipgeo:{ip or 'self'}"
 
     try:
@@ -263,10 +271,19 @@ def servers_coords():
 
 
 def _get_server_coords(server) -> tuple[float, float]:
-    if not server.ip:
-        return (35.0, 105.0)
+    location = (getattr(server, "location", "") or "").strip()
+    ip = (getattr(server, "ip", "") or "").strip()
 
-    cache_key = f"vps:coords:{server.ip}"
+    location_fallbacks = {
+        "美国洛杉矶": (34.0522, -118.2437),
+        "香港 CMI": (22.3193, 114.1694),
+        "日本东京": (35.6762, 139.6503),
+        "德国法兰克福": (50.1109, 8.6821),
+        "新加坡": (1.3521, 103.8198),
+    }
+
+    cache_basis = location or ip or "default"
+    cache_key = f"vps:coords:{cache_basis}"
     try:
         cached = extensions.redis_client.get(cache_key)
         if cached:
@@ -275,18 +292,28 @@ def _get_server_coords(server) -> tuple[float, float]:
     except Exception:
         pass
 
-    try:
-        url = f"http://ip-api.com/json/{server.ip}?fields=lat,lon,status"
-        resp = requests.get(url, timeout=5)
-        d = resp.json()
-        if d.get("status") == "success":
-            coords = {"lat": d["lat"], "lon": d["lon"]}
-            try:
-                extensions.redis_client.setex(cache_key, 86400, json.dumps(coords))
-            except Exception:
-                pass
-            return d["lat"], d["lon"]
-    except Exception:
-        pass
+    if location in location_fallbacks:
+        lat, lon = location_fallbacks[location]
+        coords = {"lat": lat, "lon": lon, "source": "location_exact"}
+        try:
+            extensions.redis_client.setex(cache_key, 86400, json.dumps(coords))
+        except Exception:
+            pass
+        return lat, lon
+
+    if ip:
+        try:
+            url = f"http://ip-api.com/json/{ip}?fields=lat,lon,status"
+            resp = requests.get(url, timeout=5)
+            d = resp.json()
+            if d.get("status") == "success":
+                coords = {"lat": d["lat"], "lon": d["lon"], "source": "ip"}
+                try:
+                    extensions.redis_client.setex(cache_key, 86400, json.dumps(coords))
+                except Exception:
+                    pass
+                return d["lat"], d["lon"]
+        except Exception:
+            pass
 
     return (35.0, 105.0)

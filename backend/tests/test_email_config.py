@@ -150,7 +150,7 @@ def test_send_verification_email_uses_app_config_frontend_url(app, monkeypatch):
         result = email_service.send_verification_email("user@example.com", "testuser", "tok123")
 
     assert result is True
-    expected_url = "https://custom.example.com/verify-email?token=tok123"
+    expected_url = "https://custom.example.com/verify-email#token=tok123"
     # 确保邮件正文中精确包含正确的验证链接（逐行匹配，避免子串误判）
     assert any(line == expected_url for line in captured["text_body"].splitlines())
 
@@ -174,7 +174,7 @@ def test_send_password_reset_email_uses_app_config_frontend_url(app, monkeypatch
         result = email_service.send_password_reset_email("user@example.com", "testuser", "tok456")
 
     assert result is True
-    expected_url = "https://custom.example.com/reset-password?token=tok456"
+    expected_url = "https://custom.example.com/reset-password#token=tok456"
     assert any(line == expected_url for line in captured["text_body"].splitlines())
 
 

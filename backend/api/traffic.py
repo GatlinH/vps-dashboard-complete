@@ -17,6 +17,98 @@ from utils.errors import ValidationError, InternalServerError
 traffic_bp = Blueprint("traffic", __name__)
 
 
+def _build_traffic_payload(server, include_name=True):
+    """Build traffic payload safe for public display."""
+    today = date.today()
+    reset_day = max(1, min(int(server.traffic_reset_day or 1), 31))
+
+    if today.day <= reset_day:
+        reset_date = date(today.year, today.month, min(reset_day, _calendar.monthrange(today.year, today.month)[1]))
+    else:
+        if today.month == 12:
+            year, month = today.year + 1, 1
+        else:
+            year, month = today.year, today.month + 1
+        reset_date = date(year, month, min(reset_day, _calendar.monthrange(year, month)[1]))
+
+    used = round(server.traffic_used_gb or 0, 2)
+    limit = round(server.traffic_limit_gb or 0, 2)
+    payload = {
+        'id': server.id,
+        'limit_gb': limit,
+        'used_gb': used,
+        'up_gb': round(server.traffic_up_gb or 0, 2),
+        'down_gb': round(server.traffic_down_gb or 0, 2),
+        'used_percent': round((used / limit * 100), 2) if limit > 0 else 0,
+        'remaining_gb': round(max(0, limit - used), 2),
+        'reset_day': reset_day,
+        'next_reset_date': reset_date.isoformat(),
+        'days_until_reset': (reset_date - today).days,
+    }
+    if include_name:
+        payload['name'] = server.name
+    return payload
+
+
+@traffic_bp.get('/public/<int:sid>')
+def get_public_server_traffic(sid):
+    """Public traffic details for display page."""
+    try:
+        server = Server.query.get_or_404(sid)
+        return jsonify(_build_traffic_payload(server))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise InternalServerError("获取公开流量详情失败", str(e))
+
+
+@traffic_bp.get('/public/<int:sid>/history')
+def get_public_traffic_history(sid):
+    """Public traffic history for display page."""
+    try:
+        days = min(max(1, int(request.args.get('days', 7))), 30)
+        limit = min(max(1, int(request.args.get('limit', 1000))), 10000)
+        offset = max(0, int(request.args.get('offset', 0)))
+
+        Server.query.get_or_404(sid)
+        start_date = datetime.now(timezone.utc) - timedelta(days=days)
+        base_query = ProbeResult.query.filter(
+            ProbeResult.server_id == sid,
+            ProbeResult.created_at >= start_date
+        )
+        total = base_query.count()
+        # Return the newest window, not the oldest rows from the last 24h.
+        # The frontend chart expects recent telemetry and will sort ascending.
+        results = (
+            base_query
+            .order_by(ProbeResult.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        results = list(reversed(results))
+
+        data = [{
+            'timestamp': r.created_at.isoformat(),
+            'net_up': float(r.net_up) if r.net_up else 0,
+            'net_down': float(r.net_down) if r.net_down else 0,
+        } for r in results]
+
+        return jsonify(
+            server_id=sid,
+            days=days,
+            total=total,
+            limit=limit,
+            offset=offset,
+            data=data,
+            count=len(data),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise InternalServerError("获取公开流量历史失败", str(e))
+
+
 @traffic_bp.get('/')
 @viewer_or_admin_required
 def get_traffic_summary():

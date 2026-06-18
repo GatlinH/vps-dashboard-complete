@@ -85,6 +85,50 @@ def validate_server_ip(value: str) -> bool:
     return validate_ip_or_hostname(raw)
 
 
+def _is_public_ip_address(addr: str) -> bool:
+    ip = ipaddress.ip_address(addr)
+    return not (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    )
+
+
+def resolve_public_host_addresses(host: str, port: int | None = None):
+    """Resolve host once and return getaddrinfo tuples only if every result is public.
+
+    Callers can pass the returned tuples into a pinned connection path to avoid
+    DNS rebinding between validation and connect.
+    """
+    if not host:
+        return []
+    lowered = host.lower().strip().strip("[]").rstrip(".")
+    if lowered in {"localhost", "localhost.localdomain"}:
+        return []
+    try:
+        ipaddress.ip_address(lowered)
+        return socket.getaddrinfo(lowered, port) if _is_public_ip_address(lowered) else []
+    except ValueError:
+        pass
+    try:
+        infos = socket.getaddrinfo(lowered, port)
+    except socket.gaierror:
+        return []
+    if not infos:
+        return []
+    for info in infos:
+        addr = info[4][0]
+        try:
+            if not _is_public_ip_address(addr):
+                return []
+        except ValueError:
+            return []
+    return infos
+
+
 def is_safe_outbound_url(url: str) -> bool:
     """
     SSRF 防护：
@@ -105,41 +149,7 @@ def is_safe_outbound_url(url: str) -> bool:
     host = parsed.hostname
     if not host:
         return False
-    lowered = host.lower()
-    if lowered in {"localhost", "localhost.localdomain"}:
-        return False
-
-    def _is_public_ip(addr: str) -> bool:
-        ip = ipaddress.ip_address(addr)
-        return not (
-            ip.is_private
-            or ip.is_loopback
-            or ip.is_link_local
-            or ip.is_multicast
-            or ip.is_reserved
-            or ip.is_unspecified
-        )
-
-    try:
-        # host 为直连 IP
-        ipaddress.ip_address(host)
-        return _is_public_ip(host)
-    except ValueError:
-        pass
-
-    try:
-        infos = socket.getaddrinfo(host, None)
-    except socket.gaierror:
-        return False
-
-    for info in infos:
-        addr = info[4][0]
-        try:
-            if not _is_public_ip(addr):
-                return False
-        except ValueError:
-            return False
-    return True
+    return bool(resolve_public_host_addresses(host, parsed.port))
 
 
 def match_domain_whitelist(url: str, whitelist_domains: list[str]) -> tuple[bool, str]:

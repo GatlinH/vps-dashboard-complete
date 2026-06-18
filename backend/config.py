@@ -118,14 +118,16 @@ def _validate_production_secrets():
 
     # JWT_COOKIE_SECURE must not be explicitly disabled in production.
     # Compute the actual value as Config does to catch all cases.
+    _force_https = os.getenv("FORCE_HTTPS", "1")
+    _jwt_secure_default = "0" if (_force_https == "0" or os.getenv("FLASK_ENV") == "development") else "1"
     _jwt_secure_raw = os.getenv(
         "JWT_COOKIE_SECURE",
-        "0" if os.getenv("FLASK_ENV") == "development" else "1",
+        _jwt_secure_default,
     )
-    if _jwt_secure_raw.lower() not in ("1", "true", "yes"):
+    if _force_https != "0" and _jwt_secure_raw.lower() not in ("1", "true", "yes"):
         errors.append(
             "JWT_COOKIE_SECURE 未启用。生产环境的认证 cookie 必须通过 HTTPS 传输（Secure 属性）。"
-            " 请将 JWT_COOKIE_SECURE=1 写入 .env，或不要设置 FLASK_ENV=development。"
+            " 请将 JWT_COOKIE_SECURE=1 写入 .env，或设置 FORCE_HTTPS=0 以明确运行在 HTTP 模式。"
         )
 
     if errors:
@@ -181,7 +183,7 @@ class Config:
     JWT_ACCESS_TOKEN_EXPIRES  = timedelta(hours=8)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
     # Redis 异常时 JWT 黑名单检查是否放行（1=放行，0=拒绝）
-    JWT_BLOCKLIST_FAIL_OPEN   = os.getenv("JWT_BLOCKLIST_FAIL_OPEN", "1") == "1"
+    JWT_BLOCKLIST_FAIL_OPEN   = os.getenv("JWT_BLOCKLIST_FAIL_OPEN", "0") == "1"
 
     # ── JWT Cookie-based Auth (P1-7) ─────────────────────────────────────────
     # Accept tokens from both Authorization header (higher priority, backward compat)
@@ -191,9 +193,15 @@ class Config:
     # Secure flag: True by default (HTTPS); explicitly set to False only in development.
     # Override via JWT_COOKIE_SECURE env var (1=True, 0=False).
     # Note: the cookie 'secure' attribute means the browser only sends it over HTTPS.
+    force_https_env = os.getenv("FORCE_HTTPS")
+    jwt_cookie_secure_default = "1"
+    if force_https_env == "0":
+        jwt_cookie_secure_default = "0"
+    elif os.getenv("FLASK_ENV") == "development":
+        jwt_cookie_secure_default = "0"
     JWT_COOKIE_SECURE       = os.getenv(
         "JWT_COOKIE_SECURE",
-        "0" if os.getenv("FLASK_ENV") == "development" else "1",
+        jwt_cookie_secure_default,
     ) == "1"
     # CSRF protection for cookie-based tokens (double-submit pattern via flask-jwt-extended).
     # Always enabled; do NOT set to False in production.
@@ -225,8 +233,8 @@ class Config:
     CORS_MAX_AGE = int(os.getenv('CORS_MAX_AGE', '3600'))
 
     # ── Talisman / 安全头 ───────────────────────────────────────────────────
-    FORCE_HTTPS = os.getenv('FORCE_HTTPS', '1') == '1'
-    HSTS_ENABLED = os.getenv('HSTS_ENABLED', '1') == '1'
+    FORCE_HTTPS = os.getenv('FORCE_HTTPS', '0') == '1'
+    HSTS_ENABLED = os.getenv('HSTS_ENABLED', '0') == '1'
     HSTS_MAX_AGE = int(os.getenv('HSTS_MAX_AGE', '31536000'))
     HSTS_INCLUDE_SUBDOMAINS = os.getenv('HSTS_INCLUDE_SUBDOMAINS', '1') == '1'
     HSTS_PRELOAD = os.getenv('HSTS_PRELOAD', '1') == '1'
@@ -248,12 +256,9 @@ class Config:
         'default-src': "'self'",
         'script-src': [
             "'self'",
-            'https://cdn.jsdelivr.net',
-            'https://unpkg.com',
         ],
         'style-src': [
             "'self'",
-            "'unsafe-inline'",
             'https://fonts.googleapis.com',
         ],
         'img-src': [

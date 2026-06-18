@@ -7,3 +7,3214 @@
 @import './pages.css';
 @import './dom-fixes.css';
 @import './globe.css';
+@import './starfleet-theme.css';
+
+
+.public-overview-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 16px 0 20px;
+}
+
+.public-overview-panel {
+  background: linear-gradient(180deg, rgba(12,18,30,.88), rgba(8,12,22,.82));
+  border: 1px solid rgba(146, 184, 255, 0.14);
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.03);
+}
+
+.public-overview-panel-toggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  color: inherit;
+}
+
+.public-overview-panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e8f1ff;
+}
+
+.public-overview-panel-chevron {
+  color: rgba(206, 223, 255, 0.82);
+  transition: transform .18s ease;
+}
+
+.public-overview-panel-fold:not(.open) .public-overview-panel-chevron {
+  transform: rotate(-90deg);
+}
+
+.public-overview-panel-body {
+  margin-top: 12px;
+}
+
+.public-overview-panel-fold:not(.open) .public-overview-panel-body {
+  display: none;
+}
+
+.public-overview-mini-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.public-overview-mini-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.03);
+  color: rgba(225, 235, 250, .94);
+}
+
+.public-overview-mini-list li b {
+  font-size: 12px;
+  color: #f2f7ff;
+}
+
+.public-overview-mini-list li span {
+  font-size: 12px;
+  color: rgba(191, 207, 235, .82);
+}
+
+@media (max-width: 900px) {
+  .public-overview-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+.public-overview-card {
+  cursor: pointer;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+
+.public-overview-card:hover,
+.public-overview-card:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(120, 175, 255, .34);
+  box-shadow: 0 16px 34px rgba(0,0,0,.26), 0 0 0 1px rgba(120,175,255,.12);
+  outline: none;
+}
+
+
+.public-overview-meta-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin-top: 8px;
+  color: rgba(187, 205, 232, .82);
+  font-size: 12px;
+}
+
+.public-overview-meta-bar span {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(146,184,255,.10);
+}
+
+
+/* hotfix-overview-starfleet-ufo-clear */
+/* Detail: lower the whole console stack so the resource/probe cards no longer cover the UFO focal asset. */
+.detail-page-shell .fleet-detail-console,
+.starship-console-page .fleet-detail-console{
+  margin-top: clamp(46px, 5.6vh, 76px) !important;
+}
+.detail-page-shell{
+  padding-top: clamp(28px, 4.5vh, 54px) !important;
+}
+@media (max-width: 900px){
+  .detail-page-shell .fleet-detail-console,
+  .starship-console-page .fleet-detail-console{ margin-top: 28px !important; }
+}
+
+/* Asset overview: same Starfleet/HUD language as the detail console, not generic glass cards. */
+.public-overview-page.starship-console-page{
+  position: relative;
+  min-height: 100vh;
+  padding: clamp(34px, 5vw, 62px) clamp(22px, 4vw, 58px) 58px !important;
+  color: #eaf8ff;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(93,245,238,.14), transparent 27%),
+    radial-gradient(circle at 86% 12%, rgba(255,176,82,.13), transparent 26%),
+    radial-gradient(circle at 50% 120%, rgba(61,119,255,.14), transparent 45%),
+    linear-gradient(180deg, #03070d 0%, #06101a 44%, #080b12 100%) !important;
+}
+.public-overview-page.starship-console-page::before{
+  content:"" !important;
+  display:block !important;
+  position: fixed;
+  inset: 0;
+  pointer-events:none;
+  background:
+    linear-gradient(90deg, rgba(96,245,238,.035) 1px, transparent 1px),
+    linear-gradient(rgba(96,245,238,.028) 1px, transparent 1px);
+  background-size: 56px 56px, 56px 56px;
+  mask-image: radial-gradient(circle at center, black 0 58%, transparent 100%);
+  opacity:.72;
+  z-index:0;
+}
+.public-overview-page.starship-console-page > *{ position:relative; z-index:1; }
+.public-overview-page .public-overview-topbar{
+  max-width: 1540px;
+  margin: 0 auto 18px !important;
+  padding: 18px 20px 18px 22px;
+  display:grid !important;
+  grid-template-columns: 170px 1fr;
+  align-items:stretch !important;
+  gap:18px !important;
+  border:1px solid rgba(98,245,238,.22);
+  border-left: 7px solid #f0a84a;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(9,20,32,.92), rgba(4,8,14,.86));
+  box-shadow: 0 22px 55px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.04);
+}
+.public-overview-page .public-overview-back{
+  display:grid;
+  place-items:center;
+  min-height:76px;
+  color:#071018 !important;
+  font-weight:900;
+  letter-spacing:.08em;
+  text-decoration:none !important;
+  border-radius:16px;
+  background: linear-gradient(135deg, #f5b75d, #f08a3c 72%, #ca5f2b);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.24), 0 0 28px rgba(240,168,74,.16);
+}
+.public-overview-page .public-overview-title-wrap{
+  min-height:76px;
+  padding: 2px 4px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+.public-overview-page .public-overview-title-wrap h1{
+  margin:0 !important;
+  font-size: clamp(34px, 4.2vw, 58px) !important;
+  line-height:.92;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  color:#f7fbff;
+  text-shadow:0 0 22px rgba(98,245,238,.22);
+}
+.public-overview-page .public-overview-title-wrap p{
+  margin:8px 0 0 !important;
+  color:rgba(220,238,255,.72) !important;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+.public-overview-page .public-overview-meta-bar{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-top:10px;
+}
+.public-overview-page .public-overview-meta-bar span{
+  padding:5px 9px;
+  border:1px solid rgba(98,245,238,.18);
+  border-radius:999px;
+  color:rgba(198,232,246,.84);
+  background:rgba(98,245,238,.045);
+  font-size:11px;
+}
+.public-overview-page .public-overview-stats,
+.public-overview-page .public-overview-summary-grid,
+.public-overview-page .public-overview-list{
+  max-width:1540px;
+  margin-left:auto !important;
+  margin-right:auto !important;
+}
+.public-overview-page .public-overview-stats{ gap:12px !important; margin-bottom:14px !important; }
+.public-overview-page .public-overview-stats > div{
+  position:relative;
+  min-height:82px;
+  padding:14px 16px 12px 18px !important;
+  overflow:hidden;
+  border-radius:18px !important;
+  border:1px solid rgba(98,245,238,.18) !important;
+  background: linear-gradient(180deg, rgba(11,24,38,.92), rgba(5,10,17,.86)) !important;
+  box-shadow:0 18px 42px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04) !important;
+}
+.public-overview-page .public-overview-stats > div::before{
+  content:""; position:absolute; left:0; top:0; bottom:0; width:6px;
+  background:linear-gradient(180deg,#62f5ee,#f0a84a); opacity:.86;
+}
+.public-overview-page .public-overview-stats span{
+  color:rgba(174,210,223,.78) !important; font-size:11px !important; letter-spacing:.14em; text-transform:uppercase;
+}
+.public-overview-page .public-overview-stats strong{
+  color:#fff7e8; font-size:clamp(25px,2.8vw,38px) !important; line-height:1; text-shadow:0 0 18px rgba(240,168,74,.18);
+}
+.public-overview-page .public-overview-summary-grid{
+  grid-template-columns: repeat(4, minmax(0,1fr)) !important;
+  gap:12px !important; margin-top:18px !important; margin-bottom:18px !important;
+}
+.public-overview-page .public-overview-panel,
+.public-overview-page .public-overview-card{
+  position:relative; overflow:hidden; border-radius:18px !important;
+  border:1px solid rgba(98,245,238,.17) !important;
+  background:
+    linear-gradient(90deg, rgba(98,245,238,.035) 1px, transparent 1px),
+    linear-gradient(rgba(98,245,238,.028) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(12,23,36,.91), rgba(5,10,17,.88)) !important;
+  background-size: 34px 34px, 34px 34px, auto !important;
+  box-shadow:0 18px 42px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.04) !important;
+  backdrop-filter: blur(10px);
+}
+.public-overview-page .public-overview-panel{ padding:14px 15px !important; }
+.public-overview-page .public-overview-panel::after,
+.public-overview-page .public-overview-card::after{
+  content:""; position:absolute; right:12px; top:12px; width:42px; height:5px; border-radius:99px;
+  background:linear-gradient(90deg,#62f5ee 0 38%, transparent 38% 48%, #f0a84a 48% 100%); opacity:.70;
+}
+.public-overview-page .public-overview-panel-title{
+  color:#f6fbff !important; letter-spacing:.10em; text-transform:uppercase; font-size:12px !important;
+}
+.public-overview-page .public-overview-mini-list li{
+  background:rgba(98,245,238,.055) !important; border:1px solid rgba(98,245,238,.08); border-radius:12px !important;
+}
+.public-overview-page .public-overview-list{ grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important; gap:14px !important; }
+.public-overview-page .public-overview-card{
+  min-height:152px; padding:17px 17px 15px !important; cursor:pointer; transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+.public-overview-page .public-overview-card:hover{
+  transform: translateY(-3px); border-color: rgba(98,245,238,.34) !important; box-shadow:0 24px 54px rgba(0,0,0,.40), 0 0 26px rgba(98,245,238,.09) !important;
+}
+.public-overview-page .public-overview-head strong{ color:#f7fbff; font-size:15px; letter-spacing:.02em; }
+.public-overview-page .public-overview-flag{
+  display:inline-grid; place-items:center; width:28px;height:28px; margin-right:9px !important; border-radius:50%; background:rgba(98,245,238,.09); box-shadow:inset 0 0 0 1px rgba(98,245,238,.13);
+}
+.public-overview-page .public-overview-meta{ margin-top:10px !important; color:rgba(197,222,235,.72) !important; }
+.public-overview-page .public-overview-grid{ margin-top:14px !important; gap:9px !important; }
+.public-overview-page .public-overview-grid span{
+  padding:8px 9px; border-radius:11px; color:#dffcff; background:rgba(98,245,238,.055); border:1px solid rgba(98,245,238,.08); font-family:"JetBrains Mono","SFMono-Regular",monospace; font-size:11px !important;
+}
+.public-overview-page .public-overview-status{ border:1px solid currentColor; background:rgba(0,0,0,.18) !important; font-weight:800; letter-spacing:.08em; }
+.public-overview-page .public-overview-status.is-online{ color:#62f5a8 !important; }
+.public-overview-page .public-overview-status.is-warn{ color:#f0c36a !important; }
+.public-overview-page .public-overview-status.is-offline{ color:#ff8b8b !important; }
+@media (max-width: 1180px){ .public-overview-page .public-overview-summary-grid{ grid-template-columns:repeat(2,minmax(0,1fr)) !important; } }
+@media (max-width: 760px){
+  .public-overview-page .public-overview-topbar{ grid-template-columns:1fr !important; }
+  .public-overview-page .public-overview-summary-grid{ grid-template-columns:1fr !important; }
+  .public-overview-page .public-overview-stats{ grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+}
+
+
+/* hotfix-real-reference-assets-transparent */
+/* User-provided cutout assets: real transparent PNGs in the semantic starship/badge slots. */
+.detail-page-shell:has(.fleet-detail-console) .fleet-reference-asset{
+  display:block !important;
+  position:relative;
+  overflow:visible !important;
+  background:transparent !important;
+  border:0 !important;
+  outline:0 !important;
+  box-shadow:none !important;
+  filter:none !important;
+  clip-path:none !important;
+  padding:0 !important;
+  z-index:3;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-reference-asset img{
+  display:block !important;
+  width:100% !important;
+  height:100% !important;
+  object-fit:contain !important;
+  background:transparent !important;
+  border:0 !important;
+  outline:0 !important;
+  box-shadow:none !important;
+  filter:none !important;
+  clip-path:none !important;
+  transform:none !important;
+  image-rendering:auto !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-reference-ship,
+.fleet-reference-ship.fleet-ufo-node{
+  width:168px !important;
+  height:104px !important;
+  flex:0 0 168px !important;
+  margin-left:-8px !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-reference-badge,
+.fleet-reference-badge.fleet-delta-badge{
+  width:142px !important;
+  height:142px !important;
+  justify-self:center !important;
+  align-self:center !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-node-identity{
+  grid-template-columns:164px minmax(0,1fr) !important;
+  align-items:center !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-node-caption h1{font-size:19px!important;}
+
+
+/* hotfix-badge-visible-placement */
+/* Keep the real Starfleet PNG in the original badge slot, but pin it inside the visible left rail instead of letting the long info panel push it below the fold. */
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail{
+  position:relative !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-reference-badge{
+  position:absolute !important;
+  left:40px !important;
+  top:312px !important;
+  z-index:4 !important;
+}
+@media (max-width:1200px){
+  .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-reference-badge{
+    position:relative !important;
+    left:auto !important;
+    top:auto !important;
+  }
+}
+
+
+/* hotfix-detail-clear-starship-and-badge-text */
+/* Keep the telemetry/resource cards below the Enterprise hologram, but reduce the excessive gap. */
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail,
+.detail-page-shell:has(.fleet-detail-console) .probe-observability-grid{
+  margin-top: 56px !important;
+}
+/* Keep downstream sections aligned with the lowered top row. */
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix,
+.detail-page-shell:has(.fleet-detail-console) .fleet-right-zone{
+  margin-top: 56px !important;
+}
+/* Center the replacement badge in the empty area below telemetry text, not over the labels. */
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-reference-badge{
+  left:50% !important;
+  top:520px !important;
+  transform:translateX(-50%) !important;
+  pointer-events:none !important;
+}
+@media (max-width:1200px){
+  .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail,
+  .detail-page-shell:has(.fleet-detail-console) .probe-observability-grid,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-right-zone{
+    margin-top: 28px !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-reference-badge{
+    transform:none !important;
+  }
+}
+
+
+/* hotfix-detail-controls-language-errorlog */
+.detail-page-shell:has(.fleet-detail-console) .detail-page-topbar{
+  width: min(100%, 1248px) !important;
+  margin: 0 auto 12px !important;
+  padding: 0 16px 14px !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  gap:16px !important;
+  box-sizing:border-box !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-page-tools{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-end !important;
+  flex-wrap:wrap !important;
+  gap:9px !important;
+  max-width: calc(100% - 180px) !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-back-link,
+.detail-page-shell:has(.fleet-detail-console) .theme-toggle,
+.detail-page-shell:has(.fleet-detail-console) .currency-btn,
+.detail-page-shell:has(.fleet-detail-console) .language-select{
+  min-height:38px !important;
+  padding:9px 14px !important;
+  font-size:12px !important;
+  line-height:1 !important;
+  border-radius:10px !important;
+  letter-spacing:.06em !important;
+  border:1px solid rgba(98,245,238,.35) !important;
+  background:rgba(4,25,38,.78) !important;
+  color:#cfffff !important;
+  box-shadow:0 0 18px rgba(98,245,238,.08), inset 0 0 12px rgba(98,245,238,.04) !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-back-link{
+  display:inline-flex !important;
+  align-items:center !important;
+  white-space:nowrap !important;
+  min-width:118px !important;
+  justify-content:center !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .theme-toggle{
+  min-width:92px !important;
+  justify-content:center !important;
+  gap:7px !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .language-select{
+  min-width:112px !important;
+  cursor:pointer !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-currency-switch{
+  min-height:38px !important;
+  display:flex !important;
+  align-items:center !important;
+  gap:5px !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .rate-display{
+  min-height:38px !important;
+  display:flex !important;
+  align-items:center !important;
+  font-size:12px !important;
+  color:#aeefff !important;
+  white-space:nowrap !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-right-zone,
+.detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid,
+.detail-page-shell:has(.fleet-detail-console) .fleet-panel{
+  min-width:0 !important;
+  max-width:100% !important;
+  box-sizing:border-box !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid{
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(190px,220px) !important;
+  overflow:hidden !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-error-panel{
+  overflow:hidden !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-error-panel h3{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  gap:8px !important;
+  margin:4px 0 8px !important;
+  white-space:nowrap !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-error-panel h3 span{
+  float:none !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-error-panel div:not(.fleet-title){
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  white-space:nowrap !important;
+  max-width:100% !important;
+}
+@media (max-width:900px){
+  .detail-page-shell:has(.fleet-detail-console) .detail-page-topbar{align-items:flex-start!important;}
+  .detail-page-shell:has(.fleet-detail-console) .detail-page-tools{max-width:100%!important;}
+  .detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid{grid-template-columns:1fr!important;}
+}
+
+
+
+/* hotfix-detail-realtime-units-i18n-theme-v2 */
+.detail-page-shell:has(.fleet-detail-console) .detail-page-topbar{
+  width:100%!important;max-width:none!important;margin:0 0 12px!important;padding:0 0 14px!important;
+  display:flex!important;align-items:center!important;justify-content:space-between!important;gap:16px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-back-link{margin-right:auto!important;margin-left:0!important;justify-self:flex-start!important;}
+.detail-page-shell:has(.fleet-detail-console) .detail-page-tools{margin-left:auto!important;justify-content:flex-end!important;max-width:calc(100% - 150px)!important;}
+[data-theme="light"] body{background:#ede4d1!important;color:#263238!important;}
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console){
+  background:radial-gradient(circle at 70% 12%,rgba(255,247,218,.75),transparent 34%),linear-gradient(135deg,#efe5d0 0%,#ded0b6 52%,#cdbd9f 100%)!important;
+  color:#263238!important;
+}
+[data-theme="light"] .fleet-detail-console{--cyan:#2b7f8a;--amber:#9c5d16;--line:rgba(53,91,94,.34);--muted:#6d6a5d;background:linear-gradient(180deg,rgba(255,250,237,.92),rgba(232,220,194,.88))!important;border-color:rgba(93,111,98,.38)!important;box-shadow:0 16px 48px rgba(83,64,36,.18)!important;color:#263238!important;}
+[data-theme="light"] .fleet-detail-console:before{background:linear-gradient(90deg,transparent 49.8%,rgba(75,109,112,.09) 50%,transparent 50.2%),radial-gradient(circle at 72% 38%,rgba(213,164,82,.13),transparent 30%)!important;mix-blend-mode:multiply!important;}
+[data-theme="light"] .fleet-node-identity,
+[data-theme="light"] .fleet-status-bank>div,
+[data-theme="light"] .fleet-panel,
+[data-theme="light"] .fleet-chart-card,
+[data-theme="light"] .probe-card{background:linear-gradient(180deg,rgba(255,252,241,.92),rgba(232,222,199,.90))!important;border-color:rgba(70,95,97,.30)!important;box-shadow:0 0 0 1px rgba(255,255,255,.35) inset,0 10px 24px rgba(90,72,42,.10)!important;color:#263238!important;}
+[data-theme="light"] .fleet-node-caption h1,
+[data-theme="light"] .fleet-status-bank strong,
+[data-theme="light"] .fleet-info-list strong,
+[data-theme="light"] .fleet-chart-head strong,
+[data-theme="light"] .probe-card strong{color:#17282b!important;text-shadow:none!important;}
+[data-theme="light"] .fleet-title,
+[data-theme="light"] .fleet-chart-head,
+[data-theme="light"] .probe-card-head h2{color:#176d78!important;border-color:rgba(42,113,122,.22)!important;}
+[data-theme="light"] .fleet-info-list div,
+[data-theme="light"] .probe-resource-line,
+[data-theme="light"] .probe-meter-row{background:rgba(61,121,126,.07)!important;border-color:rgba(42,113,122,.35)!important;}
+[data-theme="light"] .fleet-table{color:#263238!important;}
+[data-theme="light"] .fleet-table th{color:#176d78!important;border-color:rgba(42,113,122,.24)!important;}
+[data-theme="light"] .fleet-table td{border-color:rgba(42,113,122,.12)!important;}
+[data-theme="light"] .fleet-error-panel{background:linear-gradient(180deg,rgba(255,239,214,.95),rgba(239,221,193,.92))!important;border-color:rgba(157,93,22,.45)!important;}
+[data-theme="light"] .fleet-error-panel h3,
+[data-theme="light"] .fleet-title.warn,
+[data-theme="light"] .fleet-error-panel div:not(.fleet-title){color:#7a3e10!important;}
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-back-link,
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .theme-toggle,
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .currency-btn,
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .language-select{background:#f7edda!important;color:#243235!important;border-color:rgba(92,103,91,.42)!important;box-shadow:0 8px 20px rgba(93,75,43,.10)!important;}
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .rate-display{color:#394a4c!important;}
+
+
+/* hotfix-detail-currency-light-stable-v3 */
+.detail-page-shell:has(.fleet-detail-console) .detail-page-tools{
+  display:grid!important;
+  grid-template-columns:96px 128px 176px 156px!important;
+  align-items:center!important;
+  justify-content:end!important;
+  justify-items:stretch!important;
+  column-gap:9px!important;
+  width:auto!important;
+  min-width:586px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .theme-toggle{width:96px!important;min-width:96px!important;}
+.detail-page-shell:has(.fleet-detail-console) .language-select{width:128px!important;min-width:128px!important;max-width:128px!important;}
+.detail-page-shell:has(.fleet-detail-console) .detail-currency-switch{
+  width:176px!important;
+  min-width:176px!important;
+  max-width:176px!important;
+  display:grid!important;
+  grid-template-columns:repeat(3,54px)!important;
+  gap:5px!important;
+  align-items:center!important;
+  justify-content:center!important;
+  padding:0 4px!important;
+  box-sizing:border-box!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-currency-switch .currency-btn{
+  width:54px!important;
+  min-width:54px!important;
+  max-width:54px!important;
+  text-align:center!important;
+  padding-left:0!important;
+  padding-right:0!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .rate-display{
+  width:156px!important;
+  min-width:156px!important;
+  max-width:156px!important;
+  justify-content:flex-start!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-currency-switch{
+  background:#f7edda!important;
+  border:1px solid rgba(92,103,91,.42)!important;
+  box-shadow:0 8px 20px rgba(93,75,43,.10)!important;
+}
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-currency-switch .currency-btn{
+  background:#fff6e6!important;
+  color:#243235!important;
+  border-color:rgba(92,103,91,.38)!important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.45)!important;
+}
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-currency-switch .currency-btn.active{
+  background:linear-gradient(180deg,#f0c77d,#d99b43)!important;
+  color:#24180b!important;
+  border-color:rgba(148,92,20,.55)!important;
+}
+@media(max-width:760px){
+  .detail-page-shell:has(.fleet-detail-console) .detail-page-tools{display:flex!important;min-width:0!important;max-width:100%!important;flex-wrap:wrap!important;}
+}
+
+
+/* hotfix-detail-scrollbar-large-charts-fast-sample-v4 */
+html,body{scrollbar-width:thin!important;}
+[data-theme="dark"] html,[data-theme="dark"] body{scrollbar-color:#55dfe8 #061522!important;}
+[data-theme="light"] html,[data-theme="light"] body{scrollbar-color:#b99055 #efe4cd!important;}
+[data-theme="dark"] ::-webkit-scrollbar{width:12px;height:12px;}
+[data-theme="dark"] ::-webkit-scrollbar-track{background:#061522!important;}
+[data-theme="dark"] ::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#62f5ee,#236f7a)!important;border:2px solid #061522!important;border-radius:999px!important;}
+[data-theme="light"] ::-webkit-scrollbar{width:12px;height:12px;}
+[data-theme="light"] ::-webkit-scrollbar-track{background:#efe4cd!important;}
+[data-theme="light"] ::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#d7ad6d,#9b7442)!important;border:2px solid #efe4cd!important;border-radius:999px!important;}
+.detail-page-shell:has(.fleet-detail-console) .fleet-table-wrap,
+.detail-page-shell:has(.fleet-detail-console) .fleet-panel{scrollbar-width:thin!important;}
+[data-theme="dark"] .detail-page-shell:has(.fleet-detail-console) .fleet-table-wrap,
+[data-theme="dark"] .detail-page-shell:has(.fleet-detail-console) .fleet-panel{scrollbar-color:#55dfe8 #061522!important;}
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-table-wrap,
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-panel{scrollbar-color:#b99055 #efe4cd!important;}
+
+.detail-page-shell:has(.fleet-detail-console) .fleet-detail-console{
+  grid-template-columns:minmax(300px,360px) minmax(620px,1fr)!important;
+  grid-template-rows:auto auto auto auto auto!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{
+  grid-column:1/-1!important;
+  grid-row:3!important;
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(420px,1fr))!important;
+  gap:18px!important;
+  width:100%!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card{
+  min-height:330px!important;
+  padding:18px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-head{
+  font-size:14px!important;
+  margin-bottom:12px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-head strong{
+  font-size:16px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card canvas,
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-sparkline{
+  height:250px!important;
+  min-height:250px!important;
+  max-height:none!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-linechart{
+  height:250px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-right-zone{
+  grid-column:1/-1!important;
+  grid-row:4!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-console-footer{
+  grid-column:1/-1!important;
+  grid-row:5!important;
+}
+@media(max-width:980px){
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{grid-template-columns:1fr!important;}
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card{min-height:300px!important;}
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card canvas,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-sparkline{height:220px!important;min-height:220px!important;}
+}
+
+
+/* hotfix-detail-scrollbar-root-selector-v5 */
+html[data-theme="dark"],html[data-theme="dark"] body{scrollbar-width:thin!important;scrollbar-color:#55dfe8 #061522!important;}
+html[data-theme="light"],html[data-theme="light"] body{scrollbar-width:thin!important;scrollbar-color:#b99055 #efe4cd!important;}
+html[data-theme="dark"] ::-webkit-scrollbar{width:12px!important;height:12px!important;}
+html[data-theme="dark"] ::-webkit-scrollbar-track{background:#061522!important;}
+html[data-theme="dark"] ::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#62f5ee,#236f7a)!important;border:2px solid #061522!important;border-radius:999px!important;}
+html[data-theme="light"] ::-webkit-scrollbar{width:12px!important;height:12px!important;}
+html[data-theme="light"] ::-webkit-scrollbar-track{background:#efe4cd!important;}
+html[data-theme="light"] ::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#d7ad6d,#9b7442)!important;border:2px solid #efe4cd!important;border-radius:999px!important;}
+html[data-theme="dark"] .detail-page-shell:has(.fleet-detail-console) .fleet-table-wrap,
+html[data-theme="dark"] .detail-page-shell:has(.fleet-detail-console) .fleet-panel{scrollbar-color:#55dfe8 #061522!important;}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-table-wrap,
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-panel{scrollbar-color:#b99055 #efe4cd!important;}
+
+
+/* hotfix-detail-bottom-horizontal-no-midline-freshness-v6 */
+.detail-page-shell:has(.fleet-detail-console) .fleet-detail-console:before{
+  background:radial-gradient(circle at 72% 38%,rgba(98,245,238,.10),transparent 28%)!important;
+  mix-blend-mode:screen!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console:before,
+[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console:before{
+  background:radial-gradient(circle at 72% 38%,rgba(213,164,82,.13),transparent 30%)!important;
+  mix-blend-mode:multiply!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-right-zone{
+  grid-column:1/-1!important;
+  grid-row:4!important;
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  grid-template-rows:auto auto auto!important;
+  gap:18px!important;
+  width:100%!important;
+  min-width:0!important;
+  overflow:visible!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid{
+  display:grid!important;
+  grid-template-columns:minmax(520px,1fr) minmax(300px,380px)!important;
+  gap:18px!important;
+  min-height:440px!important;
+  overflow:visible!important;
+  position:relative!important;
+  z-index:2!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-globe-panel,
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel{
+  min-width:0!important;
+  overflow:hidden!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel .fleet-table-wrap{
+  max-height:380px!important;
+  overflow:auto!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-right-zone .fleet-bottom-grid,
+.detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid{
+  width:100%!important;
+  max-width:100%!important;
+  justify-self:stretch!important;
+  grid-column:1/-1!important;
+  display:grid!important;
+  grid-template-columns:minmax(280px,1fr) minmax(360px,1.25fr) minmax(280px,1fr)!important;
+  gap:18px!important;
+  overflow:visible!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-right-zone .fleet-bottom-grid > .fleet-panel,
+.detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid > .fleet-panel{
+  width:100%!important;
+  min-width:0!important;
+  max-width:100%!important;
+  min-height:260px!important;
+  overflow:hidden!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-inventory-panel .fleet-table-wrap,
+.detail-page-shell:has(.fleet-detail-console) .fleet-rules-panel,
+.detail-page-shell:has(.fleet-detail-console) .fleet-error-panel{
+  max-height:320px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .data-freshness-card .freshness-meta{
+  display:flex!important;
+  justify-content:space-between!important;
+  gap:12px!important;
+  margin:0 0 8px!important;
+  color:#8fb7c1!important;
+  font-size:12px!important;
+  text-transform:uppercase!important;
+}
+html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .data-freshness-card .freshness-meta{color:#6d6252!important;}
+@media(max-width:980px){
+  .detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-right-zone .fleet-bottom-grid,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid{grid-template-columns:1fr!important;}
+}
+
+
+/* hotfix-detail-telemetry-frame-tight-badge-v7 */
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail{
+  align-self:start!important;
+  grid-template-rows:auto auto!important;
+  gap:18px!important;
+  min-height:0!important;
+  height:auto!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .node-card{
+  align-self:start!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  padding-bottom:14px!important;
+  overflow:visible!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-info-list{
+  margin-bottom:0!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-reference-badge,
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-html-badge,
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-insignia{
+  position:relative!important;
+  left:auto!important;
+  top:auto!important;
+  right:auto!important;
+  bottom:auto!important;
+  justify-self:center!important;
+  align-self:start!important;
+  margin:8px auto 0!important;
+  z-index:1!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-reference-badge img,
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-html-badge img{
+  display:block!important;
+}
+@media(max-width:1200px){
+  .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail{grid-template-rows:auto auto!important;}
+}
+
+/* hotfix-detail-relayout-starmap-first-v1 */
+.detail-page-shell:has(.fleet-detail-console) .fleet-detail-console{
+  display:grid!important;
+  grid-template-columns:300px minmax(0,1fr)!important;
+  grid-template-rows:auto auto auto auto auto!important;
+  gap:18px!important;
+  max-width:1280px!important;
+  margin:28px auto 0!important;
+  padding:22px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-console-header{
+  grid-column:1/-1!important;
+  grid-row:1!important;
+  margin-bottom:0!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail{
+  grid-column:1!important;
+  grid-row:2!important;
+  min-width:0!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .probe-observability-grid{
+  grid-column:2!important;
+  grid-row:2!important;
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:14px!important;
+  align-self:stretch!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .probe-card{
+  min-height:0!important;
+  height:auto!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-right-zone{
+  grid-column:1/-1!important;
+  grid-row:3!important;
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  gap:18px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid{
+  order:1!important;
+  display:grid!important;
+  grid-template-columns:minmax(640px,1fr) minmax(280px,340px)!important;
+  gap:18px!important;
+  min-height:0!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-starmap-panel{
+  min-height:560px!important;
+  max-width:none!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount{
+  min-height:500px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel{
+  min-height:560px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel .fleet-table{
+  font-size:12px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-database-panel{
+  order:2!important;
+  min-height:0!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid{
+  order:3!important;
+  display:grid!important;
+  grid-template-columns:minmax(260px,.9fr) minmax(420px,1.25fr) minmax(260px,.9fr)!important;
+  gap:18px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{
+  grid-column:1/-1!important;
+  grid-row:4!important;
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(280px,1fr))!important;
+  gap:16px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card{
+  min-height:250px!important;
+  padding:14px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card canvas,
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-sparkline,
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-linechart{
+  height:175px!important;
+  min-height:175px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-console-footer{
+  grid-column:1/-1!important;
+  grid-row:5!important;
+}
+@media(max-width:1100px){
+  .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console{grid-template-columns:1fr!important;}
+  .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail,
+  .detail-page-shell:has(.fleet-detail-console) .probe-observability-grid,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-right-zone,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{grid-column:1!important;}
+  .detail-page-shell:has(.fleet-detail-console) .probe-observability-grid,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{grid-template-columns:1fr!important;}
+}
+
+/* hotfix-detail-full-bleed-command-deck-v2 */
+html:has(.fleet-detail-console),
+html:has(.fleet-detail-console) body{
+  width:100%!important;
+  max-width:none!important;
+  overflow-x:hidden!important;
+}
+.detail-page-shell:has(.fleet-detail-console){
+  width:100vw!important;
+  max-width:none!important;
+  margin:0!important;
+  padding:10px 12px 18px!important;
+  box-sizing:border-box!important;
+}
+.detail-page-shell:has(.fleet-detail-console) #detailPageGrid,
+.detail-page-shell:has(.fleet-detail-console) .detail-page-grid{
+  width:100%!important;
+  max-width:none!important;
+  margin:0!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-page-topbar{
+  width:100%!important;
+  max-width:none!important;
+  margin:0 0 10px!important;
+  padding:0 4px!important;
+  box-sizing:border-box!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-detail-console{
+  width:100%!important;
+  max-width:none!important;
+  min-height:calc(100vh - 74px)!important;
+  margin:0!important;
+  padding:16px!important;
+  box-sizing:border-box!important;
+  display:grid!important;
+  grid-template-columns:minmax(280px,340px) minmax(0,1.05fr) minmax(420px,1.25fr)!important;
+  grid-template-rows:auto auto auto auto!important;
+  gap:14px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-console-header{
+  grid-column:1/-1!important;
+  grid-row:1!important;
+  width:100%!important;
+  min-width:0!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-left-rail{
+  grid-column:1!important;
+  grid-row:2!important;
+  min-width:0!important;
+  align-self:stretch!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .probe-observability-grid{
+  grid-column:2!important;
+  grid-row:2!important;
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  grid-auto-rows:minmax(0,1fr)!important;
+  gap:12px!important;
+  min-width:0!important;
+  align-self:stretch!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .probe-card{
+  min-height:0!important;
+  height:auto!important;
+  padding:14px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-right-zone{
+  grid-column:3!important;
+  grid-row:2 / span 2!important;
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  grid-template-rows:minmax(470px,auto) auto!important;
+  gap:14px!important;
+  min-width:0!important;
+  overflow:visible!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid{
+  order:1!important;
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) minmax(230px,300px)!important;
+  gap:14px!important;
+  min-height:470px!important;
+  min-width:0!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-starmap-panel{
+  width:100%!important;
+  min-width:0!important;
+  min-height:470px!important;
+  max-width:none!important;
+  overflow:hidden!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount{
+  width:100%!important;
+  min-width:0!important;
+  min-height:410px!important;
+  height:410px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  overflow:hidden!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
+  max-width:100%!important;
+  height:auto!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel{
+  min-width:0!important;
+  min-height:470px!important;
+  overflow:hidden!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-database-panel{
+  order:2!important;
+  min-width:0!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{
+  grid-column:1 / span 2!important;
+  grid-row:3!important;
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:14px!important;
+  width:100%!important;
+  min-width:0!important;
+  align-self:start!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card{
+  min-width:0!important;
+  min-height:225px!important;
+  padding:13px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card canvas,
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-sparkline,
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-linechart{
+  height:150px!important;
+  min-height:150px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid{
+  grid-column:1/-1!important;
+  grid-row:4!important;
+  order:3!important;
+  display:grid!important;
+  grid-template-columns:minmax(260px,.85fr) minmax(520px,1.35fr) minmax(260px,.85fr)!important;
+  gap:14px!important;
+  width:100%!important;
+  min-width:0!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-console-footer{
+  display:none!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-panel,
+.detail-page-shell:has(.fleet-detail-console) .fleet-table-wrap{
+  min-width:0!important;
+  box-sizing:border-box!important;
+}
+@media(max-width:1180px){
+  .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console{
+    grid-template-columns:1fr!important;
+    grid-template-rows:auto!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-console-header,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail,
+  .detail-page-shell:has(.fleet-detail-console) .probe-observability-grid,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-right-zone,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid{
+    grid-column:1!important;
+    grid-row:auto!important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .probe-observability-grid,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid{
+    grid-template-columns:1fr!important;
+  }
+}
+
+/* hotfix-detail-full-bleed-specificity-v3 */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console){
+  width:100vw!important;max-width:none!important;margin:0!important;padding:10px 12px 18px!important;box-sizing:border-box!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console{
+  width:100%!important;max-width:none!important;margin:0!important;padding:16px!important;box-sizing:border-box!important;
+  display:grid!important;grid-template-columns:minmax(280px,340px) minmax(0,1.05fr) minmax(420px,1.25fr)!important;grid-template-rows:auto auto auto auto!important;gap:14px!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-console-header{grid-column:1/-1!important;grid-row:1!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail{grid-column:1!important;grid-row:2!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid{grid-column:2!important;grid-row:2!important;display:grid!important;grid-template-columns:1fr!important;gap:12px!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone{grid-column:3!important;grid-row:2 / span 2!important;display:grid!important;grid-template-columns:1fr!important;grid-template-rows:minmax(470px,auto) auto!important;gap:14px!important;min-width:0!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(230px,300px)!important;gap:14px!important;min-height:470px!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{min-height:470px!important;width:100%!important;max-width:none!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{height:410px!important;min-height:410px!important;width:100%!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel{min-height:470px!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{grid-column:1 / span 2!important;grid-row:3!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:14px!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card{min-height:225px!important;padding:13px!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card canvas,
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-sparkline,
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-linechart{height:150px!important;min-height:150px!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-bottom-grid{grid-column:1/-1!important;grid-row:4!important;display:grid!important;grid-template-columns:minmax(260px,.85fr) minmax(520px,1.35fr) minmax(260px,.85fr)!important;gap:14px!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-console-footer{display:none!important;}
+@media(max-width:1180px){
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console{grid-template-columns:1fr!important;}
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-bottom-grid{grid-column:1!important;grid-row:auto!important;}
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-bottom-grid{grid-template-columns:1fr!important;}
+}
+
+/* hotfix-detail-balanced-wide-layout-v4 */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console{
+  grid-template-columns:minmax(300px,340px) minmax(0,1fr)!important;
+  grid-template-rows:auto auto auto auto!important;
+  gap:14px!important;
+  width:100%!important;
+  max-width:none!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-console-header{grid-column:1/-1!important;grid-row:1!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail{grid-column:1!important;grid-row:2!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid{
+  grid-column:2!important;grid-row:2!important;
+  display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:14px!important;align-self:stretch!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone{
+  grid-column:1/-1!important;grid-row:3!important;
+  display:grid!important;grid-template-columns:1fr!important;gap:14px!important;width:100%!important;min-width:0!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{
+  order:1!important;display:grid!important;
+  grid-template-columns:minmax(760px,1fr) minmax(260px,320px)!important;
+  gap:14px!important;min-height:520px!important;width:100%!important;min-width:0!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{min-height:520px!important;min-width:0!important;width:100%!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{height:460px!important;min-height:460px!important;width:100%!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel{min-height:520px!important;min-width:0!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-database-panel{order:2!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-bottom-grid{
+  order:3!important;grid-column:auto!important;grid-row:auto!important;
+  display:grid!important;grid-template-columns:minmax(260px,.9fr) minmax(460px,1.25fr) minmax(260px,.9fr)!important;gap:14px!important;width:100%!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{
+  grid-column:1/-1!important;grid-row:4!important;
+  display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:14px!important;width:100%!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card{min-height:225px!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card canvas,
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-sparkline,
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-linechart{height:150px!important;min-height:150px!important;}
+@media(max-width:1180px){
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console{grid-template-columns:1fr!important;}
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{grid-column:1!important;grid-row:auto!important;}
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-bottom-grid,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{grid-template-columns:1fr!important;}
+}
+
+/* hotfix-chart-axes-and-overview-hud-v5 */
+.detail-page-shell:has(.fleet-detail-console) .mini-linechart-axis{
+  width:100%!important;
+  height:150px!important;
+  min-height:150px!important;
+  overflow:visible!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .mini-linechart-axis .grid-line{
+  stroke:rgba(98,245,238,.13);
+  stroke-width:.8;
+  vector-effect:non-scaling-stroke;
+}
+.detail-page-shell:has(.fleet-detail-console) .mini-linechart-axis .axis-line{
+  stroke:rgba(240,168,74,.48);
+  stroke-width:1.1;
+  vector-effect:non-scaling-stroke;
+}
+.detail-page-shell:has(.fleet-detail-console) .mini-linechart-axis .axis-label{
+  fill:rgba(207,232,244,.76);
+  font:700 9px "JetBrains Mono","SFMono-Regular",monospace;
+  letter-spacing:.04em;
+}
+.detail-page-shell:has(.fleet-detail-console) .mini-linechart-axis .axis-x.end{
+  text-anchor:end;
+}
+.detail-page-shell:has(.fleet-detail-console) .mini-linechart-axis .empty-label{
+  fill:rgba(207,232,244,.62);
+  font:800 13px system-ui,sans-serif;
+  text-anchor:middle;
+  dominant-baseline:middle;
+  letter-spacing:.12em;
+}
+.detail-page-shell:has(.fleet-detail-console) .mini-linechart-axis polygon{
+  fill:rgba(98,245,238,.12)!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .mini-linechart-axis polyline{
+  fill:none!important;
+  stroke:#62f5ee!important;
+  stroke-width:2.3!important;
+  vector-effect:non-scaling-stroke;
+  filter:drop-shadow(0 0 5px rgba(98,245,238,.35));
+}
+.public-overview-page .public-overview-topbar{
+  border-left-color:#62f5ee!important;
+  background:
+    linear-gradient(90deg, rgba(98,245,238,.06) 1px, transparent 1px),
+    linear-gradient(rgba(98,245,238,.045) 1px, transparent 1px),
+    linear-gradient(135deg, rgba(8,22,34,.96), rgba(3,8,15,.91))!important;
+  background-size:42px 42px,42px 42px,auto!important;
+}
+.public-overview-page .public-overview-back{
+  color:#061016!important;
+  background:linear-gradient(135deg,#62f5ee,#6db7ff 62%,#f0a84a)!important;
+}
+.public-overview-page .public-overview-stats{
+  display:grid!important;
+  grid-template-columns:repeat(auto-fit,minmax(150px,1fr))!important;
+}
+.public-overview-page .public-overview-summary-grid{
+  align-items:stretch!important;
+}
+.public-overview-page .public-overview-card{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:10px!important;
+  min-height:176px!important;
+}
+.public-overview-page .public-overview-card::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:radial-gradient(circle at 80% 18%, rgba(98,245,238,.10), transparent 34%);
+  opacity:.9;
+}
+.public-overview-page .public-overview-head,
+.public-overview-page .public-overview-meta,
+.public-overview-page .public-overview-grid{
+  position:relative;
+  z-index:1;
+}
+.public-overview-page .public-overview-grid{
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:9px!important;
+}
+.public-overview-page .public-overview-grid .overview-metric{
+  display:grid!important;
+  grid-template-columns:1fr auto!important;
+  grid-template-rows:auto 5px!important;
+  align-items:center!important;
+  gap:6px 8px!important;
+  padding:9px 10px!important;
+  border-radius:12px!important;
+  border:1px solid rgba(98,245,238,.12)!important;
+  background:rgba(98,245,238,.055)!important;
+  color:#dffcff!important;
+  font-family:"JetBrains Mono","SFMono-Regular",monospace!important;
+}
+.public-overview-page .public-overview-grid .overview-metric b{
+  font-size:10px;
+  letter-spacing:.14em;
+  color:rgba(183,220,234,.72);
+}
+.public-overview-page .public-overview-grid .overview-metric em{
+  font-style:normal;
+  font-size:12px;
+  font-weight:900;
+  color:#fff7e8;
+}
+.public-overview-page .public-overview-grid .overview-metric i{
+  grid-column:1/-1;
+  height:5px;
+  border-radius:99px;
+  overflow:hidden;
+  background:rgba(255,255,255,.08);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);
+}
+.public-overview-page .public-overview-grid .overview-metric i::before{
+  content:"";
+  display:block;
+  width:calc(var(--pct,0) * 1%);
+  height:100%;
+  border-radius:inherit;
+  background:linear-gradient(90deg,#62f5ee,#f0a84a);
+  box-shadow:0 0 12px rgba(98,245,238,.25);
+}
+.public-overview-page .public-overview-panel-title,
+.public-overview-page .public-overview-head strong{
+  text-shadow:0 0 14px rgba(98,245,238,.18);
+}
+@media(max-width:760px){
+  .public-overview-page .public-overview-grid{grid-template-columns:1fr!important;}
+}
+
+
+/* hotfix-detail-rate-chart-and-probe-link-bars-v1 */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix,
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{
+  grid-template-columns:repeat(2,minmax(430px,1fr))!important;
+  gap:18px!important;
+  align-items:stretch!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.rate-chart-card,
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.rate-chart-card{
+  min-height:360px!important;
+  padding:16px 18px 18px!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.rate-chart-card .mini-linechart,
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.rate-chart-card .mini-linechart{
+  height:285px!important;
+  min-height:285px!important;
+  max-height:none!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.rate-chart-card .axis-label{
+  font-size:10px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.rate-chart-card .axis-unit{
+  fill:rgba(255,194,115,.86)!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card:not(.rate-chart-card){
+  min-height:230px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel .fleet-table th:nth-child(4),
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel .fleet-table td:nth-child(4){
+  min-width:118px!important;
+  width:42%!important;
+}
+.probe-link-bar{
+  position:relative;
+  height:11px;
+  width:100%;
+  min-width:108px;
+  border-radius:999px;
+  overflow:hidden;
+  background:linear-gradient(90deg,rgba(98,245,238,.12),rgba(255,177,93,.08));
+  border:1px solid rgba(98,245,238,.22);
+  box-shadow:inset 0 0 8px rgba(2,10,18,.55);
+}
+.probe-link-bar i{
+  display:block;
+  height:100%;
+  border-radius:inherit;
+  background:linear-gradient(90deg,#62f5ee,#6df0a8);
+  box-shadow:0 0 12px rgba(98,245,238,.45);
+  transition:width .42s ease;
+}
+.probe-link-bar.warn i{background:linear-gradient(90deg,#62f5ee,#ffb15d);box-shadow:0 0 12px rgba(255,177,93,.45);}
+.probe-link-bar.danger i{background:linear-gradient(90deg,#ffb15d,#ff5d5d);box-shadow:0 0 14px rgba(255,93,93,.5);}
+.probe-link-bar b{
+  position:absolute;inset:0;
+  background:repeating-linear-gradient(90deg,transparent 0 16px,rgba(255,255,255,.18) 16px 17px);
+  opacity:.55;
+}
+@media(max-width:1180px){
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{grid-template-columns:1fr!important;}
+}
+
+
+/* hotfix-detail-network-redesign-v1 */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix,
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{
+  grid-template-columns:repeat(3,minmax(260px,1fr))!important;
+  grid-auto-rows:auto!important;
+  gap:18px!important;
+  align-items:stretch!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .network-throughput-card{
+  grid-column:1/-1!important;
+  min-height:420px!important;
+  padding:18px 20px 20px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .network-throughput-card .fleet-chart-head{
+  margin-bottom:8px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .network-throughput-card .fleet-chart-head span{
+  font-size:14px!important;
+  color:#e8ffff!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .network-throughput-card .fleet-chart-head strong{
+  font-size:18px!important;
+  text-transform:none!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .network-legend{
+  display:flex;gap:18px;align-items:center;margin:0 0 8px 78px;
+  color:rgba(223,247,250,.76);font:700 11px "JetBrains Mono",monospace;
+}
+.detail-page-shell:has(.fleet-detail-console) .network-legend i{width:22px;height:3px;border-radius:99px;display:inline-block;margin-right:-12px;box-shadow:0 0 8px currentColor;}
+.detail-page-shell:has(.fleet-detail-console) .network-legend .up{background:#62f5ee;color:#62f5ee;}
+.detail-page-shell:has(.fleet-detail-console) .network-legend .down{background:#ffb15d;color:#ffb15d;}
+.detail-page-shell:has(.fleet-detail-console) .network-dual-chart{
+  width:100%!important;height:330px!important;min-height:330px!important;display:block!important;overflow:visible!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .network-dual-chart .up-area{fill:rgba(98,245,238,.10)!important;}
+.detail-page-shell:has(.fleet-detail-console) .network-dual-chart .down-area{fill:rgba(255,177,93,.075)!important;}
+.detail-page-shell:has(.fleet-detail-console) .network-dual-chart .up-line{fill:none!important;stroke:#62f5ee!important;stroke-width:2.8!important;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 5px rgba(98,245,238,.55));}
+.detail-page-shell:has(.fleet-detail-console) .network-dual-chart .down-line{fill:none!important;stroke:#ffb15d!important;stroke-width:2.4!important;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 5px rgba(255,177,93,.42));}
+.detail-page-shell:has(.fleet-detail-console) .network-dual-chart .axis-label{font-size:10px!important;letter-spacing:0!important;}
+.detail-page-shell:has(.fleet-detail-console) .network-dual-chart .axis-unit{fill:rgba(255,194,115,.86)!important;}
+.detail-page-shell:has(.fleet-detail-console) .compact-metric-card,
+.detail-page-shell:has(.fleet-detail-console) .probe-status-card{
+  min-height:240px!important;
+  padding:14px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .compact-metric-card canvas,
+.detail-page-shell:has(.fleet-detail-console) .compact-metric-card .mini-linechart{
+  height:165px!important;min-height:165px!important;max-height:165px!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .probe-status-card{position:relative;overflow:hidden;}
+.detail-page-shell:has(.fleet-detail-console) .probe-status-card.danger{border-color:rgba(255,93,93,.55)!important;background:linear-gradient(180deg,rgba(62,18,18,.84),rgba(10,14,24,.86))!important;}
+.detail-page-shell:has(.fleet-detail-console) .probe-status-card.warn{border-color:rgba(255,177,93,.55)!important;}
+.probe-status-hero{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;align-items:end;margin:10px 0 14px;padding:12px;border:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.18);}
+.probe-status-hero b{grid-row:1/3;font-size:42px;line-height:.92;color:#ffb15d;text-shadow:0 0 15px rgba(255,177,93,.35);}
+.probe-status-card.danger .probe-status-hero b{color:#ff6868;text-shadow:0 0 18px rgba(255,93,93,.42);}
+.probe-status-hero span{color:#dfffff;font-size:13px;font-weight:800;}
+.probe-status-hero em{color:#9fc4ca;font-style:normal;font-size:11px;}
+.probe-status-bars{display:grid;gap:10px;}
+.probe-status-bars>div{display:grid;grid-template-columns:70px minmax(90px,1fr) auto;gap:8px;align-items:center;color:#cfeff2;font-size:10px;}
+.probe-status-bars span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#eaffff;}
+.probe-status-bars em{font-style:normal;color:#9fc4ca;white-space:nowrap;}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.rate-chart-card{display:none!important;}
+@media(max-width:1180px){
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix,
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{grid-template-columns:1fr!important;}
+  .detail-page-shell:has(.fleet-detail-console) .network-throughput-card{min-height:360px!important;}
+  .detail-page-shell:has(.fleet-detail-console) .network-dual-chart{height:270px!important;min-height:270px!important;}
+}
+
+
+/* hotfix-detail-network-redesign-height-v2 */
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card,
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card{
+  grid-column:1 / -1!important;
+  height:440px!important;
+  min-height:440px!important;
+  max-height:none!important;
+  padding:20px 22px 22px!important;
+  align-self:stretch!important;
+}
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card svg.network-dual-chart,
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card svg.network-dual-chart{
+  display:block!important;
+  width:100%!important;
+  height:332px!important;
+  min-height:332px!important;
+  max-height:none!important;
+}
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card .fleet-chart-head strong{
+  font-size:18px!important;
+  text-transform:none!important;
+}
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .compact-metric-card,
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .probe-status-card{
+  height:260px!important;
+  min-height:260px!important;
+  max-height:none!important;
+}
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .compact-metric-card canvas,
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .compact-metric-card svg.mini-linechart{
+  height:176px!important;
+  min-height:176px!important;
+  max-height:176px!important;
+}
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .network-dual-chart .axis-label.axis-y{
+  font-size:9.5px!important;
+}
+@media(max-width:1180px){
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card{
+    height:380px!important;
+    min-height:380px!important;
+  }
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card svg.network-dual-chart{
+    height:278px!important;
+    min-height:278px!important;
+  }
+}
+
+
+/* hotfix-network-tooltip-cpu12h */
+html body .network-throughput-card { position: relative; }
+html body .network-throughput-card .network-tooltip {
+  position: absolute;
+  z-index: 30;
+  min-width: 132px;
+  padding: 8px 10px;
+  border: 1px solid rgba(98,245,238,.34);
+  border-radius: 10px;
+  background: rgba(3, 16, 28, .94);
+  box-shadow: 0 12px 28px rgba(0,0,0,.38), inset 0 0 18px rgba(98,245,238,.08);
+  color: #dcffff;
+  font: 11px/1.45 var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+}
+html body .network-throughput-card .network-tooltip strong,
+html body .network-throughput-card .network-tooltip span { display: block; white-space: nowrap; }
+html body .network-throughput-card .network-tooltip strong { color: #fff6bf; margin-bottom: 3px; }
+html body .network-throughput-card .network-tooltip span:nth-child(2) { color: #68f6ff; }
+html body .network-throughput-card .network-tooltip span:nth-child(3) { color: #ffd66b; }
+html body .network-throughput-card svg.network-dual-chart { cursor: crosshair; }
+
+
+/* hotfix-detail-ping-network-size-axis-v1 */
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card,
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card{
+  grid-column:1 / -1!important;
+  height:440px!important;
+  min-height:440px!important;
+  max-height:none!important;
+  padding:20px 22px 22px!important;
+}
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card canvas,
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card canvas{
+  display:block!important;
+  width:100%!important;
+  height:332px!important;
+  min-height:332px!important;
+  max-height:none!important;
+}
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .network-dual-chart .axis-label.axis-x.end{
+  fill:rgba(223,247,250,.78)!important;
+}
+@media(max-width:1180px){
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card{
+    height:380px!important;
+    min-height:380px!important;
+  }
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card canvas{
+    height:278px!important;
+    min-height:278px!important;
+  }
+}
+
+
+/* hotfix-detail-final-ping-step-layout-v1 */
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix,
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix{
+  grid-template-columns:repeat(3,minmax(260px,1fr))!important;
+  gap:18px!important;
+  align-items:stretch!important;
+}
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card{
+  order:1!important;
+}
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card{
+  order:2!important;
+  grid-column:1 / -1!important;
+  height:440px!important;
+  min-height:440px!important;
+  max-height:none!important;
+}
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .resource-mini-card{
+  order:3!important;
+  grid-column:auto!important;
+  height:260px!important;
+  min-height:260px!important;
+}
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card canvas{
+  height:332px!important;
+  min-height:332px!important;
+  max-height:none!important;
+}
+@media(max-width:1180px){
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix{grid-template-columns:1fr!important;}
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .resource-mini-card{grid-column:1!important;}
+}
+
+
+/* asset-overview-gemini-hud-pass */
+.public-overview-page{
+  --fleet-cyan:#62f5ee;
+  --fleet-blue:#5fb2ff;
+  --fleet-amber:#ffb15d;
+  --fleet-line:rgba(98,245,238,.32);
+  background:
+    radial-gradient(circle at 76% 18%, rgba(98,245,238,.13), transparent 28%),
+    radial-gradient(circle at 18% 10%, rgba(255,177,93,.08), transparent 30%),
+    repeating-linear-gradient(0deg, rgba(98,245,238,.026) 0 1px, transparent 1px 8px),
+    repeating-linear-gradient(90deg, rgba(98,245,238,.018) 0 1px, transparent 1px 64px),
+    linear-gradient(180deg,#020910 0%,#01050a 100%)!important;
+  font-family:"Roboto Condensed","DIN Condensed","JetBrains Mono",Inter,system-ui,sans-serif;
+  letter-spacing:.025em;
+}
+.public-overview-page::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  background:linear-gradient(90deg, transparent 49.8%, rgba(98,245,238,.075) 50%, transparent 50.2%), radial-gradient(circle at 50% 0, rgba(98,245,238,.08), transparent 42%);
+  mix-blend-mode:screen;
+}
+.public-overview-hero{
+  position:relative;
+  display:grid;
+  grid-template-columns:minmax(310px,.88fr) minmax(420px,1.28fr);
+  gap:18px;
+  align-items:stretch;
+  min-height:258px;
+  margin:0 0 18px;
+  padding:14px;
+  overflow:hidden;
+  background:
+    linear-gradient(90deg, rgba(98,245,238,.07) 1px, transparent 1px),
+    linear-gradient(rgba(98,245,238,.045) 1px, transparent 1px),
+    linear-gradient(135deg, rgba(5,27,42,.86), rgba(2,10,18,.92));
+  background-size:44px 44px,44px 44px,auto;
+  border:1px solid var(--fleet-line);
+  clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,18px 100%,0 calc(100% - 18px));
+  box-shadow:0 0 42px rgba(0,0,0,.55), inset 0 0 44px rgba(98,245,238,.055);
+}
+.public-overview-hero::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:radial-gradient(circle at 69% 52%, rgba(98,245,238,.15), transparent 34%), linear-gradient(90deg, transparent, rgba(255,177,93,.06), transparent);
+  mix-blend-mode:screen;
+}
+.public-overview-hero-copy,.public-overview-visual{position:relative;z-index:1;}
+.public-overview-hero-copy{
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  padding:10px 8px 10px 12px;
+}
+.public-overview-kicker{
+  width:max-content;
+  margin:18px 0 8px;
+  padding:4px 8px;
+  color:#061016;
+  font:900 11px/1 "JetBrains Mono",monospace;
+  letter-spacing:.18em;
+  background:linear-gradient(135deg,var(--fleet-cyan),var(--fleet-blue) 62%,var(--fleet-amber));
+  box-shadow:0 0 18px rgba(98,245,238,.22);
+}
+.public-overview-hero h1{
+  margin:0;
+  font-size:clamp(34px,5vw,64px);
+  line-height:.94;
+  color:#eaffff;
+  text-shadow:0 0 18px rgba(98,245,238,.44);
+}
+.public-overview-hero p{
+  margin:12px 0 0;
+  color:rgba(198,230,236,.78);
+  text-transform:uppercase;
+}
+.public-overview-visual{
+  margin:0;
+  min-height:230px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  border:1px solid rgba(98,245,238,.22);
+  background:radial-gradient(circle at 50% 50%, rgba(98,245,238,.10), rgba(1,8,14,.72) 62%, rgba(0,0,0,.22));
+  box-shadow:inset 0 0 30px rgba(98,245,238,.06);
+}
+.public-overview-visual img{
+  width:100%;
+  height:100%;
+  max-height:252px;
+  object-fit:contain;
+  filter:saturate(1.18) contrast(1.06) drop-shadow(0 0 18px rgba(98,245,238,.20));
+}
+.public-overview-status-bank > div,
+.public-overview-page .public-overview-stats > div,
+.public-overview-page .public-overview-panel,
+.public-overview-page .public-overview-card{
+  border:1px solid var(--fleet-line)!important;
+  border-radius:0!important;
+  clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));
+  background:linear-gradient(180deg, rgba(5,27,42,.78), rgba(2,11,21,.76))!important;
+  box-shadow:0 0 22px rgba(38,221,220,.08), inset 0 0 18px rgba(38,221,220,.04)!important;
+}
+.public-overview-page .public-overview-stats strong{
+  color:#eaffff;
+  text-shadow:0 0 12px rgba(98,245,238,.34);
+  font-size:30px;
+}
+.public-overview-page .public-overview-stats span,
+.public-overview-page .public-overview-panel-title{
+  color:#8fb7c1;
+  text-transform:uppercase;
+  letter-spacing:.12em;
+}
+.public-overview-page .public-overview-stats-cost strong,
+.public-overview-page .public-overview-stats-expiry strong{color:var(--fleet-amber);}
+.public-overview-page .public-overview-card{position:relative;overflow:hidden;min-height:188px!important;}
+.public-overview-page .public-overview-card:hover,
+.public-overview-page .public-overview-card:focus-visible{
+  transform:translateY(-3px);
+  border-color:rgba(255,177,93,.58)!important;
+  box-shadow:0 16px 38px rgba(0,0,0,.32),0 0 22px rgba(98,245,238,.16)!important;
+}
+.public-overview-page .public-overview-status{
+  border-radius:0!important;
+  border:1px solid rgba(255,255,255,.13);
+  font:800 10px/1 "JetBrains Mono",monospace;
+  letter-spacing:.12em;
+}
+.public-overview-page .public-overview-mini-list li{
+  border-radius:0!important;
+  border-left:2px solid rgba(98,245,238,.42);
+  background:rgba(98,245,238,.045)!important;
+}
+@media(max-width:980px){
+  .public-overview-hero{grid-template-columns:1fr;}
+  .public-overview-visual{min-height:190px;}
+  .public-overview-visual img{max-height:210px;}
+}
+@media(max-width:640px){
+  .public-overview-page{padding:18px 12px 32px!important;}
+  .public-overview-hero{padding:10px;min-height:0;}
+  .public-overview-hero h1{font-size:38px;}
+}
+
+
+/* asset premium calculator */
+.public-overview-actions{display:flex;align-items:center;gap:8px;position:relative;z-index:2}.public-money-btn{width:30px;height:30px;border-radius:999px;border:1px solid rgba(255,177,93,.55);background:rgba(255,177,93,.12);color:#ffd08a;font-weight:900;cursor:pointer;box-shadow:0 0 14px rgba(255,177,93,.12)}.public-money-btn:hover{background:#ffb15d;color:#061016;box-shadow:0 0 22px rgba(255,177,93,.34)}.premium-calc-modal[hidden]{display:none}.premium-calc-modal{position:fixed;inset:0;z-index:9999;display:grid;place-items:center}.premium-calc-backdrop{position:absolute;inset:0;background:rgba(0,8,16,.68);backdrop-filter:blur(10px)}.premium-calc-card{position:relative;width:min(520px,calc(100vw - 32px));padding:24px;border:1px solid rgba(98,245,238,.38);background:linear-gradient(180deg,rgba(5,27,42,.96),rgba(2,11,21,.96));color:#eaffff;box-shadow:0 28px 90px rgba(0,0,0,.55),0 0 34px rgba(98,245,238,.13);clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,18px 100%,0 calc(100% - 18px))}.premium-calc-close{position:absolute;right:14px;top:12px;border:0;background:rgba(255,255,255,.08);color:#eaffff;border-radius:9px;width:32px;height:32px;font-size:22px;cursor:pointer}.premium-calc-kicker{color:#ffb15d;font:800 11px/1 var(--mono,"JetBrains Mono",monospace);letter-spacing:.18em}.premium-calc-card h2{margin:8px 0 4px;font-size:26px}.premium-calc-node{margin:0 0 16px;color:#8fb7c1}.premium-calc-base,.premium-calc-result>div{display:flex;justify-content:space-between;gap:16px;align-items:center;border:1px solid rgba(98,245,238,.16);background:rgba(98,245,238,.055);padding:12px;margin-bottom:12px}.premium-calc-base span,.premium-calc-result span{color:#8fb7c1;font-size:12px}.premium-calc-base strong,.premium-calc-result strong{color:#fff7e8;font-size:20px}.premium-calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.premium-calc-grid label{display:grid;gap:7px;color:#8fb7c1;font-size:12px}.premium-calc-grid input{background:rgba(1,9,15,.82);border:1px solid rgba(98,245,238,.22);border-radius:10px;color:#eaffff;padding:12px;font-size:16px}.premium-calc-result{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}.premium-calc-note{color:#789ca5;font-size:12px;line-height:1.6;margin-top:10px}@media(max-width:640px){.premium-calc-grid,.premium-calc-result{grid-template-columns:1fr}}
+
+/* overview-topbar-detail-parity */
+.public-overview-page.starship-console-page{
+  padding-top:76px!important;
+}
+.public-overview-page .public-overview-floating-topbar{
+  position:fixed!important;
+  top:18px!important;
+  left:18px!important;
+  right:18px!important;
+  z-index:80!important;
+  display:flex!important;
+  align-items:flex-start!important;
+  justify-content:space-between!important;
+  gap:16px!important;
+  pointer-events:none!important;
+}
+.public-overview-page .public-overview-back,
+.public-overview-page .public-overview-tools{
+  pointer-events:auto!important;
+}
+.public-overview-page .public-overview-back{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  min-width:118px!important;
+  min-height:38px!important;
+  padding:9px 14px!important;
+  border-radius:10px!important;
+  color:#cfffff!important;
+  font-size:12px!important;
+  line-height:1!important;
+  font-weight:900!important;
+  letter-spacing:.06em!important;
+  text-decoration:none!important;
+  white-space:nowrap!important;
+  border:1px solid rgba(98,245,238,.35)!important;
+  background:rgba(4,25,38,.78)!important;
+  box-shadow:0 0 18px rgba(98,245,238,.08), inset 0 0 12px rgba(98,245,238,.04)!important;
+}
+.public-overview-page .public-overview-tools{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  flex-wrap:wrap!important;
+  gap:9px!important;
+  max-width:calc(100% - 154px)!important;
+}
+.public-overview-page .theme-toggle,
+.public-overview-page .currency-btn,
+.public-overview-page .language-select{
+  min-height:38px!important;
+  padding:9px 14px!important;
+  font-size:12px!important;
+  line-height:1!important;
+  border-radius:10px!important;
+  letter-spacing:.06em!important;
+  border:1px solid rgba(98,245,238,.35)!important;
+  background:rgba(4,25,38,.78)!important;
+  color:#cfffff!important;
+  box-shadow:0 0 18px rgba(98,245,238,.08), inset 0 0 12px rgba(98,245,238,.04)!important;
+}
+.public-overview-page .theme-toggle{width:96px!important;min-width:96px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:7px!important;}
+.public-overview-page .language-select{width:128px!important;min-width:128px!important;max-width:128px!important;cursor:pointer!important;}
+.public-overview-page .detail-currency-switch{min-height:38px!important;display:flex!important;align-items:center!important;gap:5px!important;}
+.public-overview-page .detail-currency-switch .currency-btn{width:52px!important;min-width:52px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;}
+.public-overview-page .detail-currency-switch .currency-btn.active{background:linear-gradient(135deg,rgba(255,177,93,.95),rgba(240,111,54,.92))!important;color:#071018!important;border-color:rgba(255,218,150,.9)!important;}
+.public-overview-page .rate-display{min-height:38px!important;display:flex!important;align-items:center!important;font-size:12px!important;color:#aeefff!important;white-space:nowrap!important;}
+[data-theme="light"] .public-overview-page .public-overview-back,
+[data-theme="light"] .public-overview-page .theme-toggle,
+[data-theme="light"] .public-overview-page .currency-btn,
+[data-theme="light"] .public-overview-page .language-select{background:#f7edda!important;color:#243235!important;border-color:rgba(92,103,91,.42)!important;box-shadow:0 8px 20px rgba(93,75,43,.10)!important;}
+[data-theme="light"] .public-overview-page .rate-display{color:#405b60!important;}
+@media(max-width:760px){
+  .public-overview-page.starship-console-page{padding-top:132px!important;}
+  .public-overview-page .public-overview-floating-topbar{align-items:flex-start!important;gap:10px!important;}
+  .public-overview-page .public-overview-tools{max-width:calc(100% - 124px)!important;gap:6px!important;}
+  .public-overview-page .rate-display{display:none!important;}
+}
+
+
+/* overview-currency-stability-and-live-rate */
+.public-overview-page .public-overview-tools{
+  width:590px!important;
+  min-width:590px!important;
+  max-width:590px!important;
+}
+.public-overview-page .detail-currency-switch{
+  width:166px!important;
+  min-width:166px!important;
+  max-width:166px!important;
+  justify-content:center!important;
+  flex:0 0 166px!important;
+}
+.public-overview-page .detail-currency-switch .currency-btn{
+  box-sizing:border-box!important;
+  flex:0 0 52px!important;
+  width:52px!important;
+  min-width:52px!important;
+  max-width:52px!important;
+  border-width:1px!important;
+  transform:none!important;
+}
+.public-overview-page .detail-currency-switch .currency-btn.active{
+  transform:none!important;
+}
+.public-overview-page .rate-display{
+  width:136px!important;
+  min-width:136px!important;
+  max-width:136px!important;
+  justify-content:flex-end!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+@media(max-width:760px){
+  .public-overview-page .public-overview-tools{width:auto!important;min-width:0!important;max-width:calc(100% - 124px)!important;}
+}
+
+
+/* gemin-transparent-visual-cleanup */
+.public-overview-page .public-overview-visual{
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+.public-overview-page .public-overview-visual::before,
+.public-overview-page .public-overview-visual::after{
+  display:none!important;
+}
+.public-overview-page .public-overview-visual img{
+  background:transparent!important;
+}
+
+
+/* overview-remove-decorative-color-strips-only */
+.public-overview-page .public-overview-stats > div::before,
+.public-overview-page .public-overview-stats > div::after,
+.public-overview-page .public-overview-card::before,
+.public-overview-page .public-overview-card::after,
+.public-overview-page .public-overview-panel::before,
+.public-overview-page .public-overview-panel::after{
+  content:none!important;
+  display:none!important;
+  background:none!important;
+  box-shadow:none!important;
+}
+.public-overview-page .public-overview-card{ overflow:visible!important; }
+
+/* overview-remove-panel-title-glyphs */
+.public-overview-page .public-overview-panel-title::before,
+.public-overview-page .public-overview-panel-toggle::before,
+.public-overview-page .public-overview-mini-list li::before{
+  content:none!important;
+  display:none!important;
+  background:none!important;
+  box-shadow:none!important;
+}
+
+
+/* hotfix-overview-network-table */
+.public-overview-page .overview-network-table{
+  max-width:1540px;
+  margin: 18px auto 18px !important;
+  position:relative;
+  overflow:hidden;
+  border-radius:22px;
+  border:1px solid rgba(98,245,238,.18);
+  background:
+    linear-gradient(90deg, rgba(98,245,238,.035) 1px, transparent 1px),
+    linear-gradient(rgba(98,245,238,.026) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(8,18,30,.94), rgba(4,8,14,.90));
+  background-size:46px 46px,46px 46px,auto;
+  box-shadow:0 22px 54px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.04);
+}
+.public-overview-page .overview-network-table::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:radial-gradient(circle at 50% 0%, rgba(98,245,238,.10), transparent 42%);
+}
+.public-overview-page .overview-network-table-head{
+  position:relative;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  padding:18px 20px 10px;
+}
+.public-overview-page .overview-network-table-kicker{
+  display:block;
+  margin-bottom:4px;
+  font:700 10px/1 "JetBrains Mono","SFMono-Regular",monospace;
+  letter-spacing:.18em;
+  color:rgba(98,245,238,.72);
+}
+.public-overview-page .overview-network-table h2{
+  margin:0;
+  font-size:18px;
+  letter-spacing:.03em;
+  color:#f4fbff;
+}
+.public-overview-page .overview-network-table-spark{
+  color:rgba(231,238,246,.72);
+  font-size:24px;
+  line-height:1;
+  text-shadow:0 0 14px rgba(255,255,255,.28);
+}
+.public-overview-page .overview-network-table-scroll{
+  position:relative;
+  overflow-x:auto;
+  padding:0 16px 16px;
+}
+.public-overview-page .overview-network-table table{
+  width:100%;
+  min-width:760px;
+  border-collapse:collapse;
+  font-size:13px;
+  color:rgba(230,242,255,.88);
+}
+.public-overview-page .overview-network-table th,
+.public-overview-page .overview-network-table td{
+  padding:13px 14px;
+  text-align:left;
+  border-bottom:1px solid rgba(143,172,205,.14);
+  white-space:nowrap;
+}
+.public-overview-page .overview-network-table th{
+  color:rgba(189,213,235,.82);
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:.06em;
+  background:rgba(255,255,255,.025);
+}
+.public-overview-page .overview-network-table tbody tr{
+  background:linear-gradient(90deg, rgba(27,47,68,.22), rgba(9,20,32,.06));
+}
+.public-overview-page .overview-network-table tbody tr:hover{
+  background:linear-gradient(90deg, rgba(98,245,238,.09), rgba(240,168,74,.045));
+}
+.public-overview-page .overview-network-table td strong{
+  color:#f6fbff;
+  font-weight:800;
+}
+.public-overview-page .network-table-rate{
+  color:#aafaff;
+  font-family:"JetBrains Mono","SFMono-Regular",monospace;
+}
+.public-overview-page .network-table-loss{
+  color:#83f6b2;
+  font-family:"JetBrains Mono","SFMono-Regular",monospace;
+}
+.public-overview-page .network-table-loss.is-warn{ color:#f0c36a; }
+@media (max-width: 760px){
+  .public-overview-page .overview-network-table-head{padding:15px 16px 8px;}
+  .public-overview-page .overview-network-table h2{font-size:16px;}
+}
+
+/* overview-ip-mask-metric-visible-v1 */
+.public-overview-page .public-overview-grid .overview-metric .overview-metric-value{
+  font-style:normal!important;
+  font-size:13px!important;
+  font-weight:900!important;
+  line-height:1!important;
+  color:#fff7e8!important;
+  text-align:right!important;
+}
+.public-overview-page .public-overview-grid .overview-metric.is-missing .overview-metric-value{
+  color:rgba(183,220,234,.58)!important;
+}
+
+
+/* hotfix-overview-live-vps-prominent */
+.overview-live-nodes{
+  margin:18px 0 18px;
+  padding:16px;
+  border:1px solid rgba(98,245,238,.28);
+  background:linear-gradient(180deg,rgba(5,27,42,.72),rgba(2,11,21,.70));
+  box-shadow:0 0 24px rgba(98,245,238,.08), inset 0 0 18px rgba(98,245,238,.045);
+  clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));
+}
+.overview-live-nodes-head{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:12px;}
+.overview-live-nodes-head span{color:#ffb15d;font:800 11px/1 var(--mono,"JetBrains Mono",monospace);letter-spacing:.18em;}
+.overview-live-nodes-head h2{margin:0;color:#eaffff;font-size:22px;}
+.overview-live-nodes-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;}
+.overview-live-node-card{padding:14px;border:1px solid rgba(98,245,238,.22);background:rgba(98,245,238,.045);}
+.overview-live-node-card>div{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;}
+.overview-live-node-card>div span{color:#8fb7c1;font:800 11px/1 var(--mono,"JetBrains Mono",monospace);letter-spacing:.14em;}
+.overview-live-node-card>div strong{color:#fff7e8;font-size:18px;text-shadow:0 0 14px rgba(255,177,93,.20);}
+.overview-live-node-card dl{display:grid;grid-template-columns:86px 1fr;gap:8px 12px;margin:0;}
+.overview-live-node-card dt{color:#8fb7c1;font-size:12px;}
+.overview-live-node-card dd{margin:0;color:#eaffff;font-size:13px;overflow-wrap:anywhere;}
+
+
+/* hotfix-overview-cost-i18n-theme-gemini2 */
+.public-overview-page .public-overview-list{
+  display:grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+.public-overview-page .public-overview-visual{
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  overflow: visible !important;
+}
+.public-overview-page .public-overview-visual::before,
+.public-overview-page .public-overview-visual::after{
+  display:none !important;
+}
+.public-overview-page .public-overview-visual img{
+  object-fit: contain !important;
+  mix-blend-mode: normal !important;
+  background: transparent !important;
+}
+html[data-theme="light"] body:has(.public-overview-page),
+html[data-theme="light"] .public-overview-page.starship-console-page{
+  color:#e8edf3 !important;
+  background:
+    radial-gradient(circle at 16% 8%, rgba(120,132,148,.24), transparent 28%),
+    radial-gradient(circle at 88% 10%, rgba(240,168,74,.10), transparent 28%),
+    linear-gradient(135deg, #24272d 0%, #30343b 44%, #1f2228 100%) !important;
+}
+html[data-theme="light"] .public-overview-page.starship-console-page::before{
+  opacity:.28 !important;
+  background:
+    linear-gradient(90deg, rgba(180,190,202,.045) 1px, transparent 1px),
+    linear-gradient(rgba(180,190,202,.04) 1px, transparent 1px) !important;
+  background-size:56px 56px,56px 56px !important;
+}
+html[data-theme="light"] .public-overview-page .public-overview-hero,
+html[data-theme="light"] .public-overview-page .public-overview-floating-topbar,
+html[data-theme="light"] .public-overview-page .public-overview-network,
+html[data-theme="light"] .public-overview-page .public-overview-stats > div,
+html[data-theme="light"] .public-overview-page .public-overview-panel,
+html[data-theme="light"] .public-overview-page .public-overview-card{
+  background: linear-gradient(180deg, rgba(39,43,51,.94), rgba(24,27,33,.92)) !important;
+  border-color: rgba(188,198,211,.18) !important;
+  color:#e8edf3 !important;
+  box-shadow:0 18px 42px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.04) !important;
+}
+html[data-theme="light"] .public-overview-page .public-overview-title-wrap h1,
+html[data-theme="light"] .public-overview-page .public-overview-hero h1,
+html[data-theme="light"] .public-overview-page .public-overview-head strong,
+html[data-theme="light"] .public-overview-page .public-overview-panel-title,
+html[data-theme="light"] .public-overview-page .public-overview-stats strong{
+  color:#f4f7fb !important;
+}
+html[data-theme="light"] .public-overview-page .public-overview-meta,
+html[data-theme="light"] .public-overview-page .public-overview-meta-bar span,
+html[data-theme="light"] .public-overview-page .public-overview-stats span,
+html[data-theme="light"] .public-overview-page .public-overview-mini-list,
+html[data-theme="light"] .public-overview-page .public-overview-network-table td,
+html[data-theme="light"] .public-overview-page .public-overview-network-table th{
+  color:rgba(222,229,238,.76) !important;
+}
+html[data-theme="light"] .public-overview-page .public-overview-grid span,
+html[data-theme="light"] .public-overview-page .public-overview-mini-list li{
+  background: rgba(214,224,238,.07) !important;
+  border-color: rgba(214,224,238,.12) !important;
+  color:#edf7fb !important;
+}
+@media (max-width: 900px){
+  .public-overview-page .public-overview-list{ grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 760px){
+  .public-overview-page .public-overview-list{ grid-template-columns: 1fr !important; }
+}
+
+
+/* hotfix-overview-full-bg-transparent-modal */
+html:has(.public-overview-page),
+html:has(.public-overview-page) body,
+html:has(.public-overview-page) #app,
+html:has(.public-overview-page) #pageRoot{
+  min-height:100% !important;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(93,245,238,.14), transparent 27%),
+    radial-gradient(circle at 86% 12%, rgba(255,176,82,.13), transparent 26%),
+    radial-gradient(circle at 50% 120%, rgba(61,119,255,.14), transparent 45%),
+    linear-gradient(180deg, #03070d 0%, #06101a 44%, #080b12 100%) !important;
+}
+html[data-theme="light"]:has(.public-overview-page),
+html[data-theme="light"]:has(.public-overview-page) body,
+html[data-theme="light"]:has(.public-overview-page) #app,
+html[data-theme="light"]:has(.public-overview-page) #pageRoot,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page.starship-console-page{
+  background:
+    radial-gradient(circle at 16% 8%, rgba(120,132,148,.24), transparent 28%),
+    radial-gradient(circle at 88% 10%, rgba(240,168,74,.10), transparent 28%),
+    linear-gradient(135deg, #24272d 0%, #30343b 44%, #1f2228 100%) !important;
+  color:#e8edf3 !important;
+}
+.public-overview-page .public-overview-visual{
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
+  clip-path:none !important;
+  overflow:visible !important;
+}
+.public-overview-page .public-overview-visual::before,
+.public-overview-page .public-overview-visual::after,
+.public-overview-page .overview-network-table-spark{
+  content:none !important;
+  display:none !important;
+}
+.public-overview-page .public-overview-visual img{
+  background:transparent !important;
+  object-fit:contain !important;
+}
+.premium-calc-modal:not([hidden]){
+  position:fixed !important;
+  inset:0 !important;
+  z-index:9999 !important;
+  display:grid !important;
+  place-items:center !important;
+  padding:24px !important;
+  pointer-events:auto !important;
+}
+.premium-calc-backdrop{
+  position:absolute !important;
+  inset:0 !important;
+  background:rgba(2,6,14,.72) !important;
+  backdrop-filter:blur(12px) !important;
+}
+.premium-calc-card{
+  position:relative !important;
+  z-index:1 !important;
+  width:min(560px, calc(100vw - 48px)) !important;
+  max-height:min(720px, calc(100vh - 48px)) !important;
+  overflow:auto !important;
+  margin:0 !important;
+  transform:none !important;
+}
+
+
+/* hotfix-overview-day-full-surface */
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-hero,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-card,
+html[data-theme="light"]:has(.public-overview-page) .overview-collapse-card,
+html[data-theme="light"]:has(.public-overview-page) .overview-network-table,
+html[data-theme="light"]:has(.public-overview-page) .public-node-card,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-node-card{
+  background:linear-gradient(180deg, rgba(248,251,255,.92), rgba(229,236,246,.86)) !important;
+  color:#182330 !important;
+  border-color:rgba(82,104,130,.22) !important;
+  box-shadow:0 22px 60px rgba(27,39,56,.14), inset 0 1px 0 rgba(255,255,255,.72) !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-shell,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-main,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-section{
+  background:transparent !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page h1,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page h2,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page strong,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page td,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page th,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page button{
+  color:#162232 !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .overview-kicker,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .overview-network-kicker,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page [class*="kicker"]{
+  color:#006f86 !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page table,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page thead,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page tr{
+  background:rgba(255,255,255,.36) !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page tbody tr:hover{
+  background:rgba(198,222,246,.58) !important;
+}
+
+
+/* hotfix-overview-day-remaining-panels */
+html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-stats > div,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-costs > div,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-expiry > div,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-metrics > div,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-panel{
+  background:linear-gradient(180deg, rgba(248,251,255,.94), rgba(226,235,246,.90)) !important;
+  color:#162232 !important;
+  border-color:rgba(82,104,130,.24) !important;
+  box-shadow:0 16px 42px rgba(27,39,56,.12), inset 0 1px 0 rgba(255,255,255,.74) !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-panel *,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar *,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-stats > div *,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-costs > div *,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-expiry > div *,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-metrics > div *{
+  color:#162232 !important;
+}
+
+
+/* hotfix-overview-day-outer-final */
+html[data-theme="light"]:has(.public-overview-page),
+html[data-theme="light"]:has(.public-overview-page) body,
+html[data-theme="light"]:has(.public-overview-page) #app,
+html[data-theme="light"]:has(.public-overview-page) #pageRoot,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page.starship-console-page{
+  background:
+    radial-gradient(circle at 14% 6%, rgba(126,188,232,.30), transparent 30%),
+    radial-gradient(circle at 86% 10%, rgba(255,203,128,.20), transparent 28%),
+    linear-gradient(135deg, #eaf1f8 0%, #dce7f2 46%, #cfdbe8 100%) !important;
+  color:#162232 !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-node-card,
+html[data-theme="light"]:has(.public-overview-page) .public-node-card *,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-node-card,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-node-card *{
+  color:#172333 !important;
+  text-shadow:none !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-node-card .muted,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-node-card .muted,
+html[data-theme="light"]:has(.public-overview-page) .public-node-card [class*="meta"],
+html[data-theme="light"]:has(.public-overview-page) .public-overview-node-card [class*="meta"]{
+  color:#4b5f73 !important;
+}
+
+
+/* hotfix-overview-theme-modal-v7 */
+html[data-theme="light"]:has(.public-overview-page),
+html[data-theme="light"]:has(.public-overview-page) body,
+html[data-theme="light"]:has(.public-overview-page) #app,
+html[data-theme="light"]:has(.public-overview-page) #pageRoot,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page.starship-console-page{
+  background:
+    radial-gradient(circle at 14% 8%, rgba(145,154,166,.22), transparent 30%),
+    radial-gradient(circle at 86% 12%, rgba(210,174,120,.12), transparent 30%),
+    linear-gradient(135deg, #3b3f46 0%, #4a4f57 48%, #343840 100%) !important;
+  color:#172333 !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar{
+  background:linear-gradient(180deg, rgba(235,239,244,.96), rgba(212,219,228,.92)) !important;
+  border-color:rgba(65,76,91,.22) !important;
+  box-shadow:0 16px 48px rgba(18,24,32,.22), inset 0 1px 0 rgba(255,255,255,.72) !important;
+  color:#172333 !important;
+}
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-floating-topbar{
+  background:linear-gradient(180deg, rgba(39,43,51,.94), rgba(24,27,33,.92)) !important;
+  border-color:rgba(255,255,255,.10) !important;
+  color:#e8edf3 !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar .public-overview-back,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar .theme-toggle,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar select,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar .currency-btn{
+  background:rgba(246,248,251,.92) !important;
+  color:#172333 !important;
+  border-color:rgba(65,76,91,.24) !important;
+  box-shadow:none !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar .currency-btn.active{
+  background:#d99035 !important;
+  color:#111820 !important;
+  border-color:#d99035 !important;
+}
+html[data-theme="light"]:has(.public-overview-page) #rateDisplay{
+  color:#4a5d70 !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .premium-calc-backdrop{
+  background:rgba(55,60,68,.54) !important;
+  backdrop-filter:blur(12px) saturate(1.1) !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .premium-calc-card{
+  background:linear-gradient(180deg, rgba(248,251,255,.98), rgba(224,232,242,.97)) !important;
+  color:#172333 !important;
+  border-color:rgba(66,92,124,.28) !important;
+  box-shadow:0 28px 90px rgba(18,24,32,.34), inset 0 1px 0 rgba(255,255,255,.78) !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .premium-calc-card *,
+html[data-theme="light"]:has(.public-overview-page) .premium-calc-base strong,
+html[data-theme="light"]:has(.public-overview-page) .premium-calc-result strong{
+  color:#172333 !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .premium-calc-kicker{
+  color:#b96d19 !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .premium-calc-node,
+html[data-theme="light"]:has(.public-overview-page) .premium-calc-base span,
+html[data-theme="light"]:has(.public-overview-page) .premium-calc-result span,
+html[data-theme="light"]:has(.public-overview-page) .premium-calc-note{
+  color:#52677d !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .premium-calc-base,
+html[data-theme="light"]:has(.public-overview-page) .premium-calc-result > div{
+  background:rgba(255,255,255,.52) !important;
+  border-color:rgba(66,92,124,.16) !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .premium-calc-grid input{
+  background:rgba(255,255,255,.84) !important;
+  color:#172333 !important;
+  border-color:rgba(66,92,124,.22) !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .premium-calc-close{
+  background:rgba(43,53,66,.10) !important;
+  color:#172333 !important;
+}
+
+
+/* hotfix-overview-dark-topbar-final-v8 */
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-floating-topbar,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-floating-topbar *{
+  color:#e8edf3 !important;
+}
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-floating-topbar .public-overview-back,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-floating-topbar .theme-toggle,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-floating-topbar select,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-floating-topbar .currency-btn{
+  background:rgba(24,27,33,.86) !important;
+  color:#e8edf3 !important;
+  border-color:rgba(255,255,255,.14) !important;
+}
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-floating-topbar .currency-btn.active{
+  background:#ffb15d !important;
+  color:#061016 !important;
+  border-color:#ffb15d !important;
+}
+html[data-theme="dark"]:has(.public-overview-page) #rateDisplay{
+  color:#b8c4d2 !important;
+}
+
+
+/* hotfix-overview-theme-unified-v10 */
+:root{
+  --overview-day-bg: linear-gradient(135deg, #3b3f46 0%, #4a4f57 48%, #343840 100%);
+  --overview-day-panel: linear-gradient(180deg, rgba(226,231,238,.94), rgba(196,204,214,.90));
+  --overview-day-panel-2: linear-gradient(180deg, rgba(213,220,229,.95), rgba(184,193,204,.91));
+  --overview-day-text: #162232;
+  --overview-night-panel: linear-gradient(180deg, rgba(39,43,51,.94), rgba(24,27,33,.92));
+  --overview-night-panel-2: linear-gradient(180deg, rgba(31,36,45,.96), rgba(15,18,24,.94));
+  --overview-night-text: #e8edf3;
+}
+html[data-theme="light"]:has(.public-overview-page),
+html[data-theme="light"]:has(.public-overview-page) body,
+html[data-theme="light"]:has(.public-overview-page) #app,
+html[data-theme="light"]:has(.public-overview-page) #pageRoot,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page.starship-console-page{
+  background:var(--overview-day-bg) !important;
+  color:var(--overview-day-text) !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-hero,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-card,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-panel,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .overview-network-table,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-list .public-overview-card{
+  background:var(--overview-day-panel) !important;
+  color:var(--overview-day-text) !important;
+  border-color:rgba(42,51,64,.24) !important;
+  box-shadow:0 18px 52px rgba(10,14,20,.18), inset 0 1px 0 rgba(255,255,255,.55) !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-metrics > div,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-costs > div,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-expiry > div,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-stats > div{
+  background:var(--overview-day-panel) !important;
+  color:var(--overview-day-text) !important;
+  border-color:rgba(42,51,64,.24) !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .detail-currency-switch{
+  background:rgba(198,205,215,.96) !important;
+  border:1px solid rgba(42,51,64,.22) !important;
+  border-radius:14px !important;
+  padding:3px !important;
+  gap:3px !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.45) !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .detail-currency-switch .currency-btn,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar .public-overview-back,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar .theme-toggle,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar select{
+  background:rgba(226,231,238,.96) !important;
+  color:var(--overview-day-text) !important;
+  border-color:rgba(42,51,64,.20) !important;
+}
+html[data-theme="dark"]:has(.public-overview-page),
+html[data-theme="dark"]:has(.public-overview-page) body,
+html[data-theme="dark"]:has(.public-overview-page) #app,
+html[data-theme="dark"]:has(.public-overview-page) #pageRoot,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page.starship-console-page{
+  background:linear-gradient(180deg, #03070d 0%, #06101a 44%, #080b12 100%) !important;
+  color:var(--overview-night-text) !important;
+}
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-floating-topbar,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-hero,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-card,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-panel,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .overview-network-table,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-metrics > div,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-costs > div,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-expiry > div,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-stats > div{
+  background:var(--overview-night-panel) !important;
+  color:var(--overview-night-text) !important;
+  border-color:rgba(255,255,255,.12) !important;
+}
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .detail-currency-switch{
+  background:rgba(15,18,24,.96) !important;
+  border:1px solid rgba(255,255,255,.12) !important;
+  border-radius:14px !important;
+  padding:3px !important;
+  gap:3px !important;
+}
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .detail-currency-switch .currency-btn{
+  background:rgba(31,36,45,.96) !important;
+  color:var(--overview-night-text) !important;
+  border-color:rgba(255,255,255,.12) !important;
+}
+html:has(.public-overview-page) .public-overview-page .detail-currency-switch .currency-btn.active{
+  background:linear-gradient(135deg,#ffb15d,#f06f36) !important;
+  color:#071018 !important;
+  border-color:rgba(255,218,150,.9) !important;
+}
+
+
+/* hotfix-overview-unified-surface-final-v11 */
+html:has(.public-overview-page){
+  --ov-day-page:#3f434a;
+  --ov-day-surface:linear-gradient(180deg, #cfd5dd 0%, #bcc4cf 100%);
+  --ov-day-surface-flat:#c6ced8;
+  --ov-day-border:rgba(31,40,52,.24);
+  --ov-day-text:#152232;
+  --ov-night-page:#070b12;
+  --ov-night-surface:linear-gradient(180deg, #252b35 0%, #171c24 100%);
+  --ov-night-surface-flat:#1d232c;
+  --ov-night-border:rgba(232,237,243,.13);
+  --ov-night-text:#e8edf3;
+}
+html[data-theme="light"]:has(.public-overview-page),
+html[data-theme="light"]:has(.public-overview-page) body,
+html[data-theme="light"]:has(.public-overview-page) #app,
+html[data-theme="light"]:has(.public-overview-page) #pageRoot,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page.starship-console-page{
+  background:var(--ov-day-page) !important;
+  color:var(--ov-day-text) !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-hero,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-card,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-panel,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .overview-network-table,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-stats > *,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-expiry > *,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-costs > *,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-metrics > *,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page section,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page article{
+  background:var(--ov-day-surface) !important;
+  color:var(--ov-day-text) !important;
+  border-color:var(--ov-day-border) !important;
+  box-shadow:0 16px 42px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.32) !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page table,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page thead,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page tbody,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page tr,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page th,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page td{
+  background:var(--ov-day-surface-flat) !important;
+  color:var(--ov-day-text) !important;
+  border-color:var(--ov-day-border) !important;
+}
+html[data-theme="dark"]:has(.public-overview-page),
+html[data-theme="dark"]:has(.public-overview-page) body,
+html[data-theme="dark"]:has(.public-overview-page) #app,
+html[data-theme="dark"]:has(.public-overview-page) #pageRoot,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page.starship-console-page{
+  background:var(--ov-night-page) !important;
+  color:var(--ov-night-text) !important;
+}
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-floating-topbar,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-hero,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-card,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-panel,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .overview-network-table,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-stats > *,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-expiry > *,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-costs > *,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-metrics > *,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page section,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page article{
+  background:var(--ov-night-surface) !important;
+  color:var(--ov-night-text) !important;
+  border-color:var(--ov-night-border) !important;
+}
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page table,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page thead,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page tbody,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page tr,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page th,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page td{
+  background:var(--ov-night-surface-flat) !important;
+  color:var(--ov-night-text) !important;
+  border-color:var(--ov-night-border) !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-visual,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-visual{
+  background:transparent !important;
+  box-shadow:none !important;
+  border:0 !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .detail-currency-switch{background:#b9c1cb!important;}
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .detail-currency-switch{background:#151a22!important;}
+
+
+/* hotfix-overview-unified-specific-v12 */
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-card,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-list > .public-overview-card,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-panel,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .overview-network-table,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-hero,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-floating-topbar{
+  background:linear-gradient(180deg, #cfd5dd 0%, #bcc4cf 100%) !important;
+  color:#152232 !important;
+  border-color:rgba(31,40,52,.24) !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-card *,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-panel *,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .overview-network-table *,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-hero *{
+  color:#152232 !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .overview-kicker,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .overview-network-kicker,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page [class*="kicker"]{
+  color:#00758a !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .detail-currency-switch{
+  background:#b9c1cb !important;
+  background-image:none !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .detail-currency-switch .currency-btn:not(.active){
+  background:#cfd5dd !important;
+  background-image:none !important;
+  color:#152232 !important;
+}
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-card,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-list > .public-overview-card,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-panel,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .overview-network-table,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-hero,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-floating-topbar{
+  background:linear-gradient(180deg, #252b35 0%, #171c24 100%) !important;
+  color:#e8edf3 !important;
+  border-color:rgba(232,237,243,.13) !important;
+}
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-card *,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-panel *,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .overview-network-table *,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-hero *{
+  color:#e8edf3 !important;
+}
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .detail-currency-switch{
+  background:#151a22 !important;
+  background-image:none !important;
+}
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .detail-currency-switch .currency-btn:not(.active){
+  background:#252b35 !important;
+  background-image:none !important;
+  color:#e8edf3 !important;
+}
+html:has(.public-overview-page) .public-overview-page .detail-currency-switch .currency-btn.active{
+  background:linear-gradient(135deg,#ffb15d,#f06f36) !important;
+  color:#071018 !important;
+}
+
+
+/* hotfix-overview-outer-scrollbar-unified-v13 */
+html:has(.public-overview-page){
+  scrollbar-color:#aeb7c3 #c6ced8 !important;
+  scrollbar-width:thin !important;
+  background:#c6ced8 !important;
+}
+html:has(.public-overview-page)::-webkit-scrollbar,
+html:has(.public-overview-page) body::-webkit-scrollbar,
+html:has(.public-overview-page) .public-overview-page::-webkit-scrollbar{
+  width:12px !important;
+  height:12px !important;
+}
+html:has(.public-overview-page)::-webkit-scrollbar-track,
+html:has(.public-overview-page) body::-webkit-scrollbar-track,
+html:has(.public-overview-page) .public-overview-page::-webkit-scrollbar-track{
+  background:#c6ced8 !important;
+}
+html:has(.public-overview-page)::-webkit-scrollbar-thumb,
+html:has(.public-overview-page) body::-webkit-scrollbar-thumb,
+html:has(.public-overview-page) .public-overview-page::-webkit-scrollbar-thumb{
+  background:#aeb7c3 !important;
+  border:2px solid #c6ced8 !important;
+  border-radius:999px !important;
+}
+html[data-theme="light"]:has(.public-overview-page),
+html[data-theme="light"]:has(.public-overview-page) body,
+html[data-theme="light"]:has(.public-overview-page) #app,
+html[data-theme="light"]:has(.public-overview-page) #pageRoot,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page.starship-console-page{
+  background:#c6ced8 !important;
+  background-image:none !important;
+}
+html[data-theme="dark"]:has(.public-overview-page){
+  scrollbar-color:#2f3744 #1d232c !important;
+  background:#1d232c !important;
+}
+html[data-theme="dark"]:has(.public-overview-page)::-webkit-scrollbar-track,
+html[data-theme="dark"]:has(.public-overview-page) body::-webkit-scrollbar-track,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page::-webkit-scrollbar-track{
+  background:#1d232c !important;
+}
+html[data-theme="dark"]:has(.public-overview-page)::-webkit-scrollbar-thumb,
+html[data-theme="dark"]:has(.public-overview-page) body::-webkit-scrollbar-thumb,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page::-webkit-scrollbar-thumb{
+  background:#2f3744 !important;
+  border:2px solid #1d232c !important;
+}
+html[data-theme="dark"]:has(.public-overview-page),
+html[data-theme="dark"]:has(.public-overview-page) body,
+html[data-theme="dark"]:has(.public-overview-page) #app,
+html[data-theme="dark"]:has(.public-overview-page) #pageRoot,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page.starship-console-page{
+  background:#1d232c !important;
+  background-image:none !important;
+}
+
+
+/* hotfix-overview-scrollbar-final-v14 */
+html[data-theme="light"]:has(.public-overview-page),
+html[data-theme="light"]:has(.public-overview-page) body,
+html[data-theme="light"]:has(.public-overview-page) #app,
+html[data-theme="light"]:has(.public-overview-page) #pageRoot,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page{
+  scrollbar-color:#aeb7c3 #c6ced8 !important;
+}
+html[data-theme="dark"]:has(.public-overview-page),
+html[data-theme="dark"]:has(.public-overview-page) body,
+html[data-theme="dark"]:has(.public-overview-page) #app,
+html[data-theme="dark"]:has(.public-overview-page) #pageRoot,
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page{
+  scrollbar-color:#2f3744 #1d232c !important;
+}
+body:has(.public-overview-page)::-webkit-scrollbar-track,
+html:has(.public-overview-page)::-webkit-scrollbar-track{
+  background:#c6ced8 !important;
+}
+body:has(.public-overview-page)::-webkit-scrollbar-thumb,
+html:has(.public-overview-page)::-webkit-scrollbar-thumb{
+  background:#aeb7c3 !important;
+  border:2px solid #c6ced8 !important;
+  border-radius:999px !important;
+}
+html[data-theme="dark"] body:has(.public-overview-page)::-webkit-scrollbar-track,
+html[data-theme="dark"]:has(.public-overview-page)::-webkit-scrollbar-track{
+  background:#1d232c !important;
+}
+html[data-theme="dark"] body:has(.public-overview-page)::-webkit-scrollbar-thumb,
+html[data-theme="dark"]:has(.public-overview-page)::-webkit-scrollbar-thumb{
+  background:#2f3744 !important;
+  border-color:#1d232c !important;
+}
+
+
+/* responsive-pc-mobile-global-pass-20260608 */
+html, body, #app, #pageRoot{
+  max-width:100%;
+  overflow-x:hidden;
+}
+*, *::before, *::after{ box-sizing:border-box; }
+canvas, svg, img, video{ max-width:100%; }
+
+.public-overview-page,
+.starship-console-page,
+.display-page,
+.globe-page,
+.three-globe-shell,
+.globe-container{
+  max-width:100vw;
+  overflow-x:hidden;
+}
+.public-overview-floating-topbar,
+.detail-topbar,
+.display-topbar,
+.topbar,
+.toolbar{
+  max-width:calc(100vw - 16px);
+  flex-wrap:wrap;
+}
+.public-overview-page table,
+.public-overview-page .overview-network-table{
+  max-width:100%;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+
+@media (max-width: 900px){
+  .public-overview-page,
+  .starship-console-page,
+  .display-page{
+    padding-left:12px!important;
+    padding-right:12px!important;
+  }
+  .public-overview-floating-topbar,
+  .public-overview-hero,
+  .public-overview-card,
+  .public-overview-panel,
+  .overview-network-table{
+    width:100%!important;
+    max-width:100%!important;
+  }
+  .public-overview-stats,
+  .public-overview-expiry,
+  .public-overview-costs,
+  .public-overview-metrics,
+  .public-overview-list,
+  .overview-card-grid{
+    grid-template-columns:1fr!important;
+  }
+  .public-overview-visual,
+  .three-globe-shell,
+  .globe-container{
+    min-height:62vh!important;
+    height:62vh!important;
+  }
+  .three-globe-shell canvas,
+  .globe-container canvas{
+    width:100%!important;
+    height:100%!important;
+  }
+}
+
+@media (max-width: 560px){
+  .public-overview-page,
+  .starship-console-page,
+  .display-page{
+    padding-left:8px!important;
+    padding-right:8px!important;
+  }
+  .public-overview-floating-topbar,
+  .detail-topbar,
+  .display-topbar,
+  .topbar,
+  .toolbar{
+    position:relative!important;
+    left:auto!important;
+    right:auto!important;
+    top:auto!important;
+    transform:none!important;
+    width:100%!important;
+    max-width:100%!important;
+    justify-content:flex-start!important;
+    gap:6px!important;
+  }
+  .public-overview-floating-topbar button,
+  .public-overview-floating-topbar select,
+  .detail-topbar button,
+  .detail-topbar select,
+  .display-topbar button,
+  .display-topbar select,
+  .topbar button,
+  .topbar select,
+  .toolbar button,
+  .toolbar select{
+    min-height:34px!important;
+    font-size:12px!important;
+  }
+  .public-overview-hero h1,
+  .hero-title,
+  .page-title{
+    font-size:clamp(22px,7vw,34px)!important;
+    line-height:1.12!important;
+  }
+  .public-overview-visual,
+  .three-globe-shell,
+  .globe-container{
+    min-height:58vh!important;
+    height:58vh!important;
+  }
+}
+
+
+/* responsive-home-overflow-fix-pass-20260608 */
+@media (max-width: 600px){
+  html body .nasa-parallax-layer,
+  html body .nasa-parallax-bg,
+  html body .nasa-parallax-mid,
+  html body .nasa-parallax-fg{
+    left:0!important;
+    right:0!important;
+    width:100vw!important;
+    max-width:100vw!important;
+    transform:none!important;
+    overflow:hidden!important;
+  }
+  html body .google-earth-place-label,
+  html body .vps-node-label,
+  html body .country-label{
+    max-width:42vw!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+    transform:translate(-50%,-50%) scale(.86)!important;
+  }
+  html body .moon-solar-corona,
+  html body .sun-corona,
+  html body .solar-corona{
+    max-width:36vw!important;
+    max-height:36vw!important;
+    overflow:hidden!important;
+  }
+}
+
+
+/* responsive-home-corona-final-pass-20260608 */
+@media (max-width: 600px){
+  html body .moon-solar-corona,
+  html body .sun-corona,
+  html body .solar-corona{
+    right:auto!important;
+    max-width:32vw!important;
+    max-height:32vw!important;
+    clip-path:inset(0 0 0 0)!important;
+  }
+  html body:has(.moon-solar-corona),
+  html body:has(.sun-corona),
+  html body:has(.solar-corona){
+    overflow-x:hidden!important;
+  }
+}
+
+
+/* home-corona-zero-overflow-pass-20260608 */
+@media (max-width: 600px){
+  html body .moon-solar-corona,
+  html body .sun-corona,
+  html body .solar-corona{
+    width:30vw!important;
+    height:30vw!important;
+    max-width:30vw!important;
+    max-height:30vw!important;
+    margin:0!important;
+    overflow:hidden!important;
+    contain:paint!important;
+  }
+  html body .moon-solar,
+  html body .sun-widget,
+  html body .solar-widget{
+    max-width:34vw!important;
+    overflow:hidden!important;
+    contain:paint!important;
+  }
+}
+
+
+/* mobile-corona-force-hidden-after-globe-only-pass-20260608 */
+@media (max-width: 600px){
+  html body.globe-only-page .moon-solar-corona,
+  html body .globe-only-page .moon-solar-corona,
+  html body .moon-solar .moon-solar-corona{
+    display:none!important;
+    opacity:0!important;
+    visibility:hidden!important;
+  }
+}
+
+
+/* mobile-home-projection-zero-pass-20260608 */
+@media (max-width: 600px){
+  html body .globe-star-projection-bg,
+  html body .heic-nebula-host,
+  html body .nasa-parallax-layer,
+  html body .nasa-parallax-bg,
+  html body .nasa-parallax-mid,
+  html body .nasa-parallax-fg{
+    left:0!important;
+    right:auto!important;
+    width:100%!important;
+    max-width:100%!important;
+    transform:none!important;
+    overflow:hidden!important;
+    contain:paint!important;
+  }
+}
+
+/* responsive-pc-mobile-pass-20260618 */
+/* Project-wide PC + mobile guardrails. Keep desktop layout intact; only tighten small screens. */
+html, body, #app {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+* { box-sizing: border-box; }
+img, canvas, svg, video { max-width: 100%; }
+
+@media (max-width: 720px) {
+  body { min-width: 0 !important; }
+  .public-overview-page.starship-console-page {
+    padding: 18px 12px 34px !important;
+  }
+  .public-overview-page .public-overview-topbar {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    padding: 12px !important;
+    border-radius: 16px !important;
+  }
+  .public-overview-page .public-overview-back {
+    min-height: 44px !important;
+  }
+  .public-overview-page .public-overview-title-wrap h1 {
+    font-size: clamp(24px, 9vw, 34px) !important;
+    line-height: 1.02 !important;
+  }
+  .public-overview-meta-bar,
+  .public-overview-stats,
+  .public-overview-summary-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .public-overview-meta-bar span,
+  .public-overview-mini-list li {
+    min-width: 0 !important;
+    overflow-wrap: anywhere;
+  }
+
+  .detail-page-shell,
+  .detail-page-shell:has(.fleet-detail-console) {
+    width: 100% !important;
+    padding: 10px 10px 28px !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .detail-page-topbar {
+    width: 100% !important;
+    padding: 0 0 10px !important;
+    margin: 0 0 10px !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .detail-page-tools {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .detail-back-link,
+  .detail-page-shell:has(.fleet-detail-console) .theme-toggle,
+  .detail-page-shell:has(.fleet-detail-console) .currency-btn,
+  .detail-page-shell:has(.fleet-detail-console) .language-select,
+  .detail-page-shell:has(.fleet-detail-console) .detail-currency-switch,
+  .detail-page-shell:has(.fleet-detail-console) .rate-display {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .detail-currency-switch,
+  .detail-page-shell:has(.fleet-detail-console) .rate-display {
+    grid-column: 1 / -1 !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    padding: 10px !important;
+    margin-top: 8px !important;
+    overflow: visible !important;
+  }
+  .fleet-console-header,
+  .fleet-left-rail,
+  .probe-observability-grid,
+  .fleet-chart-matrix,
+  .fleet-right-zone,
+  .fleet-probe-grid,
+  .fleet-bottom-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 0 10px !important;
+  }
+  .fleet-status-bank { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .fleet-node-identity { align-items: flex-start !important; min-width: 0 !important; }
+  .fleet-node-caption h1,
+  .fleet-node-caption p,
+  .fleet-info-list strong,
+  .fleet-table td,
+  .fleet-table th { overflow-wrap: anywhere !important; }
+  .fleet-panel,
+  .fleet-chart-card,
+  .probe-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    padding: 10px !important;
+  }
+  .fleet-table-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+  .fleet-table { min-width: 520px; }
+  .fleet-chart-card canvas,
+  .fleet-chart-card.pseudo .mini-linechart {
+    height: 160px !important;
+    min-height: 140px !important;
+  }
+  .probe-resource-line { grid-template-columns: 36px minmax(48px, 64px) minmax(0, 1fr) !important; }
+  .probe-resource-line em { grid-column: 2 / -1 !important; white-space: normal !important; }
+}
+
+@media (max-width: 768px) {
+  #admin-panel { min-width: 0 !important; }
+  .admin-body, .admin-main, .admin-content { width: 100% !important; min-width: 0 !important; padding: 14px !important; }
+  .admin-tabs { display: flex !important; gap: 8px !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+  .admin-tab { flex: 0 0 auto !important; min-height: 38px !important; }
+  .admin-card, .komari-panel, .komari-notify-card, .komari-notify-settings-card { width: 100% !important; max-width: 100% !important; }
+  .settings-row, .komari-toggle-row, .komari-notify-card, .komari-notify-channel-row, .komari-notify-settings-head {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+  .users-actions, .nav-actions, .komari-node-actions { flex-direction: column !important; align-items: stretch !important; }
+  .admin-input, .admin-select, .admin-textarea, .form-input, .notify-select, .acct-input { width: 100% !important; max-width: 100% !important; }
+  .users-table-wrap, .komari-table-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+}
+
+/* mobile-layout-polish-20260618 */
+@media (max-width: 720px) {
+  .three-globe-sun-badge {
+    left: 18px !important;
+    top: 18px !important;
+    width: 64px !important;
+    height: 64px !important;
+  }
+  .globe-moon-pill.moon-drag-only,
+  .globe-moon-pill.moon-solar-style {
+    right: 18px !important;
+    top: 18px !important;
+    width: 58px !important;
+    height: 58px !important;
+    min-width: 58px !important;
+  }
+  .google-earth-label,
+  .google-earth-place-label,
+  .three-vps-label {
+    font-size: 10px !important;
+    max-width: 132px !important;
+  }
+
+  .detail-page-shell:has(.fleet-detail-console) .detail-back-link { grid-column: 1 / -1 !important; }
+  .detail-page-shell:has(.fleet-detail-console) .theme-toggle,
+  .detail-page-shell:has(.fleet-detail-console) .language-select,
+  .detail-page-shell:has(.fleet-detail-console) .currency-btn {
+    min-height: 34px !important;
+    height: 34px !important;
+    padding: 7px 10px !important;
+    font-size: 11px !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .rate-display {
+    min-height: 28px !important;
+    height: auto !important;
+    font-size: 11px !important;
+    opacity: .82;
+  }
+  .fleet-console-header {
+    gap: 8px !important;
+    margin-bottom: 8px !important;
+  }
+  .fleet-node-identity {
+    padding: 9px 10px !important;
+    gap: 8px !important;
+  }
+  .fleet-html-ship,
+  .fleet-ship-holo {
+    width: 88px !important;
+    height: 54px !important;
+    flex-basis: 88px !important;
+    transform: none !important;
+  }
+  .fleet-node-caption h1 {
+    font-size: 17px !important;
+    line-height: 1.12 !important;
+  }
+  .fleet-node-caption p {
+    font-size: 10px !important;
+    margin-top: 3px !important;
+  }
+  .fleet-status-bank {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+  }
+  .fleet-status-bank > div {
+    min-height: 58px !important;
+    padding: 8px 9px !important;
+  }
+  .fleet-status-bank span { font-size: 8px !important; }
+  .fleet-status-bank strong { font-size: 12px !important; }
+  .fleet-panel,
+  .probe-card,
+  .fleet-chart-card {
+    padding: 9px !important;
+    margin-bottom: 8px !important;
+  }
+  .fleet-title,
+  .probe-card-head {
+    margin-bottom: 7px !important;
+    padding-bottom: 5px !important;
+  }
+  .fleet-info-list { gap: 5px !important; }
+  .fleet-info-list div { padding: 6px 7px !important; }
+  .probe-card {
+    min-height: 0 !important;
+  }
+  .probe-meter-list,
+  .probe-resource-list { gap: 7px !important; }
+  .probe-meter-row,
+  .probe-resource-line { padding-bottom: 6px !important; }
+  .probe-bandwidth-now { gap: 7px !important; margin-bottom: 8px !important; }
+  .probe-bandwidth-now > div { padding: 7px !important; }
+  .probe-resource-pill { width: 30px !important; height: 30px !important; }
+  .fleet-chart-card {
+    min-height: 210px !important;
+  }
+  .fleet-chart-card.resource-mini-card,
+  .fleet-chart-card.data-freshness-card {
+    min-height: 180px !important;
+  }
+  .fleet-chart-card canvas,
+  .fleet-chart-card.pseudo .mini-linechart {
+    height: 132px !important;
+    min-height: 118px !important;
+    max-height: 150px !important;
+  }
+  .fleet-chart-card.resource-mini-card canvas,
+  .fleet-chart-card.data-freshness-card .mini-linechart {
+    height: 108px !important;
+    min-height: 96px !important;
+  }
+  .fleet-starmap-panel,
+  .fleet-probe-table-panel {
+    max-height: 360px !important;
+    overflow: hidden !important;
+  }
+  .fleet-starmap-panel .globe-starmap-root,
+  .fleet-starmap-panel canvas,
+  .fleet-starmap-panel svg {
+    max-height: 260px !important;
+  }
+  .fleet-database-panel {
+    max-height: 260px !important;
+    overflow: auto !important;
+  }
+
+  .login-box,
+  .admin-login-card,
+  .login-card {
+    margin-top: 3.5vh !important;
+    padding: 24px 20px !important;
+  }
+  .login-input { height: 42px !important; }
+  .login-btn { height: 44px !important; }
+  .oauth-btn { min-height: 40px !important; }
+}

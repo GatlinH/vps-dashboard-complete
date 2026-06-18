@@ -100,7 +100,7 @@ class TestSignupAndVerification:
             token = ev.token
 
         monkeypatch.setattr('api.auth.send_welcome_email', lambda *args, **kwargs: True)
-        res = client.get(f'/api/v1/auth/verify-email?token={token}')
+        res = client.post('/api/v1/auth/verify-email', json={'token': token})
         assert res.status_code == 200
 
         with app.app_context():
@@ -125,7 +125,7 @@ class TestSignupAndVerification:
             db.session.commit()
             token = ev.token
 
-        res = client.get(f'/api/v1/auth/verify-email?token={token}')
+        res = client.post('/api/v1/auth/verify-email', json={'token': token})
         assert res.status_code == 400
 
 

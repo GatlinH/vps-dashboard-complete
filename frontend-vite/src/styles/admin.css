@@ -314,3 +314,2743 @@ body {
   .login-box { margin: 5vh 20px; padding: 30px 20px; }
 }
 .css-editor:focus { border-color: var(--accent); }
+
+
+/* ===== Starmap admin theme overrides ===== */
+:root {
+  --bg-base: #050814;
+  --bg-panel: rgba(10, 16, 32, 0.78);
+  --bg-panel-strong: rgba(12, 20, 40, 0.92);
+  --primary: #66d9ff;
+  --primary-hover: #8be5ff;
+  --text-main: #edf5ff;
+  --text-muted: #8ea7c7;
+  --border: rgba(120, 182, 255, 0.16);
+  --red: #ff6b81;
+  --green: #58f2b1;
+  --shadow: 0 20px 60px rgba(0,0,0,.45);
+}
+
+body {
+  background:
+    radial-gradient(circle at 18% 18%, rgba(103, 178, 255, 0.18), transparent 22%),
+    radial-gradient(circle at 82% 12%, rgba(118, 255, 214, 0.14), transparent 18%),
+    radial-gradient(circle at 50% 120%, rgba(80, 130, 255, 0.22), transparent 38%),
+    linear-gradient(180deg, #04070f 0%, #070c18 45%, #050814 100%);
+  color: var(--text-main);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: .55;
+  background-image:
+    radial-gradient(2px 2px at 12% 18%, rgba(255,255,255,.8), transparent 60%),
+    radial-gradient(1.5px 1.5px at 28% 42%, rgba(160,210,255,.72), transparent 60%),
+    radial-gradient(1.5px 1.5px at 65% 26%, rgba(255,255,255,.72), transparent 60%),
+    radial-gradient(2px 2px at 74% 64%, rgba(110,240,255,.65), transparent 60%),
+    radial-gradient(1.5px 1.5px at 85% 34%, rgba(255,255,255,.65), transparent 60%),
+    radial-gradient(1.5px 1.5px at 42% 78%, rgba(144,190,255,.5), transparent 60%);
+}
+
+.login-box,
+.admin-nav,
+.admin-page,
+.admin-card {
+  background: linear-gradient(180deg, rgba(13, 21, 40, 0.88), rgba(8, 14, 28, 0.82));
+  border: 1px solid rgba(120, 182, 255, 0.16);
+  box-shadow: 0 18px 46px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.04);
+  backdrop-filter: blur(14px);
+}
+
+.admin-nav {
+  background: linear-gradient(180deg, rgba(8, 14, 28, 0.98), rgba(8, 14, 28, 0.86));
+  border-right: 1px solid rgba(120, 182, 255, .12);
+}
+
+.admin-nav-logo,
+.login-logo,
+.admin-section-title,
+.admin-card-title {
+  color: #f4f8ff;
+  letter-spacing: .2px;
+}
+
+.admin-nav-logo::before,
+.login-logo::before {
+  content: '✦';
+  color: var(--primary);
+  text-shadow: 0 0 18px rgba(102,217,255,.7);
+  margin-right: 8px;
+}
+
+.admin-tab {
+  color: #97aed0;
+  border: 1px solid transparent;
+}
+
+.admin-tab:hover {
+  background: rgba(85, 164, 255, 0.1);
+  border-color: rgba(102, 217, 255, 0.18);
+  color: #e8f5ff;
+}
+
+.admin-tab.active {
+  background: linear-gradient(135deg, rgba(70, 150, 255, 0.24), rgba(78, 239, 217, 0.18));
+  color: #f7fbff;
+  border: 1px solid rgba(102, 217, 255, .35);
+  box-shadow: 0 8px 24px rgba(53, 124, 255, 0.26), inset 0 0 0 1px rgba(255,255,255,.04);
+}
+
+.admin-body {
+  background: transparent;
+}
+
+.form-input,
+textarea.form-input,
+select.form-input,
+.login-input {
+  background: rgba(8, 13, 24, 0.92);
+  border: 1px solid rgba(120, 182, 255, 0.18);
+  color: #eef6ff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.02);
+}
+
+.form-input::placeholder,
+.login-input::placeholder {
+  color: #6f86a8;
+}
+
+.form-input:focus,
+.login-input:focus {
+  border-color: rgba(102, 217, 255, 0.58);
+  box-shadow: 0 0 0 3px rgba(102, 217, 255, 0.12), 0 0 18px rgba(102, 217, 255, 0.10);
+}
+
+.add-btn,
+.login-btn,
+#tp-test,
+#tp-export,
+.btn-return,
+.btn-logout {
+  border-radius: 12px;
+}
+
+.add-btn,
+.login-btn {
+  background: linear-gradient(135deg, #4f8cff, #52e2ff);
+  color: #04101c;
+  border: 1px solid rgba(145, 227, 255, 0.4);
+  box-shadow: 0 10px 24px rgba(55, 120, 255, 0.25);
+}
+
+.add-btn:hover,
+.login-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+}
+
+.btn-return {
+  background: rgba(255,255,255,.03);
+  color: #d7e7ff;
+  border: 1px solid rgba(120, 182, 255, 0.16);
+}
+
+.btn-logout {
+  background: rgba(255, 107, 129, 0.08);
+  border-color: rgba(255, 107, 129, 0.22);
+}
+
+.tg-status,
+.server-import-status,
+.agent-status-card,
+.stat-chip,
+.kv-chip {
+  background: rgba(83, 142, 255, .08);
+  border: 1px solid rgba(120, 182, 255, .14);
+}
+
+.toggle-slider {
+  background: rgba(120, 182, 255, .24);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: linear-gradient(135deg, #4f8cff, #4ef2d9);
+}
+
+.admin-card-title {
+  text-shadow: 0 0 18px rgba(102, 217, 255, .12);
+}
+
+
+/* ===== Starmap admin polish v2 ===== */
+#loginOverlay {
+  background:
+    radial-gradient(circle at 50% 38%, rgba(83, 150, 255, 0.16), transparent 20%),
+    radial-gradient(circle at 50% 8%, rgba(255, 201, 112, 0.14), transparent 12%),
+    linear-gradient(180deg, rgba(4, 8, 20, 0.94), rgba(4, 10, 24, 0.97));
+}
+
+#loginOverlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(2px 2px at 16% 20%, rgba(255,255,255,.7), transparent 60%),
+    radial-gradient(1.5px 1.5px at 80% 24%, rgba(120,210,255,.8), transparent 60%),
+    radial-gradient(1.5px 1.5px at 70% 74%, rgba(255,255,255,.55), transparent 60%),
+    radial-gradient(2px 2px at 24% 72%, rgba(120,210,255,.45), transparent 60%);
+  opacity: .75;
+}
+
+.login-box {
+  position: relative;
+  overflow: hidden;
+  max-width: 440px;
+  padding: 42px 40px 34px;
+}
+
+.login-box::before {
+  content: '';
+  position: absolute;
+  top: -84px;
+  left: 50%;
+  width: 180px;
+  height: 180px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, rgba(255,211,120,.86) 0%, rgba(255,190,88,.42) 28%, rgba(255,184,71,.14) 52%, transparent 74%);
+  filter: blur(2px);
+  opacity: .92;
+  pointer-events: none;
+}
+
+.login-logo-text {
+  font-size: 28px;
+  letter-spacing: 1px;
+  text-shadow: 0 0 26px rgba(105, 215, 255, .2);
+}
+
+.login-logo-sub {
+  text-transform: uppercase;
+  letter-spacing: 2.6px;
+}
+
+.admin-page {
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-page::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(115,210,255,.4), transparent);
+  opacity: .7;
+}
+
+.admin-card {
+  position: relative;
+}
+
+.admin-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid rgba(255,255,255,.02);
+  pointer-events: none;
+}
+
+.admin-card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-card-title::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #67d5ff, #72ffd1);
+  box-shadow: 0 0 12px rgba(103, 213, 255, .72);
+}
+
+.admin-section-title {
+  position: relative;
+  padding-left: 16px;
+}
+
+.admin-section-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: linear-gradient(135deg, #67d5ff, #72ffd1);
+  box-shadow: 0 0 12px rgba(103, 213, 255, .7);
+}
+
+
+/* ===== Starmap admin polish v3 ===== */
+.admin-card,
+.login-box,
+.admin-page,
+.admin-nav {
+  border-radius: 18px;
+}
+
+.admin-card {
+  background:
+    linear-gradient(180deg, rgba(11, 18, 36, 0.92), rgba(8, 13, 25, 0.86));
+}
+
+.admin-card:hover {
+  box-shadow: 0 22px 52px rgba(0,0,0,.42), 0 0 0 1px rgba(117, 200, 255, .08);
+}
+
+.admin-tab,
+.btn-return,
+.btn-logout,
+.login-btn,
+.add-btn,
+.form-input,
+.login-input {
+  transition: all .22s ease, box-shadow .25s ease;
+}
+
+.form-input:hover,
+.login-input:hover {
+  border-color: rgba(120, 182, 255, .24);
+}
+
+[style*="rgba(56,239,125,.12)"],
+[style*="rgba(255,159,67,.12)"],
+[style*="rgba(255,107,107,.12)"] {
+  border-radius: 999px !important;
+  padding: 4px 10px !important;
+  font-weight: 600;
+  letter-spacing: .4px;
+  border: 1px solid rgba(255,255,255,.05);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.02), 0 0 12px rgba(0,0,0,.16);
+}
+
+.admin-page {
+  backdrop-filter: blur(14px);
+}
+
+.admin-nav::after {
+  content: '';
+  position: absolute;
+  top: 22px;
+  right: -1px;
+  width: 1px;
+  height: calc(100% - 44px);
+  background: linear-gradient(180deg, transparent, rgba(109, 200, 255, .28), transparent);
+}
+
+
+/* ===== Login polish + OAuth ===== */
+.login-box {
+  max-width: 480px;
+  background:
+    linear-gradient(180deg, rgba(10, 16, 33, 0.96), rgba(8, 12, 24, 0.92));
+  border: 1px solid rgba(116, 191, 255, .14);
+  box-shadow: 0 28px 80px rgba(0,0,0,.52), inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+.login-logo {
+  margin-bottom: 18px;
+}
+
+.login-logo-text {
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.login-logo-sub {
+  margin-top: 8px;
+  font-size: 12px;
+  color: rgba(201, 222, 255, .72);
+}
+
+.login-field label {
+  color: rgba(210, 226, 255, .84);
+}
+
+.login-input {
+  min-height: 46px;
+  background: rgba(5, 10, 22, 0.92);
+}
+
+.login-divider {
+  margin: 16px 0 14px;
+  position: relative;
+  text-align: center;
+  color: rgba(190, 210, 238, .6);
+  font-size: 12px;
+}
+
+.login-divider::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(136, 189, 255, .26), transparent);
+}
+
+.login-divider span {
+  position: relative;
+  padding: 0 12px;
+  background: rgba(10, 16, 33, 0.96);
+}
+
+.oauth-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.oauth-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border-radius: 12px;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 700;
+  color: #eaf4ff;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.04);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+}
+.oauth-btn:hover { transform: translateY(-1px); }
+.oauth-google { background: linear-gradient(180deg, rgba(66,133,244,.18), rgba(28,68,134,.16)); }
+.oauth-github { background: linear-gradient(180deg, rgba(255,255,255,.1), rgba(116,139,171,.08)); }
+.oauth-btn.disabled { opacity: .5; pointer-events: none; }
+.login-tip {
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(182, 204, 233, .72);
+  text-align: center;
+}
+
+
+.metric-tile{padding:14px 16px;border-radius:14px;border:1px solid rgba(140,190,255,.16);background:linear-gradient(180deg,rgba(14,24,42,.92),rgba(9,16,28,.82));box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 10px 24px rgba(0,0,0,.18)}
+.metric-k{font-size:12px;color:var(--text3);margin-bottom:6px}
+.metric-v{font-size:18px;font-weight:700;color:var(--text)}
+.metric-v a{color:var(--accent);text-decoration:none}
+.metric-d{font-size:12px;color:var(--text3);margin-top:6px;line-height:1.6}
+
+
+/* ===== M6 starmap cohesive shell ===== */
+:root {
+  --accent-cyan: #67d5ff;
+  --accent-green: #6fffcf;
+  --accent-amber: #ffc56d;
+  --panel-edge: rgba(125, 196, 255, 0.16);
+  --panel-soft: rgba(11, 18, 36, 0.84);
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 16% 14%, rgba(84, 160, 255, 0.16), transparent 20%),
+    radial-gradient(circle at 84% 10%, rgba(120, 255, 220, 0.12), transparent 18%),
+    radial-gradient(circle at 50% 110%, rgba(67, 108, 255, 0.20), transparent 36%),
+    linear-gradient(180deg, #02050d 0%, #050a16 42%, #07101d 100%);
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: .25;
+  background:
+    linear-gradient(rgba(255,255,255,.02), rgba(255,255,255,0) 28%),
+    repeating-linear-gradient(90deg, rgba(110,170,255,.05) 0 1px, transparent 1px 120px),
+    repeating-linear-gradient(180deg, rgba(110,170,255,.04) 0 1px, transparent 1px 120px);
+  mask-image: radial-gradient(circle at 50% 45%, black 45%, transparent 100%);
+}
+
+.login-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-nav-logo-wrap {
+  margin-bottom: 32px;
+}
+
+.admin-nav-sub {
+  margin-top: 8px;
+  padding-left: 8px;
+  color: #7892b8;
+  font-size: 11px;
+  letter-spacing: 1.9px;
+  text-transform: uppercase;
+}
+
+.admin-shell-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(11, 18, 36, 0.88), rgba(8, 13, 25, 0.78));
+  border: 1px solid var(--panel-edge);
+  box-shadow: 0 16px 40px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.04);
+  backdrop-filter: blur(14px);
+}
+
+.admin-shell-header::before {
+  content: '';
+  position: absolute;
+}
+
+.admin-shell-eyebrow {
+  color: #7fa3d8;
+  font-size: 11px;
+  letter-spacing: 2.4px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.admin-shell-title {
+  color: #f6fbff;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: .4px;
+  margin-bottom: 6px;
+  text-shadow: 0 0 22px rgba(103, 213, 255, .12);
+}
+
+.admin-shell-desc {
+  color: #8ca7c8;
+  font-size: 13px;
+  line-height: 1.75;
+  max-width: 720px;
+}
+
+.admin-shell-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.admin-shell-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(123, 190, 255, .14);
+  color: #dceaff;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.admin-shell-badge .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  box-shadow: 0 0 12px currentColor;
+}
+
+.admin-shell-badge .dot.cyan { background: var(--accent-cyan); color: var(--accent-cyan); }
+.admin-shell-badge .dot.green { background: var(--accent-green); color: var(--accent-green); }
+.admin-shell-badge .dot.amber { background: var(--accent-amber); color: var(--accent-amber); }
+
+.admin-page,
+.admin-card,
+.login-box,
+.admin-nav {
+  position: relative;
+}
+
+.admin-page::after,
+.admin-card::before,
+.login-box::after,
+.admin-nav::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.02);
+}
+
+.admin-page {
+  background:
+    linear-gradient(180deg, rgba(13, 21, 40, 0.90), rgba(8, 13, 25, 0.84));
+}
+
+.login-logo-sub {
+  color: #9bb2d0;
+}
+
+.login-divider {
+  position: relative;
+  margin: 18px 0 14px;
+  text-align: center;
+  color: #7891b3;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: calc(50% - 74px);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(105,188,255,.32));
+}
+
+.login-divider::before { left: 0; }
+.login-divider::after { right: 0; transform: scaleX(-1); }
+
+.oauth-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.oauth-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  border-radius: 12px;
+  text-decoration: none;
+  border: 1px solid rgba(121, 184, 255, .16);
+  background: rgba(255,255,255,.03);
+  color: #dce9ff;
+  font-size: 13px;
+  transition: .2s ease;
+}
+
+.oauth-btn.disabled {
+  opacity: .55;
+}
+
+.oauth-btn:not(.disabled):hover {
+  background: rgba(83, 142, 255, .10);
+  border-color: rgba(111, 225, 255, .26);
+}
+
+.login-tip {
+  margin-top: 12px;
+  color: #8098ba;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.metric-tile,
+.ping-server-item {
+  background: linear-gradient(180deg, rgba(10, 16, 32, 0.78), rgba(7, 12, 24, 0.88));
+  border: 1px solid rgba(120, 182, 255, .12);
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+}
+
+.metric-tile {
+  padding: 16px;
+}
+
+.metric-k {
+  color: #84a0c4;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.metric-v {
+  color: #f5fbff;
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.metric-d {
+  color: #8ea7c7;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.ping-server-item {
+  padding: 14px;
+}
+
+.admin-tab,
+.btn-return,
+.btn-logout,
+.add-btn,
+.login-btn,
+.oauth-btn,
+.form-input,
+.login-input,
+.metric-tile,
+.ping-server-item,
+.admin-shell-badge {
+  transition: all .22s ease;
+}
+
+.admin-tab:hover,
+.btn-return:hover,
+.oauth-btn:not(.disabled):hover,
+.metric-tile:hover,
+.ping-server-item:hover {
+  transform: translateY(-1px);
+}
+
+@media (max-width: 900px) {
+  .admin-shell-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-shell-badges {
+    justify-content: flex-start;
+  }
+
+  .admin-shell-title {
+    font-size: 24px;
+  }
+}
+
+
+.account-grid {
+  display:grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.2fr);
+  gap: 18px;
+}
+.kv-list { display:grid; gap:10px; font-size:14px; color:var(--text2, var(--text)); }
+.acct-form { display:grid; gap:10px; }
+.acct-input {
+  width:100%; box-sizing:border-box; padding:12px 14px; border-radius:10px;
+  border:1px solid var(--border2, var(--border)); background:var(--bg3, rgba(255,255,255,.04)); color:var(--text);
+}
+.acct-input.small { min-width: 110px; padding: 8px 10px; }
+.acct-msg { min-height:20px; font-size:13px; color:var(--text3, var(--text2)); margin-top:4px; }
+.acct-msg.ok { color: var(--green); }
+.acct-msg.err { color: var(--red); }
+.acct-pill {
+  display:inline-flex; align-items:center; padding:3px 9px; border-radius:999px; font-size:12px; font-weight:600;
+  background:rgba(99,179,237,.12); color:var(--accent);
+}
+.acct-pill.ok { background: rgba(56,239,125,.14); color: var(--green); }
+.acct-pill.warn { background: rgba(246,201,14,.14); color: var(--gold); }
+.acct-pill.role { background: rgba(167,139,250,.14); color: var(--purple); }
+.acct-subtle { font-size:12px; color:var(--text3, var(--text2)); }
+.users-toolbar { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:12px; }
+.users-actions { display:flex; gap:10px; align-items:center; }
+.users-table-wrap { overflow:auto; }
+.users-table { width:100%; border-collapse:collapse; font-size:13px; }
+.users-table th, .users-table td { padding:10px 8px; border-bottom:1px solid var(--border2, var(--border)); text-align:left; vertical-align:middle; }
+.users-table th { color:var(--text3, var(--text2)); font-weight:600; position:sticky; top:0; background:var(--bg2, rgba(255,255,255,.02)); }
+@media (max-width: 980px) {
+  .account-grid { grid-template-columns: 1fr; }
+  .users-toolbar { flex-direction:column; }
+  .users-actions { width:100%; }
+}
+
+
+.settings-grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.settings-rows { display:grid; gap:10px; }
+.settings-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--border2, var(--border)); }
+.settings-row span { color: var(--text2, var(--text)); }
+.settings-row b { color: var(--text); font-weight: 600; text-align:right; }
+@media (max-width: 980px) { .settings-grid { grid-template-columns: 1fr; } }
+
+
+/* layout2: denser, clearer admin cards and theme editor */
+.admin-content, .admin-main { max-width: 1480px; margin: 0 auto; }
+.admin-card { box-shadow: 0 18px 50px rgba(0,0,0,.18); }
+.theme-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.theme-preset { min-height: 82px; transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease; }
+.theme-preset:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(0,0,0,.24); }
+.theme-preset.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 24px rgba(99,179,237,.18); }
+.var-sliders { display:grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 14px; }
+.var-row { padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.035); border: 1px solid var(--border); }
+.css-editor { min-height: 180px; }
+.theme-preview-card { position: sticky; top: 12px; z-index: 1; }
+@media (min-width: 1100px) { #tab-theme.active { display:grid; grid-template-columns: 1.05fr .95fr; gap: 16px; align-items:start; } #tab-theme .admin-section-title { grid-column:1/-1; } }
+
+
+/* Komari-like node manager */
+.komari-node-page{display:grid;gap:18px;color:#111827}.komari-https-warning{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;background:#fff1f2;border:1px solid #fecdd3;color:#be123c;font-size:14px}.komari-node-toolbar{display:flex;justify-content:space-between;align-items:center;gap:16px}.komari-node-toolbar h2{margin:0;font-size:24px;color:#111827}.komari-node-actions{display:flex;gap:10px;align-items:center}.komari-search{width:260px;background:#fff!important;color:#111827!important;border-color:#e5e7eb!important}.komari-table-wrap{overflow:auto;border:1px solid #e5e7eb;border-radius:12px;background:#fff}.komari-node-table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;color:#374151}.komari-node-table thead th{background:#eef2ff;color:#4b5563;font-weight:700;text-align:left;padding:12px 10px;white-space:nowrap}.komari-node-table tbody td{padding:12px 10px;border-top:1px solid #f1f5f9;vertical-align:middle}.komari-node-table tbody tr:hover{background:#f8fafc}.komari-drag{color:#94a3b8;text-align:center}.komari-node-name{display:flex;align-items:center;gap:10px;color:#111827}.komari-node-name strong{display:block;font-weight:750}.komari-node-name small{display:block;color:#94a3b8;font-size:11px;margin-top:2px}.komari-node-badge{width:24px;height:24px;border-radius:7px;background:#3b82f6;color:#fff;display:inline-grid;place-items:center;font-size:11px;font-weight:700;overflow:hidden}.komari-row-actions{display:flex;gap:8px;justify-content:flex-end}.komari-row-actions button{width:26px;height:26px;border:0;background:transparent;color:#64748b;cursor:pointer;border-radius:7px;font-size:15px}.komari-row-actions button:hover{background:#eef2ff;color:#4f46e5}.komari-row-actions button.danger{color:#ef4444}.komari-empty{text-align:center;color:#94a3b8;padding:34px!important}.komari-msg{font-size:12px;min-height:18px}.komari-modal-backdrop{position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.46);display:grid;place-items:start center;padding-top:120px}.komari-modal{width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 150px);overflow:auto;background:#fff;color:#111827;border-radius:14px;box-shadow:0 22px 70px rgba(15,23,42,.28);padding:22px}.komari-modal-title{display:flex;align-items:center;justify-content:space-between;font-weight:800;font-size:18px;margin-bottom:16px}.komari-modal-title button{border:0;background:#f1f5f9;color:#64748b;border-radius:8px;width:28px;height:28px;cursor:pointer}.komari-form-grid{display:grid;gap:14px}.komari-form-grid.one{grid-template-columns:1fr}.komari-form-grid label{display:grid;gap:6px;font-size:13px;font-weight:650;color:#374151}.komari-form-grid small{font-weight:400;color:#94a3b8;margin-left:4px}.komari-form-grid .form-input{background:#fff!important;color:#111827!important;border:1px solid #e5e7eb!important}.komari-form-grid textarea.form-input{min-height:82px;resize:vertical}.komari-code{font-family:var(--mono);min-height:72px!important;word-break:break-all}.komari-modal-actions{display:flex;justify-content:flex-end;margin-top:18px}.komari-toggle-row{display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid #e5e7eb;border-radius:10px;padding:12px;background:#f8fafc}.komari-toggle-row strong{display:block;color:#111827}.komari-toggle-row small{display:block;color:#94a3b8;margin-top:3px}.komari-text-btn{justify-self:end;border:0;background:transparent;color:#4f46e5;cursor:pointer;font-size:13px}.komari-agent-state{display:grid;gap:10px}.komari-agent-state div{display:grid;grid-template-columns:96px 1fr;gap:10px;padding:10px;border:1px solid #e5e7eb;border-radius:9px;background:#f8fafc}.komari-agent-state b{color:#64748b}.komari-loading,.komari-error{padding:20px;text-align:center;color:#64748b}.komari-error{color:#ef4444}@media(max-width:760px){.komari-node-toolbar{align-items:stretch;flex-direction:column}.komari-node-actions{flex-direction:column;align-items:stretch}.komari-search{width:100%}.komari-modal-backdrop{padding-top:40px}}
+
+/* Komari billing modal refinements */
+.komari-billing-form{position:relative}.komari-billing-form label span{display:inline-flex;align-items:center;gap:6px}.komari-info-dot{width:18px;height:18px;border-radius:999px;border:1px solid #c7d2fe;background:#eef2ff;color:#4f46e5;font-size:12px;font-weight:800;line-height:16px;cursor:pointer}.komari-expiry-row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end}.komari-expiry-row label{display:grid;gap:6px;font-size:13px;font-weight:650;color:#374151}.komari-period-popover{position:absolute;z-index:10001;width:min(390px,calc(100vw - 72px));left:calc(50% + 12px);top:310px;background:#fff;color:#374151;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 18px 50px rgba(15,23,42,.2);padding:14px;font-size:12px;line-height:1.55}.komari-period-popover strong{display:block;color:#111827;font-size:14px;margin-bottom:8px}.komari-period-popover b{display:block;color:#111827;margin-top:8px}.komari-period-popover p{margin:4px 0;color:#64748b}.komari-switch{display:inline-flex!important;align-items:center!important}.komari-switch input{display:none}.komari-switch span{width:42px;height:24px;border-radius:999px;background:#e5e7eb;position:relative;transition:.18s}.komari-switch span::after{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.2);transition:.18s}.komari-switch input:checked+span{background:#6366f1}.komari-switch input:checked+span::after{transform:translateX(18px)}.komari-wide-save{min-width:140px}
+@media(max-width:760px){.komari-expiry-row{grid-template-columns:1fr}.komari-period-popover{left:24px;right:24px;top:300px;width:auto}}
+
+
+/* ===== Komari-inspired settings/account/theme/network panels ===== */
+.komari-settings-page{display:grid;gap:18px;color:var(--text-main)}
+.komari-page-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:2px}.komari-page-head h2{margin:0;font-size:24px}.komari-page-head p{margin:6px 0 0;color:var(--text-muted);font-size:13px;line-height:1.55}.komari-primary,.komari-secondary{border:0;border-radius:10px;padding:9px 16px;cursor:pointer;font-weight:700;font-size:13px}.komari-primary{background:var(--primary);color:#fff}.komari-secondary{background:rgba(99,102,241,.09);border:1px solid var(--border);color:var(--text-main)}.komari-settings-grid{display:grid;gap:16px}.komari-settings-grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}.komari-panel{background:var(--bg-panel);border:1px solid var(--border);border-radius:14px;padding:18px;box-shadow:var(--shadow)}.komari-panel-title{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:14px}.komari-panel-title span{font-size:16px;font-weight:800}.komari-panel-title small{font-size:11px;color:var(--text-muted);font-weight:500}.komari-note{font-size:12px;color:var(--text-muted);margin:10px 0}.komari-action-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.komari-inline-form{display:flex;gap:10px}.komari-target-editor{display:grid;gap:8px}.komari-target-row{display:grid;grid-template-columns:110px 1fr 1fr 90px auto;gap:8px;align-items:center}.komari-icon-danger{width:36px;height:36px;border:0;border-radius:9px;background:rgba(239,68,68,.10);color:#ef4444;cursor:pointer}.komari-console{min-height:240px;max-height:360px;overflow:auto;background:rgba(2,6,23,.34);border:1px solid var(--border);border-radius:12px;padding:12px;font-family:var(--mono,monospace);font-size:12px}.komari-console .muted,.komari-empty-small{color:var(--text-muted);text-align:center;padding:24px}.komari-metric-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}.komari-metric-strip div{border:1px solid var(--border);background:rgba(99,102,241,.06);border-radius:12px;padding:12px}.komari-metric-strip b{display:block;font-size:20px}.komari-metric-strip span{font-size:11px;color:var(--text-muted)}.komari-kv-box{display:grid;gap:8px}.komari-kv-box div,.komari-session-card{display:flex;justify-content:space-between;gap:14px;align-items:center;border:1px solid var(--border);background:rgba(99,102,241,.05);border-radius:10px;padding:10px 12px}.komari-kv-box span{color:var(--text-muted);font-size:12px}.komari-kv-box b{font-size:13px;text-align:right}.komari-kv-box em,.komari-error{color:var(--red);font-style:normal}.komari-session-card{margin-top:10px}.komari-session-card strong{display:block}.komari-session-card p{margin:4px 0 0;color:var(--text-muted);font-size:12px;line-height:1.45}.komari-theme-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}.komari-theme-card{text-align:left;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--text-main);border-radius:14px;padding:14px;cursor:pointer}.komari-theme-card.active{border-color:var(--primary);box-shadow:0 0 0 3px rgba(99,102,241,.16)}.komari-theme-card span{display:flex;gap:6px;margin-bottom:10px}.komari-theme-card i{width:28px;height:18px;border-radius:6px;border:1px solid rgba(255,255,255,.18)}.komari-theme-card b{display:block}.komari-theme-card small{display:block;color:var(--text-muted);font-size:12px;margin-top:5px;line-height:1.45}.komari-theme-preview{border:1px solid var(--border);border-radius:16px;padding:18px;background:linear-gradient(135deg,var(--bg-base),var(--bg-panel));display:grid;gap:14px}.komari-theme-preview>div{display:flex;justify-content:space-between;gap:10px}.komari-theme-preview span{color:var(--green);font-size:12px}.komari-theme-preview em{font-style:normal;border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text-muted)}.komari-msg.ok{color:var(--green)}.komari-msg.err{color:var(--red)}
+@media(max-width:980px){.komari-settings-grid.two{grid-template-columns:1fr}.komari-target-row{grid-template-columns:1fr 1fr}.komari-page-head{flex-direction:column}.komari-inline-form{flex-direction:column}}
+.komari-danger-banner{background:#fff1f2;border:1px solid #fecdd3;color:#be123c;padding:12px 14px;border-radius:12px;margin-bottom:18px;font-size:13px}
+.komari-inline-check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-main)}
+.komari-note{font-size:12px;color:var(--text-muted);line-height:1.7;margin-top:12px}
+.komari-kv-box{display:grid;grid-template-columns:160px 1fr;gap:10px 14px}
+.komari-kv-box>div{display:contents}
+.komari-kv-box span{color:var(--text-muted);font-size:13px}
+.komari-kv-box b{font-size:13px;word-break:break-all}
+@media (max-width: 980px){.komari-kv-box{grid-template-columns:120px 1fr}}
+
+
+/* komari-like settings nav polish */
+.admin-subtabs{display:grid;gap:4px;margin:-2px 0 8px 34px;padding-left:10px;border-left:1px solid var(--border)}
+.admin-subtab{border:0;background:transparent;color:var(--text-muted);text-align:left;padding:8px 10px;border-radius:9px;cursor:pointer;font:600 13px var(--sans)}
+.admin-subtab:hover,.admin-subtab.active{background:rgba(99,102,241,.10);color:var(--primary)}
+.komari-section-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}.komari-section-tabs button{border:1px solid var(--border);background:rgba(99,102,241,.07);color:var(--text-main);border-radius:999px;padding:8px 14px;font-weight:800;cursor:pointer}.komari-section-tabs button.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.komari-section-panel{display:none}.komari-section-panel.is-visible{display:block}.komari-settings-grid.two:has(.komari-section-panel:not(.is-visible)){grid-template-columns:1fr}.komari-inline-check input[type="checkbox"]{accent-color:var(--primary);width:18px;height:18px}.komari-form-grid .form-input{border-radius:10px!important;padding:11px 12px!important}.komari-panel{box-shadow:0 10px 34px rgba(15,23,42,.08)!important}.komari-danger-banner{display:flex;align-items:center;gap:8px;background:#fff1f2!important;border-color:#fecdd3!important;color:#be123c!important}
+
+/* ===== Komari light admin shell override ===== */
+body.komari-admin-shell,
+body:has(#admin-panel[style*="flex"]) {
+  background: #f6f7fb !important;
+  color: #111827 !important;
+}
+body.komari-admin-shell::before { display: none !important; }
+#admin-panel {
+  min-height: 100vh;
+  background: #f6f7fb;
+}
+.admin-nav {
+  width: 218px !important;
+  padding: 10px 10px 14px !important;
+  background: #fff !important;
+  color: #111827 !important;
+  border-right: 1px solid #e5e7eb !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  backdrop-filter: none !important;
+  overflow-y: auto;
+}
+.admin-topline { display:flex; align-items:center; gap:10px; min-height:38px; margin:0 0 8px; }
+.admin-menu-btn { width:28px; height:28px; border:0; background:transparent; color:#374151; font-size:18px; cursor:pointer; }
+.admin-brand-block { display:flex; align-items:baseline; gap:7px; min-width:0; }
+.admin-nav-logo { margin:0 !important; padding:0 !important; font-size:16px !important; font-weight:750 !important; letter-spacing:0 !important; color:#111827 !important; white-space:nowrap; }
+.admin-nav-logo::before { content:none !important; }
+.admin-nav-sub { margin:0 !important; color:#9ca3af !important; font-size:11px !important; white-space:nowrap; }
+.admin-tabs { gap:2px !important; }
+.admin-tab,
+.admin-link-tab,
+.admin-subtab {
+  width:100%; box-sizing:border-box; display:flex; align-items:center; gap:9px;
+  min-height:34px; padding:8px 10px !important; border-radius:8px !important;
+  border:0 !important; background:transparent !important; box-shadow:none !important;
+  color:#4b5563 !important; font-size:13px !important; font-weight:520 !important;
+  text-decoration:none; text-align:left; cursor:pointer;
+}
+.admin-tab b { margin-left:auto; color:#9ca3af; font-weight:600; }
+.nav-ico { width:17px; display:inline-flex; justify-content:center; opacity:.78; font-size:14px; }
+.admin-tab:hover,.admin-link-tab:hover,.admin-subtab:hover { background:#f4f4ff !important; color:#4f46e5 !important; }
+.admin-tab.active { background:#eeecff !important; color:#4f46e5 !important; }
+.admin-subtabs { display:flex !important; flex-direction:column; gap:1px; margin:1px 0 6px 18px; padding:0 0 0 8px; border-left:1px solid #f0f0f5; }
+.admin-subtab { min-height:31px; color:#6b7280 !important; }
+.admin-subtab.active { background:#eeecff !important; color:#4f46e5 !important; }
+.nav-actions { margin-top:14px !important; gap:8px !important; }
+.btn-return,.btn-logout { border-radius:8px !important; padding:9px !important; font-size:12px !important; }
+.admin-body { padding:26px 36px !important; background:#fff !important; overflow-y:auto; }
+.admin-page { background:transparent !important; box-shadow:none !important; border:0 !important; border-radius:0 !important; padding:0 !important; overflow:visible !important; min-height:auto !important; }
+.admin-page::before { display:none !important; }
+.komari-settings-page { color:#111827 !important; max-width:920px; gap:18px !important; }
+.komari-page-head { margin:0 0 18px !important; }
+.komari-page-head h2 { color:#111827 !important; font-size:26px !important; line-height:1.2; }
+.komari-page-head p { color:#374151 !important; font-size:15px !important; }
+.komari-section-tabs { display:none !important; }
+.komari-settings-grid.two { grid-template-columns:1fr !important; gap:18px !important; }
+.komari-panel,
+.komari-flat-section {
+  background:#fff !important; color:#111827 !important; border:0 !important; box-shadow:none !important;
+  border-radius:0 !important; padding:0 !important; backdrop-filter:none !important;
+}
+.komari-panel::after,.komari-panel-title::before,.admin-card-title::before { display:none !important; }
+.komari-panel-title { display:block !important; margin:0 0 8px !important; }
+.komari-panel-title.sub { margin-top:22px !important; }
+.komari-panel-title span,.komari-flat-section h3,.komari-settings-heading { color:#111827 !important; font-size:17px !important; font-weight:700 !important; margin:0 0 10px !important; }
+.komari-panel-title small { display:block; color:#6b7280 !important; font-size:13px !important; margin-top:5px; }
+.komari-form-grid { max-width:640px; gap:12px !important; }
+.komari-form-grid label { color:#374151 !important; font-size:13px !important; font-weight:560 !important; }
+.form-input,.admin-input,.admin-select,.admin-textarea,textarea.form-input,select.form-input,.komari-form-grid .form-input {
+  background:#fff !important; color:#111827 !important; border:1px solid #d1d5db !important;
+  border-radius:5px !important; padding:9px 11px !important; box-shadow:none !important;
+}
+.form-input:focus { border-color:#818cf8 !important; box-shadow:0 0 0 2px rgba(99,102,241,.12) !important; }
+.komari-primary { background:#6366f1 !important; color:#fff !important; border:0 !important; border-radius:5px !important; padding:9px 15px !important; font-size:13px !important; }
+.komari-secondary { background:#f4f4ff !important; color:#4f46e5 !important; border:1px solid #e0e7ff !important; border-radius:5px !important; }
+.komari-action-row { margin:9px 0 18px !important; }
+.komari-toggle-row { max-width:860px; margin:12px 0; background:#fff !important; border:1px solid #e5e7eb !important; border-radius:9px !important; padding:13px 14px !important; }
+.komari-toggle-row strong { color:#111827 !important; font-size:14px; }
+.komari-toggle-row small { color:#6b7280 !important; font-size:12px; line-height:1.45; }
+.komari-switch span { background:#e5e7eb !important; }
+.komari-switch input:checked+span { background:#6366f1 !important; }
+.komari-mini-square { width:34px; height:34px; border:0; border-radius:7px; background:#f0edff; color:#4f46e5; cursor:pointer; }
+.komari-danger-banner { max-width:900px; background:#fff1f2 !important; border:1px solid #fecdd3 !important; color:#be123c !important; border-radius:8px !important; padding:12px 14px !important; }
+.komari-kv-box { max-width:760px; grid-template-columns:150px 1fr !important; }
+.komari-kv-box span { color:#6b7280 !important; }
+.komari-kv-box b { color:#111827 !important; }
+.komari-kv-box div,.komari-session-card { background:#f9fafb !important; border:1px solid #e5e7eb !important; }
+.komari-msg { font-size:12px; min-height:16px; }
+.acct-pill.ok { color:#16a34a; }
+.acct-pill.warn { color:#d97706; }
+.komari-account-page { max-width:760px; }
+.komari-flat-section { margin-bottom:28px; }
+.komari-narrow-form { max-width:640px; }
+.komari-muted-line { color:#374151; margin:0 0 12px; font-size:14px; }
+.komari-external-title { display:flex; align-items:center; gap:7px; color:#374151; font-weight:650; margin:4px 0 10px; }
+.komari-bind-card { max-width:640px; display:grid; grid-template-columns:1fr 1fr; gap:0; background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:13px 14px; color:#6b7280; margin-bottom:12px; }
+.komari-account-advanced { margin-top:18px; border-top:1px solid #f3f4f6 !important; padding-top:18px !important; }
+@media (max-width: 768px) {
+  .admin-nav { width:100% !important; max-height:44vh; }
+  .admin-body { padding:20px !important; }
+}
+
+.komari-account-page .komari-current-pass { position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
+
+
+/* hotfix-admin-unified-bg-menu-currency-20260607 */
+html, body, body.komari-admin-shell, #admin-panel {
+  min-height: 100%;
+  background: #eef2f6 !important;
+}
+body.komari-admin-shell::before, body.komari-admin-shell::after {
+  opacity: 0 !important;
+  display: none !important;
+}
+body.komari-admin-shell .admin-nav,
+body.komari-admin-shell .admin-body,
+body.komari-admin-shell .admin-page,
+body.komari-admin-shell .komari-node-page,
+body.komari-admin-shell .komari-settings-page {
+  background: #eef2f6 !important;
+}
+body.komari-admin-shell .admin-page,
+body.komari-admin-shell .admin-card,
+body.komari-admin-shell .komari-panel,
+body.komari-admin-shell .komari-table-wrap {
+  background: #ffffff !important;
+  border-color: #dfe6ee !important;
+  box-shadow: 0 16px 40px rgba(31, 42, 68, .08) !important;
+}
+body.komari-admin-shell .admin-nav {
+  border-right-color: #dfe6ee !important;
+  box-shadow: 8px 0 28px rgba(31,42,68,.06) !important;
+}
+body.komari-admin-shell .komari-https-warning,
+body.komari-admin-shell .komari-danger-banner {
+  display: none !important;
+}
+body.komari-admin-shell .admin-link-tab[href="/about"],
+body.komari-admin-shell .admin-link-tab[href="/docs"],
+body.komari-admin-shell .admin-link-tab[href="/"],
+body.komari-admin-shell .admin-subtab[data-settings-section="theme"],
+body.komari-admin-shell .btn-return {
+  display: none !important;
+}
+
+/* hotfix-admin-body-final-bg-20260607 */
+html body.komari-admin-shell,
+html body.komari-admin-shell[style],
+html body.komari-admin-shell #admin-panel,
+html body.komari-admin-shell .admin-body,
+html body.komari-admin-shell .admin-nav,
+html body.komari-admin-shell .admin-page.active {
+  background-color: #eef2f6 !important;
+  background-image: none !important;
+}
+
+
+/* hotfix-notify-rules-theme-toolbar-20260607 */
+.admin-toolbar{display:flex;justify-content:flex-end;gap:10px;margin:0 0 14px;position:sticky;top:0;z-index:20;pointer-events:auto}.admin-toolbar-btn,.admin-toolbar-select{border:1px solid rgba(120,182,255,.22);border-radius:999px;padding:7px 12px;background:rgba(8,14,28,.78);color:#eaf6ff;font-weight:800}.komari-notify-card{max-width:920px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;padding:16px;margin:0 0 14px;display:flex;align-items:center;justify-content:space-between;gap:16px}.komari-notify-card.block{display:block}.komari-notify-card strong{display:block;color:#111827;font-size:15px}.komari-notify-card small{display:block;color:#6b7280;margin-top:5px}.notify-channel-select{max-width:220px}.admin-day-mode,.admin-day-mode #admin-panel,.admin-day-mode .admin-body,.admin-day-mode .admin-nav,.admin-day-mode .komari-settings-page{background:#dff3ff!important;background-image:linear-gradient(180deg,#dff3ff 0%,#eef9ff 42%,#f6fbff 100%)!important}.admin-day-mode .admin-page,.admin-day-mode .admin-card,.admin-day-mode .komari-panel,.admin-day-mode .komari-notify-card{background:rgba(255,255,255,.88)!important}.admin-day-mode .admin-toolbar-btn,.admin-day-mode .admin-toolbar-select{background:#fff!important;color:#2563eb!important;border-color:#bae6fd!important}
+
+
+/* notify-channel-schema-pass-20260607 */
+.komari-notify-channel-row{max-width:920px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;padding:16px;margin:0 0 14px;display:flex;align-items:center;justify-content:space-between;gap:16px}.komari-notify-channel-row strong,.komari-notify-settings-head strong{display:block;color:#111827;font-size:16px;font-weight:800}.komari-notify-channel-row small,.komari-notify-settings-head small,.notify-field small,.notify-toggle-row small{display:block;color:#6b7280;margin-top:5px;font-size:13px;line-height:1.45}.notify-select{border:0;border-radius:8px;background:#ede9fe;color:#4f46e5;font-weight:800;padding:9px 32px 9px 12px;min-width:150px}.notify-select.small{min-width:118px;justify-self:end;border:1px solid #e9e5ff}.komari-notify-settings-card{max-width:920px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;margin:0 0 14px;overflow:hidden}.komari-notify-settings-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:16px;border-bottom:1px solid #e5e7eb}.notify-collapse{border:0;border-radius:8px;background:#ede9fe;color:#4f46e5;width:34px;height:30px;font-weight:900}.notify-field-stack{padding:18px 16px 4px;display:grid;gap:22px}.notify-field{display:grid;gap:7px}.notify-field span{font-size:14px;font-weight:800;color:#111827}.notify-field input,.notify-field textarea{width:100%;box-sizing:border-box}.notify-select-field{grid-template-columns:1fr auto;align-items:start}.notify-select-field span,.notify-select-field small{grid-column:1}.notify-select-field select{grid-column:2;grid-row:1 / span 2}.notify-toggle-row{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:4px 0}.notify-save-row{display:flex;justify-content:flex-end;padding:8px 16px 18px}.komari-notify-settings-card.is-empty-channel{display:none}.komari-admin-shell .komari-notify-channel-row,.komari-admin-shell .komari-notify-settings-card{box-shadow:none!important;background:#fff!important}
+
+
+/* admin-theme-lang-return-final-20260607 */
+body.komari-admin-shell .btn-return{display:flex!important}.btn-return{min-height:34px;background:#eef2ff!important;color:#4f46e5!important;border:1px solid #d9ddff!important;border-radius:8px!important;text-decoration:none!important;font-weight:700!important}.admin-toolbar{position:sticky!important;top:0!important;display:flex!important;justify-content:flex-end!important;gap:10px!important;z-index:40!important;margin:0 0 14px!important}.admin-toolbar-btn,.admin-toolbar-select{border-radius:999px!important;padding:8px 12px!important;font-weight:800!important}.admin-day-mode.komari-admin-shell,.admin-day-mode.komari-admin-shell #admin-panel,.admin-day-mode.komari-admin-shell .admin-body,.admin-day-mode.komari-admin-shell .admin-nav,.admin-day-mode.komari-admin-shell .admin-page.active,.admin-day-mode.komari-admin-shell .komari-settings-page{background:#dff3ff!important;background-image:linear-gradient(180deg,#dff3ff 0%,#edf9ff 48%,#f7fbff 100%)!important}.admin-day-mode.komari-admin-shell .admin-nav{border-right-color:#c8e7f8!important}.admin-day-mode.komari-admin-shell .admin-page,.admin-day-mode.komari-admin-shell .admin-card,.admin-day-mode.komari-admin-shell .komari-panel,.admin-day-mode.komari-admin-shell .komari-notify-channel-row,.admin-day-mode.komari-admin-shell .komari-notify-settings-card,.admin-day-mode.komari-admin-shell .komari-notify-card{background:rgba(255,255,255,.92)!important}.admin-day-mode.komari-admin-shell .admin-toolbar-btn,.admin-day-mode.komari-admin-shell .admin-toolbar-select{background:#fff!important;color:#2563eb!important;border:1px solid #bae6fd!important}.admin-bridge-mode.komari-admin-shell,.admin-bridge-mode.komari-admin-shell #admin-panel,.admin-bridge-mode.komari-admin-shell .admin-body,.admin-bridge-mode.komari-admin-shell .admin-nav,.admin-bridge-mode.komari-admin-shell .admin-page.active,.admin-bridge-mode.komari-admin-shell .komari-settings-page{background:radial-gradient(circle at 20% 10%,rgba(0,168,255,.18),transparent 26%),radial-gradient(circle at 88% 0%,rgba(255,181,78,.12),transparent 20%),linear-gradient(180deg,#050814 0%,#091221 58%,#060b16 100%)!important}.admin-bridge-mode.komari-admin-shell .admin-page,.admin-bridge-mode.komari-admin-shell .admin-card,.admin-bridge-mode.komari-admin-shell .komari-panel,.admin-bridge-mode.komari-admin-shell .komari-notify-channel-row,.admin-bridge-mode.komari-admin-shell .komari-notify-settings-card,.admin-bridge-mode.komari-admin-shell .komari-notify-card{background:rgba(8,15,30,.84)!important;border-color:rgba(109,203,255,.18)!important;color:#eaf6ff!important}.admin-bridge-mode.komari-admin-shell .admin-nav{border-right-color:rgba(109,203,255,.18)!important}.admin-bridge-mode.komari-admin-shell .komari-page-head h2,.admin-bridge-mode.komari-admin-shell .komari-panel-title span,.admin-bridge-mode.komari-admin-shell .komari-notify-channel-row strong,.admin-bridge-mode.komari-admin-shell .komari-notify-settings-head strong,.admin-bridge-mode.komari-admin-shell .notify-field span,.admin-bridge-mode.komari-admin-shell .admin-nav-logo{color:#f3f8ff!important}.admin-bridge-mode.komari-admin-shell .komari-page-head p,.admin-bridge-mode.komari-admin-shell small,.admin-bridge-mode.komari-admin-shell .notify-field small{color:#9eb7d5!important}.admin-bridge-mode.komari-admin-shell .form-input,.admin-bridge-mode.komari-admin-shell input,.admin-bridge-mode.komari-admin-shell textarea{background:#07101f!important;color:#eff8ff!important;border-color:rgba(109,203,255,.24)!important}.admin-bridge-mode.komari-admin-shell .admin-toolbar-btn,.admin-bridge-mode.komari-admin-shell .admin-toolbar-select{background:#0b1428!important;color:#f3f8ff!important;border:1px solid rgba(109,203,255,.28)!important}.admin-bridge-mode.komari-admin-shell .btn-return{background:rgba(99,102,241,.18)!important;color:#dbeafe!important;border-color:rgba(109,203,255,.28)!important}
+
+
+/* admin-body-root-background-specificity-final-20260607 */
+html body.komari-admin-shell.admin-day-mode,
+html body.komari-admin-shell.admin-day-mode[style] {
+  background-color:#dff3ff!important;
+  background-image:linear-gradient(180deg,#dff3ff 0%,#edf9ff 48%,#f7fbff 100%)!important;
+}
+html body.komari-admin-shell.admin-bridge-mode,
+html body.komari-admin-shell.admin-bridge-mode[style] {
+  background-color:#050814!important;
+  background-image:radial-gradient(circle at 20% 10%,rgba(0,168,255,.18),transparent 26%),radial-gradient(circle at 88% 0%,rgba(255,181,78,.12),transparent 20%),linear-gradient(180deg,#050814 0%,#091221 58%,#060b16 100%)!important;
+}
+
+
+/* admin-unified-background-real-final-20260607
+   Contract: body owns the only page background. Shell/layout layers are transparent.
+   Sidebar/body/main/page must not paint separate panels. Cards/forms are foreground surfaces only. */
+html body.komari-admin-shell.admin-day-mode,
+html body.komari-admin-shell.admin-day-mode[style]{
+  background:#dff3ff!important;
+  background-image:linear-gradient(180deg,#dff3ff 0%,#edf9ff 46%,#f7fbff 100%)!important;
+}
+html body.komari-admin-shell.admin-bridge-mode,
+html body.komari-admin-shell.admin-bridge-mode[style]{
+  background:#050814!important;
+  background-image:radial-gradient(circle at 18% 8%,rgba(0,168,255,.20),transparent 26%),radial-gradient(circle at 84% 0%,rgba(255,181,78,.13),transparent 22%),linear-gradient(180deg,#050814 0%,#091221 58%,#060b16 100%)!important;
+}
+body.komari-admin-shell::before,
+body.komari-admin-shell::after{display:none!important;opacity:0!important}
+
+/* layout layers: no independent background */
+body.komari-admin-shell #admin-panel,
+body.komari-admin-shell .admin-body,
+body.komari-admin-shell .admin-nav,
+body.komari-admin-shell .admin-page,
+body.komari-admin-shell .admin-page.active,
+body.komari-admin-shell .komari-settings-page,
+body.komari-admin-shell .komari-node-page,
+body.komari-admin-shell .komari-account-page{
+  background:transparent!important;
+  background-image:none!important;
+  box-shadow:none!important;
+}
+body.komari-admin-shell .admin-nav{
+  border-right:1px solid rgba(99,102,241,.14)!important;
+  border-radius:0!important;
+}
+body.komari-admin-shell .admin-body{
+  padding:26px 34px!important;
+}
+body.komari-admin-shell .admin-content,
+body.komari-admin-shell .admin-main,
+body.komari-admin-shell .komari-settings-page,
+body.komari-admin-shell .komari-node-page,
+body.komari-admin-shell .komari-account-page{
+  max-width:1280px!important;
+  width:min(1280px,calc(100vw - 292px))!important;
+  margin:0!important;
+}
+
+/* foreground surfaces - day */
+body.komari-admin-shell.admin-day-mode .admin-card,
+body.komari-admin-shell.admin-day-mode .komari-panel,
+body.komari-admin-shell.admin-day-mode .komari-notify-channel-row,
+body.komari-admin-shell.admin-day-mode .komari-notify-settings-card,
+body.komari-admin-shell.admin-day-mode .komari-notify-card,
+body.komari-admin-shell.admin-day-mode .komari-table-wrap,
+body.komari-admin-shell.admin-day-mode .alert-rule-card,
+body.komari-admin-shell.admin-day-mode .tg-status,
+body.komari-admin-shell.admin-day-mode .komari-flat-section,
+body.komari-admin-shell.admin-day-mode .settings-card{
+  background:rgba(255,255,255,.90)!important;
+  background-image:none!important;
+  color:#111827!important;
+  border:1px solid rgba(203,213,225,.72)!important;
+  box-shadow:0 16px 38px rgba(31,42,68,.08)!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+body.komari-admin-shell.admin-day-mode .admin-toolbar-btn,
+body.komari-admin-shell.admin-day-mode .admin-toolbar-select,
+body.komari-admin-shell.admin-day-mode .btn-return{
+  background:rgba(255,255,255,.86)!important;
+  color:#4f46e5!important;
+  border-color:#c7d2fe!important;
+}
+body.komari-admin-shell.admin-day-mode .btn-logout{background:#fff1f2!important;color:#e11d48!important;border-color:#fecdd3!important}
+body.komari-admin-shell.admin-day-mode .admin-tab.active,
+body.komari-admin-shell.admin-day-mode .admin-subtab.active{background:#eeecff!important;color:#4f46e5!important}
+
+/* foreground surfaces - bridge */
+body.komari-admin-shell.admin-bridge-mode .admin-card,
+body.komari-admin-shell.admin-bridge-mode .komari-panel,
+body.komari-admin-shell.admin-bridge-mode .komari-notify-channel-row,
+body.komari-admin-shell.admin-bridge-mode .komari-notify-settings-card,
+body.komari-admin-shell.admin-bridge-mode .komari-notify-card,
+body.komari-admin-shell.admin-bridge-mode .komari-table-wrap,
+body.komari-admin-shell.admin-bridge-mode .alert-rule-card,
+body.komari-admin-shell.admin-bridge-mode .tg-status,
+body.komari-admin-shell.admin-bridge-mode .komari-flat-section,
+body.komari-admin-shell.admin-bridge-mode .settings-card{
+  background:rgba(8,15,30,.78)!important;
+  background-image:none!important;
+  color:#eaf6ff!important;
+  border:1px solid rgba(109,203,255,.20)!important;
+  box-shadow:0 18px 44px rgba(0,0,0,.28)!important;
+  backdrop-filter:blur(8px)!important;
+  -webkit-backdrop-filter:blur(8px)!important;
+}
+body.komari-admin-shell.admin-bridge-mode .admin-toolbar-btn,
+body.komari-admin-shell.admin-bridge-mode .admin-toolbar-select,
+body.komari-admin-shell.admin-bridge-mode .btn-return{
+  background:rgba(8,15,30,.78)!important;
+  color:#eaf6ff!important;
+  border-color:rgba(109,203,255,.24)!important;
+}
+body.komari-admin-shell.admin-bridge-mode .btn-logout{background:rgba(127,29,29,.40)!important;color:#fecaca!important;border-color:rgba(248,113,113,.28)!important}
+body.komari-admin-shell.admin-bridge-mode .admin-tab,
+body.komari-admin-shell.admin-bridge-mode .admin-subtab{color:#9eb7d5!important}
+body.komari-admin-shell.admin-bridge-mode .admin-tab.active,
+body.komari-admin-shell.admin-bridge-mode .admin-subtab.active{background:rgba(238,236,255,.92)!important;color:#4f46e5!important}
+body.komari-admin-shell.admin-bridge-mode h1,
+body.komari-admin-shell.admin-bridge-mode h2,
+body.komari-admin-shell.admin-bridge-mode h3,
+body.komari-admin-shell.admin-bridge-mode .komari-page-head h2,
+body.komari-admin-shell.admin-bridge-mode .komari-panel-title span,
+body.komari-admin-shell.admin-bridge-mode .notify-field span,
+body.komari-admin-shell.admin-bridge-mode strong{color:#f3f8ff!important}
+body.komari-admin-shell.admin-bridge-mode p,
+body.komari-admin-shell.admin-bridge-mode small,
+body.komari-admin-shell.admin-bridge-mode .komari-page-head p,
+body.komari-admin-shell.admin-bridge-mode .notify-field small{color:#9eb7d5!important}
+body.komari-admin-shell.admin-bridge-mode input,
+body.komari-admin-shell.admin-bridge-mode textarea,
+body.komari-admin-shell.admin-bridge-mode select,
+body.komari-admin-shell.admin-bridge-mode .form-input{
+  background:rgba(5,11,22,.82)!important;
+  color:#eff8ff!important;
+  border-color:rgba(109,203,255,.24)!important;
+}
+
+@media (max-width:900px){
+  body.komari-admin-shell .admin-content,
+  body.komari-admin-shell .admin-main,
+  body.komari-admin-shell .komari-settings-page,
+  body.komari-admin-shell .komari-node-page,
+  body.komari-admin-shell .komari-account-page{width:100%!important;max-width:none!important}
+}
+
+
+/* admin-structural-transparent-absolute-final-20260607
+   Only body paints the background. Every shell/layout structural layer is transparent. */
+html body.komari-admin-shell.admin-day-mode #admin-panel,
+html body.komari-admin-shell.admin-day-mode .admin-body,
+html body.komari-admin-shell.admin-day-mode .admin-nav,
+html body.komari-admin-shell.admin-day-mode .admin-page,
+html body.komari-admin-shell.admin-day-mode .admin-page.active,
+html body.komari-admin-shell.admin-day-mode .komari-settings-page,
+html body.komari-admin-shell.admin-day-mode .komari-node-page,
+html body.komari-admin-shell.admin-day-mode .komari-account-page,
+html body.komari-admin-shell.admin-bridge-mode #admin-panel,
+html body.komari-admin-shell.admin-bridge-mode .admin-body,
+html body.komari-admin-shell.admin-bridge-mode .admin-nav,
+html body.komari-admin-shell.admin-bridge-mode .admin-page,
+html body.komari-admin-shell.admin-bridge-mode .admin-page.active,
+html body.komari-admin-shell.admin-bridge-mode .komari-settings-page,
+html body.komari-admin-shell.admin-bridge-mode .komari-node-page,
+html body.komari-admin-shell.admin-bridge-mode .komari-account-page{
+  background-color:transparent!important;
+  background-image:none!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+
+
+/* admin-total-shell-unification-20260607
+   Final override: no page/template can own a separate background. */
+html{
+  min-height:100%!important;
+  background:#050814!important;
+}
+html:has(body.komari-admin-shell.admin-day-mode){
+  background:#dff3ff!important;
+  background-image:linear-gradient(180deg,#dff3ff 0%,#edf9ff 46%,#f7fbff 100%)!important;
+}
+html:has(body.komari-admin-shell.admin-bridge-mode){
+  background:#050814!important;
+  background-image:radial-gradient(circle at 18% 8%,rgba(0,168,255,.20),transparent 26%),radial-gradient(circle at 84% 0%,rgba(255,181,78,.13),transparent 22%),linear-gradient(180deg,#050814 0%,#091221 58%,#060b16 100%)!important;
+}
+html body.komari-admin-shell{
+  min-height:100vh!important;
+  background-attachment:fixed!important;
+  background-size:cover!important;
+  overflow-x:hidden!important;
+}
+html body.komari-admin-shell #admin-panel{
+  min-height:100vh!important;
+}
+html body.komari-admin-shell .admin-body{
+  min-height:100vh!important;
+}
+
+/* strict structural transparency, placed last */
+html body.komari-admin-shell #admin-panel,
+html body.komari-admin-shell .admin-body,
+html body.komari-admin-shell .admin-nav,
+html body.komari-admin-shell .admin-page,
+html body.komari-admin-shell .admin-page.active,
+html body.komari-admin-shell .komari-node-page,
+html body.komari-admin-shell .komari-settings-page,
+html body.komari-admin-shell .komari-account-page,
+html body.komari-admin-shell .komari-page,
+html body.komari-admin-shell .settings-grid,
+html body.komari-admin-shell .komari-settings-grid{
+  background:transparent!important;
+  background-color:transparent!important;
+  background-image:none!important;
+  box-shadow:none!important;
+}
+
+/* shared content width */
+html body.komari-admin-shell .admin-body > .admin-toolbar,
+html body.komari-admin-shell .admin-body > .admin-page,
+html body.komari-admin-shell .komari-node-page,
+html body.komari-admin-shell .komari-settings-page,
+html body.komari-admin-shell .komari-account-page{
+  width:min(1280px,calc(100vw - 292px))!important;
+  max-width:1280px!important;
+}
+
+/* DAY surfaces */
+html body.komari-admin-shell.admin-day-mode .admin-card,
+html body.komari-admin-shell.admin-day-mode .komari-panel,
+html body.komari-admin-shell.admin-day-mode .komari-table-wrap,
+html body.komari-admin-shell.admin-day-mode .komari-notify-channel-row,
+html body.komari-admin-shell.admin-day-mode .komari-notify-settings-card,
+html body.komari-admin-shell.admin-day-mode .komari-notify-card,
+html body.komari-admin-shell.admin-day-mode .komari-toggle-row,
+html body.komari-admin-shell.admin-day-mode .komari-session-card,
+html body.komari-admin-shell.admin-day-mode .komari-kv-box div,
+html body.komari-admin-shell.admin-day-mode .metric-tile,
+html body.komari-admin-shell.admin-day-mode .tg-status,
+html body.komari-admin-shell.admin-day-mode .agent-status-card,
+html body.komari-admin-shell.admin-day-mode .server-import-status,
+html body.komari-admin-shell.admin-day-mode .alert-rule-card,
+html body.komari-admin-shell.admin-day-mode .rule-card{
+  background:rgba(255,255,255,.90)!important;
+  background-image:none!important;
+  color:#111827!important;
+  border:1px solid rgba(203,213,225,.72)!important;
+  box-shadow:0 16px 38px rgba(31,42,68,.08)!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+html body.komari-admin-shell.admin-day-mode .komari-node-table thead th{
+  background:#cfe8fb!important;
+  color:#0f2540!important;
+}
+html body.komari-admin-shell.admin-day-mode .komari-node-table tbody td,
+html body.komari-admin-shell.admin-day-mode .komari-node-name,
+html body.komari-admin-shell.admin-day-mode .komari-node-toolbar h2,
+html body.komari-admin-shell.admin-day-mode .notify-field span,
+html body.komari-admin-shell.admin-day-mode .komari-notify-channel-row strong,
+html body.komari-admin-shell.admin-day-mode .komari-notify-settings-head strong{
+  color:#111827!important;
+}
+
+/* BRIDGE surfaces */
+html body.komari-admin-shell.admin-bridge-mode .admin-card,
+html body.komari-admin-shell.admin-bridge-mode .komari-panel,
+html body.komari-admin-shell.admin-bridge-mode .komari-table-wrap,
+html body.komari-admin-shell.admin-bridge-mode .komari-notify-channel-row,
+html body.komari-admin-shell.admin-bridge-mode .komari-notify-settings-card,
+html body.komari-admin-shell.admin-bridge-mode .komari-notify-card,
+html body.komari-admin-shell.admin-bridge-mode .komari-toggle-row,
+html body.komari-admin-shell.admin-bridge-mode .komari-session-card,
+html body.komari-admin-shell.admin-bridge-mode .komari-kv-box div,
+html body.komari-admin-shell.admin-bridge-mode .metric-tile,
+html body.komari-admin-shell.admin-bridge-mode .tg-status,
+html body.komari-admin-shell.admin-bridge-mode .agent-status-card,
+html body.komari-admin-shell.admin-bridge-mode .server-import-status,
+html body.komari-admin-shell.admin-bridge-mode .alert-rule-card,
+html body.komari-admin-shell.admin-bridge-mode .rule-card{
+  background:rgba(8,15,30,.78)!important;
+  background-image:none!important;
+  color:#eaf6ff!important;
+  border:1px solid rgba(109,203,255,.20)!important;
+  box-shadow:0 18px 44px rgba(0,0,0,.28)!important;
+  backdrop-filter:blur(8px)!important;
+  -webkit-backdrop-filter:blur(8px)!important;
+}
+html body.komari-admin-shell.admin-bridge-mode .komari-node-table{
+  color:#dbeafe!important;
+}
+html body.komari-admin-shell.admin-bridge-mode .komari-node-table thead th{
+  background:rgba(238,236,255,.92)!important;
+  color:#334155!important;
+}
+html body.komari-admin-shell.admin-bridge-mode .komari-node-table tbody tr:hover{
+  background:rgba(255,255,255,.06)!important;
+}
+html body.komari-admin-shell.admin-bridge-mode .komari-node-table tbody td,
+html body.komari-admin-shell.admin-bridge-mode .komari-node-name,
+html body.komari-admin-shell.admin-bridge-mode .komari-node-toolbar h2,
+html body.komari-admin-shell.admin-bridge-mode .notify-field span,
+html body.komari-admin-shell.admin-bridge-mode .komari-notify-channel-row strong,
+html body.komari-admin-shell.admin-bridge-mode .komari-notify-settings-head strong{
+  color:#f3f8ff!important;
+}
+html body.komari-admin-shell.admin-bridge-mode .komari-node-name small,
+html body.komari-admin-shell.admin-bridge-mode .notify-field small,
+html body.komari-admin-shell.admin-bridge-mode .komari-notify-channel-row small,
+html body.komari-admin-shell.admin-bridge-mode .komari-notify-settings-head small{
+  color:#9eb7d5!important;
+}
+
+/* inputs/toolbars/buttons consistent */
+html body.komari-admin-shell.admin-day-mode input,
+html body.komari-admin-shell.admin-day-mode textarea,
+html body.komari-admin-shell.admin-day-mode select,
+html body.komari-admin-shell.admin-day-mode .form-input,
+html body.komari-admin-shell.admin-day-mode .komari-search{
+  background:#fff!important;color:#111827!important;border-color:#d1d5db!important;
+}
+html body.komari-admin-shell.admin-bridge-mode input,
+html body.komari-admin-shell.admin-bridge-mode textarea,
+html body.komari-admin-shell.admin-bridge-mode select,
+html body.komari-admin-shell.admin-bridge-mode .form-input,
+html body.komari-admin-shell.admin-bridge-mode .komari-search{
+  background:rgba(5,11,22,.82)!important;color:#eff8ff!important;border-color:rgba(109,203,255,.24)!important;
+}
+
+@media(max-width:900px){
+  html body.komari-admin-shell .admin-body > .admin-toolbar,
+  html body.komari-admin-shell .admin-body > .admin-page,
+  html body.komari-admin-shell .komari-node-page,
+  html body.komari-admin-shell .komari-settings-page,
+  html body.komari-admin-shell .komari-account-page{width:100%!important;max-width:none!important}
+}
+
+
+/* admin-bottom-no-white-absolute-20260607 */
+html, body, body.komari-admin-shell{
+  min-height:100vh!important;
+  height:auto!important;
+  margin:0!important;
+}
+html:has(body.komari-admin-shell.admin-day-mode),
+body.komari-admin-shell.admin-day-mode{
+  background-color:#dff3ff!important;
+  background-image:linear-gradient(180deg,#dff3ff 0%,#edf9ff 46%,#f7fbff 100%)!important;
+  background-attachment:fixed!important;
+  background-size:100% 100%!important;
+  background-repeat:no-repeat!important;
+}
+html:has(body.komari-admin-shell.admin-bridge-mode),
+body.komari-admin-shell.admin-bridge-mode{
+  background-color:#050814!important;
+  background-image:radial-gradient(circle at 18% 8%,rgba(0,168,255,.20),transparent 26%),radial-gradient(circle at 84% 0%,rgba(255,181,78,.13),transparent 22%),linear-gradient(180deg,#050814 0%,#091221 58%,#060b16 100%)!important;
+  background-attachment:fixed!important;
+  background-size:cover!important;
+  background-repeat:no-repeat!important;
+}
+body.komari-admin-shell #admin-panel,
+body.komari-admin-shell .admin-body{
+  min-height:100vh!important;
+}
+
+
+/* admin-html-owns-background-body-transparent-20260607 */
+html body.komari-admin-shell,
+html body.komari-admin-shell.admin-day-mode,
+html body.komari-admin-shell.admin-bridge-mode{
+  background:transparent!important;
+  background-color:transparent!important;
+  background-image:none!important;
+}
+html:has(body.komari-admin-shell.admin-day-mode){
+  background-color:#dff3ff!important;
+  background-image:linear-gradient(180deg,#dff3ff 0%,#edf9ff 46%,#f7fbff 100%)!important;
+  background-attachment:fixed!important;
+  background-size:100% 100%!important;
+}
+html:has(body.komari-admin-shell.admin-bridge-mode){
+  background-color:#050814!important;
+  background-image:radial-gradient(circle at 18% 8%,rgba(0,168,255,.20),transparent 26%),radial-gradient(circle at 84% 0%,rgba(255,181,78,.13),transparent 22%),linear-gradient(180deg,#050814 0%,#091221 58%,#060b16 100%)!important;
+  background-attachment:fixed!important;
+  background-size:cover!important;
+}
+
+
+/* admin-source-real-unify-final-20260607 */
+html:has(body.komari-admin-shell.admin-day-mode){background:#dff3ff!important;background-image:linear-gradient(180deg,#dff3ff 0%,#edf9ff 46%,#f7fbff 100%)!important;background-attachment:fixed!important;background-repeat:no-repeat!important;background-size:100% 100%!important;min-height:100vh!important}
+html:has(body.komari-admin-shell.admin-bridge-mode){background:#050814!important;background-image:radial-gradient(circle at 18% 8%,rgba(0,168,255,.20),transparent 26%),radial-gradient(circle at 84% 0%,rgba(255,181,78,.13),transparent 22%),linear-gradient(180deg,#050814 0%,#091221 58%,#060b16 100%)!important;background-attachment:fixed!important;background-repeat:no-repeat!important;background-size:cover!important;min-height:100vh!important}
+html body.komari-admin-shell,html body.komari-admin-shell.admin-day-mode,html body.komari-admin-shell.admin-bridge-mode{background:transparent!important;background-color:transparent!important;background-image:none!important;min-height:100vh!important;margin:0!important}
+html body.komari-admin-shell #admin-panel,html body.komari-admin-shell .admin-body,html body.komari-admin-shell .admin-nav,html body.komari-admin-shell .admin-page,html body.komari-admin-shell .admin-page.active,html body.komari-admin-shell .komari-node-page,html body.komari-admin-shell .komari-settings-page,html body.komari-admin-shell .komari-account-page{background:transparent!important;background-color:transparent!important;background-image:none!important;box-shadow:none!important;min-height:100vh!important}
+html body.komari-admin-shell .admin-page{min-height:0!important}
+html body.komari-admin-shell .admin-body{padding:26px 34px!important}
+html body.komari-admin-shell .admin-body>.admin-toolbar,html body.komari-admin-shell .admin-body>.admin-page,html body.komari-admin-shell .komari-node-page,html body.komari-admin-shell .komari-settings-page,html body.komari-admin-shell .komari-account-page{width:min(1280px,calc(100vw - 292px))!important;max-width:1280px!important;margin:0!important}
+html body.komari-admin-shell.admin-day-mode .admin-card,html body.komari-admin-shell.admin-day-mode .komari-panel,html body.komari-admin-shell.admin-day-mode .komari-table-wrap,html body.komari-admin-shell.admin-day-mode .komari-notify-channel-row,html body.komari-admin-shell.admin-day-mode .komari-notify-settings-card,html body.komari-admin-shell.admin-day-mode .komari-notify-card,html body.komari-admin-shell.admin-day-mode .tg-status,html body.komari-admin-shell.admin-day-mode .tg-rule-card{background:rgba(255,255,255,.90)!important;background-image:none!important;color:#111827!important;border:1px solid rgba(203,213,225,.72)!important;box-shadow:0 16px 38px rgba(31,42,68,.08)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+html body.komari-admin-shell.admin-bridge-mode .admin-card,html body.komari-admin-shell.admin-bridge-mode .komari-panel,html body.komari-admin-shell.admin-bridge-mode .komari-table-wrap,html body.komari-admin-shell.admin-bridge-mode .komari-notify-channel-row,html body.komari-admin-shell.admin-bridge-mode .komari-notify-settings-card,html body.komari-admin-shell.admin-bridge-mode .komari-notify-card,html body.komari-admin-shell.admin-bridge-mode .tg-status,html body.komari-admin-shell.admin-bridge-mode .tg-rule-card{background:rgba(8,15,30,.78)!important;background-image:none!important;color:#eaf6ff!important;border:1px solid rgba(109,203,255,.20)!important;box-shadow:0 18px 44px rgba(0,0,0,.28)!important;backdrop-filter:blur(8px)!important;-webkit-backdrop-filter:blur(8px)!important}
+html body.komari-admin-shell.admin-day-mode .tg-rule-card strong,html body.komari-admin-shell.admin-day-mode .admin-card-title,html body.komari-admin-shell.admin-day-mode .form-label{color:#111827!important}
+html body.komari-admin-shell.admin-bridge-mode .tg-rule-card strong,html body.komari-admin-shell.admin-bridge-mode .admin-card-title,html body.komari-admin-shell.admin-bridge-mode .form-label{color:#f3f8ff!important}
+html body.komari-admin-shell.admin-bridge-mode .tg-rule-card div,html body.komari-admin-shell.admin-bridge-mode .tg-rule-card span{color:inherit}
+html body.komari-admin-shell.admin-day-mode input,html body.komari-admin-shell.admin-day-mode textarea,html body.komari-admin-shell.admin-day-mode select,html body.komari-admin-shell.admin-day-mode .form-input{background:#fff!important;color:#111827!important;border-color:#d1d5db!important}
+html body.komari-admin-shell.admin-bridge-mode input,html body.komari-admin-shell.admin-bridge-mode textarea,html body.komari-admin-shell.admin-bridge-mode select,html body.komari-admin-shell.admin-bridge-mode .form-input{background:rgba(5,11,22,.82)!important;color:#eff8ff!important;border-color:rgba(109,203,255,.24)!important}
+@media(max-width:900px){html body.komari-admin-shell .admin-body>.admin-toolbar,html body.komari-admin-shell .admin-body>.admin-page,html body.komari-admin-shell .komari-node-page,html body.komari-admin-shell .komari-settings-page,html body.komari-admin-shell .komari-account-page{width:100%!important;max-width:none!important}}
+
+
+/* admin-tg-rule-ping-item-unify-20260607 */
+html body.komari-admin-shell.admin-day-mode .ping-server-item,
+html body.komari-admin-shell.admin-day-mode .tg-rule-card{
+  background:rgba(255,255,255,.90)!important;
+  background-image:none!important;
+  color:#111827!important;
+  border:1px solid rgba(203,213,225,.72)!important;
+  box-shadow:0 16px 38px rgba(31,42,68,.08)!important;
+}
+html body.komari-admin-shell.admin-bridge-mode .ping-server-item,
+html body.komari-admin-shell.admin-bridge-mode .tg-rule-card{
+  background:rgba(8,15,30,.78)!important;
+  background-image:none!important;
+  color:#eaf6ff!important;
+  border:1px solid rgba(109,203,255,.20)!important;
+  box-shadow:0 18px 44px rgba(0,0,0,.28)!important;
+}
+html body.komari-admin-shell.admin-day-mode .ping-server-item strong{color:#111827!important}
+html body.komari-admin-shell.admin-bridge-mode .ping-server-item strong{color:#f3f8ff!important}
+html body.komari-admin-shell.admin-day-mode .ping-server-item div{color:#334155!important}
+html body.komari-admin-shell.admin-bridge-mode .ping-server-item div{color:#9eb7d5!important}
+
+
+/* admin-rule-card-day-bridge-disambiguation-final-20260607 */
+html:has(body.komari-admin-shell.admin-day-mode) body.komari-admin-shell .ping-server-item,
+html:has(body.komari-admin-shell.admin-day-mode) body.komari-admin-shell .tg-rule-card{
+  background:rgba(255,255,255,.90)!important;
+  background-color:rgba(255,255,255,.90)!important;
+  background-image:none!important;
+  color:#111827!important;
+  border-color:rgba(203,213,225,.72)!important;
+  box-shadow:0 16px 38px rgba(31,42,68,.08)!important;
+}
+html:has(body.komari-admin-shell.admin-day-mode) body.komari-admin-shell .ping-server-item strong,
+html:has(body.komari-admin-shell.admin-day-mode) body.komari-admin-shell .tg-rule-card strong{color:#111827!important}
+html:has(body.komari-admin-shell.admin-day-mode) body.komari-admin-shell .ping-server-item div,
+html:has(body.komari-admin-shell.admin-day-mode) body.komari-admin-shell .tg-rule-card div{color:#334155!important}
+html:has(body.komari-admin-shell.admin-bridge-mode) body.komari-admin-shell .ping-server-item,
+html:has(body.komari-admin-shell.admin-bridge-mode) body.komari-admin-shell .tg-rule-card{
+  background:rgba(8,15,30,.78)!important;
+  background-color:rgba(8,15,30,.78)!important;
+  background-image:none!important;
+  color:#eaf6ff!important;
+  border-color:rgba(109,203,255,.20)!important;
+  box-shadow:0 18px 44px rgba(0,0,0,.28)!important;
+}
+
+
+/* admin-real-single-bg-and-select-final-20260607
+   One background layer: html only. Foreground surfaces are opaque panels, not translucent duplicate backgrounds. */
+html body.komari-admin-shell,
+html body.komari-admin-shell #admin-panel,
+html body.komari-admin-shell .admin-body,
+html body.komari-admin-shell .admin-nav,
+html body.komari-admin-shell .admin-page,
+html body.komari-admin-shell .admin-page.active,
+html body.komari-admin-shell .komari-node-page,
+html body.komari-admin-shell .komari-settings-page,
+html body.komari-admin-shell .komari-account-page{
+  background:transparent!important;
+  background-color:transparent!important;
+  background-image:none!important;
+  box-shadow:none!important;
+}
+html:has(body.komari-admin-shell.admin-day-mode){
+  background:#dff3ff!important;
+  background-image:linear-gradient(180deg,#dff3ff 0%,#edf9ff 46%,#f7fbff 100%)!important;
+  background-attachment:fixed!important;
+  background-size:100% 100%!important;
+  background-repeat:no-repeat!important;
+}
+html:has(body.komari-admin-shell.admin-bridge-mode){
+  background:#050814!important;
+  background-image:radial-gradient(circle at 18% 8%,rgba(0,168,255,.20),transparent 26%),radial-gradient(circle at 84% 0%,rgba(255,181,78,.13),transparent 22%),linear-gradient(180deg,#050814 0%,#091221 58%,#060b16 100%)!important;
+  background-attachment:fixed!important;
+  background-size:cover!important;
+  background-repeat:no-repeat!important;
+}
+html body.komari-admin-shell.admin-day-mode .admin-card,
+html body.komari-admin-shell.admin-day-mode .komari-table-wrap,
+html body.komari-admin-shell.admin-day-mode .komari-panel,
+html body.komari-admin-shell.admin-day-mode .komari-notify-channel-row,
+html body.komari-admin-shell.admin-day-mode .komari-notify-settings-card,
+html body.komari-admin-shell.admin-day-mode .komari-notify-card,
+html body.komari-admin-shell.admin-day-mode .ping-server-item,
+html body.komari-admin-shell.admin-day-mode .tg-rule-card{
+  background:#ffffff!important;
+  background-color:#ffffff!important;
+  background-image:none!important;
+  color:#111827!important;
+  border-color:#d7e0ea!important;
+  box-shadow:0 16px 34px rgba(31,42,68,.08)!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+html body.komari-admin-shell.admin-bridge-mode .admin-card,
+html body.komari-admin-shell.admin-bridge-mode .komari-table-wrap,
+html body.komari-admin-shell.admin-bridge-mode .komari-panel,
+html body.komari-admin-shell.admin-bridge-mode .komari-notify-channel-row,
+html body.komari-admin-shell.admin-bridge-mode .komari-notify-settings-card,
+html body.komari-admin-shell.admin-bridge-mode .komari-notify-card,
+html body.komari-admin-shell.admin-bridge-mode .ping-server-item,
+html body.komari-admin-shell.admin-bridge-mode .tg-rule-card{
+  background:#081326!important;
+  background-color:#081326!important;
+  background-image:none!important;
+  color:#eaf6ff!important;
+  border-color:rgba(109,203,255,.22)!important;
+  box-shadow:0 18px 44px rgba(0,0,0,.30)!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+/* Keep alert-rule channel/target controls visible instead of overflowing off-screen. */
+html body.komari-admin-shell .tp-rule-form-grid{
+  display:grid!important;
+  grid-template-columns:repeat(auto-fit,minmax(180px,1fr))!important;
+  gap:12px!important;
+  align-items:end!important;
+}
+html body.komari-admin-shell .tp-rule-channel-field,
+html body.komari-admin-shell .tp-rule-target-field{
+  min-width:220px!important;
+}
+html body.komari-admin-shell #tp-rule-bot,
+html body.komari-admin-shell #tp-rule-chat{
+  min-width:100%!important;
+  max-width:100%!important;
+  appearance:auto!important;
+  -webkit-appearance:menulist!important;
+}
+@media (min-width:1180px){
+  html body.komari-admin-shell .tp-rule-channel-field,
+  html body.komari-admin-shell .tp-rule-target-field{
+    grid-column:span 2;
+  }
+}
+
+/* Make notification channel select visibly clickable and above local card content */
+html body.komari-admin-shell .komari-notify-channel-row,
+html body.komari-admin-shell .komari-notify-settings-card{
+  position:relative!important;
+  overflow:visible!important;
+}
+html body.komari-admin-shell #notify-channel,
+html body.komari-admin-shell .notify-select{
+  pointer-events:auto!important;
+  position:relative!important;
+  z-index:30!important;
+  cursor:pointer!important;
+  min-width:190px!important;
+  padding-right:36px!important;
+  appearance:auto!important;
+  -webkit-appearance:menulist!important;
+}
+html body.komari-admin-shell.admin-day-mode #notify-channel,
+html body.komari-admin-shell.admin-day-mode .notify-select{
+  background:#fff!important;
+  color:#111827!important;
+  border:1px solid #cbd5e1!important;
+}
+html body.komari-admin-shell.admin-bridge-mode #notify-channel,
+html body.komari-admin-shell.admin-bridge-mode .notify-select{
+  background:#07101f!important;
+  color:#eff8ff!important;
+  border:1px solid rgba(109,203,255,.30)!important;
+}
+
+
+/* admin-remove-structural-backdrop-final-20260607
+   Structure layers must not blur/tint the root background. */
+html body.komari-admin-shell #admin-panel,
+html body.komari-admin-shell .admin-body,
+html body.komari-admin-shell .admin-nav,
+html body.komari-admin-shell .admin-page,
+html body.komari-admin-shell .admin-page.active,
+html body.komari-admin-shell .komari-node-page,
+html body.komari-admin-shell .komari-settings-page,
+html body.komari-admin-shell .komari-account-page{
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  filter:none!important;
+}
+
+
+/* admin-soft-surface-select-collapse-final-20260607 */
+html body.komari-admin-shell.admin-day-mode .admin-card,
+html body.komari-admin-shell.admin-day-mode .komari-panel,
+html body.komari-admin-shell.admin-day-mode .komari-table-wrap,
+html body.komari-admin-shell.admin-day-mode .komari-notify-channel-row,
+html body.komari-admin-shell.admin-day-mode .komari-notify-settings-card,
+html body.komari-admin-shell.admin-day-mode .komari-notify-card,
+html body.komari-admin-shell.admin-day-mode .komari-toggle-row,
+html body.komari-admin-shell.admin-day-mode .settings-row,
+html body.komari-admin-shell.admin-day-mode .ping-server-item,
+html body.komari-admin-shell.admin-day-mode .tg-rule-card{
+  background:#eef7ff!important;
+  background-color:#eef7ff!important;
+  background-image:none!important;
+  color:#172033!important;
+  border-color:#bfddf1!important;
+  box-shadow:0 14px 30px rgba(73,103,138,.10)!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+html body.komari-admin-shell.admin-day-mode input,
+html body.komari-admin-shell.admin-day-mode textarea,
+html body.komari-admin-shell.admin-day-mode select,
+html body.komari-admin-shell.admin-day-mode .form-input,
+html body.komari-admin-shell.admin-day-mode .notify-select,
+html body.komari-admin-shell.admin-day-mode .admin-toolbar-select{
+  background:#e4f2ff!important;
+  background-color:#e4f2ff!important;
+  color:#172033!important;
+  border:1px solid #accfe8!important;
+  box-shadow:none!important;
+}
+html body.komari-admin-shell.admin-day-mode .admin-toolbar-btn,
+html body.komari-admin-shell.admin-day-mode .notify-collapse{
+  background:#d9ecff!important;
+  color:#3152c9!important;
+  border:1px solid #b7d7f3!important;
+}
+html body.komari-admin-shell.admin-bridge-mode input,
+html body.komari-admin-shell.admin-bridge-mode textarea,
+html body.komari-admin-shell.admin-bridge-mode select,
+html body.komari-admin-shell.admin-bridge-mode .form-input,
+html body.komari-admin-shell.admin-bridge-mode .notify-select,
+html body.komari-admin-shell.admin-bridge-mode .admin-toolbar-select{
+  background:#07101f!important;
+  background-color:#07101f!important;
+  color:#eff8ff!important;
+  border:1px solid rgba(109,203,255,.30)!important;
+  box-shadow:none!important;
+}
+html body.komari-admin-shell.admin-bridge-mode .notify-collapse{
+  background:#121f3a!important;
+  color:#dbeafe!important;
+  border:1px solid rgba(109,203,255,.30)!important;
+}
+#admin-settings-subtabs{display:grid;gap:4px;transition:max-height .18s ease,opacity .18s ease;overflow:hidden;max-height:260px;opacity:1}
+#admin-settings-subtabs.is-collapsed{max-height:0!important;opacity:0!important;margin:0!important;padding:0!important;pointer-events:none!important}
+.komari-notify-settings-card.is-collapsed #notify-channel-fields,
+.komari-notify-settings-card.is-collapsed .notify-save-row,
+.komari-notify-settings-card.is-collapsed #notify-msg{display:none!important}
+.komari-notify-settings-card.is-collapsed{overflow:hidden!important}
+.notify-collapse{cursor:pointer!important;pointer-events:auto!important;position:relative!important;z-index:5!important}
+html body.komari-admin-shell #notify-channel,
+html body.komari-admin-shell .notify-select,
+html body.komari-admin-shell select.form-input{
+  cursor:pointer!important;
+  appearance:auto!important;
+  -webkit-appearance:menulist!important;
+  pointer-events:auto!important;
+  position:relative!important;
+  z-index:30!important;
+}
+
+
+/* admin-notify-select-day-nonwhite-final-20260607 */
+html body.komari-admin-shell.admin-day-mode #notify-channel.notify-select,
+html body.komari-admin-shell.admin-day-mode .komari-notify-channel-row #notify-channel,
+html body.komari-admin-shell.admin-day-mode .komari-notify-channel-row select.notify-select{
+  background:#e4f2ff!important;
+  background-color:#e4f2ff!important;
+  color:#172033!important;
+  border:1px solid #accfe8!important;
+}
+
+
+/* admin-real-background-select-collapse-live-final-20260607 */
+html:has(body.komari-admin-shell.admin-day-mode){background:#dff3ff!important;background-image:linear-gradient(180deg,#dff3ff 0%,#edf9ff 48%,#f7fbff 100%)!important;background-attachment:fixed!important;background-size:cover!important;background-repeat:no-repeat!important;}
+html:has(body.komari-admin-shell.admin-bridge-mode){background:#050814!important;background-image:radial-gradient(circle at 18% 8%,rgba(0,168,255,.20),transparent 26%),radial-gradient(circle at 84% 0%,rgba(255,181,78,.13),transparent 22%),linear-gradient(180deg,#050814 0%,#091221 58%,#060b16 100%)!important;background-attachment:fixed!important;background-size:cover!important;background-repeat:no-repeat!important;}
+html body.komari-admin-shell,html body.komari-admin-shell #admin-panel,html body.komari-admin-shell .admin-body,html body.komari-admin-shell .admin-nav,html body.komari-admin-shell .admin-page,html body.komari-admin-shell .admin-page.active,html body.komari-admin-shell .komari-node-page,html body.komari-admin-shell .komari-settings-page,html body.komari-admin-shell .komari-account-page{background:transparent!important;background-color:transparent!important;background-image:none!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;filter:none!important;}
+html body.komari-admin-shell.admin-day-mode .admin-card,html body.komari-admin-shell.admin-day-mode .komari-panel,html body.komari-admin-shell.admin-day-mode .komari-table-wrap,html body.komari-admin-shell.admin-day-mode .komari-notify-channel-row,html body.komari-admin-shell.admin-day-mode .komari-notify-settings-card,html body.komari-admin-shell.admin-day-mode .komari-notify-card,html body.komari-admin-shell.admin-day-mode .komari-toggle-row,html body.komari-admin-shell.admin-day-mode .settings-row,html body.komari-admin-shell.admin-day-mode .ping-server-item,html body.komari-admin-shell.admin-day-mode .tg-rule-card,html body.komari-admin-shell.admin-day-mode .tg-status{background:#eef7ff!important;background-color:#eef7ff!important;background-image:none!important;color:#172033!important;border-color:#bfddf1!important;box-shadow:0 14px 30px rgba(73,103,138,.10)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}
+html body.komari-admin-shell.admin-bridge-mode .admin-card,html body.komari-admin-shell.admin-bridge-mode .komari-panel,html body.komari-admin-shell.admin-bridge-mode .komari-table-wrap,html body.komari-admin-shell.admin-bridge-mode .komari-notify-channel-row,html body.komari-admin-shell.admin-bridge-mode .komari-notify-settings-card,html body.komari-admin-shell.admin-bridge-mode .komari-notify-card,html body.komari-admin-shell.admin-bridge-mode .komari-toggle-row,html body.komari-admin-shell.admin-bridge-mode .settings-row,html body.komari-admin-shell.admin-bridge-mode .ping-server-item,html body.komari-admin-shell.admin-bridge-mode .tg-rule-card,html body.komari-admin-shell.admin-bridge-mode .tg-status{background:#081326!important;background-color:#081326!important;background-image:none!important;color:#eaf6ff!important;border-color:rgba(109,203,255,.22)!important;box-shadow:0 18px 44px rgba(0,0,0,.30)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}
+html body.komari-admin-shell.admin-day-mode input,html body.komari-admin-shell.admin-day-mode textarea,html body.komari-admin-shell.admin-day-mode select,html body.komari-admin-shell.admin-day-mode .form-input,html body.komari-admin-shell.admin-day-mode .notify-select,html body.komari-admin-shell.admin-day-mode .admin-toolbar-select,html body.komari-admin-shell.admin-day-mode #notify-channel.notify-select{background:#e4f2ff!important;background-color:#e4f2ff!important;color:#172033!important;border:1px solid #accfe8!important;box-shadow:none!important;}
+html body.komari-admin-shell.admin-bridge-mode input,html body.komari-admin-shell.admin-bridge-mode textarea,html body.komari-admin-shell.admin-bridge-mode select,html body.komari-admin-shell.admin-bridge-mode .form-input,html body.komari-admin-shell.admin-bridge-mode .notify-select,html body.komari-admin-shell.admin-bridge-mode .admin-toolbar-select,html body.komari-admin-shell.admin-bridge-mode #notify-channel.notify-select{background:#07101f!important;background-color:#07101f!important;color:#eff8ff!important;border:1px solid rgba(109,203,255,.30)!important;box-shadow:none!important;}
+html body.komari-admin-shell #notify-channel,html body.komari-admin-shell .notify-select,html body.komari-admin-shell select.form-input,html body.komari-admin-shell .admin-toolbar-select{cursor:pointer!important;appearance:auto!important;-webkit-appearance:menulist!important;pointer-events:auto!important;position:relative!important;z-index:30!important;min-width:190px!important;}
+#admin-settings-subtabs{display:grid;gap:4px;transition:max-height .18s ease,opacity .18s ease;overflow:hidden;max-height:260px;opacity:1}
+#admin-settings-subtabs.is-collapsed{max-height:0!important;opacity:0!important;margin:0!important;padding:0!important;pointer-events:none!important}
+.komari-notify-settings-card.is-collapsed #notify-channel-fields,.komari-notify-settings-card.is-collapsed .notify-save-row,.komari-notify-settings-card.is-collapsed #notify-msg{display:none!important}
+.komari-notify-settings-card.is-collapsed{overflow:hidden!important}.notify-collapse{cursor:pointer!important;pointer-events:auto!important;position:relative!important;z-index:5!important}
+
+
+/* site icon + backup tools */
+.komari-site-bottom-tools{margin-top:22px;border-top:1px solid var(--border);padding-top:18px;display:grid;gap:12px}
+.komari-setting-card,.komari-backup-row{display:flex;align-items:center;justify-content:space-between;gap:16px;border:1px solid var(--border);background:rgba(99,102,241,.045);border-radius:12px;padding:14px 16px}
+.komari-setting-copy strong,.komari-backup-row strong{display:block;font-size:14px;color:var(--text-main)}
+.komari-setting-copy small,.komari-backup-row small{display:block;margin-top:5px;font-size:12px;line-height:1.45;color:var(--text-muted)}
+.favicon-preview-wrap{display:flex;align-items:center;gap:10px;flex-shrink:0}.favicon-preview{width:38px;height:38px;border-radius:50%;object-fit:cover;border:1px solid var(--border);background:#111827;box-shadow:0 6px 16px rgba(15,23,42,.18)}.favicon-state{font-size:11px;border:1px solid var(--border);border-radius:999px;padding:4px 8px;color:var(--text-muted);background:rgba(255,255,255,.55)}.favicon-state.custom{color:#4f46e5;background:#eeecff;border-color:#c7d2fe}.komari-danger{border:0;border-radius:10px;padding:9px 16px;cursor:pointer;font-weight:700;font-size:13px;background:#ef4444;color:#fff}.komari-danger:hover{filter:brightness(.95)}.komari-backup-list{display:grid;gap:10px}.komari-icon-button{width:36px;height:36px;border:0;border-radius:10px;cursor:pointer;color:#fff;font-weight:900;font-size:20px;line-height:1;display:grid;place-items:center}.komari-icon-button.blue{background:#3b82f6}.komari-secondary.purple{background:#8b5cf6!important;color:#fff!important;border-color:#8b5cf6!important}.komari-panel-title.sub{margin-top:12px}.komari-panel-title.sub:first-child{margin-top:0}
+@media(max-width:760px){.komari-setting-card,.komari-backup-row{align-items:flex-start;flex-direction:column}.favicon-preview-wrap{align-self:flex-end}}
+
+
+/* notify enable + message template */
+.komari-notify-master-card,.komari-notify-template-card{border:1px solid var(--border);background:rgba(255,255,255,.72);border-radius:12px;padding:16px;margin-bottom:14px}.komari-notify-master-card{display:flex;align-items:center;justify-content:space-between;gap:16px}.komari-notify-master-card strong,.komari-notify-template-card strong{display:block;font-size:15px;color:var(--text-main)}.komari-notify-master-card small,.komari-notify-template-card small{display:block;margin-top:6px;font-size:12px;line-height:1.45;color:var(--text-muted)}.notify-template-box{margin-top:14px;min-height:178px;resize:vertical;line-height:1.6;font-family:var(--mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);background:#fff!important;color:#111827!important;border-color:#d1d5db!important}.komari-notify-template-card .notify-save-row{margin-top:12px;justify-content:flex-start}body.komari-admin-shell.admin-bridge-mode .komari-notify-master-card,body.komari-admin-shell.admin-bridge-mode .komari-notify-template-card{background:rgba(9,18,34,.74)}body.komari-admin-shell.admin-bridge-mode .notify-template-box{background:rgba(2,6,23,.78)!important;color:#edf6ff!important;border-color:rgba(102,217,255,.20)!important}
+
+
+/* default-theme-management-20260607 */
+.komari-theme-page{display:grid;gap:16px;max-width:980px}.theme-head{align-items:center}.theme-management-panel{padding:20px!important}.theme-section-title{font-size:16px;margin:0 0 16px;color:var(--text-main)}.theme-setting-row,.theme-field-block{border:1px solid #e5e7eb;background:#fff;border-radius:10px;padding:15px 16px;margin-bottom:14px}.theme-setting-row{display:flex;align-items:center;justify-content:space-between;gap:18px}.theme-setting-row strong,.theme-field-block strong{display:block;font-size:14px;color:#111827;margin-bottom:6px}.theme-setting-row small,.theme-field-block small{display:block;font-size:12px;color:#6b7280;line-height:1.45}.theme-field-block .form-input{margin-top:11px;width:100%}.theme-select{max-width:150px;margin-left:auto}.theme-action-row{display:flex;align-items:center;gap:12px;margin-top:4px}.theme-field-block textarea{min-height:150px;resize:vertical}body.komari-admin-shell.admin-bridge-mode .theme-setting-row,body.komari-admin-shell.admin-bridge-mode .theme-field-block{background:rgba(8,15,30,.78)!important;border-color:rgba(109,203,255,.24)!important}body.komari-admin-shell.admin-bridge-mode .theme-setting-row strong,body.komari-admin-shell.admin-bridge-mode .theme-field-block strong{color:#eff8ff!important}body.komari-admin-shell.admin-bridge-mode .theme-setting-row small,body.komari-admin-shell.admin-bridge-mode .theme-field-block small{color:#9db8d6!important}
+
+/* show-default-theme-management-nav-20260607 */
+body.komari-admin-shell .admin-tab[data-tab="theme"]{display:flex!important}
+
+
+/* login-komari-sso-api-20260607 */
+.komari-login-panel{max-width:980px;padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important}.login-section-heading{font-size:17px;margin:20px 0 12px;color:var(--text-main)}.login-section-heading.first{margin-top:0}.login-setting-row,.login-param-card,.login-api-card{border:1px solid #e5e7eb;background:#fff;border-radius:10px;padding:15px 16px;margin-bottom:14px}.login-setting-row{display:flex;align-items:center;justify-content:space-between;gap:18px}.login-setting-row strong,.login-param-head strong,.login-api-card strong{display:block;font-size:14px;color:#111827}.login-setting-row small,.login-param-head small,.login-api-card small{display:block;margin-top:6px;color:#6b7280;font-size:12px;line-height:1.45}.login-provider-select{min-width:150px;border:0;background:#eef2ff;color:#4f46e5;border-radius:7px;padding:8px 10px;font-weight:650}.login-param-head{display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid #e5e7eb;padding-bottom:14px;margin-bottom:14px}.login-collapse{width:34px;height:34px;border:0;border-radius:7px;background:#eef2ff;color:#4f46e5;cursor:pointer}.login-param-card.is-collapsed .login-param-fields,.login-param-card.is-collapsed .login-callback,.login-param-card.is-collapsed .login-save-row{display:none}.login-param-field{display:block;margin-bottom:13px}.login-param-field span{display:block;font-size:13px;font-weight:650;color:#111827;margin-bottom:7px}.login-callback{font-size:12px;color:#374151;margin:8px 0 14px}.login-save-row{display:flex;justify-content:flex-end}.login-api-card .form-input{margin-top:12px}.login-api-actions{display:flex;flex-direction:column;align-items:flex-start;gap:9px;margin-top:12px}.login-generate{border:0;border-radius:6px;background:#dcfce7;color:#15803d;padding:8px 14px;font-weight:650;cursor:pointer}body.komari-admin-shell.admin-bridge-mode .login-setting-row,body.komari-admin-shell.admin-bridge-mode .login-param-card,body.komari-admin-shell.admin-bridge-mode .login-api-card{background:#081326!important;border-color:rgba(109,203,255,.24)!important}body.komari-admin-shell.admin-bridge-mode .login-setting-row strong,body.komari-admin-shell.admin-bridge-mode .login-param-head strong,body.komari-admin-shell.admin-bridge-mode .login-api-card strong,body.komari-admin-shell.admin-bridge-mode .login-param-field span{color:#eff8ff!important}body.komari-admin-shell.admin-bridge-mode .login-setting-row small,body.komari-admin-shell.admin-bridge-mode .login-param-head small,body.komari-admin-shell.admin-bridge-mode .login-api-card small,body.komari-admin-shell.admin-bridge-mode .login-callback{color:#9db8d6!important}
+
+
+/* Session management table */
+.session-admin-card{max-width:none}.session-toolbar{align-items:flex-start}.session-danger-btn{border:0;border-radius:8px;background:#ef4444;color:#fff;padding:9px 14px;font-weight:700;cursor:pointer}.session-danger-btn:hover{background:#dc2626}.sessions-table th{background:#f1efff;color:#374151}.sessions-table td{vertical-align:middle}.session-id-short{font-family:var(--mono,monospace);background:transparent;color:inherit}.session-current{color:#2563eb;font-weight:700}.session-delete-link{border:0;background:transparent;color:#dc2626;font-weight:700;cursor:pointer;padding:4px 0}.session-delete-link:hover{text-decoration:underline}body.komari-admin-shell.admin-day-mode .sessions-table th{background:#f1efff!important;color:#111827!important}body.komari-admin-shell.admin-day-mode .session-danger-btn{background:#ef4444!important;color:#fff!important}
+
+/* 延迟监控：按协议处理端口字段 */
+.komari-target-row{grid-template-columns:96px 1fr 92px minmax(160px,1.25fr) minmax(132px,.9fr) auto;align-items:start}
+.pt-port-field{display:grid;gap:4px;margin:0}
+.pt-port-field small{font-size:10px;line-height:1.25;color:var(--text-muted)}
+.pt-port-field.is-disabled input{opacity:.55;cursor:not-allowed}
+.pt-port-field.is-required small{color:var(--primary)}
+.pt-port-field.is-optional small{color:var(--text-muted)}
+@media(max-width:980px){.komari-target-row{grid-template-columns:1fr 1fr}.pt-port-field{grid-column:auto}}
+
+/* admin-design-system-v2-20260607: global polish across all backend tabs */
+html body.komari-admin-shell {
+  --admin-surface: rgba(8, 19, 38, .86);
+  --admin-surface-soft: rgba(11, 28, 54, .74);
+  --admin-line: rgba(109, 203, 255, .22);
+  --admin-line-strong: rgba(109, 203, 255, .36);
+  --admin-text: #eaf6ff;
+  --admin-muted: #91add0;
+  --admin-accent: #66d9ff;
+  --admin-accent-2: #ffb454;
+  --admin-radius: 18px;
+  letter-spacing: .005em;
+}
+html body.komari-admin-shell.admin-day-mode {
+  --admin-surface: rgba(247, 252, 255, .88);
+  --admin-surface-soft: rgba(235, 246, 255, .80);
+  --admin-line: rgba(134, 177, 211, .42);
+  --admin-line-strong: rgba(92, 146, 190, .55);
+  --admin-text: #152033;
+  --admin-muted: #5f728a;
+  --admin-accent: #3152c9;
+  --admin-accent-2: #b66a12;
+}
+html body.komari-admin-shell .admin-nav {
+  width: 286px !important;
+  padding: 22px 18px !important;
+  border-right: 1px solid var(--admin-line) !important;
+  background: linear-gradient(180deg, rgba(6,14,29,.90), rgba(6,14,29,.66)) !important;
+  box-shadow: 18px 0 42px rgba(0,0,0,.22) !important;
+}
+html body.komari-admin-shell.admin-day-mode .admin-nav {
+  background: linear-gradient(180deg, rgba(241,249,255,.92), rgba(225,240,252,.78)) !important;
+  box-shadow: 18px 0 38px rgba(91,126,156,.10) !important;
+}
+html body.komari-admin-shell .admin-nav-logo {
+  margin-bottom: 22px !important;
+  padding: 13px 14px !important;
+  border: 1px solid var(--admin-line) !important;
+  border-radius: 18px !important;
+  background: linear-gradient(135deg, rgba(102,217,255,.09), rgba(255,180,84,.055)) !important;
+  color: var(--admin-text) !important;
+}
+html body.komari-admin-shell .admin-tab,
+html body.komari-admin-shell .admin-subtab {
+  min-height: 42px !important;
+  border: 1px solid transparent !important;
+  border-radius: 14px !important;
+  color: var(--admin-muted) !important;
+  justify-content: flex-start !important;
+}
+html body.komari-admin-shell .admin-tab:hover,
+html body.komari-admin-shell .admin-subtab:hover {
+  background: rgba(102,217,255,.09) !important;
+  border-color: var(--admin-line) !important;
+  color: var(--admin-text) !important;
+  transform: translateX(2px);
+}
+html body.komari-admin-shell .admin-tab.active,
+html body.komari-admin-shell .admin-subtab.active {
+  background: linear-gradient(135deg, rgba(102,217,255,.20), rgba(255,180,84,.14)) !important;
+  border-color: var(--admin-line-strong) !important;
+  color: var(--admin-text) !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.04), 0 10px 26px rgba(0,0,0,.18) !important;
+}
+html body.komari-admin-shell .admin-body {
+  padding: 28px !important;
+}
+html body.komari-admin-shell .admin-page.active {
+  max-width: 1480px !important;
+  margin: 0 auto !important;
+}
+html body.komari-admin-shell .admin-section-title,
+html body.komari-admin-shell .komari-page-head h2,
+html body.komari-admin-shell .komari-node-toolbar h2,
+html body.komari-admin-shell .admin-card-title,
+html body.komari-admin-shell .komari-panel-title span,
+html body.komari-admin-shell .theme-section-title {
+  color: var(--admin-text) !important;
+  text-shadow: 0 0 18px rgba(102,217,255,.10) !important;
+}
+html body.komari-admin-shell .admin-card,
+html body.komari-admin-shell .komari-panel,
+html body.komari-admin-shell .komari-table-wrap,
+html body.komari-admin-shell .komari-flat-section,
+html body.komari-admin-shell .session-admin-card,
+html body.komari-admin-shell .theme-setting-row,
+html body.komari-admin-shell .theme-field-block,
+html body.komari-admin-shell .login-setting-row,
+html body.komari-admin-shell .login-param-card,
+html body.komari-admin-shell .login-api-card,
+html body.komari-admin-shell .komari-setting-card,
+html body.komari-admin-shell .komari-backup-row,
+html body.komari-admin-shell .komari-notify-master-card,
+html body.komari-admin-shell .komari-notify-template-card,
+html body.komari-admin-shell .komari-notify-channel-row,
+html body.komari-admin-shell .komari-notify-settings-card,
+html body.komari-admin-shell .komari-notify-card,
+html body.komari-admin-shell .tg-rule-card,
+html body.komari-admin-shell .ping-server-item {
+  background: var(--admin-surface) !important;
+  color: var(--admin-text) !important;
+  border: 1px solid var(--admin-line) !important;
+  border-radius: var(--admin-radius) !important;
+  box-shadow: 0 18px 46px rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.035) !important;
+}
+html body.komari-admin-shell .admin-card + .admin-card,
+html body.komari-admin-shell .komari-panel + .komari-panel { margin-top: 18px !important; }
+html body.komari-admin-shell small,
+html body.komari-admin-shell .acct-subtle,
+html body.komari-admin-shell .komari-note,
+html body.komari-admin-shell .metric-d,
+html body.komari-admin-shell .form-label,
+html body.komari-admin-shell .komari-panel-title small {
+  color: var(--admin-muted) !important;
+}
+html body.komari-admin-shell input,
+html body.komari-admin-shell textarea,
+html body.komari-admin-shell select,
+html body.komari-admin-shell .form-input,
+html body.komari-admin-shell .notify-select,
+html body.komari-admin-shell .admin-toolbar-select {
+  min-height: 38px !important;
+  border-radius: 12px !important;
+  background: var(--admin-surface-soft) !important;
+  color: var(--admin-text) !important;
+  border: 1px solid var(--admin-line) !important;
+  outline: none !important;
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease !important;
+}
+html body.komari-admin-shell input:focus,
+html body.komari-admin-shell textarea:focus,
+html body.komari-admin-shell select:focus,
+html body.komari-admin-shell .form-input:focus {
+  border-color: var(--admin-accent) !important;
+  box-shadow: 0 0 0 3px rgba(102,217,255,.13) !important;
+}
+html body.komari-admin-shell .add-btn,
+html body.komari-admin-shell .komari-primary,
+html body.komari-admin-shell .komari-secondary,
+html body.komari-admin-shell .login-btn,
+html body.komari-admin-shell .admin-toolbar-btn,
+html body.komari-admin-shell .btn-return,
+html body.komari-admin-shell .btn-logout {
+  border-radius: 12px !important;
+  border: 1px solid var(--admin-line) !important;
+  box-shadow: 0 10px 24px rgba(0,0,0,.14) !important;
+  font-weight: 750 !important;
+}
+html body.komari-admin-shell .komari-primary,
+html body.komari-admin-shell .add-btn,
+html body.komari-admin-shell .login-btn {
+  background: linear-gradient(135deg, var(--admin-accent), #4f83ff) !important;
+  color: #fff !important;
+  border-color: rgba(255,255,255,.18) !important;
+}
+html body.komari-admin-shell .komari-secondary,
+html body.komari-admin-shell .admin-toolbar-btn,
+html body.komari-admin-shell .btn-return {
+  background: var(--admin-surface-soft) !important;
+  color: var(--admin-text) !important;
+}
+html body.komari-admin-shell table { border-collapse: separate !important; border-spacing: 0 !important; }
+html body.komari-admin-shell th {
+  background: rgba(102,217,255,.10) !important;
+  color: var(--admin-text) !important;
+  border-bottom: 1px solid var(--admin-line) !important;
+}
+html body.komari-admin-shell td {
+  color: var(--admin-text) !important;
+  border-top: 1px solid rgba(128,170,210,.14) !important;
+}
+html body.komari-admin-shell tr:hover td { background: rgba(102,217,255,.055) !important; }
+html body.komari-admin-shell .metric-tile,
+html body.komari-admin-shell .komari-kv-box > div {
+  background: var(--admin-surface-soft) !important;
+  border: 1px solid rgba(128,170,210,.18) !important;
+  border-radius: 14px !important;
+}
+html body.komari-admin-shell .komari-modal-backdrop { backdrop-filter: blur(10px) !important; -webkit-backdrop-filter: blur(10px) !important; }
+html body.komari-admin-shell .komari-modal,
+html body.komari-admin-shell .login-box {
+  background: var(--admin-surface) !important;
+  color: var(--admin-text) !important;
+  border: 1px solid var(--admin-line-strong) !important;
+  border-radius: 22px !important;
+  box-shadow: 0 28px 90px rgba(0,0,0,.38) !important;
+}
+html body.komari-admin-shell .probe-empty-row,
+html body.komari-admin-shell tr.probe-empty-row td {
+  color: var(--admin-muted) !important;
+  font-style: normal !important;
+  text-align: center !important;
+}
+@media (max-width: 900px) {
+  html body.komari-admin-shell .admin-nav { width: 100% !important; }
+  html body.komari-admin-shell .admin-body { padding: 18px !important; }
+}
+
+/* admin-network-responsive-fix-20260607 */
+html body.komari-admin-shell .komari-page-head {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  flex-wrap: wrap !important;
+}
+html body.komari-admin-shell .komari-page-head > div:first-child {
+  min-width: 260px !important;
+  flex: 1 1 420px !important;
+}
+html body.komari-admin-shell .komari-page-head > button,
+html body.komari-admin-shell .komari-page-head > .komari-primary,
+html body.komari-admin-shell .komari-page-head > .komari-secondary {
+  flex: 0 1 auto !important;
+  max-width: 100% !important;
+  white-space: normal !important;
+}
+html body.komari-admin-shell .komari-target-editor {
+  display: grid !important;
+  gap: 10px !important;
+  min-width: 0 !important;
+  overflow: visible !important;
+}
+html body.komari-admin-shell .komari-target-row {
+  display: grid !important;
+  grid-template-columns: minmax(92px,.7fr) minmax(150px,1.25fr) minmax(88px,.65fr) minmax(150px,1.25fr) minmax(116px,.8fr) 42px !important;
+  gap: 10px !important;
+  align-items: start !important;
+  min-width: 0 !important;
+}
+html body.komari-admin-shell .komari-target-row > * { min-width: 0 !important; }
+html body.komari-admin-shell .komari-action-row,
+html body.komari-admin-shell .theme-action-row,
+html body.komari-admin-shell .login-api-actions,
+html body.komari-admin-shell .users-actions {
+  display: flex !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+}
+html body.komari-admin-shell .komari-inline-form {
+  display: grid !important;
+  grid-template-columns: minmax(180px, 1fr) auto !important;
+  gap: 10px !important;
+  align-items: center !important;
+}
+@media (max-width: 1280px) {
+  html body.komari-admin-shell .admin-body { padding: 22px !important; }
+  html body.komari-admin-shell .komari-target-row {
+    grid-template-columns: minmax(110px,1fr) minmax(160px,1.2fr) minmax(90px,.7fr) minmax(160px,1.2fr) minmax(120px,.8fr) 42px !important;
+  }
+}
+@media (max-width: 1080px) {
+  html body.komari-admin-shell .komari-settings-grid.two { grid-template-columns: 1fr !important; }
+  html body.komari-admin-shell .komari-target-row { grid-template-columns: 1fr 1fr !important; }
+  html body.komari-admin-shell .komari-target-row .komari-icon-danger { justify-self: start !important; }
+}
+@media (max-width: 680px) {
+  html body.komari-admin-shell .komari-target-row,
+  html body.komari-admin-shell .komari-inline-form { grid-template-columns: 1fr !important; }
+}
+
+/* admin-overflow-containment-20260607 */
+html body.komari-admin-shell,
+html body.komari-admin-shell * { box-sizing: border-box !important; }
+html body.komari-admin-shell .admin-main,
+html body.komari-admin-shell .admin-body {
+  min-width: 0 !important;
+  max-width: 100vw !important;
+  overflow-x: hidden !important;
+}
+html body.komari-admin-shell .admin-body > .admin-toolbar,
+html body.komari-admin-shell .admin-page.active {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+html body.komari-admin-shell .komari-settings-page,
+html body.komari-admin-shell .komari-settings-grid,
+html body.komari-admin-shell .komari-panel,
+html body.komari-admin-shell .komari-table-wrap,
+html body.komari-admin-shell .admin-card {
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+html body.komari-admin-shell .admin-toolbar {
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
+}
+html body.komari-admin-shell .admin-toolbar-select { max-width: min(190px, 100%) !important; }
+html body.komari-admin-shell .komari-panel { overflow: hidden !important; }
+html body.komari-admin-shell .komari-panel-title,
+html body.komari-admin-shell .komari-note,
+html body.komari-admin-shell .komari-console,
+html body.komari-admin-shell .komari-metric-strip { width: 100% !important; max-width: 100% !important; }
+
+
+/* admin-visual-hardspots-20260608 */
+html body.komari-admin-shell .komari-primary,
+html body.komari-admin-shell .komari-secondary,
+html body.komari-admin-shell .add-btn,
+html body.komari-admin-shell .admin-toolbar-btn,
+html body.komari-admin-shell .btn-return,
+html body.komari-admin-shell .btn-logout {
+  white-space: nowrap !important;
+  min-width: max-content !important;
+}
+html body.komari-admin-shell .komari-action-row .komari-primary,
+html body.komari-admin-shell .komari-action-row .komari-secondary,
+html body.komari-admin-shell .theme-action-row .komari-primary,
+html body.komari-admin-shell .theme-action-row .komari-secondary,
+html body.komari-admin-shell .login-save-row .komari-primary,
+html body.komari-admin-shell .login-save-row .komari-secondary,
+html body.komari-admin-shell .notify-save-row .komari-primary,
+html body.komari-admin-shell .notify-save-row .komari-secondary {
+  flex: 0 0 auto !important;
+}
+html body.komari-admin-shell .komari-node-toolbar {
+  flex-wrap: wrap !important;
+  align-items: center !important;
+}
+html body.komari-admin-shell .komari-node-toolbar h2 {
+  flex: 1 1 220px !important;
+  min-width: 0 !important;
+}
+html body.komari-admin-shell .komari-node-actions {
+  flex: 0 1 auto !important;
+  max-width: 100% !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-end !important;
+}
+html body.komari-admin-shell .komari-search {
+  flex: 1 1 220px !important;
+  min-width: 180px !important;
+  max-width: 320px !important;
+}
+html body.komari-admin-shell .komari-table-wrap {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+html body.komari-admin-shell .komari-node-table {
+  min-width: 980px !important;
+  width: 100% !important;
+}
+html body.komari-admin-shell .komari-node-table th:last-child,
+html body.komari-admin-shell .komari-node-table td:last-child {
+  min-width: 168px !important;
+  text-align: right !important;
+}
+html body.komari-admin-shell .komari-row-actions {
+  min-width: 150px !important;
+  white-space: nowrap !important;
+}
+html body.komari-admin-shell .pt-port-field {
+  min-width: 180px !important;
+  max-width: 100% !important;
+}
+html body.komari-admin-shell .pt-port-field input {
+  text-overflow: ellipsis !important;
+}
+html body.komari-admin-shell .pt-port-field small {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  color: var(--admin-muted) !important;
+  font-size: 11px !important;
+}
+html body.komari-admin-shell .pt-port-field.is-disabled small {
+  color: var(--admin-text) !important;
+  opacity: .72 !important;
+}
+html body.komari-admin-shell .komari-console,
+html body.komari-admin-shell #pt-results {
+  background: var(--admin-surface-soft) !important;
+  color: var(--admin-text) !important;
+  border-color: var(--admin-line) !important;
+}
+html body.komari-admin-shell #pt-results .muted,
+html body.komari-admin-shell #pt-results .ping-empty-state {
+  display: grid !important;
+  place-items: center !important;
+  min-height: 180px !important;
+  padding: 24px !important;
+  color: var(--admin-muted) !important;
+  text-align: center !important;
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+}
+html body.komari-admin-shell .komari-error,
+html body.komari-admin-shell .komari-msg.err {
+  color: #ef4444 !important;
+  font-weight: 700 !important;
+}
+html body.komari-admin-shell.admin-day-mode .komari-error,
+html body.komari-admin-shell.admin-day-mode .komari-msg.err {
+  background: #fff1f2 !important;
+  border: 1px solid #fecdd3 !important;
+  border-radius: 12px !important;
+  padding: 10px 12px !important;
+}
+html body.komari-admin-shell.admin-day-mode small,
+html body.komari-admin-shell.admin-day-mode .acct-subtle,
+html body.komari-admin-shell.admin-day-mode .komari-note,
+html body.komari-admin-shell.admin-day-mode .metric-d,
+html body.komari-admin-shell.admin-day-mode .form-label,
+html body.komari-admin-shell.admin-day-mode .komari-panel-title small {
+  color: #4b6078 !important;
+}
+@media (max-width: 1180px) {
+  html body.komari-admin-shell .komari-node-actions { justify-content: flex-start !important; }
+  html body.komari-admin-shell .komari-node-table { min-width: 920px !important; }
+}
+
+
+/* admin-server-toolbar-overflow-final-20260608 */
+html body.komari-admin-shell .komari-node-toolbar {
+  width: 100% !important;
+  max-width: 100% !important;
+  display: flex !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  gap: 16px !important;
+  overflow: visible !important;
+}
+html body.komari-admin-shell .komari-node-toolbar h2 {
+  flex: 0 1 240px !important;
+  min-width: 160px !important;
+  max-width: 100% !important;
+}
+html body.komari-admin-shell .komari-node-actions {
+  flex: 1 1 360px !important;
+  min-width: 0 !important;
+  max-width: calc(100% - 176px) !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  flex-wrap: wrap !important;
+}
+html body.komari-admin-shell .komari-node-actions .add-btn,
+html body.komari-admin-shell .komari-node-actions .komari-primary,
+html body.komari-admin-shell .komari-node-actions .komari-secondary {
+  flex: 0 0 auto !important;
+}
+@media (max-width: 1080px) {
+  html body.komari-admin-shell .komari-node-toolbar { align-items: stretch !important; }
+  html body.komari-admin-shell .komari-node-toolbar h2 { flex-basis: 100% !important; }
+  html body.komari-admin-shell .komari-node-actions { max-width: 100% !important; justify-content: flex-start !important; }
+}
+
+
+/* admin-node-page-width-final-20260608 */
+html body.komari-admin-shell .admin-page.active > .komari-node-page,
+html body.komari-admin-shell .admin-page.active > .komari-settings-page,
+html body.komari-admin-shell .admin-page.active > .komari-account-page {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+html body.komari-admin-shell .komari-node-page .komari-node-toolbar,
+html body.komari-admin-shell .komari-node-page .komari-table-wrap {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+
+/* admin-site-share-save-button-final-20260608 */
+html body.komari-admin-shell #site-share-save.komari-mini-square {
+  width: auto !important;
+  min-width: 58px !important;
+  height: 34px !important;
+  padding: 0 13px !important;
+  white-space: nowrap !important;
+  line-height: 34px !important;
+}
+
+
+/* admin-final-visual-nits-20260608 */
+html body.komari-admin-shell .pt-port-field {
+  min-width: 196px !important;
+}
+html body.komari-admin-shell .pt-port-field small {
+  display: block !important;
+  max-width: 100% !important;
+}
+html body.komari-admin-shell .komari-target-row {
+  grid-template-columns: minmax(86px,.55fr) minmax(130px,1fr) minmax(86px,.55fr) minmax(140px,1fr) minmax(196px,.9fr) 42px !important;
+}
+html body.komari-admin-shell #acct-2fa-state {
+  border-radius: 12px !important;
+  padding: 10px 12px !important;
+  font-weight: 700 !important;
+}
+html body.komari-admin-shell.admin-day-mode #acct-2fa-state {
+  background: #fff7ed !important;
+  border: 1px solid #fed7aa !important;
+  color: #9a3412 !important;
+}
+html body.komari-admin-shell.admin-bridge-mode #acct-2fa-state {
+  background: rgba(154,52,18,.28) !important;
+  border: 1px solid rgba(251,146,60,.38) !important;
+  color: #fed7aa !important;
+}
+@media (max-width: 1080px) {
+  html body.komari-admin-shell .komari-target-row { grid-template-columns: 1fr 1fr !important; }
+}
+
+
+/* admin-account-session-compact-p2-20260608 */
+html body.komari-admin-shell .komari-account-advanced {
+  max-width: 880px !important;
+}
+html body.komari-admin-shell #acct-summary,
+html body.komari-admin-shell #acct-session-state {
+  max-width: 720px !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
+html body.komari-admin-shell #acct-summary > div,
+html body.komari-admin-shell #acct-session-state > div {
+  display: grid !important;
+  grid-template-columns: minmax(82px, 108px) minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 11px 12px !important;
+  border-radius: 12px !important;
+  min-width: 0 !important;
+}
+html body.komari-admin-shell #acct-summary span,
+html body.komari-admin-shell #acct-session-state span {
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+  white-space: nowrap !important;
+}
+html body.komari-admin-shell #acct-summary b,
+html body.komari-admin-shell #acct-session-state b {
+  min-width: 0 !important;
+  text-align: left !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  line-height: 1.45 !important;
+}
+html body.komari-admin-shell #acct-session-state {
+  margin-top: 10px !important;
+}
+html body.komari-admin-shell.admin-day-mode #acct-summary > div,
+html body.komari-admin-shell.admin-day-mode #acct-session-state > div {
+  background: #f6fbff !important;
+  border: 1px solid #cfe4f5 !important;
+}
+html body.komari-admin-shell.admin-bridge-mode #acct-summary > div,
+html body.komari-admin-shell.admin-bridge-mode #acct-session-state > div {
+  background: rgba(6, 15, 31, .72) !important;
+  border: 1px solid rgba(109,203,255,.22) !important;
+}
+html body.komari-admin-shell.admin-day-mode #acct-summary span,
+html body.komari-admin-shell.admin-day-mode #acct-session-state span {
+  color: #4b6078 !important;
+}
+html body.komari-admin-shell.admin-bridge-mode #acct-summary span,
+html body.komari-admin-shell.admin-bridge-mode #acct-session-state span {
+  color: #9eb7d5 !important;
+}
+html body.komari-admin-shell.admin-bridge-mode #acct-summary b,
+html body.komari-admin-shell.admin-bridge-mode #acct-session-state b {
+  color: #f3f8ff !important;
+}
+@media (max-width: 980px) {
+  html body.komari-admin-shell #acct-summary,
+  html body.komari-admin-shell #acct-session-state {
+    grid-template-columns: 1fr !important;
+    max-width: 100% !important;
+  }
+}
+@media (max-width: 520px) {
+  html body.komari-admin-shell #acct-summary > div,
+  html body.komari-admin-shell #acct-session-state > div {
+    grid-template-columns: 1fr !important;
+    align-items: start !important;
+  }
+}
+
+/* admin-ui-unify-sticky-theme-images-20260608 */
+html body.komari-admin-shell.admin-day-mode {
+  --admin-surface: #f6fbff;
+  --admin-surface-soft: #eaf6ff;
+  --admin-line: #c9e1f3;
+  --admin-line-strong: #a9cfea;
+  --admin-text: #152033;
+  --admin-muted: #4f647c;
+  --admin-accent: #3152c9;
+}
+html body.komari-admin-shell.admin-day-mode .admin-nav,
+html body.komari-admin-shell.admin-day-mode .admin-card,
+html body.komari-admin-shell.admin-day-mode .komari-panel,
+html body.komari-admin-shell.admin-day-mode .komari-table-wrap,
+html body.komari-admin-shell.admin-day-mode .komari-notify-master-card,
+html body.komari-admin-shell.admin-day-mode .komari-notify-template-card,
+html body.komari-admin-shell.admin-day-mode .komari-notify-channel-row,
+html body.komari-admin-shell.admin-day-mode .komari-notify-settings-card,
+html body.komari-admin-shell.admin-day-mode .komari-notify-card,
+html body.komari-admin-shell.admin-day-mode .komari-toggle-row,
+html body.komari-admin-shell.admin-day-mode .settings-row,
+html body.komari-admin-shell.admin-day-mode .tg-rule-card,
+html body.komari-admin-shell.admin-day-mode .tg-status,
+html body.komari-admin-shell.admin-day-mode .ping-server-item,
+html body.komari-admin-shell.admin-day-mode .theme-setting-row,
+html body.komari-admin-shell.admin-day-mode .theme-field-block,
+html body.komari-admin-shell.admin-day-mode .login-setting-row,
+html body.komari-admin-shell.admin-day-mode .login-param-card,
+html body.komari-admin-shell.admin-day-mode .login-api-card,
+html body.komari-admin-shell.admin-day-mode .komari-setting-card,
+html body.komari-admin-shell.admin-day-mode .komari-backup-row,
+html body.komari-admin-shell.admin-day-mode .ops-summary-card,
+html body.komari-admin-shell.admin-day-mode .ops-filter-bar {
+  background: var(--admin-surface) !important;
+  background-color: var(--admin-surface) !important;
+  background-image: none !important;
+  color: var(--admin-text) !important;
+  border-color: var(--admin-line) !important;
+  box-shadow: 0 14px 32px rgba(66, 105, 140, .10) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+html body.komari-admin-shell.admin-day-mode input,
+html body.komari-admin-shell.admin-day-mode textarea,
+html body.komari-admin-shell.admin-day-mode select,
+html body.komari-admin-shell.admin-day-mode .form-input,
+html body.komari-admin-shell.admin-day-mode .notify-select,
+html body.komari-admin-shell.admin-day-mode .admin-toolbar-select,
+html body.komari-admin-shell.admin-day-mode .pt-port-field {
+  background: var(--admin-surface-soft) !important;
+  background-color: var(--admin-surface-soft) !important;
+  color: var(--admin-text) !important;
+  border-color: var(--admin-line-strong) !important;
+}
+html body.komari-admin-shell.admin-day-mode .admin-section-title,
+html body.komari-admin-shell.admin-day-mode .admin-card-title,
+html body.komari-admin-shell.admin-day-mode .komari-page-head h2,
+html body.komari-admin-shell.admin-day-mode .komari-panel-title span,
+html body.komari-admin-shell.admin-day-mode .theme-section-title,
+html body.komari-admin-shell.admin-day-mode .theme-setting-row strong,
+html body.komari-admin-shell.admin-day-mode .theme-field-block strong,
+html body.komari-admin-shell.admin-day-mode .ops-summary-card strong,
+html body.komari-admin-shell.admin-day-mode .ping-server-item strong {
+  color: var(--admin-text) !important;
+}
+html body.komari-admin-shell.admin-day-mode small,
+html body.komari-admin-shell.admin-day-mode .form-label,
+html body.komari-admin-shell.admin-day-mode .komari-note,
+html body.komari-admin-shell.admin-day-mode .komari-panel-title small,
+html body.komari-admin-shell.admin-day-mode .ops-muted,
+html body.komari-admin-shell.admin-day-mode .ops-summary-card span,
+html body.komari-admin-shell.admin-day-mode .theme-setting-row small,
+html body.komari-admin-shell.admin-day-mode .theme-field-block small {
+  color: var(--admin-muted) !important;
+}
+html body.komari-admin-shell .admin-nav {
+  position: sticky !important;
+  top: 0 !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  z-index: 80 !important;
+  flex-shrink: 0 !important;
+}
+html body.komari-admin-shell .admin-main { min-height: 100vh !important; min-width: 0 !important; }
+html body.komari-admin-shell .admin-body { overflow-y: auto !important; }
+html body.komari-admin-shell .admin-toolbar {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 70 !important;
+  padding: 10px 0 14px !important;
+  margin: -4px 0 16px !important;
+  background: color-mix(in srgb, var(--admin-surface) 88%, transparent) !important;
+  border-bottom: 1px solid var(--admin-line) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+html body.komari-admin-shell .ops-summary-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  align-items: stretch !important;
+}
+html body.komari-admin-shell .ops-summary-card {
+  min-height: 154px !important;
+  padding: 14px !important;
+  border-radius: 16px !important;
+  display: grid !important;
+  grid-template-rows: auto 1fr !important;
+  overflow: hidden !important;
+}
+html body.komari-admin-shell .ops-summary-card-body {
+  display: grid !important;
+  gap: 8px !important;
+  align-content: start !important;
+  max-height: 112px !important;
+  overflow-y: auto !important;
+  padding-right: 2px !important;
+}
+html body.komari-admin-shell .ops-filter-bar {
+  display: flex !important;
+  gap: 12px !important;
+  flex-wrap: wrap !important;
+  align-items: end !important;
+  margin-bottom: 14px !important;
+  padding: 12px !important;
+  border: 1px solid var(--admin-line) !important;
+  border-radius: 16px !important;
+}
+html body.komari-admin-shell .ops-event-list { display: grid !important; gap: 12px !important; }
+html body.komari-admin-shell .ops-event-list .ping-server-item { padding: 14px 16px !important; }
+html body.komari-admin-shell .komari-target-row {
+  grid-template-columns: minmax(86px,.55fr) minmax(130px,1fr) minmax(86px,.55fr) minmax(170px,1.08fr) minmax(220px,.95fr) 42px !important;
+  gap: 12px !important;
+  align-items: start !important;
+}
+html body.komari-admin-shell .pt-port-field {
+  min-width: 220px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+html body.komari-admin-shell .pt-port-field input { width: 100% !important; }
+html body.komari-admin-shell .pt-port-field small {
+  display: block !important;
+  margin-top: 5px !important;
+  padding-left: 2px !important;
+  line-height: 1.35 !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+html body.komari-admin-shell .theme-image-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  margin-top: 12px !important;
+}
+html body.komari-admin-shell .theme-image-grid .theme-field-block { margin-bottom: 0 !important; }
+html body.komari-admin-shell .theme-url-preview {
+  margin-top: 10px !important;
+  min-height: 34px !important;
+  border: 1px dashed var(--admin-line) !important;
+  border-radius: 10px !important;
+  padding: 8px 10px !important;
+  color: var(--admin-muted) !important;
+  font-size: 12px !important;
+  overflow-wrap: anywhere !important;
+}
+@media (max-width: 1080px) {
+  html body.komari-admin-shell .ops-summary-grid,
+  html body.komari-admin-shell .theme-image-grid { grid-template-columns: 1fr !important; }
+  html body.komari-admin-shell .komari-target-row { grid-template-columns: 1fr 1fr !important; }
+}
+@media (max-width: 900px) {
+  html body.komari-admin-shell #admin-panel { flex-direction: column !important; }
+  html body.komari-admin-shell .admin-nav { position: relative !important; width: 100% !important; height: auto !important; max-height: none !important; }
+  html body.komari-admin-shell .admin-toolbar { top: 0 !important; }
+}
+
+/* admin-ui-fixed-toolbar-card-equalizer-20260608 */
+html body.komari-admin-shell .admin-toolbar {
+  position: fixed !important;
+  top: 16px !important;
+  right: 28px !important;
+  left: auto !important;
+  width: auto !important;
+  max-width: calc(100vw - 340px) !important;
+  z-index: 120 !important;
+  padding: 8px 10px !important;
+  margin: 0 !important;
+  border: 1px solid var(--admin-line) !important;
+  border-radius: 16px !important;
+  background: color-mix(in srgb, var(--admin-surface) 92%, transparent) !important;
+  box-shadow: 0 12px 30px rgba(0,0,0,.12) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+}
+html body.komari-admin-shell .admin-body { padding-top: 76px !important; }
+html body.komari-admin-shell .ops-summary-card {
+  height: 164px !important;
+  min-height: 164px !important;
+  max-height: 164px !important;
+  box-sizing: border-box !important;
+}
+html body.komari-admin-shell .ops-summary-card-body {
+  min-height: 0 !important;
+  max-height: 110px !important;
+}
+@media (max-width: 900px) {
+  html body.komari-admin-shell .admin-toolbar {
+    position: sticky !important;
+    top: 0 !important;
+    right: auto !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+  html body.komari-admin-shell .admin-body { padding-top: 18px !important; }
+}
+
+/* admin-network-target-row-no-overlap-20260608 */
+html body.komari-admin-shell .komari-target-row > input,
+html body.komari-admin-shell .komari-target-row > select,
+html body.komari-admin-shell .komari-target-row > .form-input {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  justify-self: stretch !important;
+}
+html body.komari-admin-shell .komari-target-row > select.form-input {
+  padding-right: 28px !important;
+}
+html body.komari-admin-shell .komari-target-row > .pt-port-field {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  justify-self: stretch !important;
+}
+
+/* admin-professional-log-page-20260608 */
+html body.komari-admin-shell #tab-ops .ops-page-head {
+  display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:18px!important;margin-bottom:14px!important;
+}
+html body.komari-admin-shell #tab-ops .ops-title {font-size:22px!important;font-weight:850!important;letter-spacing:-.02em!important;margin-bottom:6px!important;}
+html body.komari-admin-shell #tab-ops .ops-subtitle {font-size:13px!important;line-height:1.55!important;color:var(--admin-muted)!important;}
+html body.komari-admin-shell #tab-ops .ops-subtitle.small {font-size:12px!important;margin-top:3px!important;}
+html body.komari-admin-shell #tab-ops .ops-refresh-state {font-size:12px!important;color:var(--admin-muted)!important;border:1px solid var(--admin-line)!important;border-radius:999px!important;padding:7px 10px!important;background:var(--admin-surface-soft)!important;white-space:nowrap!important;}
+html body.komari-admin-shell #tab-ops .ops-summary-shell {padding:16px!important;margin-bottom:16px!important;}
+html body.komari-admin-shell #tab-ops .ops-events-shell {padding:16px!important;}
+html body.komari-admin-shell #tab-ops .ops-card-title {font-size:15px!important;font-weight:800!important;margin-bottom:10px!important;}
+html body.komari-admin-shell #tab-ops .ops-summary-compact {grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:10px!important;}
+html body.komari-admin-shell #tab-ops .ops-summary-card {height:118px!important;min-height:118px!important;max-height:118px!important;padding:12px!important;border-radius:14px!important;box-shadow:none!important;}
+html body.komari-admin-shell #tab-ops .ops-summary-top {display:flex!important;align-items:center!important;justify-content:space-between!important;gap:10px!important;}
+html body.komari-admin-shell #tab-ops .ops-summary-top strong {font-size:13px!important;}
+html body.komari-admin-shell #tab-ops .ops-summary-top span {display:inline-flex!important;align-items:center!important;justify-content:center!important;min-width:28px!important;height:24px!important;border-radius:999px!important;background:rgba(49,82,201,.10)!important;color:var(--admin-accent)!important;font-size:13px!important;font-weight:850!important;}
+html body.komari-admin-shell #tab-ops .ops-summary-latest {margin-top:5px!important;font-size:11px!important;color:var(--admin-muted)!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;}
+html body.komari-admin-shell #tab-ops .ops-summary-card-body {margin-top:8px!important;display:grid!important;gap:4px!important;max-height:none!important;overflow:hidden!important;}
+html body.komari-admin-shell #tab-ops .ops-empty {font-size:12px!important;color:var(--admin-muted)!important;padding-top:6px!important;}
+html body.komari-admin-shell #tab-ops .ops-mini-row {display:flex!important;justify-content:space-between!important;gap:8px!important;border:0!important;background:transparent!important;color:var(--admin-text)!important;padding:0!important;font-size:11px!important;cursor:pointer!important;min-width:0!important;text-align:left!important;}
+html body.komari-admin-shell #tab-ops .ops-mini-row span {min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;color:var(--admin-muted)!important;}
+html body.komari-admin-shell #tab-ops .ops-mini-row b {font-size:10px!important;color:var(--admin-text)!important;white-space:nowrap!important;font-weight:700!important;}
+html body.komari-admin-shell #tab-ops .ops-section-row {display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:14px!important;margin-bottom:12px!important;}
+html body.komari-admin-shell #tab-ops .ops-density {height:34px!important;padding:0 12px!important;font-size:12px!important;}
+html body.komari-admin-shell #tab-ops .ops-filter-pro {display:grid!important;grid-template-columns:minmax(96px,.55fr) minmax(150px,.9fr) minmax(110px,.6fr) minmax(140px,.75fr) minmax(220px,1.35fr) auto!important;gap:10px!important;align-items:end!important;margin-bottom:12px!important;padding:12px!important;box-shadow:none!important;}
+html body.komari-admin-shell #tab-ops .ops-filter-pro .form-group {min-width:0!important;margin:0!important;}
+html body.komari-admin-shell #tab-ops .ops-filter-pro .form-input {width:100%!important;height:38px!important;}
+html body.komari-admin-shell #tab-ops .ops-filter-pro .add-btn {height:38px!important;padding:0 16px!important;align-self:end!important;}
+html body.komari-admin-shell #tab-ops .ops-table {display:grid!important;gap:0!important;border:1px solid var(--admin-line)!important;border-radius:14px!important;overflow:hidden!important;background:var(--admin-surface)!important;}
+html body.komari-admin-shell #tab-ops .ops-table-head,
+html body.komari-admin-shell #tab-ops .ops-event-row {display:grid!important;grid-template-columns:178px 76px 170px 80px minmax(0,1fr)!important;gap:12px!important;align-items:center!important;}
+html body.komari-admin-shell #tab-ops .ops-table-head {padding:10px 12px!important;background:rgba(49,82,201,.08)!important;color:var(--admin-muted)!important;font-size:11px!important;font-weight:800!important;text-transform:uppercase!important;border-bottom:1px solid var(--admin-line)!important;}
+html body.komari-admin-shell #tab-ops .ops-event-row {min-height:48px!important;padding:9px 12px!important;border-bottom:1px solid rgba(128,170,210,.18)!important;color:var(--admin-text)!important;}
+html body.komari-admin-shell #tab-ops .ops-event-row:last-child {border-bottom:0!important;}
+html body.komari-admin-shell #tab-ops .ops-event-row:hover {background:rgba(49,82,201,.055)!important;}
+html body.komari-admin-shell #tab-ops .ops-event-row time {font-size:12px!important;color:var(--admin-muted)!important;white-space:nowrap!important;}
+html body.komari-admin-shell #tab-ops .ops-level {display:inline-flex!important;width:max-content!important;align-items:center!important;justify-content:center!important;border-radius:999px!important;padding:3px 8px!important;font-size:11px!important;font-weight:800!important;}
+html body.komari-admin-shell #tab-ops .ops-level.info {background:#e8f2ff!important;color:#2563eb!important;}
+html body.komari-admin-shell #tab-ops .ops-level.warn {background:#fff7ed!important;color:#c2410c!important;}
+html body.komari-admin-shell #tab-ops .ops-level.error {background:#fff1f2!important;color:#e11d48!important;}
+html body.komari-admin-shell #tab-ops .ops-event-row code {font-size:12px!important;color:var(--admin-text)!important;background:transparent!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;}
+html body.komari-admin-shell #tab-ops .ops-node-filter {border:0!important;background:transparent!important;color:var(--admin-accent)!important;font-weight:800!important;cursor:pointer!important;text-align:left!important;padding:0!important;}
+html body.komari-admin-shell #tab-ops .ops-message {display:grid!important;gap:2px!important;min-width:0!important;}
+html body.komari-admin-shell #tab-ops .ops-message strong {font-size:12px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;color:var(--admin-text)!important;}
+html body.komari-admin-shell #tab-ops .ops-message small {font-size:11px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;color:var(--admin-muted)!important;}
+html body.komari-admin-shell #tab-ops .ops-empty-table {padding:28px!important;text-align:center!important;color:var(--admin-muted)!important;font-size:13px!important;}
+html body.komari-admin-shell #tab-ops.ops-comfy .ops-event-row {min-height:62px!important;padding-top:13px!important;padding-bottom:13px!important;}
+html body.komari-admin-shell #tab-ops.ops-comfy .ops-message strong {font-size:13px!important;}
+html body.komari-admin-shell .admin-tab.active {position:relative!important;}
+html body.komari-admin-shell .admin-tab.active::before {content:""!important;position:absolute!important;left:7px!important;top:10px!important;bottom:10px!important;width:3px!important;border-radius:99px!important;background:var(--admin-accent)!important;}
+@media(max-width:1280px){html body.komari-admin-shell #tab-ops .ops-summary-compact{grid-template-columns:repeat(2,minmax(0,1fr))!important;}html body.komari-admin-shell #tab-ops .ops-filter-pro{grid-template-columns:repeat(3,minmax(0,1fr))!important;}html body.komari-admin-shell #tab-ops .ops-table-head,html body.komari-admin-shell #tab-ops .ops-event-row{grid-template-columns:150px 70px 150px 70px minmax(0,1fr)!important;}}
+@media(max-width:820px){html body.komari-admin-shell #tab-ops .ops-page-head,html body.komari-admin-shell #tab-ops .ops-section-row{display:grid!important;}html body.komari-admin-shell #tab-ops .ops-summary-compact,html body.komari-admin-shell #tab-ops .ops-filter-pro{grid-template-columns:1fr!important;}html body.komari-admin-shell #tab-ops .ops-table{overflow-x:auto!important;}html body.komari-admin-shell #tab-ops .ops-table-head,html body.komari-admin-shell #tab-ops .ops-event-row{min-width:760px!important;}}
+
+/* admin-remove-floating-toolbar-card-20260608 */
+html body.komari-admin-shell .admin-toolbar {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  top: 18px !important;
+  right: 30px !important;
+}
+html body.komari-admin-shell .admin-body {
+  padding-top: 42px !important;
+}
+html body.komari-admin-shell.admin-day-mode .admin-toolbar,
+html body.komari-admin-shell.admin-bridge-mode .admin-toolbar {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+@media (max-width: 900px) {
+  html body.komari-admin-shell .admin-toolbar {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+  html body.komari-admin-shell .admin-body { padding-top: 18px !important; }
+}
+
+/* admin-refresh-no-intermediate-paint-20260608 */
+html body.komari-admin-shell.admin-loading #admin-panel {
+  display: none !important;
+  visibility: hidden !important;
+}
+html body.komari-admin-shell.admin-loading .admin-body,
+html body.komari-admin-shell.admin-loading .admin-nav {
+  visibility: hidden !important;
+}
+
+/* remove-notify-settings-head-white-line-20260611 */
+html body.komari-admin-shell .komari-notify-settings-head,
+html body.komari-admin-shell.admin-day-mode .komari-notify-settings-head,
+html body.komari-admin-shell.admin-bridge-mode .komari-notify-settings-head {
+  border-bottom: 0 !important;
+  box-shadow: none !important;
+}
+
+/* six-admin-polish-20260611 */
+html body.komari-admin-shell.admin-day-mode {
+  --admin-surface: #dff3ff;
+  --admin-surface-soft: #eaf8ff;
+  --admin-line: #a9d8ee;
+  --admin-line-strong: #83c6e4;
+}
+html body.komari-admin-shell.admin-day-mode .admin-card,
+html body.komari-admin-shell.admin-day-mode .komari-panel,
+html body.komari-admin-shell.admin-day-mode .komari-table-wrap,
+html body.komari-admin-shell.admin-day-mode .komari-flat-section,
+html body.komari-admin-shell.admin-day-mode .session-admin-card,
+html body.komari-admin-shell.admin-day-mode .theme-setting-row,
+html body.komari-admin-shell.admin-day-mode .theme-field-block,
+html body.komari-admin-shell.admin-day-mode .login-setting-row,
+html body.komari-admin-shell.admin-day-mode .login-param-card,
+html body.komari-admin-shell.admin-day-mode .login-api-card,
+html body.komari-admin-shell.admin-day-mode .komari-setting-card,
+html body.komari-admin-shell.admin-day-mode .komari-backup-row,
+html body.komari-admin-shell.admin-day-mode .komari-notify-master-card,
+html body.komari-admin-shell.admin-day-mode .komari-notify-template-card,
+html body.komari-admin-shell.admin-day-mode .komari-notify-settings-card,
+html body.komari-admin-shell.admin-day-mode .komari-notify-card,
+html body.komari-admin-shell.admin-day-mode .tg-rule-card,
+html body.komari-admin-shell.admin-day-mode .ping-server-item,
+html body.komari-admin-shell.admin-day-mode .ops-summary-card,
+html body.komari-admin-shell.admin-day-mode .ops-filter-bar {
+  background: #dff3ff !important;
+  background-color: #dff3ff !important;
+  background-image: none !important;
+  border-color: #a9d8ee !important;
+  box-shadow: 0 14px 32px rgba(66,105,140,.10) !important;
+}
+html body.komari-admin-shell .ops-filter-bar.ops-filter-pro {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(150px, 1fr)) minmax(220px, 1.35fr) auto !important;
+  gap: 12px !important;
+  align-items: end !important;
+}
+html body.komari-admin-shell .ops-filter-bar .form-group {
+  display: grid !important;
+  gap: 6px !important;
+  margin: 0 !important;
+  min-width: 0 !important;
+}
+html body.komari-admin-shell .ops-filter-bar .form-input,
+html body.komari-admin-shell .ops-filter-bar .add-btn {
+  height: 40px !important;
+  box-sizing: border-box !important;
+}
+html body.komari-admin-shell .komari-section-panel[data-settings-section~="notify"] .komari-notify-settings-card,
+html body.komari-admin-shell .komari-section-panel[data-settings-section~="notify"] .komari-notify-card,
+html body.komari-admin-shell .komari-section-panel[data-settings-section~="notify"] .komari-notify-template-card,
+html body.komari-admin-shell .komari-section-panel[data-settings-section~="notify"] .komari-notify-master-card {
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+}
+html body.komari-admin-shell .komari-notify-settings-head {
+  display: grid !important;
+  grid-template-columns: 1fr auto auto !important;
+  align-items: start !important;
+}
+@media (max-width: 980px) {
+  html body.komari-admin-shell .ops-filter-bar.ops-filter-pro { grid-template-columns: 1fr 1fr !important; }
+  html body.komari-admin-shell .ops-filter-bar .add-btn { width: 100% !important; }
+}
+
+
+/* server-card-bg-unify-20260611 : 统一日间模式服务器面板卡片/表格/模态背景为天青色体系 */
+html body.komari-admin-shell.admin-day-mode .komari-node-page,
+html body.komari-admin-shell.admin-day-mode .komari-node-toolbar,
+html body.komari-admin-shell.admin-day-mode .komari-node-table,
+html body.komari-admin-shell.admin-day-mode .komari-table-wrap{
+  background:#dff3ff !important;
+  background-color:#dff3ff !important;
+  background-image:none !important;
+}
+html body.komari-admin-shell.admin-day-mode .komari-node-table thead th{
+  background:#cfe8fb !important;
+  color:#0f2540 !important;
+  border-color:#a9d8ee !important;
+}
+html body.komari-admin-shell.admin-day-mode .komari-node-table tbody tr:hover{
+  background:#eaf6ff !important;
+}
+html body.komari-admin-shell.admin-day-mode .komari-node-table tbody td,
+html body.komari-admin-shell.admin-day-mode .komari-node-table tbody tr{
+  background:transparent !important;
+  border-color:#cbe6f5 !important;
+}
+html body.komari-admin-shell.admin-day-mode .komari-modal{
+  background:#eef7ff !important;
+  border:1px solid #a9d8ee !important;
+}
+html body.komari-admin-shell.admin-day-mode .komari-modal-title button{
+  background:#dbeefc !important;
+}

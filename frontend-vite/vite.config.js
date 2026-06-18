@@ -3,6 +3,7 @@ import { resolve } from 'path';
 import { brotliCompress, gzip } from 'node:zlib';
 import { promisify } from 'node:util';
 import { VitePWA } from 'vite-plugin-pwa';
+import cesium from 'vite-plugin-cesium';
 
 const brotliCompressAsync = promisify(brotliCompress);
 const gzipAsync = promisify(gzip);
@@ -30,23 +31,18 @@ function precompressAssets() {
           gzipAsync(sourceBuffer),
         ]);
 
-        this.emitFile({
-          type: 'asset',
-          fileName: `${fileName}.br`,
-          source: br,
-        });
-        this.emitFile({
-          type: 'asset',
-          fileName: `${fileName}.gz`,
-          source: gz,
-        });
+        this.emitFile({ type: 'asset', fileName: `${fileName}.br`, source: br });
+        this.emitFile({ type: 'asset', fileName: `${fileName}.gz`, source: gz });
       }
     },
   };
 }
 
 export default defineConfig({
-  // ── 开发服务器 ────────────────────────────────────────────────────────────
+  envDir: '..',   // 从仓库根读取 .env(集中管理密钥)
+  define: {
+    CESIUM_BASE_URL: JSON.stringify('/cesium'),
+  },
   server: {
     port: 5173,
     proxy: {
@@ -56,91 +52,62 @@ export default defineConfig({
       },
     },
   },
-
-  // ── 构建输出 ──────────────────────────────────────────────────────────────
   build: {
     outDir: '../frontend-dist',
     emptyOutDir: true,
-
-    // JavaScript 最小化：使用 esbuild（快速）
     minify: 'esbuild',
     esbuild: {
-      // 生产构建移除调试输出，进一步缩减体积
-      drop: ['console', 'debugger'],
+      drop: ["debugger"],
     },
-
     rollupOptions: {
       input: {
-        main:  resolve(__dirname, 'index.html'),
+        main: resolve(__dirname, 'index.html'),
         admin: resolve(__dirname, 'admin.html'),
       },
-
       output: {
-        /**
-         * 手动代码分割策略：
-         *   - chart      Chart.js（流量页懒加载）
-         *   - three      Three.js（预留）
-         *   - vendor     其余第三方库
-         *   - components 自有组件（StarMap 等按需加载时独立 chunk）
-         */
         manualChunks(id) {
           if (id.includes('node_modules/chart.js')) return 'chart';
-          if (id.includes('node_modules/three'))    return 'three';
-          if (id.includes('node_modules'))           return 'vendor';
-          if (id.includes('/src/components/'))       return 'components';
+          if (id.includes('node_modules/cesium')) return undefined;
+          if (id.includes('node_modules/@deck.gl') || id.includes('node_modules/@luma.gl')) return 'deckgl';
+          if (id.includes('node_modules')) return 'vendor';
+          if (id.includes('/src/components/')) return 'components';
         },
-
-        // 带 content hash 的文件名，利于长效缓存 ← 图片资源哈希化
         chunkFileNames: 'assets/[name]-[hash].js',
         entryFileNames: 'assets/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash][extname]', // 所有资源（含图片/字体）
+        assetFileNames: 'assets/[name]-[hash][extname]',
       },
     },
-
     cssCodeSplit: true,
-    chunkSizeWarningLimit: 600,
+    chunkSizeWarningLimit: 3200,
     sourcemap: false,
     reportCompressedSize: true,
   },
-
-  // ── 路径别名 ──────────────────────────────────────────────────────────────
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
     },
   },
-
-  // ── CSS ───────────────────────────────────────────────────────────────────
   css: {
     devSourcemap: true,
   },
-
-  // ── 插件 ─────────────────────────────────────────────────────────────────
   plugins: [
-
-    // ① Service Worker + PWA
-    // injectManifest：使用 src/sw.js 作为源文件，构建时注入预缓存清单
+    cesium(),
     VitePWA({
+      injectRegister: false,
       registerType: 'autoUpdate',
-
       strategies: 'injectManifest',
       srcDir: 'src',
-      filename: 'sw.js',          // 源文件：src/sw.js
-      outDir: '../frontend-dist', // 输出：frontend-dist/sw.js
-
-      // 注入点：替换 src/sw.js 中的 self.__WB_MANIFEST
+      filename: 'sw.js',
+      outDir: '../frontend-dist',
       injectManifest: {
         injectionPoint: 'self.__WB_MANIFEST',
-        // 预缓存所有带 hash 的构建产物
         globPatterns: ['**/*.{js,css,html,svg,woff,woff2}'],
         globIgnores: ['**/node_modules/**/*'],
+        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
       },
-
-      // Devtools（开发时可见 SW）
       devOptions: {
-        enabled: false, // 开发时禁用 SW，避免缓存干扰
+        enabled: false,
       },
-
       manifest: {
         name: 'VPS 星图',
         short_name: 'VPS 星图',
@@ -160,9 +127,6 @@ export default defineConfig({
         ],
       },
     }),
-
-    // ② 构建后预压缩（生成 .br/.gz，供 Nginx 直接 serve）
     precompressAssets(),
-
   ],
 });

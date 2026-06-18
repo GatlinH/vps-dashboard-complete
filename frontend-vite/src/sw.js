@@ -39,16 +39,10 @@ registerRoute(
   })
 );
 
-// ── API 调用：Network First（5s 超时，降级1小时缓存）─────────────────────
+// ── API 调用：始终走网络，不缓存实时资产 / 节点数据 ─────────────────────
 registerRoute(
   ({ url }) => url.pathname.startsWith('/api'),
-  new NetworkFirst({
-    cacheName: 'api-cache-v1',
-    networkTimeoutSeconds: 5,
-    plugins: [
-      new ExpirationPlugin({ maxAgeSeconds: 3600, maxEntries: 50 }),
-    ],
-  })
+  async ({ request }) => fetch(request, { cache: 'no-store' })
 );
 
 // ── CDN 字体 / 第三方库：Cache First（30天）──────────────────────────────

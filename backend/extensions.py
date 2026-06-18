@@ -16,7 +16,9 @@ def init_redis(app):
     redis_client = redis.from_url(
         app.config["REDIS_URL"],
         decode_responses=True,
-        socket_timeout=3,
-        socket_connect_timeout=3,
+        socket_timeout=10,
+        socket_connect_timeout=5,
+        health_check_interval=30,
+        retry_on_timeout=True,
     )
     return redis_client

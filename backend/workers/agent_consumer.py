@@ -8,7 +8,7 @@ import os
 import time
 
 from app import create_app
-from api.agent import _QUEUE_KEY, _record_metrics
+from api.agent import _QUEUE_KEY, _record_metrics, _apply_agent_inventory
 from extensions import db
 from models.models import Server
 
@@ -102,6 +102,7 @@ def _handle_message(raw_payload: str):
         raise ValueError(f"server not found: {server_id}")
 
     _record_metrics(server, metrics)
+    _apply_agent_inventory(server, metrics)
     db.session.commit()
 
 

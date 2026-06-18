@@ -449,6 +449,233 @@ start_services() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 自动安装本机只读 Agent，并登记为主控节点（幂等）
+# ─────────────────────────────────────────────────────────────────────────────
+install_master_agent() {
+  log_section "安装本机 Agent 主控节点"
+
+  if [[ "${AUTO_INSTALL_AGENT:-1}" != "1" ]]; then
+    log_warn "AUTO_INSTALL_AGENT=${AUTO_INSTALL_AGENT:-0}，跳过本机 Agent 自动安装。"
+    return
+  fi
+
+  local agent_dir="/opt/vps-agent"
+  local agent_src="${REPO_DIR}/scripts/vps-agent.py"
+  local agent_env="${agent_dir}/agent.env"
+  local provision_json="/tmp/vps-dashboard-agent-provision.json"
+  local host_ip
+  host_ip="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"
+  [[ -n "${host_ip}" ]] || host_ip="127.0.0.1"
+
+  mkdir -p "${agent_dir}"
+  chmod 700 "${agent_dir}"
+
+  if [[ -f "${agent_src}" ]]; then
+    install -m 0755 "${agent_src}" "${agent_dir}/agent.py"
+  elif [[ -f "${agent_dir}/agent.py" ]]; then
+    log_warn "仓库缺少 ${agent_src}，保留已有 ${agent_dir}/agent.py。"
+  else
+    die "缺少 Agent 模板：${agent_src}"
+  fi
+
+  log_info "等待 API 容器可执行初始化脚本..."
+  local ready=0
+  for _ in {1..30}; do
+    if docker compose --env-file "${SECRETS_FILE}" --profile production exec -T api python - <<'PY' >/dev/null 2>&1
+from app import create_app
+app = create_app()
+print('ok')
+PY
+    then
+      ready=1
+      break
+    fi
+    sleep 2
+  done
+  [[ "${ready}" == "1" ]] || die "API 容器未就绪，无法自动登记本机 Agent。"
+
+  log_info "创建/复用本机主控节点并生成 Agent 凭据..."
+  local existing_agent_uuid="" existing_agent_key="" existing_server_id=""
+  if [[ -f "${agent_env}" ]]; then
+    existing_agent_uuid="$(grep -E '^AGENT_UUID=' "${agent_env}" | tail -1 | cut -d= -f2- || true)"
+    existing_agent_key="$(grep -E '^AGENT_KEY=' "${agent_env}" | tail -1 | cut -d= -f2- || true)"
+    existing_server_id="$(grep -E '^SERVER_ID=' "${agent_env}" | tail -1 | cut -d= -f2- || true)"
+  fi
+  HOST_IP="${host_ip}" \
+  MASTER_NAME="${AUTO_AGENT_NAME:-}" \
+  AGENT_ENV_PATH="${agent_env}" \
+  EXISTING_AGENT_UUID="${existing_agent_uuid}" \
+  EXISTING_AGENT_KEY="${existing_agent_key}" \
+  EXISTING_SERVER_ID="${existing_server_id}" \
+  docker compose --env-file "${SECRETS_FILE}" --profile production exec -T \
+    -e HOST_IP -e MASTER_NAME -e AGENT_ENV_PATH -e EXISTING_AGENT_UUID -e EXISTING_AGENT_KEY -e EXISTING_SERVER_ID api python - <<'PY' > "${provision_json}"
+import json, os, secrets
+from datetime import datetime, timezone
+from uuid import uuid4
+from werkzeug.security import generate_password_hash, check_password_hash
+from app import create_app
+from extensions import db
+from models.models import Server
+
+host_ip = (os.environ.get('HOST_IP') or '').strip() or '127.0.0.1'
+master_name = (os.environ.get('MASTER_NAME') or '').strip()
+agent_env_path = os.environ.get('AGENT_ENV_PATH') or '/opt/vps-agent/agent.env'
+
+def read_existing_env(path):
+    data = {}
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#') or '=' not in line:
+                    continue
+                k, v = line.split('=', 1)
+                data[k.strip()] = v.strip()
+    except FileNotFoundError:
+        pass
+    return data
+
+app = create_app()
+with app.app_context():
+    servers = Server.query.order_by(Server.id.asc()).all()
+    server = None
+    for s in servers:
+        cfg = s.agent_config if isinstance(s.agent_config, dict) else {}
+        if cfg.get('install_role') == 'master' or cfg.get('is_master') is True:
+            server = s
+            break
+    if server is None and host_ip:
+        server = Server.query.filter_by(ip=host_ip).first()
+    if server is None and len(servers) == 1:
+        # Fresh/single-node installs should not duplicate the only existing host.
+        server = servers[0]
+    if server is None:
+        server = Server(
+            name=master_name or '主控节点',
+            ip=host_ip,
+            group_name='主控',
+            flag='🧭',
+            location='',
+            cpu_cores=0,
+            ram_gb=0,
+            disk_gb=0,
+            bandwidth='待 Agent 回填',
+            provider='local-master',
+            tags=['master', 'agent', 'auto-installed'],
+            status='unknown',
+            agent_config={},
+        )
+        db.session.add(server)
+        db.session.flush()
+
+    if master_name and server.name != master_name:
+        server.name = master_name
+    elif not server.name:
+        server.name = '主控节点'
+    if host_ip and (not server.ip or server.ip in {'127.0.0.1', 'localhost'}):
+        server.ip = host_ip
+    if not server.group_name or server.group_name == '默认分组':
+        server.group_name = '主控'
+    if not server.flag or server.flag == '🌐':
+        server.flag = '🧭'
+    if not server.provider:
+        server.provider = 'local-master'
+
+    cfg = dict(server.agent_config or {})
+    cfg['install_role'] = 'master'
+    cfg['is_master'] = True
+    cfg['display_role'] = '主控节点'
+    cfg['managed_by_install'] = True
+    cfg['readonly'] = True
+    caps = dict(cfg.get('capabilities') or {})
+    caps.update({'exec': False, 'terminal': False, 'file_list': False})
+    cfg['capabilities'] = caps
+    server.agent_config = cfg
+
+    if not server.uuid:
+        server.uuid = str(uuid4())
+
+    existing_key = os.environ.get('EXISTING_AGENT_KEY') or ''
+    existing_uuid = os.environ.get('EXISTING_AGENT_UUID') or ''
+    existing_sid = str(os.environ.get('EXISTING_SERVER_ID') or '')
+    can_reuse = bool(
+        existing_key and existing_uuid == server.uuid and existing_sid == str(server.id)
+        and server.agent_key_hash and check_password_hash(server.agent_key_hash, existing_key)
+    )
+    if can_reuse:
+        raw_key = existing_key
+        rotated = False
+    else:
+        raw_key = secrets.token_urlsafe(32)
+        server.agent_key_hash = generate_password_hash(raw_key)
+        server.agent_key_prev_hash = None
+        server.agent_key_prev_expires_at = None
+        server.agent_key_created_at = datetime.now(timezone.utc)
+        rotated = True
+
+    db.session.commit()
+    print(json.dumps({
+        'server_id': server.id,
+        'server_name': server.name,
+        'uuid': server.uuid,
+        'agent_key': raw_key,
+        'rotated': rotated,
+        'host_ip': host_ip,
+    }, ensure_ascii=False))
+PY
+
+  python3 - "${provision_json}" "${agent_env}" "${AGENT_INTERVAL:-2}" <<'PY'
+import json, os, sys
+src, dst, interval = sys.argv[1], sys.argv[2], sys.argv[3]
+d = json.load(open(src, 'r', encoding='utf-8'))
+content = '\n'.join([
+    'API_ROOT=http://127.0.0.1:5000',
+    f'AGENT_UUID={d["uuid"]}',
+    f'AGENT_KEY={d["agent_key"]}',
+    f'SERVER_ID={d["server_id"]}',
+    f'INTERVAL={interval}',
+    '',
+])
+os.makedirs(os.path.dirname(dst), exist_ok=True)
+fd = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+with os.fdopen(fd, 'w', encoding='utf-8') as f:
+    f.write(content)
+PY
+  rm -f "${provision_json}"
+  chmod 600 "${agent_env}"
+
+  cat > /etc/systemd/system/vps-agent.service <<'EOF'
+[Unit]
+Description=VPS Readonly Metrics Agent
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/opt/vps-agent/agent.env
+ExecStart=/usr/bin/python3 /opt/vps-agent/agent.py
+Restart=always
+RestartSec=5
+User=root
+WorkingDirectory=/opt/vps-agent
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  systemctl daemon-reload
+  systemctl enable --now vps-agent.service
+  systemctl restart vps-agent.service
+  sleep 2
+  if systemctl is-active --quiet vps-agent.service; then
+    log_ok "本机 Agent 已安装并作为主控节点运行：vps-agent.service"
+  else
+    systemctl status vps-agent.service --no-pager -l || true
+    die "本机 Agent 启动失败"
+  fi
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 等待并展示状态
 # ─────────────────────────────────────────────────────────────────────────────
 show_status() {
@@ -534,6 +761,13 @@ main() {
 
   check_root
   setup_log
+
+  if [[ "${1:-}" == "--install-agent-only" ]]; then
+    validate_secrets
+    install_master_agent
+    exit 0
+  fi
+
   detect_distro
   install_docker
   enable_docker_service
@@ -546,6 +780,7 @@ main() {
   build_frontend
   setup_env_symlink
   start_services
+  install_master_agent
   show_status
 }
 

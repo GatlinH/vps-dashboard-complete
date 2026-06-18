@@ -1,186 +1,1851 @@
-/* src/styles/globe.css */
 
-/* =========================================
-   1. 3D 星图主容器
-   ========================================= */
-#globe-container {
-  width: 100%;
-  height: 600px; /* 稍微增加高度，让 3D 地球更有视觉冲击力 */
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* ── Cesium + Deck.gl 地球容器 ───────────────────────────────── */
+#cesium-globe-container {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+}
+
+.globe-star-projection-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 7% 8%, rgba(255, 205, 92, .12) 0 0, rgba(255, 170, 64, .055) 0 8%, transparent 19%),
+    radial-gradient(circle at 92% 10%, rgba(192, 215, 255, .10) 0 0, rgba(110, 150, 220, .045) 0 7%, transparent 17%),
+    linear-gradient(180deg, rgba(0,0,0,.02), rgba(0,0,0,.24)),
+    url('/globe/nebula-smooth-bg.png') center / cover no-repeat;
+  transform: scale(1.01);
+}
+
+#cesium-globe-container { z-index: 1; background: transparent !important; }
+#cesium-globe-container .cesium-viewer,
+#cesium-globe-container .cesium-viewer-cesiumWidgetContainer,
+#cesium-globe-container .cesium-widget,
+#cesium-globe-container canvas { background: transparent !important; }
+
+
+#cesium-globe-container .cesium-viewer {
+  font-family: inherit;
+}
+
+#cesium-globe-container .cesium-viewer-bottom,
+#cesium-globe-container .cesium-viewer-cesiumInspector,
+#cesium-globe-container .cesium-performanceDisplay-defaultContainer {
+  display: none !important;
+}
+
+#deck-overlay-canvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+/* Legacy Three host class is still present on the Cesium homepage container.
+   Keep only layout; remove old radial/vignette overlays that created an oval glow on city zoom. */
+.three-globe-host {
+  background: #050a12;
   position: relative;
-  /* 容器背景使用柔和的面板色 */
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius, 16px);
-  box-shadow: var(--shadow);
   overflow: hidden;
-  transition: all 0.4s ease;
 }
 
-/* 暗色模式：增加内阴影，营造深邃的空间感 */
-[data-theme="dark"] #globe-container {
-  background: rgba(15, 23, 42, 0.4); 
-  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.6), var(--shadow); 
+.three-globe-host::after {
+  content: none !important;
+  display: none !important;
 }
 
-#globe-canvas {
-  border-radius: var(--radius, 16px);
-  outline: none;
+#globe-container.display-globe-fullscreen,
+.three-globe-host,
+.three-globe-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#globe-container.display-globe-fullscreen {
+  overflow: hidden;
+  background: #02050b;
+}
+
+.three-globe-host {
+  z-index: 2;
+  filter: none;
+}
+
+.three-globe-canvas {
+  display: block;
   cursor: grab;
 }
 
-#globe-canvas:active {
+.three-globe-label-layer,
+.three-globe-geo-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+}
+
+
+.three-globe-label-layer {
+  z-index: 10;
+}
+
+.three-globe-geo-layer {
+  z-index: 9;
+}
+
+.three-globe-label,
+.three-globe-geo-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-9999px, -9999px);
+  transform-origin: center center;
+  will-change: transform, opacity;
+  white-space: nowrap;
+}
+
+.three-globe-label {
+  pointer-events: auto;
+  padding: 5px 9px;
+  border: 1px solid rgba(125, 211, 252, 0.68);
+  border-radius: 999px;
+  background: radial-gradient(circle at 18% 25%, rgba(255,255,255,0.22), transparent 26%), rgba(5, 13, 28, 0.72);
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.45), 0 0 16px rgba(56, 189, 248, 0.42), 0 8px 22px rgba(0, 0, 0, 0.46);
+  backdrop-filter: blur(8px);
+  color: rgba(248, 252, 255, 0.96);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
+}
+
+.three-globe-label.is-active,
+.three-globe-label:hover {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.9);
+  background: rgba(7, 19, 39, 0.88);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25), 0 0 24px rgba(125, 211, 252, 0.66), 0 10px 26px rgba(0, 0, 0, 0.52);
+}
+
+.three-globe-label.is-edge-pinned::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #7dd3fc;
+  box-shadow: 0 0 10px rgba(125, 211, 252, 0.95);
+}
+
+.three-globe-label-place {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(247, 251, 255, 0.82);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.62);
+}
+
+.three-globe-label-node {
+  font-size: 8px;
+  color: rgba(188, 206, 222, 0.48);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  letter-spacing: 0.01em;
+}
+
+.three-globe-geo-label {
+  color: rgba(231, 239, 249, 0.72);
+  font-size: 18px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.three-globe-geo-label.is-region {
+  font-size: 26px;
+  font-weight: 700;
+  color: rgba(242, 247, 255, 0.46);
+}
+
+.three-globe-geo-label.is-country {
+  font-size: 18px;
+  color: rgba(232, 240, 250, 0.66);
+}
+
+.globe-hint {
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  transform: translateX(-50%);
+  z-index: 18;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(3, 8, 18, 0.5);
+  color: rgba(226, 236, 248, 0.7);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(124, 196, 255, 0.08);
+  pointer-events: none;
+}
+
+.globe-focus-badge {
+  position: absolute;
+  left: 22px;
+  bottom: 24px;
+  z-index: 19;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(4, 10, 20, 0.62);
+  border: 1px solid rgba(125, 211, 252, 0.16);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.26);
+  backdrop-filter: blur(12px);
+  color: #f8fbff;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 180ms ease, transform 220ms ease;
+  pointer-events: none;
+}
+
+.globe-focus-badge.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.globe-focus-badge strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.globe-focus-badge span {
+  display: block;
+  color: rgba(226, 236, 248, 0.72);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.focus-badge-kicker {
+  color: #7dd3fc !important;
+  font-size: 11px !important;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+
+.three-globe-sun-badge {
+  position: absolute;
+  left: 34px;
+  top: 24px;
+  width: 74px;
+  height: 74px;
+  z-index: 20;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: filter .22s ease, transform .22s ease;
+}
+
+.three-globe-sun-badge:hover {
+  filter: brightness(1.04) saturate(1.04);
+}
+
+.three-globe-sun-badge.is-dragging {
+  cursor: grabbing;
+  transition: none;
+}
+
+.three-globe-sun-badge.is-complete {
+  filter: brightness(1.1) saturate(1.06);
+}
+
+.three-globe-sun-glow,
+.three-globe-sun-corona,
+.three-globe-sun-halo,
+.three-globe-sun-core {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.three-globe-sun-glow {
+  inset: -28px;
+  background: radial-gradient(circle, rgba(255, 196, 76, 0.28) 0%, rgba(255, 166, 60, 0.14) 36%, rgba(255, 132, 28, 0.06) 58%, transparent 76%);
+  filter: blur(18px);
+}
+
+.three-globe-sun-corona {
+  inset: -10px;
+  background: radial-gradient(circle, rgba(255, 247, 210, 0.18) 0%, rgba(255, 214, 120, 0.18) 28%, rgba(255, 160, 54, 0.10) 56%, transparent 74%);
+  filter: blur(6px);
+}
+
+.three-globe-sun-halo {
+  inset: 12px;
+  background: radial-gradient(circle at 34% 34%, rgba(255, 250, 228, 0.98) 0%, rgba(255, 236, 164, 0.96) 22%, rgba(255, 190, 82, 0.94) 52%, rgba(255, 143, 46, 0.9) 76%, rgba(218, 96, 20, 0.84) 100%);
+  box-shadow: inset -10px -12px 18px rgba(170, 80, 8, 0.26), inset 8px 8px 14px rgba(255, 248, 214, 0.24);
+}
+
+.three-globe-sun-core {
+  inset: 24px;
+  background: radial-gradient(circle, rgba(255, 255, 248, 0.95) 0%, rgba(255, 246, 194, 0.74) 44%, rgba(255, 216, 118, 0) 78%);
+  mix-blend-mode: screen;
+  filter: blur(1px);
+}
+
+.globe-moon-root {
+  position: absolute;
+  top: 24px;
+  right: 28px;
+  z-index: 18;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.globe-moon-root > div,
+.globe-moon-root .globe-moon-pill,
+.globe-moon-root .globe-moon-drawer {
+  pointer-events: auto;
+}
+
+.globe-moon-pill {
+  cursor: grab;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #d4a84a;
+  box-shadow: none;
+  backdrop-filter: none;
+  touch-action: none;
+}
+
+.globe-moon-pill.vintage-moon-toggle {
+  width: 78px;
+  height: 78px;
+  border-radius: 22px;
+  overflow: visible;
+  transform-origin: center;
+  transition: filter .18s ease, transform .18s ease;
+}
+
+.vintage-moon-sky {
+  position: relative;
+  width: 78px;
+  height: 78px;
+  border-radius: 20px;
+  display: block;
+  background: radial-gradient(circle at 52% 46%, rgba(24, 62, 74, .88), rgba(10, 37, 49, .96) 68%, rgba(7, 27, 39, .98));
+  box-shadow: 0 16px 34px rgba(0,0,0,.26), inset 0 0 0 1px rgba(218, 172, 76, .09);
+}
+
+.vintage-crescent {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  width: 36px;
+  height: 58px;
+  border-radius: 50%;
+  background: #d8aa4a;
+  box-shadow: inset -4px 3px 0 rgba(255, 226, 139, .18), inset 4px -5px 0 rgba(94, 63, 22, .12), 0 0 16px rgba(216, 170, 74, .18);
+}
+.vintage-crescent::before {
+  content: '';
+  position: absolute;
+  left: -9px;
+  top: 1px;
+  width: 34px;
+  height: 56px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 45% 45%, rgba(24, 62, 74, .98), rgba(8, 31, 43, .99));
+  box-shadow: 3px 0 0 rgba(12, 40, 51, .20);
+}
+.vintage-crescent::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 64% 27%, rgba(94, 63, 22, .28) 0 2px, transparent 2.5px), radial-gradient(circle at 75% 54%, rgba(94, 63, 22, .22) 0 3px, transparent 3.8px), radial-gradient(circle at 58% 72%, rgba(94, 63, 22, .2) 0 2px, transparent 2.6px);
+}
+.vintage-crater { position:absolute; border-radius:50%; background:#123646; opacity:.95; z-index:2; }
+.vintage-crater.c1 { right: 8px; top: 11px; width: 5px; height: 7px; transform: rotate(-22deg); }
+.vintage-crater.c2 { right: 3px; top: 29px; width: 7px; height: 9px; }
+.vintage-crater.c3 { right: 13px; bottom: 11px; width: 4px; height: 5px; }
+.vintage-crater.c4 { right: 15px; top: 24px; width: 3px; height: 4px; }
+
+.vintage-star {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: #d8aa4a;
+  border-radius: 50%;
+  box-shadow: 0 0 7px rgba(216,170,74,.32);
+}
+.vintage-star::before,
+.vintage-star::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: #d8aa4a;
+  border-radius: 999px;
+}
+.vintage-star::before { width: 12px; height: 2px; }
+.vintage-star::after { width: 2px; height: 12px; }
+.vintage-star.s1 { left: 16px; top: 17px; transform: scale(.56); }
+.vintage-star.s2 { left: 12px; top: 38px; transform: scale(.86); }
+.vintage-star.s3 { left: 28px; top: 58px; transform: scale(.46); }
+.vintage-star.s4 { left: 34px; top: 11px; transform: scale(.42); }
+.vintage-star.s5 { right: 2px; bottom: 7px; transform: scale(.78); }
+
+.moon-core {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fffdf3 0%, #ddd8bf 46%, #a9a289 100%);
+  box-shadow: inset -7px -4px 10px rgba(70, 62, 32, 0.24), 0 0 18px rgba(255, 249, 208, 0.24);
+}
+
+.moon-copy { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1; }
+.moon-copy b { font-size: 15px; }
+.moon-copy em { font-style: normal; font-size: 11px; color: rgba(211,223,239,0.72); }
+
+.globe-moon-drawer {
+  width: min(440px, calc(100vw - 48px));
+  margin-top: 10px;
+  padding: 14px;
+  border-radius: 22px;
+  border: 1px solid rgba(191, 207, 230, 0.12);
+  background: linear-gradient(180deg, rgba(10, 18, 31, 0.92), rgba(7, 13, 24, 0.88));
+  box-shadow: 0 18px 48px rgba(0,0,0,0.35);
+  backdrop-filter: blur(18px);
+  opacity: 0;
+  transform: translateY(-8px) scale(0.98);
+  transform-origin: top right;
+  pointer-events: none;
+  transition: opacity .2s ease, transform .2s ease;
+}
+
+.globe-moon-root.open .globe-moon-drawer {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.globe-moon-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  color: #edf5ff;
+}
+
+.globe-moon-header span {
+  font-size: 11px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(106, 196, 255, 0.12);
+  color: #a8deff;
+}
+
+.globe-moon-kicker {
+  font-size: 11px;
+  color: rgba(194, 209, 228, 0.66);
+  margin-bottom: 4px;
+}
+
+.globe-moon-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.moon-stat {
+  border-radius: 16px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.moon-stat span {
+  display: block;
+  font-size: 11px;
+  color: rgba(193, 208, 226, 0.66);
+  margin-bottom: 6px;
+}
+
+.moon-stat strong { color: #f3f8ff; font-size: 16px; }
+
+.globe-moon-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.globe-moon-columns section {
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.moon-section-title {
+  color: #f0f6ff;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.globe-moon-columns ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.globe-moon-columns li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  color: rgba(215, 228, 242, 0.76);
+}
+
+.globe-moon-columns li b { color: #ffffff; font-weight: 600; }
+
+@media (max-width: 900px) {
+  .globe-moon-root { right: 18px; top: 18px; }
+  .globe-moon-drawer { width: min(360px, calc(100vw - 36px)); }
+  .globe-moon-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .globe-moon-columns { grid-template-columns: 1fr; }
+}
+
+.globe-moon-pill.is-dragging { cursor: grabbing; }
+.globe-moon-pill.is-dragging .vintage-moon-sky { transform: scale(1.04); }
+.globe-moon-pill.is-complete { filter: brightness(1.16) saturate(1.12); }
+
+
+#globeSunMount { position:absolute; inset:0; pointer-events:none; z-index:20; }
+.three-globe-sun-badge { pointer-events:auto !important; }
+.globe-moon-root { z-index: 20; }
+.globe-moon-pill.moon-drag-only { min-width: 78px; padding: 0; width: 78px; height: 78px; border-radius: 22px; justify-content: center; }
+.globe-moon-pill.moon-drag-only .globe-moon-text,
+.globe-moon-pill.moon-drag-only .globe-moon-sub { display:none !important; }
+.globe-moon-pill.moon-drag-only.is-dragging { transform: translateY(-2px) scale(1.03); }
+.globe-moon-pill.moon-drag-only.is-complete { box-shadow: 0 0 0 1px rgba(184,222,255,.24), 0 0 24px rgba(154,206,255,.22); }
+#cesium-globe-container canvas { filter: none; }
+.three-globe-host::before { content:none !important; display:none !important; }
+
+
+/* === Astro entrance polish === */
+.three-globe-sun-badge {
+  left: 24px;
+  top: 16px;
+  width: 104px;
+  height: 104px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  appearance: none;
+  box-shadow: none;
+  isolation: isolate;
+}
+.three-globe-sun-core,
+.three-globe-sun-corona,
+.three-globe-sun-halo,
+.three-globe-sun-glow {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.three-globe-sun-core {
+  width: 28px;
+  height: 28px;
+  left: 34px;
+  top: 34px;
+  background: radial-gradient(circle at 34% 30%, #fffefc 0%, #fff8dc 20%, #ffe48f 46%, #ffbf4d 76%, #ff9a36 100%);
+  box-shadow: 0 0 14px rgba(255,246,204,.98), 0 0 36px rgba(255,201,96,.64), 0 0 72px rgba(255,156,58,.24), inset 0 0 0 1px rgba(255,252,238,.18);
+  z-index: 4;
+}
+.three-globe-sun-corona {
+  inset: 22px;
+  background: radial-gradient(circle, rgba(255,247,214,.34) 0%, rgba(255,214,120,.2) 24%, rgba(255,170,76,.08) 54%, transparent 76%);
+  filter: blur(4px);
+  transform: scale(1.18);
+  z-index: 3;
+}
+.three-globe-sun-halo {
+  inset: 6px;
+  background: radial-gradient(circle, rgba(255,234,168,.18) 0%, rgba(255,196,98,.08) 35%, rgba(255,163,74,.028) 62%, transparent 88%);
+  filter: blur(10px);
+  z-index: 2;
+}
+.three-globe-sun-glow {
+  inset: -18px;
+  background: radial-gradient(circle, rgba(255,224,148,.14) 0%, rgba(255,190,90,.06) 38%, rgba(255,154,58,.018) 64%, transparent 86%);
+  filter: blur(18px);
+  z-index: 1;
+}
+.three-globe-sun-track.removed {
+  left: 58px;
+  right: -8px;
+  bottom: 18px;
+  height: 2px;
+  opacity: 0;
+  background: linear-gradient(90deg, rgba(255,225,160,.0), rgba(255,225,160,.16));
+  transition: opacity .18s ease, transform .18s ease;
+}
+.three-globe-sun-badge:hover .three-globe-sun-track,
+.three-globe-sun-badge.is-dragging .three-globe-sun-track,
+.three-globe-sun-badge:focus-visible .three-globe-sun-track.removed {
+  opacity: 1;
+}
+.three-globe-sun-badge.is-dragging { transform: scale(1.018); filter: saturate(1.06) brightness(1.04); }
+.three-globe-sun-badge.is-complete { transform: translateX(6px) translateY(-2px) scale(1.024); }
+.three-globe-sun-badge:focus-visible { outline: 2px solid rgba(255,244,182,.85); outline-offset: 3px; border-radius: 999px; }
+
+.globe-moon-root {
+  right: 26px;
+  top: 18px;
+  left: auto;
+  bottom: auto;
+  z-index: 20;
+}
+.globe-moon-pill.moon-drag-only {
+  position: relative;
+  width: 62px;
+  height: 62px;
+  min-width: 62px;
+  border: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  overflow: visible;
+}
+.globe-moon-orb {
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  display: block;
+  filter: drop-shadow(0 0 10px rgba(205,226,255,.12));
+}
+.globe-moon-disc,
+.globe-moon-shadow,
+.globe-moon-rim {
+  position: absolute;
+  border-radius: 50%;
+}
+.globe-moon-disc {
+  inset: 0;
+  background: radial-gradient(circle at 34% 30%, #f5f8fd 0%, #d3dce8 44%, #a5b1c2 72%, #7a8698 100%);
+  box-shadow: inset -6px -10px 16px rgba(50,64,84,.28), inset 5px 5px 8px rgba(255,255,255,.18), 0 0 20px rgba(198,217,255,.08);
+}
+.globe-moon-shadow {
+  top: 2px;
+  right: -2px;
+  width: 78%;
+  height: 92%;
+  background: radial-gradient(circle at 30% 50%, rgba(12,16,24,.18) 0%, rgba(11,14,20,.62) 54%, rgba(5,8,14,.92) 100%);
+  filter: blur(.2px);
+}
+.globe-moon-rim {
+  inset: -1px;
+  border: 1px solid rgba(226,237,255,.22);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.04);
+}
+.globe-moon-count-badge {
+  position: absolute;
+  right: 1px;
+  bottom: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(236,244,255,.96);
+  background: rgba(9,16,28,.7);
+  border: 1px solid rgba(194,214,255,.16);
+  box-shadow: 0 4px 14px rgba(0,0,0,.22);
+}
+.globe-moon-pill.moon-drag-only:hover .globe-moon-count-badge,
+.globe-moon-pill.moon-drag-only.is-dragging .globe-moon-count-badge { background: rgba(14,24,40,.84); }
+.globe-moon-pill.moon-drag-only.is-dragging { transform: translateY(-1px) scale(1.02); }
+.globe-moon-pill.moon-drag-only.is-complete .globe-moon-rim { border-color: rgba(225,239,255,.44); box-shadow: 0 0 18px rgba(190,220,255,.18), inset 0 0 0 1px rgba(255,255,255,.06); }
+
+
+
+/* === Moon matches sun language === */
+.globe-moon-root {
+  right: 30px;
+  top: 20px;
+}
+.globe-moon-pill.moon-drag-only {
+  width: 84px;
+  height: 84px;
+  min-width: 84px;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  overflow: visible;
+  isolation: isolate;
+}
+.globe-moon-glow,
+.globe-moon-halo,
+.globe-moon-orb,
+.globe-moon-disc,
+.globe-moon-shadow,
+.globe-moon-rim {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.globe-moon-glow {
+  inset: -12px;
+  background: radial-gradient(circle, rgba(198,218,255,.12) 0%, rgba(164,189,232,.06) 38%, rgba(120,142,184,.018) 64%, transparent 86%);
+  filter: blur(14px);
+  z-index: 1;
+}
+.globe-moon-halo {
+  inset: 10px;
+  background: radial-gradient(circle, rgba(236,244,255,.12) 0%, rgba(186,204,232,.08) 34%, rgba(124,142,172,.03) 60%, transparent 84%);
+  filter: blur(6px);
+  z-index: 2;
+}
+.globe-moon-orb {
+  inset: 20px;
+  z-index: 3;
+  filter: drop-shadow(0 0 10px rgba(205,226,255,.08));
+}
+.globe-moon-disc {
+  inset: 0;
+  background: radial-gradient(circle at 34% 30%, #f8fbff 0%, #dde6f2 42%, #b6c2d3 70%, #8793a4 100%);
+  box-shadow: inset -7px -9px 15px rgba(48,60,80,.24), inset 4px 4px 7px rgba(255,255,255,.14), 0 0 16px rgba(198,217,255,.06);
+}
+.globe-moon-shadow {
+  top: 1px;
+  right: -1px;
+  width: 74%;
+  height: 96%;
+  background: radial-gradient(circle at 28% 52%, rgba(14,18,28,.12) 0%, rgba(12,16,24,.54) 52%, rgba(7,10,16,.9) 100%);
+}
+.globe-moon-rim {
+  inset: -1px;
+  border: 1px solid rgba(226,237,255,.18);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.03);
+}
+.globe-moon-pill.moon-drag-only.is-dragging {
+  transform: translateY(-1px) scale(1.02);
+  filter: brightness(1.03) saturate(1.02);
+}
+.globe-moon-pill.moon-drag-only.is-complete .globe-moon-rim {
+  border-color: rgba(225,239,255,.34);
+  box-shadow: 0 0 16px rgba(190,220,255,.14), inset 0 0 0 1px rgba(255,255,255,.05);
+}
+.globe-moon-pill.moon-drag-only:focus-visible {
+  outline: 2px solid rgba(226,237,255,.75);
+  outline-offset: 3px;
+  border-radius: 999px;
+}
+.globe-moon-count-badge { display:none !important; }
+
+
+/* === Astro balance B: natural but unified === */
+.three-globe-sun-badge {
+  left: 26px;
+  top: 18px;
+  width: 96px;
+  height: 96px;
+}
+.three-globe-sun-core {
+  width: 26px;
+  height: 26px;
+  left: 34px;
+  top: 34px;
+  box-shadow:
+    0 0 10px rgba(255,245,195,.92),
+    0 0 28px rgba(255,199,92,.52),
+    0 0 58px rgba(255,155,58,.16);
+}
+.three-globe-sun-corona {
+  inset: 23px;
+  filter: blur(3px);
+  transform: scale(1.14);
+}
+.three-globe-sun-halo {
+  inset: 9px;
+  filter: blur(8px);
+}
+.three-globe-sun-glow {
+  inset: -14px;
+  filter: blur(14px);
+}
+.three-globe-sun-track.removed {
+  left: 56px;
+  right: -4px;
+  bottom: 18px;
+}
+
+.globe-moon-root {
+  right: 30px;
+  top: 20px;
+}
+.globe-moon-pill.moon-drag-only {
+  width: 58px;
+  height: 58px;
+  min-width: 58px;
+}
+.globe-moon-orb {
+  inset: 8px;
+  filter: drop-shadow(0 0 8px rgba(205,226,255,.10));
+}
+.globe-moon-disc {
+  background: radial-gradient(circle at 34% 30%, #f7fbff 0%, #dce6f1 44%, #b2c0d1 70%, #7d899a 100%);
+  box-shadow:
+    inset -5px -8px 14px rgba(50,64,84,.24),
+    inset 4px 4px 7px rgba(255,255,255,.14),
+    0 0 14px rgba(198,217,255,.05);
+}
+.globe-moon-shadow {
+  top: 3px;
+  right: -1px;
+  width: 76%;
+  height: 90%;
+  background: radial-gradient(circle at 28% 50%, rgba(14,18,28,.14) 0%, rgba(12,16,24,.54) 56%, rgba(5,8,14,.88) 100%);
+}
+.globe-moon-rim {
+  border: 1px solid rgba(226,237,255,.18);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.03);
+}
+.globe-moon-pill.moon-drag-only.is-complete .globe-moon-rim {
+  border-color: rgba(225,239,255,.32);
+  box-shadow: 0 0 14px rgba(190,220,255,.12), inset 0 0 0 1px rgba(255,255,255,.04);
+}
+
+
+.public-overview-page {
+  min-height: 100vh;
+  padding: 28px 24px 40px;
+  background: radial-gradient(circle at top, rgba(70,110,170,.18), transparent 32%), linear-gradient(180deg, #050913 0%, #07111d 100%);
+  color: #eef6ff;
+}
+.public-overview-topbar { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:20px; }
+.public-overview-back { color:#9ed8ff; text-decoration:none; font-size:14px; }
+.public-overview-title-wrap h1 { margin:0; font-size:32px; }
+.public-overview-title-wrap p { margin:6px 0 0; color:rgba(220,232,245,.72); }
+.public-overview-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:18px; }
+.public-overview-stats > div, .public-overview-card { background:rgba(8,16,28,.72); border:1px solid rgba(125,211,252,.12); border-radius:18px; backdrop-filter:blur(10px); box-shadow:0 14px 36px rgba(0,0,0,.22); }
+.public-overview-stats > div { padding:14px 16px; }
+.public-overview-stats span { display:block; color:rgba(220,232,245,.66); font-size:12px; }
+.public-overview-stats strong { display:block; margin-top:6px; font-size:24px; }
+.public-overview-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px; }
+.public-overview-card { padding:16px; }
+.public-overview-head { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.public-overview-flag { margin-right:8px; }
+.public-overview-meta { margin-top:8px; color:rgba(220,232,245,.72); font-size:13px; }
+.public-overview-grid { margin-top:12px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; color:#dfeaf7; font-size:13px; }
+.public-overview-status { padding:4px 8px; border-radius:999px; font-size:12px; text-transform:uppercase; }
+.public-overview-status.is-online { background:rgba(16,185,129,.16); color:#7ef0bf; }
+.public-overview-status.is-warn { background:rgba(245,158,11,.16); color:#ffd27e; }
+.public-overview-status.is-offline { background:rgba(239,68,68,.16); color:#ff9b9b; }
+.public-overview-empty { padding:40px; text-align:center; color:rgba(220,232,245,.7); }
+@media (max-width: 700px) { .public-overview-stats { grid-template-columns:repeat(2,minmax(0,1fr)); } .public-overview-topbar { flex-direction:column; } }
+
+/* Hide celestial entrance glows in close Google Earth / city mode; they read as map artifacts. */
+body.globe-city-mode #globeSunMount,
+body.globe-city-mode #globeMoonRoot {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 180ms ease;
+}
+
+.google-earth-loading-badge {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%) translateY(8px);
+  z-index: 18;
+  opacity: 0;
+  pointer-events: none;
+  color: rgba(238, 246, 255, 0.88);
+  background: rgba(5, 9, 14, 0.54);
+  border: 1px solid rgba(180, 210, 240, 0.16);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font: 500 12px/1.2 Inter, system-ui, sans-serif;
+  backdrop-filter: blur(8px);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+.google-earth-loading-badge.is-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.google-earth-node-label-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 16;
+  pointer-events: none;
+  overflow: hidden;
+}
+.google-earth-node-html-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  max-width: 190px;
+  min-width: 74px;
+  padding: 5px 9px 6px;
+  border-radius: 10px;
+  color: rgba(248, 252, 255, 0.98);
+  background: rgba(2, 7, 12, 0.70);
+  border: 1px solid rgba(164, 224, 255, 0.30);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.50);
+  font: 700 12px/1.12 Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.75);
+  transition: opacity 140ms ease;
+}
+.google-earth-node-html-label .node-place,
+.google-earth-node-html-label .node-name {
+  display: block;
+  max-width: 168px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.google-earth-node-html-label .node-name {
+  margin-top: 2px;
+  color: rgba(200, 222, 238, 0.76);
+  font-weight: 650;
+  font-size: 10px;
+}
+.google-earth-node-html-label.is-vps-node {
+  border-color: rgba(204, 234, 255, 0.34);
+  /* VPS 节点标签可点击跳详情页: 覆盖父层 label-layer 的 pointer-events:none */
+  pointer-events: auto;
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.google-earth-node-html-label.is-vps-node:hover {
+  border-color: rgba(204, 234, 255, 0.72);
+  box-shadow: 0 2px 10px rgba(80, 165, 255, 0.35);
+  transform: translateY(-1px);
+}
+.google-earth-node-html-label.is-vps-node .node-place,
+.google-earth-node-html-label.is-vps-node .node-name {
+  pointer-events: auto;
+}
+.google-earth-node-html-label.is-visitor-node {
+  background: rgba(3, 20, 25, 0.74);
+  border-color: rgba(125, 247, 255, 0.48);
+  color: rgba(232, 255, 255, 0.98);
+}
+.google-earth-node-html-label.is-visitor-node .node-name {
+  color: rgba(177, 248, 255, 0.78);
+}
+.google-earth-node-html-label::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 1px;
+  height: 7px;
+  background: rgba(180, 230, 255, 0.42);
+}
+.google-earth-node-html-label.is-visible {
+  opacity: 1;
+}
+
+.google-earth-place-label-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 14;
+  pointer-events: none;
+  overflow: hidden;
+}
+.google-earth-place-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  color: rgba(235, 243, 250, 0.82);
+  font: 700 14px/1 Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  letter-spacing: 0.05em;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.96), 0 0 7px rgba(0,0,0,0.78), 0 0 1px rgba(0,0,0,1);
+  transition: opacity 160ms ease;
+  white-space: nowrap;
+}
+.google-earth-place-label.region {
+  color: rgba(220, 232, 242, 0.56);
+  font-size: 22px;
+  letter-spacing: 0.18em;
+}
+.google-earth-place-label.country {
+  color: rgba(232, 240, 248, 0.68);
+  font-size: 17px;
+  letter-spacing: 0.12em;
+}
+.google-earth-place-label.city {
+  color: rgba(248, 252, 255, 0.92);
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
+.google-earth-place-label.town {
+  color: rgba(236, 246, 255, 0.82);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.035em;
+}
+.google-earth-place-label.is-visible {
+  opacity: 1;
+}
+
+.three-globe-sun-badge.is-dragging .three-globe-sun-glow,
+.three-globe-sun-badge.is-complete .three-globe-sun-glow {
+  opacity: 1;
+  transform: scale(calc(1 + var(--sun-drag-progress, 0) * .32));
+}
+.three-globe-sun-badge.is-complete .three-globe-sun-core {
+  box-shadow: 0 0 20px rgba(255,248,210,1), 0 0 56px rgba(255,194,82,.8), 0 0 118px rgba(255,146,46,.34);
+}
+
+
+/* 2026-05 node visibility pass: keep VPS/visitor marks above the map texture, not blended into it. */
+.three-globe-label-place {
+  font-size: 11.5px;
+  color: rgba(255,255,255,.94);
+  text-shadow: 0 0 8px rgba(25, 180, 255, .42), 0 2px 4px rgba(0,0,0,.9);
+}
+.three-globe-label-node {
+  color: rgba(220,236,255,.72);
+  text-shadow: 0 1px 3px rgba(0,0,0,.88);
+}
+.three-globe-label.is-active .three-globe-label-place,
+.three-globe-label:hover .three-globe-label-place {
+  color:#fff;
+  text-shadow: 0 0 12px rgba(111, 231, 255, .7), 0 2px 5px rgba(0,0,0,.95);
+}
+.three-globe-visitor-label {
+  position:absolute;
+  left:0;
+  top:0;
+  z-index:12;
+  white-space:nowrap;
+  pointer-events:none;
+  color:#eaffff;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.02em;
+  text-shadow:0 0 10px rgba(103,232,249,.72),0 2px 5px rgba(0,0,0,.92);
+}
+.globe-moon-pill.moon-drag-only {
+  box-shadow: 0 0 20px rgba(184,213,255,.16), 0 0 44px rgba(104,160,255,.08);
+}
+.globe-moon-disc {
+  clip-path: circle(50% at 50% 50%);
+  background: radial-gradient(circle at 32% 28%, #ffffff 0%, #eaf3ff 36%, #b9c9dd 72%, #6f7f96 100%);
+}
+.globe-moon-shadow {
+  right:-10px;
+  top:-2px;
+  width:86%;
+  height:106%;
+  border-radius:50%;
+  background: radial-gradient(circle at 32% 50%, rgba(3,7,15,.08) 0%, rgba(5,9,18,.72) 48%, rgba(2,5,12,.96) 78%);
+}
+.globe-moon-glow {
+  opacity:.74;
+  background: radial-gradient(circle, rgba(220,238,255,.22) 0%, rgba(125,181,255,.12) 46%, rgba(125,181,255,0) 74%);
+}
+
+
+/* Step5: moon is a drag-only crescent affordance, paired with the sun but not a text badge. */
+.globe-moon-pill.moon-drag-only {
+  cursor: grab;
+  --moon-drag-progress: 0;
+}
+.globe-moon-pill.moon-drag-only .globe-moon-glow {
+  transform: scale(calc(1 + var(--moon-drag-progress, 0) * .22));
+  opacity: calc(.50 + var(--moon-drag-progress, 0) * .38);
+}
+.globe-moon-pill.moon-drag-only.is-dragging {
   cursor: grabbing;
 }
-
-/* =========================================
-   2. 图例面板 (Legend) - 毛玻璃效果
-   ========================================= */
-.globe-legend {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  /* 亮色模式毛玻璃 */
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
-  font-size: 13px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
-  font-family: var(--sans);
-  transition: background 0.3s ease;
+.globe-moon-pill.moon-drag-only.is-complete .globe-moon-rim {
+  border-color: rgba(225,239,255,.60);
+  box-shadow: 0 0 22px rgba(190,220,255,.26), inset 0 0 0 1px rgba(255,255,255,.10);
 }
 
-/* 暗色模式毛玻璃 */
-[data-theme="dark"] .globe-legend {
-  background: rgba(15, 23, 42, 0.75);
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+
+/* nodevis2: stronger map-annotation labels so VPS/visitor nodes do not blend into imagery. */
+.google-earth-node-label-layer { z-index: 24; }
+.google-earth-node-html-label {
+  padding: 6px 10px 7px;
+  background: linear-gradient(180deg, rgba(3, 10, 18, .88), rgba(1, 5, 10, .78));
+  border-color: rgba(228, 247, 255, .58);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.07), 0 6px 18px rgba(0,0,0,.50), 0 0 18px rgba(94, 214, 255, .20);
+  text-shadow: 0 1px 2px rgba(0,0,0,.96);
+}
+.google-earth-node-html-label.is-vps-node .node-place { color: #ffffff; }
+.google-earth-node-html-label.is-vps-node .node-name { color: rgba(213,232,246,.86); }
+.google-earth-node-html-label.is-visitor-node {
+  border-color: rgba(160, 253, 255, .72);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 8px 22px rgba(0,0,0,.52), 0 0 26px rgba(103,232,249,.32);
+}
+.google-earth-node-html-label::after {
+  width: 2px;
+  height: 9px;
+  background: rgba(235, 250, 255, .72);
+  box-shadow: 0 0 8px rgba(125, 231, 255, .38);
 }
 
-.legend-item {
-  display: flex;
+
+/* Clear CSS-only crescent moon entrance — no image assets. */
+.globe-moon-root { top: 22px; right: 26px; }
+.globe-moon-pill.vintage-moon-toggle,
+.globe-moon-pill.moon-drag-only.vintage-moon-toggle {
+  width: 92px !important;
+  height: 92px !important;
+  min-width: 92px !important;
+  padding: 0 !important;
+  border-radius: 24px !important;
+  background: transparent !important;
+  overflow: visible !important;
+}
+.vintage-moon-toggle .vintage-moon-sky {
+  width: 92px !important;
+  height: 92px !important;
+  border-radius: 24px !important;
+  background: radial-gradient(circle at 48% 42%, rgba(27,66,78,.94), rgba(9,38,51,.98) 66%, #071f2d 100%) !important;
+  box-shadow: 0 18px 38px rgba(0,0,0,.30), inset 0 0 0 1px rgba(216,170,74,.10) !important;
+}
+.vintage-moon-toggle .vintage-crescent {
+  position: absolute !important;
+  right: 12px !important;
+  top: 11px !important;
+  width: 45px !important;
+  height: 70px !important;
+  border-radius: 50% !important;
+  background: #d8aa4a !important;
+  box-shadow: inset -5px 4px 0 rgba(255,226,139,.18), inset 5px -7px 0 rgba(88,58,18,.16), 0 0 18px rgba(216,170,74,.22) !important;
+}
+.vintage-moon-toggle .vintage-crescent::before {
+  content: '' !important;
+  position: absolute !important;
+  left: -14px !important;
+  top: 1px !important;
+  width: 43px !important;
+  height: 68px !important;
+  border-radius: 50% !important;
+  background: radial-gradient(circle at 48% 45%, rgba(27,66,78,.99), #071f2d 74%) !important;
+  box-shadow: 4px 0 0 rgba(7,31,45,.18) !important;
+  z-index: 1 !important;
+}
+.vintage-moon-toggle .vintage-crescent::after { z-index: 2 !important; }
+.vintage-moon-toggle .vintage-crater { background: #123646 !important; z-index: 3 !important; }
+.vintage-moon-toggle .vintage-crater.c1 { right: 10px !important; top: 14px !important; width: 6px !important; height: 8px !important; }
+.vintage-moon-toggle .vintage-crater.c2 { right: 4px !important; top: 35px !important; width: 8px !important; height: 10px !important; }
+.vintage-moon-toggle .vintage-crater.c3 { right: 16px !important; bottom: 14px !important; width: 5px !important; height: 6px !important; }
+.vintage-moon-toggle .vintage-crater.c4 { right: 18px !important; top: 30px !important; width: 4px !important; height: 5px !important; }
+.vintage-moon-toggle .vintage-star.s1 { left: 17px !important; top: 18px !important; transform: scale(.62) !important; }
+.vintage-moon-toggle .vintage-star.s2 { left: 13px !important; top: 45px !important; transform: scale(.95) !important; }
+.vintage-moon-toggle .vintage-star.s3 { left: 32px !important; top: 70px !important; transform: scale(.52) !important; }
+.vintage-moon-toggle .vintage-star.s4 { left: 40px !important; top: 11px !important; transform: scale(.48) !important; }
+.vintage-moon-toggle .vintage-star.s5 { right: 3px !important; bottom: 10px !important; transform: scale(.82) !important; }
+
+
+/* Moon hidden-entry restyle: match the natural radial sun language, but cooler/lunar. */
+.globe-moon-pill.moon-drag-only.moon-solar-style {
+  --moon-drag-progress: 0;
+  width: 74px !important;
+  height: 74px !important;
+  min-width: 74px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+  justify-content: center;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-  color: var(--text-muted);
-  font-weight: 500;
-  transition: color 0.2s ease;
+  cursor: grab;
+  filter: saturate(1.02) brightness(1.02);
+}
+.moon-solar-core,.moon-solar-halo,.moon-solar-glow,.moon-solar-corona{position:absolute;inset:0;border-radius:50%;pointer-events:none;}
+.moon-solar-core{width:22px;height:22px;left:26px;top:26px;background:radial-gradient(circle at 34% 32%,#ffffff 0%,#f3fbff 25%,#d9ecff 50%,#a9c9ec 76%,rgba(120,154,202,.96) 100%);box-shadow:0 0 14px rgba(232,246,255,.74),0 0 30px rgba(156,196,236,.36),0 0 58px rgba(110,150,210,.13);}
+.moon-solar-halo{background:radial-gradient(circle,rgba(220,241,255,.17) 0%,rgba(166,207,246,.11) 24%,rgba(112,160,224,.065) 46%,rgba(88,128,190,.025) 70%,transparent 100%);filter:blur(2px);transform:scale(calc(1.22 + var(--moon-drag-progress,0)*.18));opacity:calc(.92 + var(--moon-drag-progress,0)*.08);}
+.moon-solar-glow{background:radial-gradient(circle,rgba(198,229,255,.12) 0%,rgba(137,185,238,.058) 34%,rgba(92,134,204,.018) 58%,transparent 84%);transform:scale(calc(1.62 + var(--moon-drag-progress,0)*.26));opacity:calc(.92 + var(--moon-drag-progress,0)*.08);}
+.moon-solar-corona{background:radial-gradient(circle,rgba(238,248,255,.08) 0%,rgba(173,211,248,.045) 34%,rgba(110,152,215,.014) 62%,transparent 88%);transform:scale(calc(2.05 + var(--moon-drag-progress,0)*.22));filter:blur(1px);}
+.globe-moon-pill.moon-drag-only.moon-solar-style:hover,.globe-moon-pill.moon-drag-only.moon-solar-style.is-dragging{filter:saturate(1.08) brightness(1.08);}
+.globe-moon-pill.moon-drag-only.moon-solar-style.is-dragging{cursor:grabbing;}
+.globe-moon-pill.moon-drag-only.moon-solar-style.is-complete .moon-solar-core{box-shadow:0 0 18px rgba(232,246,255,.9),0 0 38px rgba(156,196,236,.52),0 0 72px rgba(110,150,210,.2);}
+.globe-moon-pill.moon-drag-only.moon-solar-style:focus-visible{outline:1px solid rgba(220,241,255,.46);outline-offset:8px;}
+
+
+/* === Effect image alignment: sci-fi reference background only === */
+.globe-star-projection-bg {
+  background:
+    radial-gradient(circle at 7% 8%, rgba(255, 216, 118, .15) 0 0, rgba(255, 176, 74, .07) 0 8%, transparent 20%),
+    radial-gradient(circle at 92% 10%, rgba(220, 236, 255, .12) 0 0, rgba(128, 166, 230, .052) 0 7%, transparent 18%),
+    linear-gradient(180deg, rgba(0,0,0,.02), rgba(0,0,0,.24)),
+    url('/globe/nebula-smooth-bg.png') center / cover no-repeat !important;
+}
+.three-globe-sun-badge {
+  left: 38px !important;
+  top: 24px !important;
+  width: 82px !important;
+  height: 82px !important;
+}
+.three-globe-sun-core {
+  width: 24px !important;
+  height: 24px !important;
+  left: 29px !important;
+  top: 29px !important;
+  background: radial-gradient(circle at 34% 30%, #fffffb 0%, #fff7ce 24%, #ffe18a 50%, #ffb84a 78%, #f08c2d 100%) !important;
+  box-shadow: 0 0 12px rgba(255,249,218,.95), 0 0 32px rgba(255,198,88,.62), 0 0 70px rgba(255,144,46,.22) !important;
+}
+.three-globe-sun-corona { inset: 18px !important; opacity: .82 !important; filter: blur(5px) !important; }
+.three-globe-sun-halo { inset: 1px !important; opacity: .72 !important; filter: blur(12px) !important; }
+.three-globe-sun-glow { inset: -22px !important; opacity: .58 !important; filter: blur(20px) !important; }
+.globe-moon-root { top: 24px !important; right: 32px !important; }
+.globe-moon-pill.moon-drag-only,
+.globe-moon-pill.moon-drag-only.moon-solar-style {
+  width: 70px !important;
+  height: 70px !important;
+  min-width: 70px !important;
+}
+.globe-moon-glow { inset: -18px !important; opacity: .66 !important; background: radial-gradient(circle, rgba(210,230,255,.18) 0%, rgba(154,188,240,.08) 38%, rgba(105,142,210,.022) 66%, transparent 86%) !important; }
+.globe-moon-halo { inset: 6px !important; opacity: .74 !important; background: radial-gradient(circle, rgba(242,248,255,.18) 0%, rgba(186,210,244,.10) 34%, rgba(128,154,202,.035) 62%, transparent 84%) !important; }
+.globe-moon-orb { inset: 18px !important; }
+.globe-moon-disc { background: radial-gradient(circle at 34% 30%, #f7fbff 0%, #dfe7f0 38%, #aeb9c8 66%, #747f90 100%) !important; box-shadow: inset -6px -8px 14px rgba(45,54,70,.32), inset 4px 4px 7px rgba(255,255,255,.15), 0 0 20px rgba(198,220,255,.10) !important; }
+.globe-moon-shadow { background: radial-gradient(circle at 28% 52%, rgba(15,19,27,.10) 0%, rgba(12,16,24,.50) 54%, rgba(5,8,14,.88) 100%) !important; }
+
+
+/* === PixiJS dynamic nebula background layer === */
+.globe-star-projection-bg.heic-nebula-host {
+  background: radial-gradient(circle at 72% 55%, rgba(26, 90, 120, .18), transparent 48%), #020712 !important;
+  overflow: hidden;
+}
+.pixi-nebula-canvas {
+  display: block;
+  opacity: .98;
 }
 
-.legend-item:last-child {
-  margin-bottom: 0;
+/* === HEIC1509A real nebula plate + blend-mode micro motion === */
+.globe-star-projection-bg.heic-nebula-host {
+  background:
+    radial-gradient(circle at 8% 8%, rgba(255, 216, 118, .12) 0 0, rgba(255, 176, 74, .05) 0 8%, transparent 19%),
+    radial-gradient(circle at 92% 10%, rgba(220, 236, 255, .10) 0 0, rgba(128, 166, 230, .045) 0 7%, transparent 17%),
+    linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.34)),
+    #010103 !important;
+  overflow: hidden;
+  isolation: isolate;
+}
+.globe-star-projection-bg.heic-nebula-host::before,
+.globe-star-projection-bg.heic-nebula-host::after {
+  content: "";
+  position: absolute;
+  inset: -6vh -7vw;
+  pointer-events: none;
+  background-image: url(/globe/backgrounds/deep-nebula-heic1509a.jpg);
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: 56% 50%;
+  will-change: transform, opacity, filter;
+}
+.globe-star-projection-bg.heic-nebula-host::before {
+  z-index: 0;
+  opacity: .72;
+  mix-blend-mode: screen;
+  filter: saturate(1.14) contrast(1.06) brightness(.80);
+  animation: heicNebulaDrift 58s ease-in-out infinite alternate;
+}
+.globe-star-projection-bg.heic-nebula-host::after {
+  z-index: 0;
+  opacity: .38;
+  mix-blend-mode: color-dodge;
+  filter: blur(1.6px) saturate(1.38) brightness(.92);
+  transform-origin: 64% 44%;
+  animation: heicNebulaBreath 34s ease-in-out infinite alternate;
+}
+.pixi-nebula-canvas {
+  position: relative;
+  z-index: 1 !important;
+  display: block;
+  opacity: .76;
+  mix-blend-mode: screen;
+  filter: saturate(1.05) brightness(.92);
+}
+@keyframes heicNebulaDrift {
+  0% { transform: translate3d(-1.2vw, -.8vh, 0) scale(1.035) rotate(-.20deg); opacity: .66; }
+  50% { transform: translate3d(.65vw, .45vh, 0) scale(1.055) rotate(.12deg); opacity: .76; }
+  100% { transform: translate3d(1.1vw, .85vh, 0) scale(1.045) rotate(.28deg); opacity: .70; }
+}
+@keyframes heicNebulaBreath {
+  0% { transform: translate3d(.8vw, .3vh, 0) scale(1.08) rotate(.22deg); opacity: .24; }
+  55% { transform: translate3d(-.4vw, -.6vh, 0) scale(1.12) rotate(-.10deg); opacity: .44; }
+  100% { transform: translate3d(-.9vw, .2vh, 0) scale(1.10) rotate(-.26deg); opacity: .34; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .globe-star-projection-bg.heic-nebula-host::before,
+  .globe-star-projection-bg.heic-nebula-host::after { animation: none !important; }
 }
 
-.legend-item:hover {
-  color: var(--text-main);
-}
 
-/* 图例小圆点发光效果 */
-.legend-dot {
-  width: 10px;
-  height: 10px;
+/* === Earth-synchronized pure CSS star layer (Pixi removed) === */
+.globe-star-projection-bg.heic-nebula-host {
+  perspective: 1000px;
+}
+.earth-sync-stars {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1px;
+  height: 1px;
+  z-index: 1;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+}
+.earth-sync-stars::before,
+.earth-sync-stars::after {
+  content: ;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2px;
+  height: 2px;
   border-radius: 50%;
-  box-shadow: 0 0 8px currentColor; /* 自带与背景同色的光晕 */
+  background: rgba(255,255,255,.82);
+  box-shadow:
+    -620px -260px 0 0 rgba(255,255,255,.46),
+    -510px  180px 0 0 rgba(210,232,255,.38),
+    -430px -90px 0 1px rgba(255,224,178,.33),
+    -315px  280px 0 0 rgba(255,255,255,.52),
+    -220px -320px 0 0 rgba(190,218,255,.42),
+    -120px  110px 0 1px rgba(255,255,255,.50),
+      60px -250px 0 0 rgba(255,241,214,.56),
+     170px  240px 0 0 rgba(210,232,255,.48),
+     270px -120px 0 1px rgba(255,255,255,.40),
+     390px  130px 0 0 rgba(255,214,170,.38),
+     520px -270px 0 0 rgba(205,230,255,.45),
+     645px   70px 0 1px rgba(255,255,255,.42),
+    -700px   20px 0 0 rgba(255,255,255,.28),
+     730px -20px 0 0 rgba(185,215,255,.32),
+     110px  350px 0 0 rgba(255,255,255,.28),
+    -60px  -380px 0 0 rgba(255,230,190,.25);
+}
+.earth-sync-stars::after {
+  width: 1px;
+  height: 1px;
+  opacity: .65;
+  filter: blur(.2px);
+  transform: rotate(17deg) scale(1.22);
+  box-shadow:
+    -760px -190px 0 0 rgba(255,255,255,.30),
+    -610px  330px 0 0 rgba(190,220,255,.26),
+    -360px -370px 0 0 rgba(255,230,190,.24),
+    -255px   30px 0 0 rgba(255,255,255,.36),
+     -40px  300px 0 0 rgba(195,225,255,.28),
+      95px -110px 0 0 rgba(255,255,255,.38),
+     260px  375px 0 0 rgba(255,225,178,.24),
+     455px -335px 0 0 rgba(205,232,255,.30),
+     610px  250px 0 0 rgba(255,255,255,.28),
+     790px -160px 0 0 rgba(255,236,206,.22);
+}
+.earth-sync-stars-a {
+  opacity: .72;
+  animation: earthSyncStarOrbit 190s linear infinite, earthSyncStarPulse 9s ease-in-out infinite alternate;
+}
+.earth-sync-stars-b {
+  opacity: .44;
+  transform: scale(1.38) rotate(24deg);
+  animation: earthSyncStarOrbitReverse 240s linear infinite, earthSyncStarPulse 13s ease-in-out infinite alternate;
+}
+@keyframes earthSyncStarOrbit {
+  from { transform: translate3d(-50%, -50%, -180px) rotateZ(0deg) rotateX(5deg); }
+  to   { transform: translate3d(-50%, -50%, -180px) rotateZ(360deg) rotateX(5deg); }
+}
+@keyframes earthSyncStarOrbitReverse {
+  from { transform: translate3d(-50%, -50%, -260px) scale(1.36) rotateZ(24deg) rotateX(-4deg); }
+  to   { transform: translate3d(-50%, -50%, -260px) scale(1.36) rotateZ(-336deg) rotateX(-4deg); }
+}
+@keyframes earthSyncStarPulse {
+  from { opacity: .38; filter: brightness(.9); }
+  to   { opacity: .78; filter: brightness(1.25); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .earth-sync-stars { animation: none !important; }
 }
 
-/* =========================================
-   3. 提示框 (Tooltip) - 悬浮动效
-   ========================================= */
-.globe-tooltip {
-  position: absolute;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-main);
-  pointer-events: none; /* 关键：防止遮挡鼠标抓取地球 */
-  display: none; 
+/* === Five-layer final architecture: bg0 / NASA parallax10 / Pixi20 / Cesium30 / UI40 === */
+#globe-container.display-globe-fullscreen {
+  background: #000 !important;
+  isolation: isolate;
+}
+.globe-star-projection-bg.heic-nebula-host {
+  z-index: 10 !important;
+  background: #000 !important;
+  perspective: 1000px;
+  transform-style: preserve-3d;
+}
+.globe-star-projection-bg.heic-nebula-host::before {
+  inset: -80px;
   z-index: 10;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-  font-family: var(--sans);
-  /* 位移优化，让 tooltip 出现在鼠标正上方 */
-  transform: translate(-50%, -120%);
+  background-image: url(/globe/backgrounds/heic1509a-layers/bg.png) !important;
+  background-size: cover;
+  background-position: center;
+  opacity: .82;
+  mix-blend-mode: normal;
+  filter: saturate(1.08) contrast(1.04) brightness(.72);
+  animation: nasaBgSlowDrift 90s ease-in-out infinite alternate;
+}
+.globe-star-projection-bg.heic-nebula-host::after {
+  inset: -80px;
+  z-index: 12;
+  background-image:
+    url(/globe/backgrounds/heic1509a-layers/fg.png),
+    url(/globe/backgrounds/heic1509a-layers/mid.png) !important;
+  background-size: cover, cover;
+  background-position: center, center;
+  opacity: .84;
+  mix-blend-mode: screen;
+  filter: saturate(1.18) contrast(1.05) brightness(.82);
+  animation: nasaNebulaVolumeFlow 42s ease-in-out infinite alternate;
+}
+.earth-sync-stars {
+  z-index: 14 !important;
+  mix-blend-mode: screen;
+}
+.star-effects-canvas {
+  z-index: 20 !important;
+  pointer-events: none !important;
+  mix-blend-mode: screen;
+}
+#cesium-globe-container {
+  z-index: 30 !important;
+  pointer-events: auto;
+  background: transparent !important;
+}
+.google-earth-place-label-layer { z-index: 34 !important; }
+.google-earth-node-label-layer { z-index: 36 !important; }
+#globeSunMount,
+.three-globe-sun-badge,
+.globe-moon-root,
+.globe-hint,
+.globe-focus-badge {
+  z-index: 40 !important;
+}
+@keyframes nasaBgSlowDrift {
+  0% { transform: translate3d(-.6vw, -.35vh, 0) scale(1.045); }
+  100% { transform: translate3d(.45vw, .38vh, 0) scale(1.055); }
+}
+@keyframes nasaNebulaVolumeFlow {
+  0% { transform: translate3d(.35vw, -.25vh, 0) scale(1.055); opacity: .74; filter: saturate(1.12) contrast(1.02) brightness(.78); }
+  50% { transform: translate3d(-.45vw, .35vh, 0) scale(1.075); opacity: .90; filter: saturate(1.26) contrast(1.07) brightness(.86); }
+  100% { transform: translate3d(-.2vw, .15vh, 0) scale(1.065); opacity: .80; filter: saturate(1.18) contrast(1.04) brightness(.80); }
 }
 
-[data-theme="dark"] .globe-tooltip {
-  background: rgba(15, 23, 42, 0.9);
-  border-color: rgba(255, 255, 255, 0.15);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  color: #fff;
+/* === Interactive NASA parallax DOM layers: mouse/deviceorientation driven === */
+.globe-star-projection-bg.heic-nebula-host::before,
+.globe-star-projection-bg.heic-nebula-host::after {
+  background-image: none !important;
+  animation: none !important;
+  opacity: 0 !important;
 }
-
-/* =========================================
-   4. 底部信息网格 (Info Panel)
-   ========================================= */
-.globe-info-panel {
-  display: grid;
-  /* 增加网格宽度，让信息展示不拥挤 */
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
-  margin-top: 2rem;
-}
-
-.globe-toolbar,
-.globe-status {
+.nasa-parallax-layer {
   position: absolute;
-  left: 20px;
-  z-index: 8;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--text-main);
-  padding: 10px 12px;
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  font: 600 12px/1 var(--sans);
+  inset: -80px;
+  z-index: 10;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
+  will-change: transform, opacity, filter;
+  transform: translate3d(0, 0, 0) scale(1.06);
+}
+.nasa-parallax-bg {
+  z-index: 10;
+  opacity: .84;
+  filter: blur(2px) saturate(1.08) contrast(1.04) brightness(.70);
+  mix-blend-mode: normal;
+}
+.nasa-parallax-mid {
+  z-index: 11;
+  opacity: .64;
+  filter: saturate(1.22) contrast(1.04) brightness(.82);
+  mix-blend-mode: screen;
+  animation: nasaMidGasMicroFlow 24s ease-in-out infinite alternate;
+}
+.nasa-parallax-fg {
+  z-index: 12;
+  opacity: .58;
+  filter: saturate(1.18) contrast(1.08) brightness(.78);
+  mix-blend-mode: screen;
+  animation: nasaFgDustMicroFlow 18s ease-in-out infinite alternate;
+}
+@keyframes nasaMidGasMicroFlow {
+  from { opacity: .56; filter: saturate(1.16) contrast(1.02) brightness(.78); }
+  to { opacity: .72; filter: saturate(1.30) contrast(1.08) brightness(.88); }
+}
+@keyframes nasaFgDustMicroFlow {
+  from { opacity: .50; filter: saturate(1.10) contrast(1.06) brightness(.72); }
+  to { opacity: .66; filter: saturate(1.26) contrast(1.12) brightness(.84); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nasa-parallax-mid,
+  .nasa-parallax-fg { animation: none !important; }
 }
 
-[data-theme="dark"] .globe-toolbar,
-[data-theme="dark"] .globe-status {
-  background: rgba(15, 23, 42, 0.78);
+/* === Show the full NASA plate, not a cropped cover slice === */
+.nasa-parallax-layer {
+  inset: -32px !important;
+  background-size: contain !important;
+  background-position: center center !important;
+}
+.nasa-parallax-bg {
+  background-color: #000;
 }
 
-.globe-toolbar {
-  bottom: 20px;
+
+/* === User preference: original image fills entire background === */
+.nasa-parallax-layer {
+  inset: -80px !important;
+  background-size: cover !important;
+  background-position: center center !important;
+}
+.nasa-parallax-bg {
+  opacity: .86 !important;
+  filter: saturate(1.08) contrast(1.04) brightness(.72) !important;
+  mix-blend-mode: normal !important;
+}
+.nasa-parallax-mid {
+  opacity: .36 !important;
+  filter: blur(1px) saturate(1.24) contrast(1.05) brightness(.80) !important;
+  mix-blend-mode: screen !important;
+}
+.nasa-parallax-fg {
+  opacity: .24 !important;
+  filter: blur(2px) saturate(1.32) contrast(1.10) brightness(.72) !important;
+  mix-blend-mode: color-dodge !important;
 }
 
-.globe-status {
-  top: 20px;
+/* === Full original plate visible, with blurred cover fill behind it === */
+.nasa-parallax-bg {
+  inset: -96px !important;
+  background-size: cover !important;
+  background-position: center center !important;
+  opacity: .74 !important;
+  filter: blur(8px) saturate(1.15) contrast(1.05) brightness(.54) !important;
+  mix-blend-mode: normal !important;
+}
+.nasa-parallax-mid {
+  inset: -42px !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  background-position: center center !important;
+  opacity: .92 !important;
+  filter: saturate(1.08) contrast(1.03) brightness(.78) !important;
+  mix-blend-mode: normal !important;
+}
+.nasa-parallax-fg {
+  inset: -42px !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  background-position: center center !important;
+  opacity: .24 !important;
+  filter: blur(1px) saturate(1.28) contrast(1.08) brightness(.86) !important;
+  mix-blend-mode: screen !important;
 }
 
-.globe-toolbar button {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-panel);
-  color: var(--text-main);
-  min-width: 30px;
-  min-height: 28px;
-  cursor: pointer;
+/* === Background correction: fill viewport with the whole original plate, no center-only crop === */
+.nasa-parallax-layer {
+  inset: -24px !important;
+  background-image: url('/globe/backgrounds/deep-nebula-heic1509a.jpg') !important;
+  background-size: 100% 100% !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+}
+.nasa-parallax-bg {
+  opacity: .90 !important;
+  filter: saturate(1.08) contrast(1.04) brightness(.70) !important;
+  mix-blend-mode: normal !important;
+}
+.nasa-parallax-mid {
+  opacity: .30 !important;
+  filter: blur(.6px) saturate(1.18) contrast(1.04) brightness(.82) !important;
+  mix-blend-mode: screen !important;
+}
+.nasa-parallax-fg {
+  opacity: .18 !important;
+  filter: blur(1.4px) saturate(1.24) contrast(1.08) brightness(.78) !important;
+  mix-blend-mode: color-dodge !important;
 }
 
-.spinner {
-  width: 12px;
-  height: 12px;
-  border: 2px solid var(--border);
-  border-top-color: var(--primary);
-  border-radius: 999px;
-  animation: spin 0.8s linear infinite;
+
+/* overview-day-silver1: day theme uses clean silver-gray backing, not navy */
+[data-theme="light"] body:has(.public-overview-page),
+[data-theme="light"] .public-overview-page {
+  background:
+    radial-gradient(circle at 22% 0%, rgba(255,255,255,.92), rgba(229,234,240,.72) 34%, transparent 62%),
+    linear-gradient(135deg, #f7f9fb 0%, #dfe4ea 45%, #c6ccd5 100%) !important;
+  color: #172033 !important;
+}
+[data-theme="light"] .public-overview-page::before,
+[data-theme="light"] .public-overview-page::after { opacity: .18; filter: saturate(.35) brightness(1.35); }
+[data-theme="light"] .public-overview-hero,
+[data-theme="light"] .public-overview-panel,
+[data-theme="light"] .public-overview-card,
+[data-theme="light"] .public-overview-stats > div,
+[data-theme="light"] .public-overview-network-panel {
+  background: rgba(247,250,253,.76) !important;
+  border-color: rgba(90,108,130,.24) !important;
+  box-shadow: 0 18px 46px rgba(76,88,105,.18), inset 0 1px 0 rgba(255,255,255,.84) !important;
+  color: #172033 !important;
+}
+[data-theme="light"] .public-overview-title-wrap p,
+[data-theme="light"] .public-overview-hero-copy p,
+[data-theme="light"] .public-overview-meta,
+[data-theme="light"] .public-overview-kicker,
+[data-theme="light"] .public-overview-stats span,
+[data-theme="light"] .public-overview-panel-title,
+[data-theme="light"] .public-overview-mini-list,
+[data-theme="light"] .public-overview-network-table td,
+[data-theme="light"] .public-overview-network-table th {
+  color: rgba(23,32,51,.72) !important;
+}
+[data-theme="light"] .public-overview-network-table th { background: rgba(203,211,222,.42) !important; }
+[data-theme="light"] .public-overview-visual { background: transparent !important; box-shadow: none !important; }
+[data-theme="light"] .public-overview-visual img { filter: drop-shadow(0 22px 28px rgba(86,99,116,.18)) saturate(.92) contrast(1.05); }
+
+
+/* overview-day-silver2: stronger root override */
+html[data-theme="light"] body,
+html[data-theme="light"] body:has(.public-overview-page) {
+  background: linear-gradient(135deg, #f7f9fb 0%, #dfe4ea 46%, #c5ccd5 100%) !important;
+}
+html[data-theme="light"] body:has(.public-overview-page)::before,
+html[data-theme="light"] body:has(.public-overview-page)::after { opacity: .16 !important; }
+html[data-theme="light"] .public-overview-page.starship-console-page {
+  background:
+    radial-gradient(circle at 18% 8%, rgba(255,255,255,.76), transparent 28%),
+    radial-gradient(circle at 86% 12%, rgba(175,184,197,.24), transparent 30%),
+    linear-gradient(135deg, #f7f9fb 0%, #dfe4ea 46%, #c5ccd5 100%) !important;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+
+/* hotfix-overview-light-dark-gray-final */
+html[data-theme="light"] body:has(.public-overview-page),
+html[data-theme="light"] .public-overview-page.starship-console-page {
+  color:#e8edf3 !important;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(118,128,142,.22), transparent 29%),
+    radial-gradient(circle at 86% 12%, rgba(240,168,74,.10), transparent 28%),
+    linear-gradient(135deg, #24272d 0%, #30343b 46%, #1f2228 100%) !important;
+}
+html[data-theme="light"] .public-overview-page .public-overview-visual { background: transparent !important; box-shadow: none !important; border:0 !important; }
+html[data-theme="light"] .public-overview-page .public-overview-visual img { filter: drop-shadow(0 22px 28px rgba(0,0,0,.22)) saturate(1.02) contrast(1.03) !important; }
+
+
+/* hotfix-overview-full-bg-final */
+html[data-theme="light"]:has(.public-overview-page),
+html[data-theme="light"]:has(.public-overview-page) body,
+html[data-theme="light"]:has(.public-overview-page) #app,
+html[data-theme="light"]:has(.public-overview-page) #pageRoot,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page.starship-console-page {
+  background:
+    radial-gradient(circle at 16% 8%, rgba(120,132,148,.24), transparent 28%),
+    radial-gradient(circle at 88% 10%, rgba(240,168,74,.10), transparent 28%),
+    linear-gradient(135deg, #24272d 0%, #30343b 44%, #1f2228 100%) !important;
+}
+.public-overview-page .overview-network-table-spark{display:none!important;content:none!important;}
+
+
+/* mobile-corona-zero-overflow-pass-20260608 */
+@media (max-width: 600px){
+  .moon-solar{
+    overflow:hidden!important;
+    contain:paint!important;
+  }
+  .moon-solar-corona{
+    transform:scale(calc(1.28 + var(--moon-drag-progress,0)*.08))!important;
+    filter:blur(.5px)!important;
+    opacity:.72!important;
+  }
+  .three-globe-sun,
+  .three-globe-moon,
+  .moon-solar{
+    max-width:34vw!important;
+    max-height:34vw!important;
+  }
+}
+
+
+/* mobile-corona-absolute-zero-pass-20260608 */
+@media (max-width: 600px){
+  .moon-solar-corona{
+    transform:scale(.92)!important;
+    opacity:.52!important;
+    filter:blur(.35px)!important;
+  }
+}
+
+
+/* mobile-corona-hide-overflow-layer-pass-20260608 */
+@media (max-width: 600px){
+  .moon-solar-corona{
+    display:none!important;
+  }
+}
+
+/* hotfix: keep Cesium credits/model-inspector residue out of the public globe view */
+.hidden-cesium-credit-container,
+.cesium-credit-lightbox-overlay,
+.cesium-credit-lightbox,
+.cesium-credit-textContainer,
+.cesium-credit-logoContainer,
+.cesium-credit-expand-link,
+.cesium-viewer-bottom {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.google-earth-place-label-layer.is-far-hidden,
+.google-earth-place-label-layer.is-far-hidden .google-earth-place-label,
+.google-earth-place-label:not(.is-visible) {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.google-earth-node-label-layer.is-far-hidden .google-earth-node-html-label.is-vps-node,
+.google-earth-node-html-label:not(.is-visible) {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.google-earth-node-label-layer.is-far-hidden .google-earth-node-html-label.is-visitor-node.is-visible {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* VPS beacon labels: same visual language as visitor beacon, without raw machine name. */
+.google-earth-node-html-label.is-vps-beacon-node {
+  background: rgba(3, 20, 25, 0.74);
+  border-color: rgba(125, 247, 255, 0.48);
+  color: rgba(232, 255, 255, 0.98);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 8px 22px rgba(0,0,0,.52), 0 0 26px rgba(103,232,249,.32);
+}
+.google-earth-node-html-label.is-vps-beacon-node .node-name {
+  color: rgba(177, 248, 255, 0.78);
+}
+.google-earth-node-label-layer.is-far-hidden .google-earth-node-html-label.is-vps-beacon-node.is-visible {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* force VPS beacon info box to match visitor beacon; appended last to beat older VPS styles */
+.google-earth-node-html-label.is-vps-node.is-vps-beacon-node,
+.google-earth-node-label-layer.is-far-hidden .google-earth-node-html-label.is-vps-node.is-vps-beacon-node.is-visible {
+  opacity: 1 !important;
+  visibility: visible !important;
+  background: rgba(3, 20, 25, 0.74) !important;
+  border-color: rgba(160, 253, 255, 0.72) !important;
+  color: rgba(232, 255, 255, 0.98) !important;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 8px 22px rgba(0,0,0,.52), 0 0 26px rgba(103,232,249,.32) !important;
+}
+.google-earth-node-html-label.is-vps-node.is-vps-beacon-node .node-name {
+  color: rgba(177, 248, 255, 0.78) !important;
+}
+
+/* flagfix1: render beacon flags with real emoji font, not the monospace label font. */
+.google-earth-node-html-label .node-place {
+  display: flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  min-height: 17px !important;
+  line-height: 1.15 !important;
+}
+.google-earth-node-html-label .node-flag {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 0 0 22px !important;
+  width: 22px !important;
+  min-width: 22px !important;
+  height: 17px !important;
+  overflow: visible !important;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", emoji, sans-serif !important;
+  font-size: 16px !important;
+  font-weight: 400 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+  text-shadow: none !important;
+  transform: translateY(-0.5px) !important;
+}
+.google-earth-node-html-label .node-title {
+  display: inline-block !important;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-weight: 800 !important;
+  letter-spacing: .02em !important;
+}
+
+/* flagimg1: use image flags for PC where emoji flags may not render. */
+.google-earth-node-html-label .node-flag-img {
+  display: block !important;
+  width: 22px !important;
+  height: 15px !important;
+  object-fit: cover !important;
+  border-radius: 2px !important;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.34), 0 1px 3px rgba(0,0,0,.42) !important;
+  background: rgba(255,255,255,.12) !important;
+}
+.google-earth-node-html-label .node-flag:has(.node-flag-img) {
+  text-shadow: none !important;
+}
+
+/* flagimg2: inline SVG flags must render crisply on PC, no gray fallback square. */
+.google-earth-node-html-label .node-flag-img.node-flag-us {
+  background: #b22234 !important;
+  border: 1px solid rgba(255,255,255,.42) !important;
+  box-sizing: border-box !important;
+}
+
+/* anchorfix2: VPS beacon labels must not override JS screen-position transform on hover. */
+.google-earth-node-html-label.is-vps-node.is-vps-beacon-node:hover {
+  transform: none;
 }

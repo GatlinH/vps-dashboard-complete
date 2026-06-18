@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link id="dynamic-favicon" rel="icon" href="/api/v1/ops/settings/site/favicon">
   <title>VPS星图·管理后台</title>
   
   <style>
@@ -31,6 +32,13 @@
         --border: #334155;
         --shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
       }
+    }
+
+
+    /* hotfix-admin-inline-bg-final-20260607 */
+    html, body, body.komari-admin-shell, #admin-panel, .admin-body, .admin-nav {
+      background-color: #eef2f6 !important;
+      background-image: none !important;
     }
 
     /* 全局重置 */
@@ -221,42 +229,63 @@
         padding: 20px;
       }
     }
-  </style>
-  </head>
 
-<body>
+    /* hotfix-admin-inline-bg-last-20260607 */
+    html, body, body.komari-admin-shell, body.komari-admin-shell #admin-panel,
+    body.komari-admin-shell .admin-body, body.komari-admin-shell .admin-nav,
+    body.komari-admin-shell .admin-page.active {
+      background: #eef2f6 !important;
+      background-color: #eef2f6 !important;
+      background-image: none !important;
+    }
+  </style>
+  
+  <style id="admin-preboot-hide">body.admin-preboot #admin-panel{display:none!important;visibility:hidden!important}</style>
+</head>
+
+<body class="admin-preboot">
   <div id="login-mount"></div>
 
   <div id="admin-panel" style="display:none;">
     
     <div class="admin-nav">
-      <div class="admin-nav-logo">⚙ 管理后台</div>
+      <div class="admin-topline">
+        <button class="admin-menu-btn" type="button" aria-label="menu">☰</button>
+      </div>
       
       <div class="admin-tabs">
-        <button class="admin-tab active" data-tab="servers" onclick="switchTab('servers')">🖥 添加服务器</button>
-        <button class="admin-tab" data-tab="ping" onclick="switchTab('ping')">📶 TCP Ping</button>
-        <button class="admin-tab" data-tab="agent" onclick="switchTab('agent')">🤖 代理</button>
-        <button class="admin-tab" data-tab="telegram" onclick="switchTab('telegram')">✈ Telegram</button>
-        <button class="admin-tab" data-tab="theme" onclick="switchTab('theme')">🎨 界面主题</button>
+        <button class="admin-tab active" data-tab="servers" onclick="switchTab('servers')"><span class="nav-ico">▦</span><span data-i18n="servers">服务器</span></button>
+        <button id="admin-settings-toggle" class="admin-tab has-children" data-tab="settings" type="button"><span class="nav-ico">⚙</span><span data-i18n="settings">设置</span><b class="settings-caret">⌄</b></button>
+        <div id="admin-settings-subtabs" class="admin-subtabs" aria-label="设置子菜单">
+          <button class="admin-subtab" data-settings-section="site" onclick="switchTab('settings','site')"><span class="nav-ico">⌂</span> <span data-i18n="site">站点</span></button>
+          <button class="admin-subtab" data-settings-section="login" onclick="switchTab('settings','login')"><span class="nav-ico">↪</span> <span data-i18n="login">登录</span></button>
+          <button class="admin-subtab" data-settings-section="notify" onclick="switchTab('settings','notify')"><span class="nav-ico">🔔</span> <span data-i18n="notify">通知</span></button>
+          <button class="admin-subtab" data-settings-section="general" onclick="switchTab('settings','general')"><span class="nav-ico">⋯</span> <span data-i18n="general">通用</span></button>
+          <button class="admin-subtab" data-settings-section="proxy" onclick="switchTab('settings','proxy')"><span class="nav-ico">⇄</span> <span data-i18n="proxy">反向代理</span></button>
+        </div>
+        <button class="admin-tab" data-tab="alerts" onclick="switchTab('alerts')"><span class="nav-ico">🔔</span><span data-i18n="alert_rules">通知规则</span></button>
+        <button class="admin-tab" data-tab="network" onclick="switchTab('network')"><span class="nav-ico">⌁</span><span data-i18n="latency_monitor">延迟监测</span></button>
+        <button class="admin-tab" data-tab="users" onclick="switchTab('users')"><span class="nav-ico">☷</span><span data-i18n="sessions">会话管理</span></button>
+        <button class="admin-tab" data-tab="account" onclick="switchTab('account')"><span class="nav-ico">👤</span><span data-i18n="account">账户</span></button>
+        <button class="admin-tab" data-tab="ops" onclick="switchTab('ops')"><span class="nav-ico">☰</span><span data-i18n="logs">日志</span></button>
+        <button class="admin-tab" data-tab="theme" onclick="switchTab('theme')"><span class="nav-ico">◐</span><span data-i18n="theme_management">默认主题管理</span></button>
       </div>
 
       <div class="nav-actions">
-        <a href="/" class="btn-return">← 返回前台</a>
-        <button onclick="adminLogout()" class="btn-logout">退出登录</button>
+        <a href="/" class="btn-return" data-i18n="return_starmap">返回星图</a>
+        <button onclick="adminLogout()" class="btn-logout" data-i18n="logout">退出登录</button>
       </div>
     </div>
 
-    <div class="admin-body">
-      <div id="tab-servers" class="admin-page active">
-        </div>
-      <div id="tab-ping" class="admin-page">
-        </div>
-      <div id="tab-agent" class="admin-page">
-        </div>
-      <div id="tab-telegram" class="admin-page">
-        </div>
-      <div id="tab-theme" class="admin-page">
-        </div>
+    <div class="admin-body"><div class="admin-toolbar"><button id="admin-theme-toggle" class="admin-toolbar-btn" type="button">舰桥</button><select id="admin-lang-select" class="admin-toolbar-select"><option value="zh">中文</option><option value="en">English</option><option value="ja">日本語</option><option value="ko">한국어</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="es">Español</option><option value="ru">Русский</option></select></div>
+      <div id="tab-servers" class="admin-page active"></div>
+      <div id="tab-network" class="admin-page"></div>
+      <div id="tab-alerts" class="admin-page"></div>
+      <div id="tab-theme" class="admin-page"></div>
+      <div id="tab-account" class="admin-page"></div>
+      <div id="tab-users" class="admin-page"></div>
+      <div id="tab-settings" class="admin-page"></div>
+      <div id="tab-ops" class="admin-page"></div>
     </div>
     
   </div>

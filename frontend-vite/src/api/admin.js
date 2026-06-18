@@ -10,20 +10,11 @@
 
 import { getCsrfToken } from './csrf.js';
 
-const BASE = '/api/v1'
+const API_ROOT = window.__API_ROOT__ || (location.port === "5000" ? `${location.protocol}//${location.hostname}:5000` : location.origin);
+const BASE = `${API_ROOT}/api/v1`
 const API_SCHEMA_VERSION = '2026-04-23'
-
-// HTTP 方法集合：需要发送 CSRF token 的写操作
 const _CSRF_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
-// ── 核心请求方法 ─────────────────────────────────────────────────────────────
-
-/**
- * 带 CSRF 防护的认证请求（通过 httpOnly cookie 自动携带凭证）
- * @param {string} path - API 路径（不含 /api 前缀）
- * @param {object} opts - fetch options（method, body 等）
- * @returns {Promise<any>} 解析后的 JSON
- */
 async function adminFetch(path, opts = {}) {
   const method = (opts.method || 'GET').toUpperCase()
   const headers = {
@@ -33,7 +24,6 @@ async function adminFetch(path, opts = {}) {
     ...(opts.headers || {}),
   }
 
-  // Attach CSRF token for state-changing requests (double-submit cookie pattern)
   if (_CSRF_METHODS.has(method)) {
     const csrf = getCsrfToken(path)
     if (csrf) headers['X-CSRF-Token'] = csrf
@@ -42,13 +32,11 @@ async function adminFetch(path, opts = {}) {
   const resp = await fetch(BASE + path, {
     method,
     headers,
-    credentials: 'include',  // Required for httpOnly cookie auth
+    credentials: 'include',
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   })
 
   if (resp.status === 401) {
-    // 401 = unauthenticated; trigger global logout for redirect to login.
-    // 403 = authenticated but insufficient permission — do NOT log out.
     window.dispatchEvent(new CustomEvent('admin:unauthorized', { detail: { status: resp.status } }))
     const err = new Error(`HTTP ${resp.status}`)
     err.status = resp.status
@@ -59,8 +47,8 @@ async function adminFetch(path, opts = {}) {
     let detail = ''
     try {
       const json = await resp.json()
-      detail = json.msg || json.error || ''
-    } catch (_) { /* ignore */ }
+      detail = json.msg || json.error || json.message || ''
+    } catch (_) {}
     const err = new Error(detail || `HTTP ${resp.status}`)
     err.status = resp.status
     throw err
@@ -69,139 +57,114 @@ async function adminFetch(path, opts = {}) {
   return resp.json()
 }
 
-// ── 认证 ──────────────────────────────────────────────────────────────────────
-
-/** 登录；token 由服务端写入 httpOnly cookie，不再存入 localStorage */
-export async function login(username, password) {
+export async function login(username, password, totpCode = '') {
+  const body = { username, password };
+  if (totpCode) body.totp_code = totpCode;
   const data = await fetch(BASE + '/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',  // Required for cookie to be set
-    body: JSON.stringify({ username, password }),
+    credentials: 'include',
+    body: JSON.stringify(body),
   })
   if (!data.ok) {
     const json = await data.json().catch(() => ({}))
-    throw new Error(json.msg || '用户名或密码错误')
+    const err = new Error(json.msg || '用户名或密码错误')
+    err.status = data.status
+    throw err
   }
-  const result = await data.json()
-  // Do NOT store tokens in localStorage (P1-7)
-  return result
+  return data.json()
 }
 
-/** 刷新 Access Token */
-export async function refreshToken() {
-  return adminFetch('/auth/refresh', { method: 'POST' })
-}
-
-/** 获取当前用户信息 */
-export async function getCurrentUser() {
-  return adminFetch('/auth/me')
-}
-
-/** 修改密码 */
+export async function refreshToken() { return adminFetch('/auth/refresh', { method: 'POST' }) }
+export async function getCurrentUser() { return adminFetch('/auth/me') }
 export async function changePassword(oldPassword, newPassword) {
-  return adminFetch('/auth/change-password', {
-    method: 'POST',
-    body: { old_password: oldPassword, new_password: newPassword },
-  })
+  return adminFetch('/auth/change-password', { method: 'POST', body: { old_password: oldPassword, new_password: newPassword } })
+}
+export async function listUsers(role = '') {
+  const q = role ? `?role=${encodeURIComponent(role)}` : ''
+  return adminFetch(`/auth/users${q}`)
+}
+export async function updateUserRole(userId, role) {
+  return adminFetch(`/auth/users/${userId}/role`, { method: 'PATCH', body: { role } })
 }
 
-// ── 服务器管理 ────────────────────────────────────────────────────────────────
+export async function listSessions() { return adminFetch('/auth/sessions') }
+export async function deleteSession(sessionId) { return adminFetch(`/auth/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }) }
+export async function deleteOtherSessions() { return adminFetch('/auth/sessions', { method: 'DELETE' }) }
 
-/** 列出所有服务器（管理视图，含敏感字段） */
-export async function listServers() {
-  return adminFetch('/servers/')
-}
 
-/** 获取单台服务器详情 */
-export async function getServer(id) {
-  return adminFetch(`/servers/${id}`)
-}
+export async function updateProfile(data) { return adminFetch('/auth/profile', { method: 'PATCH', body: data }) }
+export async function getTwoFactorStatus() { return adminFetch('/auth/2fa/status') }
+export async function setupTwoFactor() { return adminFetch('/auth/2fa/setup', { method: 'POST' }) }
+export async function enableTwoFactor(code, secret = '') { return adminFetch('/auth/2fa/enable', { method: 'POST', body: { code, secret } }) }
+export async function disableTwoFactor(password, code = '') { return adminFetch('/auth/2fa/disable', { method: 'POST', body: { password, code } }) }
+export async function getExternalAccounts() { return adminFetch('/auth/external-accounts') }
+export async function unlinkExternalAccount(provider) { return adminFetch(`/auth/external-accounts/${encodeURIComponent(provider)}`, { method: 'DELETE' }) }
+export function externalAccountBindUrl(provider) { return `/api/v1/auth/external-accounts/${encodeURIComponent(provider)}/start` }
 
-/** 创建服务器 */
-export async function createServer(data) {
-  return adminFetch('/servers/', { method: 'POST', body: data })
-}
+export async function getSettingsSummary() { return adminFetch('/ops/settings-summary') }
+export async function getSiteSettings() { return adminFetch('/ops/settings/site') }
+export async function saveSiteSettings(data) { return adminFetch('/ops/settings/site', { method: 'PUT', body: data }) }
+export async function generateSiteShareLink(hours = 24) { return adminFetch('/ops/settings/site/share/generate', { method: 'POST', body: { hours } }) }
+export async function revokeSiteShareLink() { return adminFetch('/ops/settings/site/share/revoke', { method: 'POST' }) }
+export async function getGeneralSettings() { return adminFetch('/ops/settings/general') }
+export async function saveGeneralSettings(data) { return adminFetch('/ops/settings/general', { method: 'PUT', body: data }) }
+export async function updateGeoipDatabase() { return adminFetch('/ops/settings/general/geoip/update', { method: 'POST' }) }
+export async function getCloudflareSettings() { return adminFetch('/ops/settings/reverse-proxy/cloudflare') }
+export async function saveCloudflareSettings(data) { return adminFetch('/ops/settings/reverse-proxy/cloudflare', { method: 'PUT', body: data }) }
+export async function refreshCloudflareSettings() { return adminFetch('/ops/settings/reverse-proxy/cloudflare/refresh', { method: 'POST' }) }
+export async function getLoginSettings() { return adminFetch('/ops/settings/login') }
+export async function saveLoginSettings(data) { return adminFetch('/ops/settings/login', { method: 'PUT', body: data }) }
+export async function getNotificationSettings() { return adminFetch('/ops/settings/notifications') }
+export async function saveNotificationSettings(data) { return adminFetch('/ops/settings/notifications', { method: 'PUT', body: data }) }
+export async function testNotificationSettings() { return adminFetch('/ops/settings/notifications/test', { method: 'POST' }) }
 
-/** 更新服务器 */
-export async function updateServer(id, data) {
-  return adminFetch(`/servers/${id}`, { method: 'PUT', body: data })
-}
-
-/** 删除服务器 */
-export async function deleteServer(id) {
-  return adminFetch(`/servers/${id}`, { method: 'DELETE' })
-}
-
-/** 推送实时指标 */
-export async function pushMetrics(id, metrics) {
-  return adminFetch(`/servers/${id}/metrics`, { method: 'POST', body: metrics })
-}
-
-/** 获取历史探针数据（支持 offset 分页与 CSV 导出） */
+export async function listServers() { return adminFetch('/servers/') }
+export async function getServer(id) { return adminFetch(`/servers/${id}`) }
+export async function createServer(data) { return adminFetch('/servers/', { method: 'POST', body: data }) }
+export async function updateServer(id, data) { return adminFetch(`/servers/${id}`, { method: 'PUT', body: data }) }
+export async function deleteServer(id) { return adminFetch(`/servers/${id}`, { method: 'DELETE' }) }
+export async function pushMetrics(id, metrics) { return adminFetch(`/servers/${id}/metrics`, { method: 'POST', body: metrics }) }
 export async function getHistory(id, days = 1, limit = 100, offset = 0, exportType = '') {
-  const params = new URLSearchParams({
-    days: String(days),
-    limit: String(limit),
-    offset: String(offset),
-  })
+  const params = new URLSearchParams({ days: String(days), limit: String(limit), offset: String(offset) })
   if (exportType) params.set('export', exportType)
   return adminFetch(`/servers/${id}/history?${params.toString()}`)
 }
+export async function tcpPing(host, port = 80, count = 5, protocol = 'tcp') { return adminFetch('/probe/ping', { method: 'POST', body: { host, port, count, protocol } }) }
+export async function tcpPingBatch(serverIds) { return adminFetch('/probe/ping/batch', { method: 'POST', body: { server_ids: serverIds } }) }
+export async function fetchProbe(serverIds) { return adminFetch('/probe/fetch-probe', { method: 'POST', body: { server_ids: serverIds } }) }
+export async function getTelegramConfig() { return adminFetch('/telegram/config') }
+export async function saveTelegramConfig(config) { return adminFetch('/telegram/config', { method: 'POST', body: config }) }
+export async function sendTelegramTest() { return adminFetch('/telegram/test', { method: 'POST' }) }
+export async function sendTelegramMessage(text) { return adminFetch('/telegram/send', { method: 'POST', body: { text } }) }
+export async function getAlertRules() { return adminFetch('/telegram/alerts') }
+export async function saveAlertRules(rules) { return adminFetch('/telegram/alerts', { method: 'POST', body: { rules } }) }
+export async function getServerCoords() { return adminFetch('/geo/servers/coords') }
 
-// ── 探针 ──────────────────────────────────────────────────────────────────────
 
-/** TCP Ping */
-export async function tcpPing(host, port = 80, count = 5) {
-  return adminFetch('/probe/ping', { method: 'POST', body: { host, port, count } })
+export async function uploadSiteFavicon(file) {
+  const form = new FormData();
+  form.append('icon', file);
+  const headers = { Accept: 'application/json', 'X-Client-Schema-Version': API_SCHEMA_VERSION };
+  const csrf = getCsrfToken('/ops/settings/site/favicon');
+  if (csrf) headers['X-CSRF-Token'] = csrf;
+  const resp = await fetch(BASE + '/ops/settings/site/favicon', { method: 'POST', headers, credentials: 'include', body: form });
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(json.msg || json.error || `HTTP ${resp.status}`);
+  return json;
 }
 
-/** 批量 TCP Ping */
-export async function tcpPingBatch(serverIds) {
-  return adminFetch('/probe/ping/batch', { method: 'POST', body: { server_ids: serverIds } })
+export async function resetSiteFavicon() { return adminFetch('/ops/settings/site/favicon', { method: 'DELETE' }) }
+export function siteFaviconUrl() { return `${BASE}/ops/settings/site/favicon?ts=${Date.now()}` }
+export function downloadSiteBackupUrl() { return `${BASE}/ops/settings/site/backup` }
+export async function restoreSiteBackup(file) {
+  const form = new FormData();
+  form.append('backup', file);
+  const headers = { Accept: 'application/json', 'X-Client-Schema-Version': API_SCHEMA_VERSION };
+  const csrf = getCsrfToken('/ops/settings/site/backup/restore');
+  if (csrf) headers['X-CSRF-Token'] = csrf;
+  const resp = await fetch(BASE + '/ops/settings/site/backup/restore', { method: 'POST', headers, credentials: 'include', body: form });
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(json.msg || json.error || `HTTP ${resp.status}`);
+  return json;
 }
-
-/** 抓取探针数据 */
-export async function fetchProbe(serverIds) {
-  return adminFetch('/probe/fetch-probe', { method: 'POST', body: { server_ids: serverIds } })
-}
-
-// ── Telegram ──────────────────────────────────────────────────────────────────
-
-/** 获取 Telegram 配置 */
-export async function getTelegramConfig() {
-  return adminFetch('/telegram/config')
-}
-
-/** 保存 Telegram 配置 */
-export async function saveTelegramConfig(config) {
-  return adminFetch('/telegram/config', { method: 'POST', body: config })
-}
-
-/** 发送测试消息 */
-export async function sendTelegramTest() {
-  return adminFetch('/telegram/test', { method: 'POST' })
-}
-
-/** 手动推送消息 */
-export async function sendTelegramMessage(text) {
-  return adminFetch('/telegram/send', { method: 'POST', body: { text } })
-}
-
-/** 获取告警规则 */
-export async function getAlertRules() {
-  return adminFetch('/telegram/alerts')
-}
-
-/** 保存告警规则 */
-export async function saveAlertRules(rules) {
-  return adminFetch('/telegram/alerts', { method: 'POST', body: { rules } })
-}
-
-// ── 地理 ──────────────────────────────────────────────────────────────────────
-
-/** 获取服务器经纬度列表 */
-export async function getServerCoords() {
-  return adminFetch('/geo/servers/coords')
-}
-

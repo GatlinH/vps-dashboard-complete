@@ -3,7 +3,8 @@
 *.key
 *.pem
 *.p12
-backend/admin-allowlist.conf   # 管理后台 IP 白名单（含运维 IP，不入版本库）
+# 管理后台 IP 白名单（含运维 IP，不入版本库）
+backend/admin-allowlist.conf
 
 # ── Python ───────────────────────────────────────────────────
 __pycache__/
@@ -36,13 +37,43 @@ logs/
 dist/
 build/
 *.egg-info/
-frontend-dist/          # Vite 构建输出，由 CI/CD 生成，不进 Git
+# Vite 构建输出，由 CI/CD 生成，不进 Git
+frontend-dist/
 
 # ── Node.js ──────────────────────────────────────────────────
 node_modules/
 
 # ── Vite 缓存 ─────────────────────────────────────────────────
-frontend-vite/.vite/    # Vite 本地缓存目录
+# Vite 本地缓存目录
+frontend-vite/.vite/
 
 # ── PWA 构建中间产物 ──────────────────────────────────────────
-sw.mjs                  # vite-plugin-pwa injectManifest 模式的中间文件
+# vite-plugin-pwa injectManifest 模式的中间文件
+sw.mjs
+
+# ── 备份目录(运行期生成, 不入库)──
+backups/
+frontend-vite/backups/
+*.bak
+*.bak[0-9]
+*.pre-*
+
+# ── 运行期归档 / 热修临时文件 ─────────────────────────────────
+_archive/
+*.bak-*
+*.bad-rollback-*
+*.orig
+*.tmp
+*.temp
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.sql
+通知规则
+
+# ── 前端压缩构建副本 ──────────────────────────────────────────
+*.br
+*.gz
+*.bak_*
+*.bak.*

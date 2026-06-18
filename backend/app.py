@@ -14,6 +14,7 @@ from api.servers import servers_bp
 from api.auth import auth_bp
 from api.probe import probe_bp
 from api.telegram import telegram_bp
+from api.ops import ops_bp
 from api.geo import geo_bp
 from api.traffic import traffic_bp
 from api.audit import audit_bp
@@ -61,6 +62,48 @@ def _register_request_logger(app: Flask):
                 response.status_code,
                 latency_ms,
             )
+
+        try:
+            suspicious_path = any(x in request.path.lower() for x in ("/.env", "/.git", "wp-admin", "phpmyadmin", "xmlrpc"))
+            sensitive_failure = response.status_code in (401, 403, 429) and (
+                request.path.startswith("/api/v1/auth")
+                or request.path.startswith("/api/v1/agent")
+                or request.path.startswith("/api/v1/servers")
+                or request.path.startswith("/api/v1/ops")
+                or suspicious_path
+            )
+            ip_for_audit = request.headers.get("X-Forwarded-For", request.remote_addr or "")[:120]
+            ua_for_audit = (request.headers.get("User-Agent") or "")[:180]
+            noisy_internal_agent = (
+                request.path == "/api/v1/agent/push"
+                and response.status_code == 401
+                and ip_for_audit.startswith("172.18.")
+                and "Python-urllib" in ua_for_audit
+            )
+            if request.path != "/health" and not noisy_internal_agent and (suspicious_path or sensitive_failure):
+                from models.models import record_ops_event
+                from extensions import db
+                level = "error" if response.status_code >= 500 else "warn"
+                record_ops_event(
+                    "security_http_anomaly",
+                    "异常 HTTP 访问",
+                    message=f"{request.method} {request.path} -> {response.status_code}",
+                    level=level,
+                    payload={
+                        "method": request.method,
+                        "path": request.path[:240],
+                        "status": response.status_code,
+                        "ip": ip_for_audit,
+                        "user_agent": ua_for_audit,
+                    },
+                )
+                db.session.commit()
+        except Exception:
+            try:
+                from extensions import db
+                db.session.rollback()
+            except Exception:
+                pass
         return response
 
 
@@ -137,6 +180,7 @@ def create_app(**config_overrides):
         (servers_bp,  '/api/v1/servers'),
         (probe_bp,    '/api/v1/probe'),
         (telegram_bp, '/api/v1/telegram'),
+        (ops_bp,      '/api/v1/ops'),
         (geo_bp,      '/api/v1/geo'),
         (traffic_bp,  '/api/v1/traffic'),
         (audit_bp,    '/api/v1/audit'),

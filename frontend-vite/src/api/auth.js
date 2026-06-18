@@ -14,10 +14,12 @@ import { request } from './base.js';
  * @param {string} password
  * @returns {Promise<{user: object}>}
  */
-export async function login(username, password) {
+export async function login(username, password, totpCode = '') {
+  const body = { username, password };
+  if (totpCode) body.totp_code = totpCode;
   const data = await request('/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify(body),
   }, false);
   // Token is stored by the server in an httpOnly cookie — do NOT persist to localStorage.
   return data;
@@ -42,4 +44,31 @@ export async function logout() {
  */
 export async function checkSession() {
   return request('/auth/me', {}, true);
+}
+
+
+export async function getOAuthProviders() {
+  return request('/auth/oauth/providers', {}, false);
+}
+
+
+export function oauthLoginUrl(provider) {
+  const API_ROOT = window.__API_ROOT__ || (location.port === "5000" ? `${location.protocol}//${location.hostname}:5000` : location.origin);
+  return `${API_ROOT}/api/v1/auth/oauth/${encodeURIComponent(provider)}/start`;
+}
+
+
+export async function verifyEmailToken(token) {
+  return request('/auth/verify-email', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  }, false);
+}
+
+
+export async function resetPasswordWithToken(token, newPassword) {
+  return request('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ token, new_password: newPassword }),
+  }, false);
 }

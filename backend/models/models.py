@@ -20,6 +20,70 @@ logger = logging.getLogger(__name__)
 _crypto_cache: dict = {}
 
 
+SERVER_COORD_FALLBACKS = {
+    "sg": (1.35, 103.82),
+    "singapore": (1.35, 103.82),
+    "jp": (35.68, 139.65),
+    "tokyo": (35.68, 139.65),
+    "de": (50.11, 8.68),
+    "frankfurt": (50.11, 8.68),
+    "la": (34.05, -118.24),
+    "los angeles": (34.05, -118.24),
+    "hk": (22.32, 114.17),
+    "hong kong": (22.32, 114.17),
+    "us": (40.71, -74.01),
+    "new york": (40.71, -74.01),
+}
+
+
+def get_server_inventory_meta(server):
+    cfg = getattr(server, 'agent_config', None) or {}
+    meta = cfg.get('inventory_meta') if isinstance(cfg.get('inventory_meta'), dict) else {}
+    return cfg, dict(meta)
+
+
+def format_server_location(city='', region='', country=''):
+    city = str(city or '').strip()
+    region = str(region or '').strip()
+    country = str(country or '').strip()
+    parts = []
+    for value in (city, region, country):
+        if value and value not in parts:
+            parts.append(value)
+    if not parts:
+        return ''
+    if len(parts) >= 2 and parts[0].lower() == parts[1].lower():
+        parts.pop(1)
+    return ' · '.join(parts[:2])
+
+
+def get_server_coords(server):
+    cfg, meta = get_server_inventory_meta(server)
+    for source in (meta, cfg):
+        for lat_key, lon_key in [('lat', 'lon'), ('latitude', 'longitude')]:
+            lat = source.get(lat_key)
+            lon = source.get(lon_key)
+            if lat is not None and lon is not None:
+                try:
+                    return float(lat), float(lon)
+                except (TypeError, ValueError):
+                    pass
+    text_bits = ' '.join(str(x or '').lower() for x in [
+        getattr(server, 'name', ''),
+        getattr(server, 'location', ''),
+        getattr(server, 'group_name', ''),
+        meta.get('region'),
+        meta.get('city'),
+        meta.get('country'),
+        cfg.get('region'),
+        cfg.get('city'),
+    ])
+    for key, coords in SERVER_COORD_FALLBACKS.items():
+        if key in text_bits:
+            return coords
+    return 0.0, 0.0
+
+
 def _get_tg_crypto():
     """惰性获取 Telegram bot_token 加密用的 CryptoManager。
 
@@ -64,6 +128,9 @@ class User(db.Model):
     email_verified = db.Column(db.Boolean, default=True, nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     last_login = db.Column(db.DateTime)
+    totp_secret = db.Column(db.String(64), nullable=True)
+    totp_enabled = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    totp_enabled_at = db.Column(db.DateTime, nullable=True)
     
     __table_args__ = (
         db.Index('idx_username_role', 'username', 'role'),
@@ -78,6 +145,7 @@ class User(db.Model):
             role=self.role,
             created_at=self.created_at.isoformat(),
             last_login=self.last_login.isoformat() if self.last_login else None,
+            two_factor_enabled=bool(self.totp_enabled),
         )
 
 
@@ -97,6 +165,8 @@ class Server(db.Model):
     ram_gb = db.Column(db.Float, default=1.0)
     disk_gb = db.Column(db.Integer, default=20)
     bandwidth = db.Column(db.String(64), default="不限")
+    provider = db.Column(db.String(128), default="", index=True)
+    tags = db.Column(db.JSON, nullable=False, default=list)
     
     # 探针信息
     probe_url = db.Column(db.String(512), default="")
@@ -146,24 +216,42 @@ class Server(db.Model):
     )
     
     def to_dict(self, include_metrics=True, public_only=False):
+        cfg, inventory_meta = get_server_inventory_meta(self)
+        lat, lon = get_server_coords(self)
+        city = str(inventory_meta.get('city') or cfg.get('city') or '').strip()
+        region = str(inventory_meta.get('region') or cfg.get('region') or '').strip()
+        country = str(inventory_meta.get('country') or cfg.get('country') or '').strip()
+        provider_guess = str(inventory_meta.get('provider_guess') or cfg.get('provider_guess') or inventory_meta.get('org') or inventory_meta.get('isp') or '').strip()
+        effective_location = str(self.location or '').strip() or format_server_location(city, region, country)
+
+        merged_agent_config = dict(cfg or {})
+        merged_agent_config['inventory_meta'] = inventory_meta
         d = dict(
             id=self.id,
             name=self.name,
             group=self.group_name,
             flag=self.flag,
-            location=self.location,
+            location=effective_location,
+            city=city,
+            region=region,
+            country=country,
             ip=self.ip,
             cpu=self.cpu_cores,
             ram=self.ram_gb,
             disk=self.disk_gb,
             bw=self.bandwidth,
+            provider=self.provider or '',
+            provider_guess=provider_guess,
+            tags=self.tags or [],
             probe=self.probe_url,
             note=self.note,
             price=self.price,
             period=self.period,
             expiry=self.expiry.isoformat() if self.expiry else None,
             uuid=self.uuid,
-            agent_config=self.agent_config or {},
+            agent_config=merged_agent_config,
+            lat=lat,
+            lon=lon,
         )
         
         if include_metrics:
@@ -176,6 +264,7 @@ class Server(db.Model):
                 status=self.status,
                 uptime=self.uptime,
                 traffic_limit_gb=self.traffic_limit_gb,
+                traffic_reset_day=self.traffic_reset_day or 1,
                 traffic_up_gb=round(self.traffic_up_gb, 4),
                 traffic_down_gb=round(self.traffic_down_gb, 4),
                 traffic_used_gb=round(self.traffic_used_gb, 4),
@@ -183,10 +272,33 @@ class Server(db.Model):
             ))
         
         if public_only:
-            for key in ("ip", "probe", "note", "price", "expiry",
-                        "traffic_limit_gb", "traffic_up_gb", "traffic_down_gb",
-                        "traffic_used_gb", "traffic_reset_day"):
+            # Public homepage/detail APIs must expose only display-safe fields.
+            # Never leak agent identifiers/config, raw inventory metadata, notes,
+            # probe URLs, or full origin IPs to anonymous visitors.
+            sensitive_keys = (
+                "probe", "note", "uuid", "agent_config",
+                "provider_guess",
+            )
+            for key in sensitive_keys:
                 d.pop(key, None)
+
+            def _mask_ip(value):
+                raw = str(value or "").strip()
+                if not raw:
+                    return ""
+                parts = raw.split(".")
+                if len(parts) == 4 and all(part.isdigit() for part in parts):
+                    return f"{parts[0]}.{parts[1]}.*.*"
+                if ":" in raw:
+                    head = raw.split(":", 1)[0]
+                    return f"{head}:***" if head else "***"
+                if len(raw) <= 6:
+                    return "***"
+                return raw[:3] + "***" + raw[-2:]
+
+            d["ip"] = _mask_ip(d.get("ip"))
+            for key in ("city", "region", "country"):
+                d[key] = str(d.get(key) or "")[:64]
         
         return d
 
@@ -217,6 +329,41 @@ class AgentCommand(db.Model):
             created_at=self.created_at.isoformat() if self.created_at else None,
             expires_at=self.expires_at.isoformat() if self.expires_at else None,
         )
+
+
+class OpsEvent(db.Model):
+    __tablename__ = "ops_events"
+
+    id = db.Column(db.BigInteger().with_variant(db.Integer, 'sqlite'), primary_key=True, autoincrement=True)
+    event_type = db.Column(db.String(32), nullable=False, index=True)
+    level = db.Column(db.String(16), nullable=False, default='info', index=True)
+    server_id = db.Column(db.Integer, nullable=True, index=True)
+    rule_id = db.Column(db.Integer, nullable=True, index=True)
+    title = db.Column(db.String(255), nullable=False)
+    message = db.Column(db.Text, default='')
+    payload = db.Column(db.JSON, nullable=False, default=dict)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+
+    __table_args__ = (
+        db.Index('idx_ops_event_type_created', 'event_type', 'created_at'),
+        db.Index('idx_ops_event_server_created', 'server_id', 'created_at'),
+    )
+
+    def to_dict(self):
+        return dict(
+            id=self.id, event_type=self.event_type, level=self.level, server_id=self.server_id, rule_id=self.rule_id,
+            title=self.title, message=self.message, payload=self.payload or {},
+            created_at=self.created_at.isoformat() if self.created_at else None,
+        )
+
+
+def record_ops_event(event_type, title, message='', level='info', server_id=None, rule_id=None, payload=None):
+    evt = OpsEvent(
+        event_type=event_type, title=title, message=message or '', level=level or 'info',
+        server_id=server_id, rule_id=rule_id, payload=payload or {},
+    )
+    db.session.add(evt)
+    return evt
 
 
 class ProbeResult(db.Model):
@@ -277,12 +424,18 @@ class AlertRule(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     server_id = db.Column(db.Integer, db.ForeignKey("servers.id", ondelete="CASCADE"), nullable=True, index=True)
+    bot_id = db.Column(db.Integer, db.ForeignKey("telegram_config.id", ondelete="SET NULL"), nullable=True, index=True)
+    name = db.Column(db.String(128), default="")
     rule_type = db.Column(db.String(32), nullable=False, index=True)
     threshold = db.Column(db.Float, default=90)
     enabled = db.Column(db.Boolean, default=True, index=True)
     last_fired = db.Column(db.DateTime)
     cool_down_s = db.Column(db.Integer, default=300)
+    notify_repeat = db.Column(db.Boolean, default=True)
+    target_chat_id = db.Column(db.String(512), default="")
+    note = db.Column(db.Text, default="")
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         db.Index('idx_server_type', 'server_id', 'rule_type'),
@@ -293,10 +446,19 @@ class AlertRule(db.Model):
         return dict(
             id=self.id,
             server_id=self.server_id,
+            bot_id=self.bot_id,
+            name=self.name or '',
+            scope='server' if self.server_id else 'global',
             rule_type=self.rule_type,
             threshold=self.threshold,
             enabled=self.enabled,
             cool_down_s=self.cool_down_s,
+            notify_repeat=self.notify_repeat,
+            target_chat_id=self.target_chat_id or '',
+            note=self.note or '',
+            last_fired=self.last_fired.isoformat() if self.last_fired else None,
+            created_at=self.created_at.isoformat() if self.created_at else None,
+            updated_at=self.updated_at.isoformat() if self.updated_at else None,
         )
 
 
@@ -304,10 +466,12 @@ class TelegramConfig(db.Model):
     __tablename__ = "telegram_config"
     
     id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(64), default="默认机器人")
     bot_token = db.Column(EncryptedString(_get_tg_crypto, length=512), default="")
     chat_id = db.Column(db.String(64), default="")
     prefix = db.Column(db.String(64), default="【VPS星图】")
     enabled = db.Column(db.Boolean, default=False, index=True)
+    is_default = db.Column(db.Boolean, default=False, index=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -321,14 +485,18 @@ class TelegramConfig(db.Model):
         return f"{value[:head]}****{value[-tail:]}"
     
     def to_dict(self):
+        token_masked = self._mask_sensitive(self.bot_token, head=3, tail=3)
         return dict(
             id=self.id,
+            name=self.name or f"机器人 {self.id}",
+            is_default=bool(self.is_default),
             chat_id=self.chat_id,
             chat_id_masked=self._mask_sensitive(self.chat_id, head=2, tail=2),
             prefix=self.prefix,
             enabled=self.enabled,
             has_token=bool(self.bot_token),
-            bot_token=self._mask_sensitive(self.bot_token, head=3, tail=3),
+            bot_token="",
+            bot_token_masked=token_masked,
         )
 
 
