@@ -416,26 +416,37 @@ prepare_allowlist() {
 # 安装 Node.js（若缺失）
 # ─────────────────────────────────────────────────────────────────────────────
 ensure_node() {
+  local target_major="22"
+  local current_major=""
+
   if command -v node &>/dev/null && command -v npm &>/dev/null; then
-    log_ok "Node.js 已存在：$(node --version)"
-    return
+    current_major="$(node --version | sed -E 's/^v([0-9]+).*/\1/')"
+    if [[ "${current_major}" -ge "${target_major}" ]]; then
+      log_ok "Node.js 已满足要求：$(node --version)"
+      return
+    fi
+    log_warn "Node.js 版本过低：$(node --version)，将升级到 Node.js ${target_major} LTS"
+  else
+    log_info "未检测到 Node.js，尝试安装 Node.js ${target_major} LTS..."
   fi
 
-  log_info "未检测到 Node.js，尝试安装..."
-
   if [[ "${PKG_FAMILY}" == "debian" ]]; then
-    # 使用 NodeSource 脚本安装 Node.js 20 LTS
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    # 使用 NodeSource 脚本安装 Node.js 22 LTS
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
     apt-get install -y nodejs
   else
     # RHEL 系列
-    curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+    curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
     local pm
     pm="$(command -v dnf &>/dev/null && echo dnf || echo yum)"
     ${pm} install -y nodejs
   fi
 
-  log_ok "Node.js 安装完成：$(node --version)"
+  current_major="$(node --version | sed -E 's/^v([0-9]+).*/\1/')"
+  if [[ "${current_major}" -lt "${target_major}" ]]; then
+    die "Node.js 安装后版本仍低于 ${target_major}：$(node --version)"
+  fi
+  log_ok "Node.js 安装/升级完成：$(node --version)"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────

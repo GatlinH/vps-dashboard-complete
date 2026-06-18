@@ -130,7 +130,7 @@ build_frontend() {
   fi
 
   if ! command -v node &>/dev/null || ! command -v npm &>/dev/null; then
-    die "未找到 node/npm，请先运行 sudo ./install.sh 或手动安装 Node.js 20 LTS"
+    die "未找到 node/npm，请先运行 sudo ./install.sh 或手动安装 Node.js 22 LTS"
   fi
 
   log_info "安装前端依赖..."

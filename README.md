@@ -17,6 +17,7 @@
 
 ## 技术栈
 
+- Node.js 22 LTS / npm：前端构建工具链
 - **前端**：Vite、JavaScript、React、Three.js、Cesium、Chart.js、Pixi.js、Workbox
 - **后端**：Flask、SQLAlchemy、PyMySQL、Redis、APScheduler、JWT、Gunicorn
 - **基础设施**：Docker Compose、MySQL 8、Redis 7、Nginx / Caddy 反向代理均可接入
