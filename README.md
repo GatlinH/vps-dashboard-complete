@@ -69,7 +69,7 @@
 
 ### 方式 A：curl 远程一键安装
 
-和哪吒面板类似，可以直接下载 GitHub Raw 脚本执行：
+可以直接下载 GitHub Raw 脚本执行：
 
 ```bash
 curl -L https://raw.githubusercontent.com/GatlinH/vps-dashboard-complete/main/install.sh -o vps-dashboard.sh && chmod +x vps-dashboard.sh && sudo ./vps-dashboard.sh
