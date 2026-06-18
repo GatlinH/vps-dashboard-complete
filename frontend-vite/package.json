@@ -22,11 +22,11 @@
     "three": "^0.184.0",
     "topojson-client": "^3.1.0",
     "vite-plugin-cesium": "^1.2.23",
-    "workbox-core": "^7.0.0",
-    "workbox-expiration": "^7.0.0",
+    "workbox-core": "7.4.1",
+    "workbox-expiration": "7.4.1",
     "workbox-precaching": "^7.4.1",
-    "workbox-routing": "^7.0.0",
-    "workbox-strategies": "^7.0.0"
+    "workbox-routing": "7.4.1",
+    "workbox-strategies": "7.4.1"
   },
   "devDependencies": {
     "vite": "^5.2.0",
