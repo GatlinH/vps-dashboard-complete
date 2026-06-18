@@ -61,6 +61,43 @@
 | 管理后台 | `/admin.html` 或 `/admin` | 需要登录，按角色授权 |
 | 健康检查 | `/health` | API 健康状态 |
 
+
+## 一键 Docker 安装（推荐）
+
+适合全新 VPS。脚本会自动安装 Docker / Docker Compose Plugin、准备目录、读取 `/etc/vps-dashboard/secrets.env`，然后用 Docker Compose 启动 MySQL、Redis、API 和 agent consumer。
+
+### 方式 A：克隆后安装
+
+```bash
+git clone https://github.com/GatlinH/vps-dashboard-complete.git
+cd vps-dashboard-complete
+sudo ./install.sh
+```
+
+首次运行如果发现 `/etc/vps-dashboard/secrets.env` 不存在，脚本会生成配置模板并提示你填写。填写后再次执行：
+
+```bash
+sudo nano /etc/vps-dashboard/secrets.env
+sudo ./install.sh
+```
+
+安装完成后访问：
+
+```text
+http://<服务器IP>/
+http://<服务器IP>/admin.html
+```
+
+### 方式 B：一行命令安装
+
+如果你只想在新机器上快速拉起：
+
+```bash
+git clone https://github.com/GatlinH/vps-dashboard-complete.git && cd vps-dashboard-complete && sudo ./install.sh
+```
+
+> 生产环境不要跳过 secrets 填写。`SECRET_KEY`、`JWT_SECRET_KEY`、数据库密码、Redis 密码、管理员密码都必须换成强随机值。
+
 ## 快速开始：Docker Compose
 
 ### 1. 克隆项目
