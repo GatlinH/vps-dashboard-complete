@@ -42,7 +42,7 @@ pytest==9.1.0
 pytest-cov==7.1.0
 python-dotenv==1.2.2
 pyyaml==6.0.3
-redis==7.4.0
+redis==8.0.0
 referencing==0.37.0
 requests==2.34.2
 rpds-py==0.30.0
@@ -54,5 +54,3 @@ tzlocal==5.3.1
 urllib3==2.6.3
 werkzeug==3.1.8
 wrapt==2.1.2
-
-authlib==1.6.4
