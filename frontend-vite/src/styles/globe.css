@@ -1849,3 +1849,7 @@ html[data-theme="light"]:has(.public-overview-page) .public-overview-page.starsh
 .google-earth-node-html-label.is-vps-node.is-vps-beacon-node:hover {
   transform: none;
 }
+
+.globe-focus-badge {
+  display: none !important;
+}

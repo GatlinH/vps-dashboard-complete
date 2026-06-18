@@ -519,16 +519,11 @@ function adaptiveRollingBounds(pointGroups = [], hours = 12) {
   const xs = pointGroups.flat().map((point) => Number(point?.x)).filter(Number.isFinite).sort((a, b) => a - b);
   const dataFirst = xs.length ? xs[0] : now;
   const dataLast = xs.length ? xs[xs.length - 1] : now;
-  const coldMax = dataFirst + fullSpan;
-  const rolling = now >= coldMax;
-  const min = rolling ? now - fullSpan : dataFirst;
-  const max = rolling ? now : coldMax;
-  const span = Math.max(1, max - min);
   return {
-    min,
-    max,
-    step: Math.max(60 * 1000, Math.round(span / 4)),
-    mode: rolling ? 'rolling-after-full-window' : 'accumulating-from-agent-connect',
+    min: now - fullSpan,
+    max: now,
+    step: Math.max(60 * 1000, Math.round(fullSpan / 4)),
+    mode: 'fixed-window',
     dataFirst,
     dataLast,
     dataSpanMs: xs.length ? Math.max(0, dataLast - dataFirst) : 0,
@@ -721,11 +716,7 @@ function accumulatingAxisBoundsFromTimes(times = [], hours = 12, minVisualMs = n
   const xs = (Array.isArray(times) ? times : []).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
   const dataFirst = xs.length ? xs[0] : now;
   const dataLast = xs.length ? xs[xs.length - 1] : now;
-  const coldMax = dataFirst + fullSpan;
-  const rolling = now >= coldMax;
-  const min = rolling ? now - fullSpan : dataFirst;
-  const max = rolling ? now : coldMax;
-  return { min, max, mode: rolling ? 'rolling-after-full-window' : 'accumulating-from-agent-connect', dataFirst, dataLast, fullSpanMs: fullSpan };
+  return { min: now - fullSpan, max: now, mode: 'fixed-window', dataFirst, dataLast, fullSpanMs: fullSpan };
 }
 
 
@@ -1555,7 +1546,7 @@ async function renderDetailPage(serverId) {
   const chartLabels = historyRows.map((row, idx) => row.ts || row.time || row.timestamp || `T${idx + 1}`);
   loadStoredTelemetrySamples(resolvedServer.id);
   recordLiveTelemetrySample(resolvedServer, Date.now());
-  const probeRows = mergeTelemetryRows(normalizeWindowRows((probeHistoryData?.data || []).slice().reverse(), 24));
+  const probeRows = mergeTelemetryRows(normalizeWindowRows(probeHistoryData?.data || [], 24));
   const probeLabels = probeRows.map((row, idx) => row.created_at ? new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `P${idx + 1}`);
   const cpuSeries = probeRows.map((row) => Number(row.cpu_use || 0));
   const ramSeries = probeRows.map((row) => Number(row.ram_use || 0));
@@ -1775,8 +1766,10 @@ function recordLiveTelemetrySample(server = null, fetchedAt = Date.now()) {
   saveStoredTelemetrySamples(server.id);
 }
 function mergeTelemetryRows(rows = []) {
+  const backendRows = Array.isArray(rows) ? rows : [];
+  const sourceRows = backendRows.length ? backendRows : (detailTelemetrySampleCache || []);
   const bySecond = new Map();
-  for (const row of [...(Array.isArray(rows) ? rows : []), ...(detailTelemetrySampleCache || [])]) {
+  for (const row of sourceRows) {
     const t = Number(row.__timeMs) || rowTimeMs(row, NaN);
     if (!Number.isFinite(t)) continue;
     bySecond.set(String(Math.round(t / 1000)), { ...row, __timeMs: t, created_at: row.created_at || new Date(t).toISOString() });
@@ -1835,7 +1828,7 @@ async function refreshDetailRealtime(serverId) {
     ]);
     detailCachedTraffic = traffic.status === 'fulfilled' ? traffic.value : detailCachedTraffic;
     detailCachedHistoryRows = normalizeHistory24h((history.status === 'fulfilled' ? history.value?.data : detailCachedHistoryRows) || []);
-    detailCachedProbeRows = (((probeHistory.status === 'fulfilled' ? probeHistory.value?.data : detailCachedProbeRows) || []).slice()).sort((a, b) => rowTimeMs(a, 0) - rowTimeMs(b, 0)).slice(-3600);
+    detailCachedProbeRows = normalizeWindowRows((probeHistory.status === 'fulfilled' ? probeHistory.value?.data : detailCachedProbeRows) || [], 24).slice(-3600);
     if (pingTargets.status === 'fulfilled' && pingTargets.value?.targets?.length) {
       recordLivePingSamples(pingTargets.value, now, current.id);
       detailCachedPingTargets = pingTargets.value;
