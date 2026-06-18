@@ -66,18 +66,26 @@
 
 适合全新 VPS。脚本会自动安装 Docker / Docker Compose Plugin、准备目录、读取 `/etc/vps-dashboard/secrets.env`，然后用 Docker Compose 启动 MySQL、Redis、API 和 agent consumer。
 
-### 方式 A：克隆后安装
+### 方式 A：curl 远程一键安装
+
+和哪吒面板类似，可以直接下载 GitHub Raw 脚本执行：
 
 ```bash
-git clone https://github.com/GatlinH/vps-dashboard-complete.git
-cd vps-dashboard-complete
-sudo ./install.sh
+curl -L https://raw.githubusercontent.com/GatlinH/vps-dashboard-complete/main/install.sh -o vps-dashboard.sh && chmod +x vps-dashboard.sh && sudo ./vps-dashboard.sh
 ```
 
 首次运行如果发现 `/etc/vps-dashboard/secrets.env` 不存在，脚本会生成配置模板并提示你填写。填写后再次执行：
 
 ```bash
 sudo nano /etc/vps-dashboard/secrets.env
+sudo ./vps-dashboard.sh
+```
+
+### 方式 B：克隆仓库后安装
+
+```bash
+git clone https://github.com/GatlinH/vps-dashboard-complete.git
+cd vps-dashboard-complete
 sudo ./install.sh
 ```
 
@@ -88,7 +96,7 @@ http://<服务器IP>/
 http://<服务器IP>/admin.html
 ```
 
-### 方式 B：一行命令安装
+### 方式 C：克隆仓库一行安装
 
 如果你只想在新机器上快速拉起：
 

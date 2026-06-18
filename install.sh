@@ -48,6 +48,62 @@ die() {
   exit 1
 }
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Git / Raw bootstrap：允许 curl 单文件安装
+# ─────────────────────────────────────────────────────────────────────────────
+ensure_git() {
+  if command -v git &>/dev/null; then
+    log_ok "Git 已存在：$(git --version)"
+    return
+  fi
+
+  log_info "未检测到 Git，正在安装..."
+  if [[ "${PKG_FAMILY}" == "debian" ]]; then
+    apt-get update -y
+    apt-get install -y git
+  else
+    local pm
+    pm="$(command -v dnf &>/dev/null && echo dnf || echo yum)"
+    ${pm} install -y git
+  fi
+  log_ok "Git 安装完成：$(git --version)"
+}
+
+bootstrap_repo_if_needed() {
+  if [[ -f "${REPO_DIR}/docker-compose.yml" && -d "${REPO_DIR}/backend" && -d "${REPO_DIR}/frontend-vite" ]]; then
+    return
+  fi
+
+  log_section "拉取项目仓库"
+  ensure_git
+
+  local repo_url="${VPS_DASHBOARD_REPO_URL:-https://github.com/GatlinH/vps-dashboard-complete.git}"
+  local branch="${VPS_DASHBOARD_BRANCH:-main}"
+  local target="${VPS_DASHBOARD_REPO_DIR:-/opt/vps-dashboard-complete}"
+
+  log_warn "当前脚本不是在完整仓库中运行，将自动拉取项目源码。"
+  log_info "仓库：${repo_url}"
+  log_info "分支：${branch}"
+  log_info "目录：${target}"
+
+  mkdir -p "$(dirname "${target}")"
+  if [[ -d "${target}/.git" ]]; then
+    log_info "目标目录已是 Git 仓库，更新到 ${branch}..."
+    git -C "${target}" fetch --depth 1 origin "${branch}"
+    git -C "${target}" checkout "${branch}"
+    git -C "${target}" reset --hard "origin/${branch}"
+  elif [[ -e "${target}" ]]; then
+    die "目标目录已存在但不是 Git 仓库：${target}。请移动/删除后重试，或设置 VPS_DASHBOARD_REPO_DIR。"
+  else
+    git clone --depth 1 --branch "${branch}" "${repo_url}" "${target}"
+  fi
+
+  chmod +x "${target}/install.sh"
+  log_ok "源码已准备完成，切换到仓库内安装脚本继续。"
+  exec "${target}/install.sh" "$@"
+}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 权限检查
 # ─────────────────────────────────────────────────────────────────────────────
@@ -769,6 +825,7 @@ main() {
   fi
 
   detect_distro
+  bootstrap_repo_if_needed "$@"
   install_docker
   enable_docker_service
   verify_commands
