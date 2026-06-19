@@ -10,7 +10,7 @@
     "analyze": "vite build && echo '✓ Build complete. Check ../frontend-dist/ for output.'"
   },
   "dependencies": {
-    "@deck.gl/core": "^8.9.32",
+    "@deck.gl/core": "^9.3.4",
     "@deck.gl/geo-layers": "^8.9.32",
     "@deck.gl/layers": "^8.9.32",
     "@luma.gl/core": "^8.5.21",
