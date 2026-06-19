@@ -375,9 +375,9 @@ export class CesiumGlobe {
       // Keep close-zoom drags conservative: a tiny hand move should not throw the globe.
       const camera = this.viewer.camera;
       const height = camera.positionCartographic?.height || HOME_HEIGHT;
-      const zoomT = Math.max(0, Math.min(1, (height - 250_000) / 9_000_000));
-      const spinSpeed = 0.00055 + zoomT * 0.00115;
-      const maxStep = 42;
+      const zoomT = Math.max(0, Math.min(1, (height - 300_000) / 12_000_000));
+      const spinSpeed = 0.00018 + zoomT * 0.00057;
+      const maxStep = 18;
       const stepX = Math.max(-maxStep, Math.min(maxStep, dx));
       const stepY = Math.max(-maxStep, Math.min(maxStep, dy));
       window.__freeSpinLast = { dx: +dx.toFixed(2), dy: +dy.toFixed(2), stepX: +stepX.toFixed(2), stepY: +stepY.toFixed(2), height: Math.round(height), spinSpeed: +spinSpeed.toFixed(6) };
