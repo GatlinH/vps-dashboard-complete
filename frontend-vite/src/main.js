@@ -519,11 +519,16 @@ function adaptiveRollingBounds(pointGroups = [], hours = 12) {
   const xs = pointGroups.flat().map((point) => Number(point?.x)).filter(Number.isFinite).sort((a, b) => a - b);
   const dataFirst = xs.length ? xs[0] : now;
   const dataLast = xs.length ? xs[xs.length - 1] : now;
+  const coldMax = dataFirst + fullSpan;
+  const rolling = now >= coldMax;
+  const min = rolling ? now - fullSpan : dataFirst;
+  const max = rolling ? now : coldMax;
+  const span = Math.max(1, max - min);
   return {
-    min: now - fullSpan,
-    max: now,
-    step: Math.max(60 * 1000, Math.round(fullSpan / 4)),
-    mode: 'fixed-window',
+    min,
+    max,
+    step: Math.max(60 * 1000, Math.round(span / 4)),
+    mode: rolling ? 'rolling-after-full-window' : 'accumulating-from-first-sample',
     dataFirst,
     dataLast,
     dataSpanMs: xs.length ? Math.max(0, dataLast - dataFirst) : 0,
@@ -716,7 +721,11 @@ function accumulatingAxisBoundsFromTimes(times = [], hours = 12, minVisualMs = n
   const xs = (Array.isArray(times) ? times : []).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
   const dataFirst = xs.length ? xs[0] : now;
   const dataLast = xs.length ? xs[xs.length - 1] : now;
-  return { min: now - fullSpan, max: now, mode: 'fixed-window', dataFirst, dataLast, fullSpanMs: fullSpan };
+  const coldMax = dataFirst + fullSpan;
+  const rolling = now >= coldMax;
+  const min = rolling ? now - fullSpan : dataFirst;
+  const max = rolling ? now : coldMax;
+  return { min, max, mode: rolling ? 'rolling-after-full-window' : 'accumulating-from-first-sample', dataFirst, dataLast, fullSpanMs: fullSpan };
 }
 
 
