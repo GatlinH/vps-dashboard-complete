@@ -215,8 +215,6 @@ export default function GlobeStarmap({
   const [showLines,     setShowLines]     = useState(true);
   const [autoSpin,      setAutoSpin]      = useState(true);
   const [showCountries, setShowCountries] = useState(true);
-  const [tileMode,      setTileMode]      = useState(false);
-  const [autoFetch,     setAutoFetch]     = useState(false);
   const [zoom,          setZoom]          = useState(1.0);
   const [status,        setStatus]        = useState("正在初始化...");
   const [spinning,      setSpinning]      = useState(false);
@@ -249,8 +247,6 @@ export default function GlobeStarmap({
   useEffect(() => { stateRef.current.showLines     = showLines;     }, [showLines]);
   useEffect(() => { stateRef.current.autoSpin      = autoSpin;      }, [autoSpin]);
   useEffect(() => { stateRef.current.showCountries = showCountries; }, [showCountries]);
-  useEffect(() => { stateRef.current.tileMode      = tileMode;
-    stateRef.current.tileCache.clear(); prefetchTiles();             }, [tileMode]);
   useEffect(() => { stateRef.current.zoom          = zoom;          }, [zoom]);
   useEffect(() => { stateRef.current.liveServers   = liveServers;   }, [liveServers]);
   useEffect(() => {
@@ -304,45 +300,6 @@ export default function GlobeStarmap({
       })
       .catch(() => { setStatus("矢量地图加载失败"); setSpinning(false); });
   }, []);
-
-  // ── Data simulation ───────────────────────────────────────────────────────
-  const doFetch = useCallback(async () => {
-    const S = stateRef.current;
-    S.fetchCount++;
-    S.lastFetch = new Date();
-    setStatus(`第 ${S.fetchCount} 次抓取... ${S.lastFetch.toLocaleTimeString()}`);
-    setSpinning(true);
-    await new Promise(r => setTimeout(r, 350 + Math.random() * 250));
-    setLiveServers(prev => prev.map(s => {
-      if (s.status === "offline") return s;
-      return {
-        ...s,
-        cpu_use:  Math.max(1, Math.min(99, s.cpu_use  + (Math.random() - 0.5) * 8)),
-        ram_use:  Math.max(1, Math.min(99, s.ram_use  + (Math.random() - 0.5) * 4)),
-        net_up:   Math.max(0, +(s.net_up   + (Math.random() - 0.5) * 5).toFixed(1)),
-        net_down: Math.max(0, +(s.net_down + (Math.random() - 0.5) * 15).toFixed(1)),
-      };
-    }));
-    setStatus(`上次抓取: ${S.lastFetch.toLocaleTimeString()} · 第${S.fetchCount}次`);
-    setSpinning(false);
-  }, []);
-
-  useEffect(() => {
-    if (!autoFetch) {
-      if (stateRef.current.fetchTimer) {
-        clearInterval(stateRef.current.fetchTimer);
-        stateRef.current.fetchTimer = null;
-      }
-      setStatus("定时抓取已关闭");
-      return;
-    }
-    doFetch();
-    stateRef.current.fetchTimer = setInterval(doFetch, 20000);
-    return () => {
-      clearInterval(stateRef.current.fetchTimer);
-      stateRef.current.fetchTimer = null;
-    };
-  }, [autoFetch, doFetch]);
 
   // ── Zoom helpers ──────────────────────────────────────────────────────────
   const adjustZoom = useCallback((d) => {
@@ -693,7 +650,6 @@ export default function GlobeStarmap({
         <Toggle label="连线" checked={showLines}     onChange={setShowLines} isLight={isLight} />
         <Toggle label="旋转" checked={autoSpin}      onChange={setAutoSpin} isLight={isLight} />
         <Toggle label="国家" checked={showCountries} onChange={setShowCountries} isLight={isLight} />
-        <Toggle label="卫星" checked={tileMode}      onChange={setTileMode} isLight={isLight} />
 
         {/* Zoom */}
         <div style={{
@@ -721,9 +677,6 @@ export default function GlobeStarmap({
           }} />
         )}
         <span style={{ fontSize: 11, color: toolbarMuted, fontFamily: "monospace" }}>{status}</span>
-
-        <button onClick={doFetch} style={btnStyle}>↻ 刷新</button>
-        <Toggle label="定时" checked={autoFetch} onChange={setAutoFetch} isLight={isLight} />
       </div>
 
       {/* ── Globe + Legend + Tooltip ── */}
