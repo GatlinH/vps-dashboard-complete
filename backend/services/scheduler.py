@@ -11,6 +11,7 @@ services/scheduler.py
 import json
 import logging
 import os
+import shutil
 import socket
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -30,6 +31,142 @@ log = logging.getLogger(__name__)
 # Partial deletions caused by mid-run errors are intentional: the job is
 # idempotent and the next scheduled run will clean up any remaining rows.
 _CLEANUP_BATCH = 1_000
+
+
+_LOCAL_METRICS_PREV = {
+    "cpu": None,       # (idle, total)
+    "net": None,       # (timestamp, rx_bytes, tx_bytes)
+}
+
+
+def _read_cpu_counters():
+    try:
+        with open("/proc/stat", "r", encoding="utf-8") as fh:
+            parts = fh.readline().split()
+        vals = [int(v) for v in parts[1:]]
+        idle = vals[3] + (vals[4] if len(vals) > 4 else 0)
+        total = sum(vals)
+        return idle, total
+    except Exception:
+        return None
+
+
+def _read_mem_percent():
+    try:
+        data = {}
+        with open("/proc/meminfo", "r", encoding="utf-8") as fh:
+            for line in fh:
+                key, rest = line.split(":", 1)
+                data[key] = float(rest.strip().split()[0])
+        total = data.get("MemTotal") or 0.0
+        available = data.get("MemAvailable")
+        if not total or available is None:
+            return None
+        return max(0.0, min(100.0, (total - available) / total * 100.0))
+    except Exception:
+        return None
+
+
+def _default_net_interface():
+    try:
+        with open("/proc/net/route", "r", encoding="utf-8") as fh:
+            for line in fh.readlines()[1:]:
+                parts = line.split()
+                if len(parts) >= 4 and parts[1] == "00000000" and int(parts[3], 16) & 2:
+                    return parts[0]
+    except Exception:
+        pass
+    return None
+
+
+def _read_net_bytes():
+    iface = _default_net_interface()
+    try:
+        with open("/proc/net/dev", "r", encoding="utf-8") as fh:
+            rows = fh.readlines()[2:]
+        totals = []
+        for row in rows:
+            if ":" not in row:
+                continue
+            name, rest = row.split(":", 1)
+            name = name.strip()
+            cols = rest.split()
+            if len(cols) < 16 or name == "lo":
+                continue
+            rx = int(cols[0])
+            tx = int(cols[8])
+            if iface and name == iface:
+                return rx, tx
+            if not name.startswith(("veth", "br-", "docker")):
+                totals.append((rx, tx))
+        if totals:
+            return max(totals, key=lambda p: p[0] + p[1])
+    except Exception:
+        return None
+    return None
+
+
+def _format_uptime():
+    try:
+        seconds = int(float(open("/proc/uptime", "r", encoding="utf-8").read().split()[0]))
+        days, rem = divmod(seconds, 86400)
+        hours, rem = divmod(rem, 3600)
+        minutes, _ = divmod(rem, 60)
+        if days:
+            return f"{days} days, {hours} hours, {minutes} minutes"
+        if hours:
+            return f"{hours} hours, {minutes} minutes"
+        return f"{minutes} minutes"
+    except Exception:
+        return None
+
+
+def _collect_local_host_metrics():
+    """Collect real host/container-visible metrics for the local-master node."""
+    metrics = {}
+
+    cpu_now = _read_cpu_counters()
+    prev_cpu = _LOCAL_METRICS_PREV.get("cpu")
+    if cpu_now and prev_cpu:
+        idle_delta = cpu_now[0] - prev_cpu[0]
+        total_delta = cpu_now[1] - prev_cpu[1]
+        if total_delta > 0:
+            metrics["cpu_use"] = round(max(0.0, min(100.0, (1.0 - idle_delta / total_delta) * 100.0)), 2)
+    _LOCAL_METRICS_PREV["cpu"] = cpu_now
+
+    mem = _read_mem_percent()
+    if mem is not None:
+        metrics["ram_use"] = round(mem, 2)
+
+    try:
+        usage = shutil.disk_usage("/")
+        metrics["disk_use"] = round(usage.used / usage.total * 100.0, 2) if usage.total else None
+    except Exception:
+        pass
+
+    net_now = _read_net_bytes()
+    now = time.time()
+    prev_net = _LOCAL_METRICS_PREV.get("net")
+    if net_now and prev_net:
+        dt = max(now - prev_net[0], 0.001)
+        rx_delta = max(net_now[0] - prev_net[1], 0)
+        tx_delta = max(net_now[1] - prev_net[2], 0)
+        # KB/s; frontend labels and traffic accumulator already interpret net_up/down as KB/s.
+        metrics["net_down"] = round(rx_delta / 1024.0 / dt, 2)
+        metrics["net_up"] = round(tx_delta / 1024.0 / dt, 2)
+    if net_now:
+        _LOCAL_METRICS_PREV["net"] = (now, net_now[0], net_now[1])
+
+    uptime = _format_uptime()
+    if uptime:
+        metrics["uptime"] = uptime
+    return {k: v for k, v in metrics.items() if v is not None}
+
+
+def _is_local_master_server(server):
+    provider = str(getattr(server, "provider", "") or "").lower()
+    name = str(getattr(server, "name", "") or "").lower()
+    return provider == "local-master" or name == "192-vps-agent-01"
 
 
 def create_scheduler(app):
@@ -268,6 +405,10 @@ def _job_tcp_ping(app):
             latency_ms = r["latency_ms"]
 
             s.status = status
+            if _is_local_master_server(s):
+                local_metrics = _collect_local_host_metrics()
+                for k, v in local_metrics.items():
+                    setattr(s, k, v)
 
             db.session.add(ProbeResult(
                 server_id=s.id, latency_ms=latency_ms, status=status,
