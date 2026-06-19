@@ -238,7 +238,7 @@ export class CesiumGlobe {
     c.enableTilt = false;
     c.enableLook = false;
     c.enableCollisionDetection = true;
-    c.inertiaSpin = 0.92;
+    c.inertiaSpin = 0.0;
     c.inertiaTranslate = 0.0;
     c.inertiaZoom = 0.0;
     c.minimumZoomDistance = MIN_ZOOM;
@@ -354,6 +354,7 @@ export class CesiumGlobe {
       if (this._resumeTimer) clearTimeout(this._resumeTimer);
       this._resumeTimer = setTimeout(() => { this._userInteracting = false; }, AUTOROTATE_RESUME_MS);
     };
+    const supportsPointerEvents = typeof window !== 'undefined' && 'PointerEvent' in window;
     const eventKey = (event) => event.pointerId ?? 'mouse';
     const isPlainPrimaryDrag = (event) => (event.button === 0 || event.buttons === 1 || event.type === 'mousemove')
       && !event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey;
@@ -371,10 +372,17 @@ export class CesiumGlobe {
       if (Math.abs(dx) + Math.abs(dy) < 0.25) return;
       // Quaternion free-spin around Earth center. This avoids Cesium rotateUp polar clamps,
       // so vertical dragging can cross both poles and continue through a full 360°.
+      // Keep close-zoom drags conservative: a tiny hand move should not throw the globe.
       const camera = this.viewer.camera;
-      const spinSpeed = 0.0032;
-      if (Math.abs(dx) >= 0.01) this._rotateCameraAroundEarth(Cesium.Cartesian3.UNIT_Z, -dx * spinSpeed);
-      if (Math.abs(dy) >= 0.01) this._rotateCameraAroundEarth(camera.rightWC, -dy * spinSpeed);
+      const height = camera.positionCartographic?.height || HOME_HEIGHT;
+      const zoomT = Math.max(0, Math.min(1, (height - 250_000) / 9_000_000));
+      const spinSpeed = 0.00055 + zoomT * 0.00115;
+      const maxStep = 42;
+      const stepX = Math.max(-maxStep, Math.min(maxStep, dx));
+      const stepY = Math.max(-maxStep, Math.min(maxStep, dy));
+      window.__freeSpinLast = { dx: +dx.toFixed(2), dy: +dy.toFixed(2), stepX: +stepX.toFixed(2), stepY: +stepY.toFixed(2), height: Math.round(height), spinSpeed: +spinSpeed.toFixed(6) };
+      if (Math.abs(stepX) >= 0.01) this._rotateCameraAroundEarth(Cesium.Cartesian3.UNIT_Z, -stepX * spinSpeed);
+      if (Math.abs(stepY) >= 0.01) this._rotateCameraAroundEarth(camera.rightWC, -stepY * spinSpeed);
       camera.constrainedAxis = undefined;
       this._forceLitGlobe();
       this._updateOverlays();
@@ -403,12 +411,14 @@ export class CesiumGlobe {
       scheduleResume();
     };
     this._onMouseDown = (event) => {
+      if (supportsPointerEvents) return;
       if (!isPlainPrimaryDrag(event)) return;
       pause();
       freeSpin = { pointerId: 'mouse', ...getCanvasPoint(event) };
       window.__freeSpinStarted = (window.__freeSpinStarted || 0) + 1;
     };
     this._onMouseMove = (event) => {
+      if (supportsPointerEvents) return;
       if (!freeSpin || freeSpin.pointerId !== 'mouse') return;
       const p = getCanvasPoint(event);
       const dx = p.x - freeSpin.x;
@@ -419,7 +429,7 @@ export class CesiumGlobe {
       window.__freeSpinMoves = (window.__freeSpinMoves || 0) + 1;
       this._applyFreeSpinDelta(dx, dy);
     };
-    this._onMouseUp = () => { if (freeSpin?.pointerId === 'mouse') freeSpin = null; scheduleResume(); };
+    this._onMouseUp = () => { if (supportsPointerEvents) return; if (freeSpin?.pointerId === 'mouse') freeSpin = null; scheduleResume(); };
     this._onWheel = () => {
       pause();
       this.viewer.camera.constrainedAxis = undefined;
