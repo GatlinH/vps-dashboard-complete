@@ -161,14 +161,20 @@ function NodeCard({ server, isLight = false }) {
 }
 
 // ─── Toggle sub-component ────────────────────────────────────────────────────
-function Toggle({ label, checked, onChange }) {
+function Toggle({ label, checked, onChange, isLight = false }) {
+  const shellBg = isLight ? "rgba(255,249,236,0.86)" : "#111d33";
+  const shellBorder = isLight ? "rgba(38,99,108,.28)" : "rgba(99,179,237,0.15)";
+  const textColor = isLight ? "#31585f" : "#8ea7c7";
+  const accent = isLight ? "#0b6670" : "#63b3ed";
+  const offTrack = isLight ? "#eadfc6" : "#070b14";
+  const offKnob = isLight ? "#8a7355" : "#64748b";
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: 8,
-      background: "#111d33",
-      border: "1px solid rgba(99,179,237,0.15)",
+      background: shellBg,
+      border: `1px solid ${shellBorder}`,
       borderRadius: 8, padding: "6px 12px",
-      fontSize: 11, color: "#64748b", userSelect: "none",
+      fontSize: 11, color: textColor, userSelect: "none",
     }}>
       {label}
       <label style={{ position: "relative", display: "inline-block", width: 36, height: 20, cursor: "pointer" }}>
@@ -176,15 +182,15 @@ function Toggle({ label, checked, onChange }) {
           style={{ opacity: 0, width: 0, height: 0 }} />
         <span style={{
           position: "absolute", inset: 0,
-          background: checked ? "rgba(99,179,237,0.2)" : "#070b14",
-          border: `1px solid ${checked ? "#63b3ed" : "rgba(99,179,237,0.3)"}`,
+          background: checked ? (isLight ? "rgba(11,102,112,.18)" : "rgba(99,179,237,0.2)") : offTrack,
+          border: `1px solid ${checked ? accent : shellBorder}`,
           borderRadius: 20, transition: ".2s",
         }}>
           <span style={{
             position: "absolute",
             width: 14, height: 14,
             left: checked ? 18 : 2, top: 2,
-            background: checked ? "#63b3ed" : "#64748b",
+            background: checked ? accent : offKnob,
             borderRadius: "50%", transition: ".2s",
           }} />
         </span>
@@ -638,13 +644,17 @@ export default function GlobeStarmap({
   }, [baseRadius, fetchTile, prefetchTiles, theme]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
+  const toolbarBg = isLight ? "rgba(255,249,236,0.86)" : "#111d33";
+  const toolbarBorder = isLight ? "rgba(38,99,108,.28)" : "rgba(99,179,237,0.15)";
+  const toolbarAccent = isLight ? "#0b6670" : "#63b3ed";
+  const toolbarMuted = isLight ? "#5f7064" : "#8ea7c7";
   const btnStyle = {
     padding: "5px 14px", borderRadius: 7,
-    background: "#111d33",
-    border: "1px solid rgba(99,179,237,0.3)",
-    color: "#63b3ed", fontSize: 12, cursor: "pointer",
+    background: toolbarBg,
+    border: `1px solid ${isLight ? "rgba(38,99,108,.30)" : "rgba(99,179,237,0.3)"}`,
+    color: toolbarAccent, fontSize: 12, cursor: "pointer",
     fontFamily: "monospace",
-    transition: "background .15s",
+    transition: "background .15s, color .15s, border-color .15s",
   };
 
   return (
@@ -680,40 +690,40 @@ export default function GlobeStarmap({
         display: "flex", alignItems: "center", gap: 8,
         flexWrap: "wrap", marginBottom: "0.875rem",
       }}>
-        <Toggle label="连线" checked={showLines}     onChange={setShowLines} />
-        <Toggle label="旋转" checked={autoSpin}      onChange={setAutoSpin} />
-        <Toggle label="国家" checked={showCountries} onChange={setShowCountries} />
-        <Toggle label="卫星" checked={tileMode}      onChange={setTileMode} />
+        <Toggle label="连线" checked={showLines}     onChange={setShowLines} isLight={isLight} />
+        <Toggle label="旋转" checked={autoSpin}      onChange={setAutoSpin} isLight={isLight} />
+        <Toggle label="国家" checked={showCountries} onChange={setShowCountries} isLight={isLight} />
+        <Toggle label="卫星" checked={tileMode}      onChange={setTileMode} isLight={isLight} />
 
         {/* Zoom */}
         <div style={{
           display: "flex", alignItems: "center",
-          background: "#111d33",
-          border: "1px solid rgba(99,179,237,0.15)",
+          background: toolbarBg,
+          border: `1px solid ${toolbarBorder}`,
           borderRadius: 8, overflow: "hidden",
         }}>
           <button onClick={() => adjustZoom(-0.2)}
-            style={{ ...btnStyle, border: "none", borderRight: "1px solid rgba(99,179,237,0.15)", borderRadius: 0, padding: "5px 10px" }}>−</button>
-          <span style={{ padding: "4px 10px", fontSize: 11, fontFamily: "monospace", color: "#64748b", minWidth: 48, textAlign: "center" }}>
+            style={{ ...btnStyle, border: "none", borderRight: `1px solid ${toolbarBorder}`, borderRadius: 0, padding: "5px 10px" }}>−</button>
+          <span style={{ padding: "4px 10px", fontSize: 11, fontFamily: "monospace", color: toolbarMuted, minWidth: 48, textAlign: "center" }}>
             {zoom.toFixed(2)}×
           </span>
           <button onClick={() => adjustZoom(+0.2)}
-            style={{ ...btnStyle, border: "none", borderLeft: "1px solid rgba(99,179,237,0.15)", borderRadius: 0, padding: "5px 10px" }}>+</button>
+            style={{ ...btnStyle, border: "none", borderLeft: `1px solid ${toolbarBorder}`, borderRadius: 0, padding: "5px 10px" }}>+</button>
         </div>
 
         {/* Status */}
         {spinning && (
           <div style={{
             width: 14, height: 14, borderRadius: "50%",
-            border: "2px solid rgba(99,179,237,0.2)",
-            borderTopColor: "#63b3ed",
+            border: `2px solid ${isLight ? "rgba(11,102,112,.16)" : "rgba(99,179,237,0.2)"}`,
+            borderTopColor: toolbarAccent,
             animation: "spin .7s linear infinite",
           }} />
         )}
-        <span style={{ fontSize: 11, color: "#64748b", fontFamily: "monospace" }}>{status}</span>
+        <span style={{ fontSize: 11, color: toolbarMuted, fontFamily: "monospace" }}>{status}</span>
 
-        <button onClick={doFetch} style={isLight ? { ...btnStyle, background: "#f6ebd4", color: "#0b6670", borderColor: "rgba(38,99,108,.30)" } : btnStyle}>↻ 刷新</button>
-        <Toggle label="定时" checked={autoFetch} onChange={setAutoFetch} />
+        <button onClick={doFetch} style={btnStyle}>↻ 刷新</button>
+        <Toggle label="定时" checked={autoFetch} onChange={setAutoFetch} isLight={isLight} />
       </div>
 
       {/* ── Globe + Legend + Tooltip ── */}
