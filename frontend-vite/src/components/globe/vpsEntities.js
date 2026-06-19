@@ -143,10 +143,13 @@ export function rebuildVpsEntities(globe) {
     if (globe._labelLayer) {
       const labelEl = document.createElement('div');
       labelEl.className = 'google-earth-node-html-label is-vps-node is-vps-beacon-node';
-      const place = [server.city, server.region, server.country].filter(Boolean).join(' · ') || server.location || 'VPS 节点';
+      const placeParts = [server.city, server.region, server.country].filter(Boolean)
+        .filter((part, idx, arr) => arr.findIndex(x => String(x).toLowerCase() === String(part).toLowerCase()) === idx);
+      const place = placeParts.join(' · ') || server.location || '未知地区';
+      const displayName = shortServerLabel(server) || String(server?.name || `VPS-${server?.id || ''}`);
       const flag = serverFlag(server);
       const flagCode = serverFlagCode(server);
-      labelEl.innerHTML = `<span class="node-place"><span class="node-flag">${renderFlagImg(flag, flagCode)}</span><span class="node-title">VPS 信标</span></span><span class="node-name">${escapeHtml(place)}</span>`;
+      labelEl.innerHTML = `<span class="node-place"><span class="node-flag">${renderFlagImg(flag, flagCode)}</span><span class="node-title">${escapeHtml(displayName)}</span></span><span class="node-name">${escapeHtml(place)}</span>`;
       labelEl.dataset.nodeId = String(server.id);
       labelEl.style.pointerEvents = 'auto';
       labelEl.style.cursor = 'pointer';

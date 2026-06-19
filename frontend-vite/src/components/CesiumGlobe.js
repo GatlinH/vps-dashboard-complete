@@ -377,11 +377,12 @@ export class CesiumGlobe {
       const height = camera.positionCartographic?.height || HOME_HEIGHT;
       const zoomT = Math.max(0, Math.min(1, (height - 300_000) / 12_000_000));
       const mapT = Math.max(0, Math.min(1, (height - 1_500_000) / 8_000_000));
-      const spinSpeed = 0.000045 + zoomT * 0.000055 + mapT * 0.00042;
-      const maxStep = height < 1_500_000 ? 10 : 18;
+      const globeT = Math.max(0, Math.min(1, (height - 6_000_000) / 7_000_000));
+      const spinSpeed = 0.000025 + zoomT * 0.000035 + mapT * 0.00025 + globeT * 0.00070;
+      const maxStep = height < 1_500_000 ? 8 : height < 6_000_000 ? 18 : 36;
       const stepX = Math.max(-maxStep, Math.min(maxStep, dx));
       const stepY = Math.max(-maxStep, Math.min(maxStep, dy));
-      window.__freeSpinLast = { dx: +dx.toFixed(2), dy: +dy.toFixed(2), stepX: +stepX.toFixed(2), stepY: +stepY.toFixed(2), height: Math.round(height), zoomT: +zoomT.toFixed(3), mapT: +mapT.toFixed(3), spinSpeed: +spinSpeed.toFixed(6) };
+      window.__freeSpinLast = { dx: +dx.toFixed(2), dy: +dy.toFixed(2), stepX: +stepX.toFixed(2), stepY: +stepY.toFixed(2), height: Math.round(height), zoomT: +zoomT.toFixed(3), mapT: +mapT.toFixed(3), globeT: +globeT.toFixed(3), spinSpeed: +spinSpeed.toFixed(6) };
       if (Math.abs(stepX) >= 0.01) this._rotateCameraAroundEarth(Cesium.Cartesian3.UNIT_Z, -stepX * spinSpeed);
       if (Math.abs(stepY) >= 0.01) this._rotateCameraAroundEarth(camera.rightWC, -stepY * spinSpeed);
       camera.constrainedAxis = undefined;

@@ -8,6 +8,7 @@ services/scheduler.py
 
 使用 APScheduler（无需 Celery），轻量部署。
 """
+import ipaddress
 import json
 import logging
 import os
@@ -336,32 +337,38 @@ def _build_scheduler_listener(app):
 def _tcp_ping_one(server_id: int, ip: str, timeout: float) -> dict:
     """对单台服务器执行一次 TCP ping，纯 I/O 操作，不访问数据库。
 
-    Parameters:
-        server_id: 服务器的数据库 ID，原样透传到返回值以便主线程匹配。
-        ip:        目标 IP 地址。
-        timeout:   socket 连接超时秒数。
-
-    Returns:
-        dict with keys:
-            server_id  (int)   — 同入参，供调用方关联结果
-            status     (str)   — 'online' | 'warn' | 'offline'
-            latency_ms (float|None) — 连接延迟（毫秒），失败时为 None
+    IPv6-only nodes must not be marked offline just because the monitor host has
+    no IPv6 route. In that case we return ``unknown``: the dashboard cannot
+    prove online/offline until an agent/probe URL is installed.
     """
     start      = time.perf_counter()
     status     = "offline"
     latency_ms = None
+    err        = None
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        parsed = ipaddress.ip_address(str(ip).strip())
+        family = socket.AF_INET6 if parsed.version == 6 else socket.AF_INET
+        address = (str(parsed), 80, 0, 0) if family == socket.AF_INET6 else (str(parsed), 80)
+        sock = socket.socket(family, socket.SOCK_STREAM)
         sock.settimeout(timeout)
-        result = sock.connect_ex((ip, 80))
+        result = sock.connect_ex(address)
         elapsed = (time.perf_counter() - start) * 1000
         sock.close()
         if result == 0:
             status     = "warn" if elapsed > 300 else "online"
             latency_ms = round(elapsed, 2)
-    except Exception:
-        pass
-    return {"server_id": server_id, "status": status, "latency_ms": latency_ms}
+        elif family == socket.AF_INET6 and result in {101, 99, 97, 96}:  # no route / cannot assign addr / addr family
+            status = "unknown"
+            err = "monitor_ipv6_unreachable"
+    except OSError as exc:
+        if ':' in str(ip):
+            status = "unknown"
+            err = "monitor_ipv6_unreachable"
+        else:
+            err = type(exc).__name__
+    except Exception as exc:
+        err = type(exc).__name__
+    return {"server_id": server_id, "status": status, "latency_ms": latency_ms, "error": err}
 
 
 def _job_tcp_ping(app):
