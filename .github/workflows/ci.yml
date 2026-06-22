@@ -106,7 +106,7 @@ jobs:
 
       - name: Upload frontend artifact
         if: github.event_name != 'workflow_call'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-dist-${{ github.sha }}
           path: frontend-dist/
