@@ -19,7 +19,7 @@
     "pixi.js": "^7.4.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "three": "^0.184.0",
+    "three": "^0.185.0",
     "topojson-client": "^3.1.0",
     "vite-plugin-cesium": "^1.2.23",
     "workbox-core": "7.4.1",
