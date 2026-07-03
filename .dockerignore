@@ -1,0 +1,30 @@
+# P2: Dead code & backup files — keep out of Docker image
+backups/
+_archive/
+*.bak
+*.bad-rollback
+docker-compose.yml.bak*
+.bak-*
+
+# Build artifacts
+frontend-dist/
+node_modules/
+__pycache__/
+*.pyc
+
+# Git
+.git/
+.gitignore
+
+# Env files with secrets
+.env
+.env.*
+# Security/release hygiene: never ship local history or ad-hoc backup trees
+**/backups/
+**/_archive/
+*.bak
+*.bak*
+*.old
+*.orig
+*.tmp
+*~

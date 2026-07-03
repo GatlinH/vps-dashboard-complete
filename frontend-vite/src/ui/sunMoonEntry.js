@@ -74,8 +74,8 @@ export function renderSunBadge() {
       else window.location.href = '/?login=1';
     }
   });
-  window.__testDragSunLogin = () => { window.location.href = '/?login=1'; };
-  window.__testDragMoonOverview = () => { window.location.href = '/?overview=1'; };
+  window.__DBG__.testDragSunLogin = () => { window.location.href = '/?login=1'; };
+  window.__DBG__.testDragMoonOverview = () => { window.location.href = '/?overview=1'; };
 }
 
 export function renderMoonPanel() {

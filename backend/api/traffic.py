@@ -8,6 +8,7 @@ import calendar as _calendar
 from datetime import datetime, timezone, timedelta, date
 from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy.orm import load_only
+from sqlalchemy import func
 from extensions import db, redis_client
 from models.models import Server, ProbeResult
 from middleware.rbac import admin_required, viewer_or_admin_required
@@ -69,6 +70,7 @@ def get_public_traffic_history(sid):
         days = min(max(1, int(request.args.get('days', 7))), 30)
         limit = min(max(1, int(request.args.get('limit', 1000))), 10000)
         offset = max(0, int(request.args.get('offset', 0)))
+        bucket_minutes = request.args.get('bucket_minutes', type=int)
 
         Server.query.get_or_404(sid)
         start_date = datetime.now(timezone.utc) - timedelta(days=days)
@@ -77,6 +79,36 @@ def get_public_traffic_history(sid):
             ProbeResult.created_at >= start_date
         )
         total = base_query.count()
+        if bucket_minutes:
+            bucket_minutes = max(1, min(1440, int(bucket_minutes)))
+            bucket_seconds = bucket_minutes * 60
+            bucket_expr = (func.floor(func.unix_timestamp(ProbeResult.created_at) / bucket_seconds) * bucket_seconds).label('bucket_ts')
+            rows = (
+                db.session.query(
+                    bucket_expr,
+                    func.avg(ProbeResult.net_up).label('net_up'),
+                    func.avg(ProbeResult.net_down).label('net_down'),
+                    func.count(ProbeResult.id).label('samples'),
+                )
+                .filter(ProbeResult.server_id == sid, ProbeResult.created_at >= start_date)
+                .group_by(bucket_expr)
+                .order_by(bucket_expr.asc())
+                .offset(offset)
+                .limit(limit)
+                .all()
+            )
+            data = []
+            for r in rows:
+                ts = int(r.bucket_ts or 0)
+                data.append({
+                    'timestamp': datetime.fromtimestamp(ts, timezone.utc).isoformat(),
+                    'net_up': float(r.net_up) if r.net_up is not None else None,
+                    'net_down': float(r.net_down) if r.net_down is not None else None,
+                    'samples': int(r.samples or 0),
+                    'bucket_minutes': bucket_minutes,
+                })
+            return jsonify(server_id=sid, days=days, total=total, limit=limit, offset=offset, data=data, count=len(data), bucketed=True, bucket_minutes=bucket_minutes)
+
         # Return the newest window, not the oldest rows from the last 24h.
         # The frontend chart expects recent telemetry and will sort ascending.
         results = (

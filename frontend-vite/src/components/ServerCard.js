@@ -198,9 +198,12 @@ export function renderDetailModal(server) {
     
     <div style="display:flex;gap:10px;margin-top:1rem">
       ${server.probe ? `<a href="${server.probe}" target="_blank" class="aff-link-btn aff-btn-review" style="display:block;padding:8px;text-align:center">📡 查看探针</a>` : ''}
-      <button class="add-btn" onclick="document.getElementById('detailModal').classList.remove('open')">关闭</button>
+      <button class="add-btn modal-close-btn" type="button">关闭</button>
     </div>`;
 
+  document.getElementById('modalContent')?.querySelector('.modal-close-btn')?.addEventListener('click', () => {
+    document.getElementById('detailModal')?.classList.remove('open');
+  });
   document.getElementById('detailModal').classList.add('open');
 }
 

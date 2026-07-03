@@ -45,7 +45,7 @@ function summarizeMoonPanel(servers = []) {
     monthlyActual += monthlyEq;
     yearlyActual += monthlyEq * 12;
 
-    const regionKey = s.city || s.region || s.country || t('unknownRegion');
+    const regionKey = s.location || s.city || s.region || s.country || t('unknownRegion');
     byRegion.set(regionKey, (byRegion.get(regionKey) || 0) + monthlyEq);
     const providerKey = s.provider || s.provider_guess || t('unknownProvider');
     byProvider.set(providerKey, (byProvider.get(providerKey) || 0) + monthlyEq);
@@ -170,7 +170,7 @@ function renderOverviewNetworkTable(rows = []) {
   const tableRows = rows.map((server) => {
     const lossText = formatOverviewLoss(server);
     const lossValue = Number.parseFloat(lossText);
-    const location = server.city || server.region || server.country || server.location || '—';
+    const location = server.location || server.city || server.region || server.country || '—';
     const provider = server.provider_guess || server.provider || server.agent_config?.inventory_meta?.org || server.agent_config?.inventory_meta?.isp || '—';
     const ip = maskIpForOverview(server.ip || server.public_ip || server.agent_config?.inventory_meta?.ip || server.hostname || '—');
     return `
@@ -221,7 +221,7 @@ export function renderPublicOverviewPage() {
           <div><span class="public-overview-flag">${s.flag || '🌐'}</span><strong>${displayName}</strong></div>
           <div class="public-overview-actions"><button class="public-money-btn" type="button" data-id="${s.id}" data-base="${baseValue}" data-name="${escText(displayName)}" aria-label="${escText(displayName)}">¥</button><span class="public-overview-status is-${classifyStatus(s.status)}">${t(classifyStatus(s.status))}</span></div>
         </div>
-        <div class="public-overview-meta">${s.provider_guess || s.provider || t('unknownProvider')} · ${s.city || s.region || s.country || t('unknownRegion')} · ${t('residualValue')} ${toDisplay(baseValue)}</div>
+        <div class="public-overview-meta">${s.provider_guess || s.provider || t('unknownProvider')} · ${s.location || s.city || s.region || s.country || t('unknownRegion')} · ${t('residualValue')} ${toDisplay(baseValue)}</div>
         <div class="public-overview-grid">
           ${renderOverviewMetric('CPU', cpuValue)}
           ${renderOverviewMetric('RAM', ramValue)}
@@ -239,16 +239,16 @@ export function renderPublicOverviewPage() {
       <div class="public-overview-floating-topbar" aria-label="资产总览导航与显示设置">
         <a class="public-overview-back" href="/">${t('back')}</a>
         <div class="detail-page-tools public-overview-tools">
-          <button class="theme-toggle" id="themeToggle" type="button" onclick="toggleTheme()" aria-label="${t('themeAria')}">
+          <button class="theme-toggle" id="themeToggle" type="button" aria-label="${t('themeAria')}">
             <span id="themeIcon">☾</span><span id="themeLabel">${document.documentElement.getAttribute('data-theme') === 'light' ? t('daylight') : t('bridge')}</span>
           </button>
-          <select class="language-select" id="languageSelect" onchange="setLanguage(this.value)" aria-label="${t('langAria')}">
+          <select class="language-select" id="languageSelect" aria-label="${t('langAria')}">
             ${Object.entries(LANGUAGE_PACKS).map(([code, pack]) => `<option value="${code}" ${currentLanguage === code ? 'selected' : ''}>${pack.name}</option>`).join('')}
           </select>
           <div class="currency-switch detail-currency-switch">
-            <button class="currency-btn ${state.currency === 'CNY' ? 'active' : ''}" onclick="setCurrency('CNY')">CNY</button>
-            <button class="currency-btn ${state.currency === 'USD' ? 'active' : ''}" onclick="setCurrency('USD')">USD</button>
-            <button class="currency-btn ${state.currency === 'EUR' ? 'active' : ''}" onclick="setCurrency('EUR')">EUR</button>
+            <button class="currency-btn ${state.currency === 'CNY' ? 'active' : ''}" data-currency="CNY">CNY</button>
+            <button class="currency-btn ${state.currency === 'USD' ? 'active' : ''}" data-currency="USD">USD</button>
+            <button class="currency-btn ${state.currency === 'EUR' ? 'active' : ''}" data-currency="EUR">EUR</button>
           </div>
           <div class="rate-display" id="rateDisplay"></div>
         </div>
@@ -402,7 +402,7 @@ function openPremiumCalculator({ id, name, base }) {
   };
   const closePremiumCalculator = () => {
     modal.hidden = true;
-    modal.innerHTML = '';
+    modal.replaceChildren();
   };
   modal.onclick = (event) => {
     event.stopPropagation();

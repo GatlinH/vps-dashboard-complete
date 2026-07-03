@@ -95,7 +95,7 @@ export async function refreshExchangeRates() {
         return state.exchangeRates;
       }
     } catch (error) {
-      window.__EXCHANGE_RATE_ERROR__ = String(error?.message || error);
+      window.__DBG__.EXCHANGE_RATE_ERROR = String(error?.message || error);
     }
   }
   updateRateDisplay();

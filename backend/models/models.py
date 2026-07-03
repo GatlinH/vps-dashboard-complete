@@ -273,8 +273,18 @@ class Server(db.Model):
         
         if public_only:
             # Public homepage/detail APIs must expose only display-safe fields.
-            # Never leak agent identifiers/config, raw inventory metadata, notes,
-            # probe URLs, or full origin IPs to anonymous visitors.
+            # Expose a sanitized display remark under public_note so the globe
+            # can honor the admin-configured public remark without leaking the
+            # raw internal note field/key.
+            raw_public_note = str(self.note or "").strip()
+            if raw_public_note:
+                d["public_note"] = raw_public_note[:160]
+                d["publicRemark"] = d["public_note"]
+            elif str(d.get("location") or "").strip() and not str(d.get("region") or "").strip():
+                d["public_note"] = d["location"]
+
+            # Never leak agent identifiers/config, raw inventory metadata, raw
+            # note key, probe URLs, or full origin IPs to anonymous visitors.
             sensitive_keys = (
                 "probe", "note", "uuid", "agent_config",
                 "provider_guess",

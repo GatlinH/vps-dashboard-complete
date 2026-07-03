@@ -1,3 +1,4 @@
+import './globals/dashboardGlobals.js';
 import { login as publicLogin, getOAuthProviders, oauthLoginUrl, verifyEmailToken, resetPasswordWithToken } from './api/auth.js';
 import './styles/main.css';
 import './styles/detail-starfleet-console.css';
@@ -13,10 +14,15 @@ import { toDisplay, calcResidualValue, getMonthlyPrice, getBillingMonths, source
 import { fmtGb, getTrafficPct, getTrafficUsed } from './utils/traffic.js';
 import { renderSunBadge, renderMoonPanel } from './ui/sunMoonEntry.js';
 import { fetchJson, fetchPing, fetchPingTargetHistory, fetchPingTargets, fetchServerHistory, enrichServersWithIpGeo, normalizeServer } from './services/displayData.js';
-import { LANGUAGE_PACKS, applyLanguage, configureLanguageSwitcher, currentLanguage, safeStorageGet, safeStorageRemove, safeStorageSet, setTheme, t } from './core/preferences.js';
+import { LANGUAGE_PACKS, applyLanguage, configureLanguageSwitcher, currentLanguage, safeStorageGet, safeStorageRemove, safeStorageSet, setLanguage, setTheme, t, toggleTheme } from './core/preferences.js';
 import { renderPublicOverviewPage as renderPublicOverviewPageModule } from './pages/overviewPage.js';
 import { detailLoadingShell, renderDetailConsole, renderDetailNotFound } from './pages/detailPage.js';
 import { initNetworkTooltip, renderDetailMonitorCharts as renderDetailMonitorChartsModule } from './pages/detailCharts.js';
+import { getDetailHistoryDays, getDetailHistoryBucketMinutes, setDetailHistoryDays as setDetailHistoryDaysModule, syncDetailHistoryStateFromStorage } from './detail/historyRange.js';
+import { getDetailHeavyRefreshAt, getDetailPingTargetsFetchedAt, setDetailHeavyRefreshAt, setDetailPingTargetsFetchedAt, startDetailRefreshTimer, stopDetailRefreshTimer } from './detail/refreshState.js';
+import { detailCache } from './detail/detailCache.js';
+import { createDetailPingSampleCache, createDetailTelemetrySampleCache } from './detail/sampleCache.js';
+import { getGlobeRuntimeDebug } from './utils/debugState.js';
 
 let globe = null;
 let starshipShowcase = null;
@@ -33,8 +39,7 @@ function applySingleRendererPageMode() {
   }
 }
 const serversChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('vps-servers') : null;
-window.__STATE__ = state;
-let detailRefreshTimer = null;
+window.__DBG__.STATE = state;
 const detailCharts = new TrafficChart();
 let detailStarmapUnmount = null;
 const route = new URLSearchParams(window.location.search);
@@ -118,15 +123,39 @@ configureLanguageSwitcher({
   renderDetail: (serverId) => renderDetailPage(serverId),
 });
 
-window.setCurrency = (currency) => {
+let detailHistoryDays = syncDetailHistoryStateFromStorage(0);
+window.__DBG__.DETAIL_HISTORY_DAYS = detailHistoryDays; // debug/read-only compatibility
+function setDetailHistoryDays(days) {
+  detailHistoryDays = setDetailHistoryDaysModule(days, renderDetailPage);
+}
+
+function setCurrency(currency) {
   state.currency = currency;
   document.querySelectorAll('.currency-btn').forEach((btn) => {
-    btn.classList.toggle('active', btn.textContent.trim() === currency);
+    btn.classList.toggle('active', (btn.dataset.currency || btn.textContent.trim()) === currency);
   });
   updateRateDisplay();
   if (selectedServerId) renderDetailPage(selectedServerId);
   else if (overviewMode) renderPublicOverviewPage();
-};
+}
+
+function bindTopbarEvents(root = document) {
+  const themeButton = root.querySelector?.('#themeToggle');
+  themeButton?.addEventListener('click', (event) => {
+    event.preventDefault();
+    toggleTheme();
+  });
+  const languageSelect = root.querySelector?.('#languageSelect');
+  languageSelect?.addEventListener('change', (event) => {
+    setLanguage(event.target?.value);
+  });
+  root.querySelectorAll?.('.currency-btn[data-currency]').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      setCurrency(button.dataset.currency);
+    });
+  });
+}
 
 function classifyStatus(status) {
   return status === 'online' ? 'online' : status === 'warn' ? 'warn' : 'offline';
@@ -158,7 +187,7 @@ function summarizeMoonPanel(servers = []) {
     monthlyActual += monthlyEq;
     yearlyActual += monthlyEq * 12;
 
-    const regionKey = s.city || s.region || s.country || t('unknownRegion');
+    const regionKey = s.location || s.city || s.region || s.country || t('unknownRegion');
     byRegion.set(regionKey, (byRegion.get(regionKey) || 0) + monthlyEq);
     const providerKey = s.provider || s.provider_guess || t('unknownProvider');
     byProvider.set(providerKey, (byProvider.get(providerKey) || 0) + monthlyEq);
@@ -240,7 +269,9 @@ function mountDisplayPage() {
 }
 
 function renderPublicOverviewPage() {
-  return renderPublicOverviewPageModule();
+  const result = renderPublicOverviewPageModule();
+  bindTopbarEvents(document);
+  return result;
 }
 function initStarshipShowcase() {
   if (useSingleRendererGlobe()) {
@@ -261,15 +292,15 @@ function initStarshipShowcase() {
   starshipShowcase = new StarshipShowcase(stage, {
     modelUrl: '/globe/star_trek_dsc_enterprise_user.glb',
   });
-  window.__starshipShowcase = starshipShowcase;
+  window.__DBG__.starshipShowcase = starshipShowcase;
 }
 
 function getGlobe() {
   applySingleRendererPageMode();
   if (globe) return globe;
-  if (useSingleRendererGlobe()) {
+  if (useSingleRendererGlobe() || new URLSearchParams(window.location.search).get('renderer') === 'three') {
     globe = new ThreeGlobe('#globe-container', state.servers, {
-      enableStarship: true,
+      enableStarship: useSingleRendererGlobe(),
       starshipModelUrl: '/globe/star_trek_dsc_enterprise_user.glb',
       defaultDistance: 2.35,
       minDistance: 1.55,
@@ -279,19 +310,19 @@ function getGlobe() {
       if (server?.id) window.location.href = `/?server=${server.id}`;
     };
     globe.start();
-    window.__globeMode = 'three-single-renderer';
+    getGlobeRuntimeDebug().globeMode = 'three-fallback';
   } else {
     globe = new CesiumGlobe('#globe-container', state.servers, {
       onNodeClick: (server) => {
         if (server?.id) window.location.href = `/?server=${server.id}`;
       },
     });
-    window.__globeMode = 'cesium-default';
+    getGlobeRuntimeDebug().globeMode = 'cesium-default-no-ion-terrain';
   }
   renderSunBadge();
   renderMoonPanel();
   initStarshipShowcase();
-  window.__globe = globe;
+  window.__DBG__.globe = globe;
   return globe;
 }
 
@@ -303,7 +334,7 @@ function initGlobe() {
   initStarshipShowcase();
 }
 
-const API_ROOT = window.__API_ROOT__ || (location.port === "5000" ? `${location.protocol}//${location.hostname}:5000` : location.origin);
+const API_ROOT = window.__DBG__.API_ROOT || (location.port === "5000" ? `${location.protocol}//${location.hostname}:5000` : location.origin);
 
 
 function renderFrontLoginPage() {
@@ -418,7 +449,7 @@ function normalizeHistory24h(rows = []) {
   const start = now - 12 * 60 * 60 * 1000;
   return (Array.isArray(rows) ? rows : [])
     .map((row, idx, arr) => {
-      const fallback = now - (arr.length - 1 - idx) * 5 * 60 * 1000;
+      const fallback = NaN;
       return { ...row, __timeMs: rowTimeMs(row, fallback) };
     })
     .filter(row => Number.isFinite(row.__timeMs) && row.__timeMs >= start && row.__timeMs <= now + 60 * 1000)
@@ -444,7 +475,10 @@ function normalizeTimelineRows(rows = [], latestRow = null, hours = 12) {
   const start = Date.now() - hours * 60 * 60 * 1000;
   const bucket = new Map();
   const source = Array.isArray(rows) ? rows.slice() : [];
-  if (latestRow) source.push({ ...latestRow, created_at: latestRow.created_at || latestRow.updated_at || new Date().toISOString() });
+  if (latestRow) {
+    const liveTime = latestRow.__timeMs || latestRow.last_probe_at || latestRow.last_seen_at || latestRow.updated_at || latestRow.created_at;
+    if (liveTime) source.push({ ...latestRow, created_at: liveTime });
+  }
   source.forEach((row, idx) => {
     const parsed = rowTimeMs(row, NaN);
     if (!Number.isFinite(parsed) || parsed < start) return;
@@ -457,10 +491,14 @@ function normalizeTimelineRows(rows = [], latestRow = null, hours = 12) {
 
 function seriesWindowFromRows(rows = [], key, hours = 12, latestRow = null) {
   const points = normalizeTimelineRows(rows, latestRow, hours)
-    .map(({ row, t }) => ({ x: t, y: Number(row?.[key]) }))
+    .map(({ row, t }) => {
+      const raw = row?.[key];
+      return { x: t, y: raw == null || raw === '' ? NaN : Number(raw) };
+    })
     .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
   if (!points.length && latestRow && Number.isFinite(Number(latestRow?.[key]))) {
-    return [{ x: Date.now(), y: Number(latestRow[key]) }];
+    const t = rowTimeMs({ ts: latestRow.__timeMs || latestRow.last_probe_at || latestRow.last_seen_at || latestRow.updated_at || latestRow.created_at }, NaN);
+    if (Number.isFinite(t)) return [{ x: t, y: Number(latestRow[key]) }];
   }
   return points;
 }
@@ -476,8 +514,8 @@ function freshnessWindowFromRows(rows = [], hours = 12, latestRow = null) {
   for (let i = 1; i < sorted.length; i += 1) {
     out.push({ x: sorted[i], y: Math.max(0, (sorted[i] - sorted[i - 1]) / 1000) });
   }
-  if (sorted.length === 1) out.push({ x: sorted[0], y: 0 });
-  return out.length ? out : [{ x: Date.now(), y: 0 }];
+  if (sorted.length === 1) return [];
+  return out;
 }
 
 function downsampleDisplayPoints(points = [], maxPoints = 720) {
@@ -514,15 +552,14 @@ function telemetryTooltipTime(item) {
 
 
 function adaptiveRollingBounds(pointGroups = [], hours = 12) {
-  const now = Date.now();
   const fullSpan = hours * 60 * 60 * 1000;
   const xs = pointGroups.flat().map((point) => Number(point?.x)).filter(Number.isFinite).sort((a, b) => a - b);
-  const dataFirst = xs.length ? xs[0] : now;
-  const dataLast = xs.length ? xs[xs.length - 1] : now;
+  const dataFirst = xs.length ? xs[0] : 0;
+  const dataLast = xs.length ? xs[xs.length - 1] : dataFirst;
   const coldMax = dataFirst + fullSpan;
-  const rolling = now >= coldMax;
-  const min = rolling ? now - fullSpan : dataFirst;
-  const max = rolling ? now : coldMax;
+  const rolling = dataLast >= coldMax;
+  const min = rolling ? dataLast - fullSpan : dataFirst;
+  const max = rolling ? dataLast : coldMax;
   const span = Math.max(1, max - min);
   return {
     min,
@@ -533,7 +570,7 @@ function adaptiveRollingBounds(pointGroups = [], hours = 12) {
     dataLast,
     dataSpanMs: xs.length ? Math.max(0, dataLast - dataFirst) : 0,
     fullSpanMs: fullSpan,
-    elapsedFromFirstMs: Math.max(0, now - dataFirst),
+    elapsedFromFirstMs: Math.max(0, dataLast - dataFirst),
   };
 }
 
@@ -561,33 +598,36 @@ function pingTargetsFromRows(rows = [], pingTargetsData = null) {
 }
 
 function recordLivePingSamples(pingTargetsData = null, fetchedAt = Date.now(), serverId = null) {
-  const targets = Array.isArray(pingTargetsData?.targets) ? pingTargetsData.targets : [];
+  if (pingTargetsData?.unavailable) {
+    detailPingSamples.setUnavailable(serverId || pingTargetsData?.server_id);
+    return;
+  }
+  const targets = (Array.isArray(pingTargetsData?.targets) ? pingTargetsData.targets : []).filter(t => t.type !== 'peer');
   const cutoff = fetchedAt - DETAIL_PING_SAMPLE_WINDOW_MS;
   for (const target of targets) {
     const key = String(target?.key || target?.host || target?.label || target?.target || target?.domain || 'unknown');
     const label = target?.label || target?.name || target?.host || target?.target || target?.domain || key;
     const protocol = target?.protocol || 'icmp';
-    const host = target?.host || target?.target || target?.domain || '';
     const lossPct = Number(target?.stats?.loss_pct ?? 0);
     const rows = Array.isArray(target?.results) ? target.results : [];
-    if (!detailPingSampleCache[key]) detailPingSampleCache[key] = [];
-    const samples = detailPingSampleCache[key];
+    const samples = detailPingSamples.ensure(key);
     for (const row of rows) {
       const rawMs = Number(row?.latency_ms);
       if (!row?.success || !Number.isFinite(rawMs)) continue;
       const seq = Number(row?.seq || 1);
       const x = fetchedAt - Math.max(0, rows.length - seq) * 2500;
       const exists = samples.some(p => Math.abs(p.x - x) < 900 && Math.abs(p.rawMs - rawMs) < 0.05);
-      if (!exists) samples.push({ x, y: pingStepValue(rawMs), rawMs, success: true, label, key, host, protocol, lossPct });
+      if (!exists) samples.push({ x, y: pingStepValue(rawMs), rawMs, success: true, label, key, protocol, lossPct });
     }
     samples.sort((a, b) => a.x - b.x);
-    detailPingSampleCache[key] = samples.filter(p => p.x >= cutoff);
+    detailPingSamples.prune(key, cutoff);
   }
-  window.__DETAIL_PING_SAMPLE_CACHE__ = detailPingSampleCache;
-  saveStoredPingSamples(serverId || pingTargetsData?.server_id);
+  detailPingSamples.expose();
+  detailPingSamples.saveStored(serverId || pingTargetsData?.server_id);
 }
 
 function buildLivePingDatasets(pingTargetsData = null, hours = 12) {
+  if (pingTargetsData?.unavailable) return [];
   const targets = Array.isArray(pingTargetsData?.targets) ? pingTargetsData.targets : [];
   const palette = ['#68f6ff','#ffd66b','#ff6b8a','#b7ff7a','#d8a8ff','#7ab8ff','#ff9d4d','#7dffc1','#ff5ef1','#a2ff4d','#4dd8ff','#ffdf4d'];
   const now = Date.now();
@@ -595,8 +635,8 @@ function buildLivePingDatasets(pingTargetsData = null, hours = 12) {
   return targets.map((target, idx) => {
     const key = String(target?.key || target?.host || target?.label || target?.target || target?.domain || `target-${idx}`);
     const label = target?.label || target?.name || target?.host || target?.target || target?.domain || `目标 ${idx + 1}`;
-    const cached = (detailPingSampleCache[key] || []).filter(p => p.x >= cutoff && Number.isFinite(p.rawMs));
-    const data = cached.map(p => ({ ...p, y: pingStepValue(p.rawMs), label }));
+    const cached = (detailPingSamples.store[key] || []).filter(p => p.x >= cutoff && Number.isFinite(p.rawMs));
+    const data = cached.map(p => ({ ...p, y: pingStepValue(p.rawMs), label, protocol: p.protocol || target?.protocol }));
     return {
       label,
       borderColor: palette[idx % palette.length],
@@ -614,6 +654,7 @@ function buildLivePingDatasets(pingTargetsData = null, hours = 12) {
 }
 
 function buildPersistedPingTargetDatasets(pingTargetHistoryData = null, hours = 12) {
+  if (pingTargetHistoryData?.unavailable) return [];
   const targets = Array.isArray(pingTargetHistoryData?.targets) ? pingTargetHistoryData.targets : [];
   const palette = ['#68f6ff','#ffd66b','#ff6b8a','#b7ff7a','#d8a8ff','#7ab8ff','#ff9d4d','#7dffc1','#ff5ef1','#a2ff4d','#4dd8ff','#ffdf4d'];
   const now = Date.now();
@@ -625,7 +666,7 @@ function buildPersistedPingTargetDatasets(pingTargetHistoryData = null, hours = 
       const rawMs = Number(point?.latency_ms ?? point?.rawMs);
       const x = rowTimeMs({ created_at: point?.x || point?.created_at || point?.time || point?.timestamp }, NaN);
       if (!Number.isFinite(rawMs) || !Number.isFinite(x) || x < cutoff || x > now + 60000) return null;
-      return { x, y: pingStepValue(rawMs), rawMs, label, key: target?.key, host: target?.host, protocol: target?.protocol, success: true };
+      return { x, y: pingStepValue(rawMs), rawMs, label, key: point?.key || target?.key, protocol: point?.protocol || target?.protocol, success: true, lossPct: point?.loss_pct ?? point?.lossPct ?? 0 };
     }).filter(Boolean).sort((a, b) => a.x - b.x);
     return {
       label,
@@ -644,6 +685,7 @@ function buildPersistedPingTargetDatasets(pingTargetHistoryData = null, hours = 
 }
 
 function buildPingDatasets(rows = [], hours = 24, pingTargetsData = null, pingTargetHistoryData = null) {
+  if (pingTargetsData?.unavailable || pingTargetHistoryData?.unavailable) return [];
   const norm = normalizeWindowRows(rows, hours);
   const persistedTargetDatasets = buildPersistedPingTargetDatasets(pingTargetHistoryData, hours);
   if (persistedTargetDatasets.length) return persistedTargetDatasets;
@@ -681,7 +723,7 @@ function buildPingDatasets(rows = [], hours = 24, pingTargetsData = null, pingTa
       return { x: r.__timeMs, y: pingStepValue(rawMs), rawMs };
     }).filter(Boolean).filter(p => Number.isFinite(p.rawMs) && Number.isFinite(p.x)).sort((a, b) => a.x - b.x),
   })).filter(ds => ds.data.length);
-  return historyDatasets.length ? historyDatasets : buildLivePingDatasets(pingTargetsData, hours);
+  return historyDatasets.length ? historyDatasets : [];
 }
 
 const PING_AXIS_STEPS_MS = [0, 20, 50, 100, 200, 300, 400, 500];
@@ -708,23 +750,30 @@ function normalizeWindowRows(rows = [], hours = 12) {
   const start = now - hours * 60 * 60 * 1000;
   return (Array.isArray(rows) ? rows : [])
     .map((row, idx, arr) => {
-      const fallback = now - (arr.length - 1 - idx) * 5 * 60 * 1000;
+      const fallback = NaN;
       return { ...row, __timeMs: rowTimeMs(row, fallback) };
     })
     .filter(row => Number.isFinite(row.__timeMs) && row.__timeMs >= start && row.__timeMs <= now + 60 * 1000)
     .sort((a, b) => a.__timeMs - b.__timeMs);
 }
 
+function numericMetricSeries(rows = [], key) {
+  return (Array.isArray(rows) ? rows : [])
+    .map(row => row?.[key])
+    .filter(value => value != null && value !== '')
+    .map(Number)
+    .filter(Number.isFinite);
+}
+
 function accumulatingAxisBoundsFromTimes(times = [], hours = 12, minVisualMs = null) {
-  const now = Date.now();
   const fullSpan = hours * 60 * 60 * 1000;
   const xs = (Array.isArray(times) ? times : []).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
-  const dataFirst = xs.length ? xs[0] : now;
-  const dataLast = xs.length ? xs[xs.length - 1] : now;
+  const dataFirst = xs.length ? xs[0] : 0;
+  const dataLast = xs.length ? xs[xs.length - 1] : dataFirst;
   const coldMax = dataFirst + fullSpan;
-  const rolling = now >= coldMax;
-  const min = rolling ? now - fullSpan : dataFirst;
-  const max = rolling ? now : coldMax;
+  const rolling = dataLast >= coldMax;
+  const min = rolling ? dataLast - fullSpan : dataFirst;
+  const max = rolling ? dataLast : Math.max(coldMax, dataLast + Math.max(0, Number(minVisualMs) || 0));
   return { min, max, mode: rolling ? 'rolling-after-full-window' : 'accumulating-from-first-sample', dataFirst, dataLast, fullSpanMs: fullSpan };
 }
 
@@ -737,7 +786,7 @@ function dualRateSparkline(upValues = [], downValues = [], opts = {}) {
   const downRaw = Array.isArray(downValues) ? downValues : [];
   const n = Math.max(upRaw.length, downRaw.length, labels.length);
   const rows = Array.from({ length: n }).map((_, i) => {
-    const fallback = n > 1 ? fullStartMs + (i / (n - 1)) * (now - fullStartMs) : now;
+    const fallback = NaN;
     const t = rowTimeMs({ ts: labels[i] }, fallback);
     return { t, up: kbpsToMBs(upRaw[i] || 0), down: kbpsToMBs(downRaw[i] || 0) };
   }).filter(r => Number.isFinite(r.t) && r.t >= fullStartMs && r.t <= now + 60 * 1000)
@@ -758,8 +807,6 @@ function dualRateSparkline(upValues = [], downValues = [], opts = {}) {
   const downPts = pts('down');
   const firstX = xOfTime(rows[0].t).toFixed(1);
   const lastX = xOfTime(rows[rows.length - 1].t).toFixed(1);
-  const upArea = `${firstX},${h-padB} ${upPts} ${lastX},${h-padB}`;
-  const downArea = `${firstX},${h-padB} ${downPts} ${lastX},${h-padB}`;
   const gridY = ticks.map(v => `<line class="grid-line" x1="${padL}" y1="${yOf(v).toFixed(1)}" x2="${w-padR}" y2="${yOf(v).toFixed(1)}"></line>`).join('');
   const hourTicks = Array.from({ length: 5 }, (_, i) => startMs + (i / 4) * (endMs - startMs));
   const gridX = hourTicks.map(t => `<line class="grid-line xgrid" x1="${xOfTime(t).toFixed(1)}" y1="${padT}" x2="${xOfTime(t).toFixed(1)}" y2="${h-padB}"></line>`).join('');
@@ -773,7 +820,6 @@ function dualRateSparkline(upValues = [], downValues = [], opts = {}) {
     ${gridY}${gridX}
     <line class="axis-line" x1="${padL}" y1="${padT}" x2="${padL}" y2="${h-padB}"></line>
     <line class="axis-line" x1="${padL}" y1="${h-padB}" x2="${w-padR}" y2="${h-padB}"></line>
-    <polygon class="up-area" points="${upArea}"></polygon><polygon class="down-area" points="${downArea}"></polygon>
     <polyline class="up-line" points="${upPts}"></polyline><polyline class="down-line" points="${downPts}"></polyline>
     ${yLabels}<text class="axis-label axis-unit" x="6" y="10">12h</text>${xLabels}
   </svg>`;
@@ -881,16 +927,23 @@ function detailSampleIntervalSeries(rows = []) {
 }
 
 
-function formatZhDuration(raw) {
-  if (!raw) return '—';
+function formatZhDuration(raw, fallbackAt = null) {
+  if ((!raw || raw === "—" || raw === "") && fallbackAt) {
+    const diffSec = Math.max(0, Math.floor((Date.now() - new Date(fallbackAt).getTime()) / 1000));
+    const days = Math.floor(diffSec / 86400);
+    const hours = Math.floor((diffSec % 86400) / 3600);
+    const minutes = Math.floor((diffSec % 3600) / 60);
+    if (days || hours || minutes) return `${days ? `${days} 天` : ""}${hours ? ` ${hours} 小时` : ""}${minutes ? ` ${minutes} 分钟` : ""}`.trim();
+    return diffSec + " 秒";
+  }
+  if (!raw) return "—";
   const text = String(raw);
   const day = text.match(/(\d+)\s*days?/i)?.[1];
   const hour = text.match(/(\d+)\s*hours?/i)?.[1];
   const minute = text.match(/(\d+)\s*minutes?/i)?.[1];
-  if (day || hour || minute) return `${day ? `${day} 天` : ''}${hour ? ` ${hour} 小时` : ''}${minute ? ` ${minute} 分钟` : ''}`.trim();
-  return text.replace(/days?/ig,'天').replace(/hours?/ig,'小时').replace(/minutes?/ig,'分钟');
+  if (day || hour || minute) return `${day ? `${day} 天` : ""}${hour ? ` ${hour} 小时` : ""}${minute ? ` ${minute} 分钟` : ""}`.trim();
+  return text.replace(/days?/ig,"天").replace(/hours?/ig,"小时").replace(/minutes?/ig,"分钟");
 }
-
 function backendTelemetryRows(rows = []) {
   return (Array.isArray(rows) ? rows : []).filter(row => !row?.__frontendCache);
 }
@@ -900,8 +953,8 @@ function detailFreshnessMeta(rows = [], server = null) {
   const latestMs = latestTimelineMs(backendRows, server);
   const ageSec = Number.isFinite(latestMs) ? Math.max(0, Math.round((Date.now() - latestMs) / 1000)) : null;
   const interval = detailSampleIntervalSeries(backendRows).filter(v => Number.isFinite(v) && v > 0);
-  const sampleSec = interval.length ? Math.round(interval[interval.length - 1]) : (window.__DETAIL_SOURCE_SAMPLE_MS__ ? Math.round(window.__DETAIL_SOURCE_SAMPLE_MS__ / 1000) : null);
-  if (sampleSec) window.__DETAIL_SOURCE_SAMPLE_MS__ = sampleSec * 1000;
+  const sampleSec = interval.length ? Math.round(interval[interval.length - 1]) : (window.__DBG__.DETAIL_SOURCE_SAMPLE_MS ? Math.round(window.__DBG__.DETAIL_SOURCE_SAMPLE_MS / 1000) : null);
+  if (sampleSec) window.__DBG__.DETAIL_SOURCE_SAMPLE_MS = sampleSec * 1000;
   const freshClass = ageSec == null ? 'unknown' : (ageSec <= 30 ? 'ok' : (ageSec <= 180 ? 'warn' : 'danger'));
   const ageText = ageSec == null ? '无采样' : (ageSec < 60 ? `${ageSec} 秒前` : `${Math.floor(ageSec/60)} 分 ${ageSec%60} 秒前`);
   return { latestMs, ageSec, ageText, sampleSec, freshClass };
@@ -931,9 +984,9 @@ function renderHealthSummary(server, probeRows = [], pingTargetsData = null, cpu
   const alertText = h.dangerCount ? `${h.dangerCount} 严重` : (h.warnCount ? `${h.warnCount} 提醒` : '0 告警');
   return `<section class="detail-health-summary is-${h.state}" aria-label="运行健康摘要">
     <div class="health-main"><span>健康状态</span><strong>${statusText}</strong><em>${heartbeat} · ${alertText}</em></div>
-    <div><span>最新采样</span><strong>${h.latest.ageText}</strong><em>采样间隔 ${h.latest.sampleSec ? `${h.latest.sampleSec}s` : '—'}</em></div>
+    <div><span>最新采样</span><strong>${h.latest.ageText}</strong><em>后端采样间隔 ${h.latest.sampleSec ? `${h.latest.sampleSec}s` : '—'}</em></div>
     <div><span>资源</span><strong>CPU ${cpu}</strong><em>内存 ${mem} · 磁盘 ${disk}</em></div>
-    <div><span>链路</span><strong>丢包 ${Number(h.loss || 0).toFixed(0)}%</strong><em>${(pingTargetsData?.targets || []).length || 0} 个探测目标</em></div>
+    <div><span>链路</span><strong>${pingTargetsData?.unavailable ? '—' : `丢包 ${Number(h.loss || 0).toFixed(0)}%`}</strong><em>${pingTargetsData?.unavailable ? '暂无真实节点侧互探采样' : `${(pingTargetsData?.targets || []).length || 0} 个探测目标`}</em></div>
   </section>`;
 }
 
@@ -1035,11 +1088,12 @@ function renderRealtimeResourcePanels(server, trafficData, upSeries = [], downSe
   return `<section class="probe-observability-grid" id="detailRealtimePanels" aria-label="实时资源监控">
     <div class="probe-card allocation-card">
       <div class="probe-card-head"><h2 data-i18n="allocation">${t('allocation')}</h2><span>ALC • 02</span></div>
-      <div class="probe-meter-list">
+      <div class="probe-meter-list allocation-meter-list">
         ${renderProbeMeter(t('memory').toUpperCase(), fmtResourceGb(ramUsed), fmtResourceGb(ramTotal), ramTotal ? (ramUsed / ramTotal * 100) : ramPct)}
         ${renderProbeMeter(t('disk').toUpperCase(), fmtResourceGb(diskUsed), fmtResourceGb(diskTotal), diskTotal ? (diskUsed / diskTotal * 100) : diskPct)}
         ${renderProbeMeter(t('swap').toUpperCase(), '0 B', '—', 0)}
       </div>
+      <div class="allocation-badge-slot">${renderFleetInsignia()}</div>
     </div>
     <div class="probe-card resources-card">
       <div class="probe-card-head"><h2 data-i18n="resources">${t('resources')}</h2><span>RES • 03</span></div>
@@ -1110,7 +1164,7 @@ function describeRuleType(ruleType) {
 
 function buildAssetNarrative(server, rv, pct, pingData) {
   const provider = server.provider || server.provider_guess || '未知供应商';
-  const loc = server.city || server.region || server.country || server.location || '未知地区';
+  const loc = server.location || server.city || server.region || server.country || '未知地区';
   const latency = pingData?.stats?.avg_ms != null ? `${pingData.stats.avg_ms}ms` : '暂无 TCP 采样';
   return `${server.name} 当前位于 ${loc}，供应商 ${provider}，月均成本 ${toDisplay(getMonthlyPrice(server))}，剩余价值 ${toDisplay(rv.value)}，流量使用 ${pct.toFixed(1)}%，链路表现 ${latency}。`;
 }
@@ -1189,13 +1243,13 @@ function initQuantumProbeGlobe(server, rows = []) {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const tip = document.getElementById(`detailProbeGlobeTip-${safeId}`);
-  if (window.__DETAIL_PROBE_GLOBE_ANIM__) cancelAnimationFrame(window.__DETAIL_PROBE_GLOBE_ANIM__);
+  if (window.__DBG__.DETAIL_PROBE_GLOBE_ANIM) cancelAnimationFrame(window.__DBG__.DETAIL_PROBE_GLOBE_ANIM);
   const stateGlobe = { rotY: 0.40, rotX: -0.40, zoom: 1, dragging: false, lastX: 0, lastY: 0, hover: null };
-  window.__DETAIL_PROBE_GLOBE_STATE__ = stateGlobe;
+  window.__DBG__.DETAIL_PROBE_GLOBE_STATE = stateGlobe;
   const locs = (Array.isArray(rows) && rows.length ? rows : [server]).map((row, idx) => {
     const lat = Number(row.lat ?? row.latitude ?? row.agent_config?.lat ?? row.agent_config?.inventory_meta?.lat);
     const lon = Number(row.lon ?? row.lng ?? row.longitude ?? row.agent_config?.lon ?? row.agent_config?.inventory_meta?.lon);
-    const fallback = detailLocationToLatLng(row.city || row.location || row.region || row.name || '');
+    const fallback = detailLocationToLatLng(row.location || row.city || row.region || row.name || '');
     const meta = row.agent_config?.inventory_meta || {};
     const flag = hasExplicitFlag(row.flag) ? row.flag : inferFlagFromLocation(
       row.country_code, row.countryCode, row.country, row.country_name,
@@ -1207,7 +1261,7 @@ function initQuantumProbeGlobe(server, rows = []) {
       name: row.name || row.hostname || `VPS-${idx + 1}`,
       ip: row.ip || '—',
       status: row.status || 'online',
-      city: row.city || row.location || row.region || 'sector',
+      city: row.public_note || row.publicRemark || row.public_remark || row.remark || row.location || row.city || row.country || 'sector',
       flag,
       lat: Number.isFinite(lat) ? lat : fallback.lat,
       lng: Number.isFinite(lon) ? lon : fallback.lng,
@@ -1218,7 +1272,7 @@ function initQuantumProbeGlobe(server, rows = []) {
   const detailGlobeImg = new Image();
   detailGlobeImg.decoding = 'async';
   detailGlobeImg.src = '/globe/detail-assets/network-globe.jpg';
-  detailGlobeImg.onload = () => { if (window.__DETAIL_PROBE_GLOBE_ANIM__) return; draw(); };
+  detailGlobeImg.onload = () => { if (window.__DBG__.DETAIL_PROBE_GLOBE_ANIM) return; draw(); };
 
   function wrapAngle(value) {
     const tau = Math.PI * 2;
@@ -1372,7 +1426,7 @@ function initQuantumProbeGlobe(server, rows = []) {
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(101,184,240,.56)'; ctx.lineWidth = 1.2; ctx.stroke();
     ctx.beginPath(); ctx.arc(cx, cy, r + 5, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(70,158,220,.10)'; ctx.lineWidth = 8; ctx.stroke();
     if (!stateGlobe.dragging) stateGlobe.rotY = wrapAngle(stateGlobe.rotY + 0.00022);
-    window.__DETAIL_PROBE_GLOBE_ANIM__ = requestAnimationFrame(draw);
+    window.__DBG__.DETAIL_PROBE_GLOBE_ANIM = requestAnimationFrame(draw);
   }
   const setDrag = (active, x, y) => { stateGlobe.dragging = active; stateGlobe.lastX = x; stateGlobe.lastY = y; canvas.style.cursor = active ? 'grabbing' : 'grab'; };
   canvas.style.cursor = 'grab';
@@ -1444,27 +1498,31 @@ function renderNodeDatabaseRows(server, rows = []) {
 
 function renderProbeStatusCard(pingData, pingTargetsData) {
   const targets = (pingTargetsData?.targets || []).slice(0, 4);
+  const agentUnavailable = !!pingTargetsData?.unavailable;
   const hasConfiguredTargets = targets.length > 0;
-  const loss = hasConfiguredTargets
+  const loss = agentUnavailable ? 0 : (hasConfiguredTargets
     ? Math.max(0, Math.round(targets.reduce((sum, target) => sum + (target.quality != null ? Math.max(0, 100 - Number(target.quality)) : 100), 0) / targets.length))
-    : Number(pingData?.stats?.loss_pct ?? 0);
+    : Number(pingData?.stats?.loss_pct ?? 0));
   const avgValues = targets.map((target) => target.stats?.avg_ms).filter((value) => value != null).map(Number);
   const avg = avgValues.length ? (avgValues.reduce((sum, value) => sum + value, 0) / avgValues.length) : (pingData?.stats?.avg_ms != null ? Number(pingData.stats.avg_ms) : null);
-  const state = !hasConfiguredTargets ? '未配置目标' : (loss >= 100 ? '不可达' : (loss >= 20 ? '丢包严重' : (loss > 0 ? '链路波动' : '链路正常')));
-  const cls = !hasConfiguredTargets ? 'warn' : (loss >= 100 ? 'danger' : (loss >= 20 ? 'warn' : 'ok'));
-  const rows = targets.length ? targets.map(t => {
+  const state = agentUnavailable ? '等待节点侧采样' : (!hasConfiguredTargets ? '未配置目标' : (loss >= 100 ? '不可达' : (loss >= 20 ? '丢包严重' : (loss > 0 ? '链路波动' : '链路正常'))));
+  const cls = agentUnavailable ? 'warn' : (!hasConfiguredTargets ? 'warn' : (loss >= 100 ? 'danger' : (loss >= 20 ? 'warn' : 'ok')));
+  const rows = agentUnavailable ? '<div class="probe-empty-row"><span>暂无真实节点侧互探采样</span><em>已停止主控代测，等待 agent 上报</em></div>' : (targets.length ? targets.map(t => {
     const ms = t.stats?.avg_ms != null ? Number(t.stats.avg_ms) : 0;
     const l = t.stats?.loss_pct != null ? Math.max(0, Number(t.stats.loss_pct)) : 0;
     return `<div><span>${t.label || 'probe'}</span>${probeLinkBar(ms, l)}<em>${ms ? ms.toFixed(0)+'ms' : '—'} / ${l.toFixed(0)}%</em></div>`;
-  }).join('') : '<div class="probe-empty-row"><span>未读取到延迟监控目标</span><em>请在后台「延迟监测」配置 ping_targets</em></div>';
+  }).join('') : '<div class="probe-empty-row"><span>未读取到延迟监控目标</span><em>请在后台「延迟监测」配置 ping_targets</em></div>');
   return `<div class="fleet-chart-card probe-status-card ${cls}">
     <div class="fleet-chart-head"><span>探针链路状态</span><strong>${state}</strong></div>
-    <div class="probe-status-hero"><b>${loss.toFixed(0)}%</b><span>丢包率</span><em>${avg != null ? `平均 ${avg.toFixed(0)} ms` : '无有效延迟样本'}</em></div>
+    <div class="probe-status-hero"><b>${agentUnavailable ? '—' : `${loss.toFixed(0)}%`}</b><span>${agentUnavailable ? '节点侧' : '丢包率'}</span><em>${agentUnavailable ? '暂无真实互探样本' : (avg != null ? `平均 ${avg.toFixed(0)} ms` : '无有效延迟样本')}</em></div>
     <div class="probe-status-bars">${rows}</div>
   </div>`;
 }
 
-function probeLinkBar(ms, loss = 0) {
+function probeLinkBar(ms, loss = null) {
+  if (ms == null && loss == null) {
+    return `<div class="probe-link-bar warn" title="暂无真实 agent 互探样本"><i style="width:4%"></i><b></b></div>`;
+  }
   const latency = Math.max(0, Number(ms) || 0);
   const lossPct = Math.max(0, Number(loss) || 0);
   const score = Math.max(4, Math.min(100, (latency / 300) * 72 + lossPct * 0.9));
@@ -1473,13 +1531,32 @@ function probeLinkBar(ms, loss = 0) {
 }
 
 function renderProbeRows(pingTargetsData, pingData) {
-  const targets = (pingTargetsData?.targets || []).slice(0, 6);
+  if (pingTargetsData?.unavailable) return '<tr class="probe-empty-row"><td colspan="4">暂无真实节点侧互探采样；已停止主控代测，等待 agent 上报。</td></tr>';
+  const targets = (pingTargetsData?.targets || []).filter(t => t.type === 'peer').slice(0, 6);
   if (targets.length) return targets.map((target) => {
     const ms = target.stats?.avg_ms != null ? Number(target.stats.avg_ms) : null;
-    const loss = target.stats?.loss_pct != null ? Math.max(0, Number(target.stats.loss_pct)) : 0;
-    return `<tr><td>${target.label || 'probe'}</td><td>${ms != null ? ms.toFixed(0) : '—'}</td><td>${loss.toFixed(0)}%</td><td>${probeLinkBar(ms, loss)}</td></tr>`;
+    const loss = target.stats?.loss_pct != null ? Math.max(0, Number(target.stats.loss_pct)) : null;
+    return `<tr><td>${target.label || 'probe'}</td><td>${ms != null ? ms.toFixed(0) : '—'}</td><td>${loss != null ? loss.toFixed(0) + '%' : '—'}</td><td>${probeLinkBar(ms, loss)}</td></tr>`;
   }).join('');
   return '<tr class="probe-empty-row"><td colspan="4">未读取到延迟监控目标；后台「延迟监测」保存后自动生成。</td></tr>';
+}
+
+async function refreshDetailProbeTargetsNow(serverId) {
+  if (!serverId) return null;
+  try {
+    const data = await fetchPingTargets(serverId, 3, 'agent');
+    if (!data?.targets?.length) return data;
+    detailCache.peerPingTargets = data;
+    setDetailPingTargetsFetchedAt(Date.now());
+    window.__DBG__.DETAIL_PEER_PING_TARGETS = data;
+    const tbody = document.querySelector('.fleet-probe-table-panel tbody');
+    if (tbody) tbody.innerHTML = renderProbeRows(data, null);
+    return data;
+  } catch (error) {
+    window.__DBG__.DETAIL_PROBE_TARGET_REFRESH_ERROR = String(error?.stack || error);
+    console.warn('[detail] probe target refresh failed', error);
+    return null;
+  }
 }
 
 function renderRulesConsole(rules) {
@@ -1506,15 +1583,17 @@ function renderErrorLog(server, heartbeatSeries, pingData) {
 
 
 async function renderDetailPage(serverId) {
-  window.__DETAIL_TRACE__ = ['renderDetailPage:start', String(serverId)];
+  window.__DBG__.DETAIL_TRACE = ['renderDetailPage:start', String(serverId)];
   loadStoredPingSamples(serverId);
+  const detailDays = Math.max(0, Math.min(7, Number(getDetailHistoryDays() || 0) || 0));
+  const detailBucketMinutes = getDetailHistoryBucketMinutes(detailDays);
   try {
   const requestedId = Number(serverId);
   const server = state.servers.find((item) => Number(item.id) === requestedId);
   const fallbackServer = !server && state.servers.length === 1 ? state.servers[0] : null;
   const resolvedServer = server || fallbackServer;
-  window.__DETAIL_TRACE__.push('server:' + (resolvedServer ? resolvedServer.id : 'missing'));
-  if (fallbackServer) window.__DETAIL_TRACE__.push('fallback-single-server:' + requestedId + '->' + fallbackServer.id);
+  window.__DBG__.DETAIL_TRACE.push('server:' + (resolvedServer ? resolvedServer.id : 'missing'));
+  if (fallbackServer) window.__DBG__.DETAIL_TRACE.push('fallback-single-server:' + requestedId + '->' + fallbackServer.id);
   const app = document.getElementById('pageRoot');
   if (!resolvedServer) {
     app.innerHTML = renderDetailNotFound(serverId, escText);
@@ -1523,16 +1602,17 @@ async function renderDetailPage(serverId) {
 
   // Do not render the legacy/empty detail shell before async data arrives.
   // It caused a visible flash of a blank Starfleet/LCARS background on route change.
-  window.__DETAIL_TRACE__.push('skip-pre-fetch-shell');
+  window.__DBG__.DETAIL_TRACE.push('skip-pre-fetch-shell');
 
-  window.__DETAIL_TRACE__.push('before-fetches');
-  const [traffic, history, ping, probeHistory, pingTargets, pingTargetHistory] = await Promise.allSettled([
+  window.__DBG__.DETAIL_TRACE.push('before-fetches');
+  const [traffic, history, ping, probeHistory, pingTargets, pingTargetHistory, peerPingTargets] = await Promise.allSettled([
     fetchJson(`${API_ROOT}/api/v1/traffic/public/${resolvedServer.id}`, { timeoutMs: 1200 }),
-    fetchJson(`${API_ROOT}/api/v1/traffic/public/${resolvedServer.id}/history?days=1&limit=288`, { timeoutMs: 1200 }),
+    fetchJson(`${API_ROOT}/api/v1/traffic/public/${resolvedServer.id}/history?days=${detailDays}&bucket_minutes=${detailBucketMinutes}&limit=${detailDays === 0 ? 14400 : 2000}`, { timeoutMs: 1200 }),
     fetchPing(resolvedServer),
-    fetchServerHistory(resolvedServer.id, 1, 3600),
-    fetchPingTargets(resolvedServer.id, 1),
-    fetchPingTargetHistory(resolvedServer.id, 12, 2000),
+    fetchServerHistory(resolvedServer.id, detailDays === 0 ? 1 : detailDays, detailDays === 0 ? 14400 : 2000, detailBucketMinutes),
+    Promise.resolve(null),
+    fetchPingTargetHistory(resolvedServer.id, detailDays === 0 ? 12 : detailDays * 24, detailDays === 0 ? 14400 : 2000),
+    fetchPingTargets(resolvedServer.id, 3, 'agent'),
   ]);
 
   const trafficData = traffic.status === 'fulfilled' ? traffic.value : null;
@@ -1541,26 +1621,31 @@ async function renderDetailPage(serverId) {
   const probeHistoryData = probeHistory.status === 'fulfilled' ? probeHistory.value : null;
   const pingTargetsData = pingTargets.status === 'fulfilled' ? pingTargets.value : null;
   const pingTargetHistoryData = pingTargetHistory.status === 'fulfilled' ? pingTargetHistory.value : null;
-  if (pingTargetsData?.targets?.length) recordLivePingSamples(pingTargetsData, Date.now(), resolvedServer.id);
-  detailCachedPingTargets = pingTargetsData?.targets?.length ? pingTargetsData : detailCachedPingTargets;
-  detailCachedPingTargetHistory = pingTargetHistoryData?.targets?.length ? pingTargetHistoryData : detailCachedPingTargetHistory;
-  window.__DETAIL_PING_TARGETS__ = detailCachedPingTargets || pingTargetsData;
-  window.__DETAIL_PING_TARGET_HISTORY__ = detailCachedPingTargetHistory || pingTargetHistoryData;
+  const peerPingTargetsData = peerPingTargets.status === 'fulfilled' ? peerPingTargets.value : null;
+  detailCache.pingTargets = pingTargetsData?.targets?.length ? pingTargetsData : detailCache.pingTargets;
+  detailCache.pingTargetHistory = pingTargetHistoryData?.targets?.length ? pingTargetHistoryData : detailCache.pingTargetHistory;
+  detailCache.peerPingTargets = peerPingTargetsData?.targets?.length ? peerPingTargetsData : detailCache.peerPingTargets;
+  window.__DBG__.DETAIL_PING_TARGETS = detailCache.pingTargets || pingTargetsData;
+  window.__DBG__.DETAIL_PEER_PING_TARGETS = detailCache.peerPingTargets || peerPingTargetsData;
+  window.__DBG__.DETAIL_PING_TARGET_HISTORY = detailCache.pingTargetHistory || pingTargetHistoryData;
   const rv = calcResidualValue(resolvedServer);
   const pct = trafficData ? Number(trafficData.used_percent || 0) : (getTrafficPct(resolvedServer) || 0);
   const historyRows = normalizeHistory24h(historyData?.data || []);
+  window.__DBG__.DETAIL_HISTORY_META = { days: detailDays, bucketMinutes: detailBucketMinutes, historyTotal: historyData?.total || 0, probeTotal: probeHistoryData?.total || 0 };
+  detailCache.traffic = trafficData || detailCache.traffic;
+  detailCache.historyRows = historyRows.length ? historyRows : detailCache.historyRows;
   const historySeries = historyRows.map((row) => Number(row.net_up || 0) + Number(row.net_down || 0));
   const trafficUpSeries = historyRows.map((row) => Number(row.net_up || 0));
   const trafficDownSeries = historyRows.map((row) => Number(row.net_down || 0));
   const chartLabels = historyRows.map((row, idx) => row.ts || row.time || row.timestamp || `T${idx + 1}`);
   loadStoredTelemetrySamples(resolvedServer.id);
-  recordLiveTelemetrySample(resolvedServer, Date.now());
-  const probeRows = mergeTelemetryRows(normalizeWindowRows(probeHistoryData?.data || [], 24));
+  const probeRows = mergeTelemetryRows(normalizeWindowRows(probeHistoryData?.data || [], detailDays === 0 ? 12 : detailDays * 24));
+  detailCache.probeRows = probeRows.length ? probeRows : detailCache.probeRows;
   const probeLabels = probeRows.map((row, idx) => row.created_at ? new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `P${idx + 1}`);
-  const cpuSeries = probeRows.map((row) => Number(row.cpu_use || 0));
-  const ramSeries = probeRows.map((row) => Number(row.ram_use || 0));
-  const probeUpSeries = probeRows.map((row) => Number(row.net_up || 0));
-  const probeDownSeries = probeRows.map((row) => Number(row.net_down || 0));
+  const cpuSeries = numericMetricSeries(probeRows, 'cpu_use');
+  const ramSeries = numericMetricSeries(probeRows, 'ram_use');
+  const probeUpSeries = numericMetricSeries(probeRows, 'net_up');
+  const probeDownSeries = numericMetricSeries(probeRows, 'net_down');
   const upSeries = probeUpSeries.some((v) => Math.abs(v) > 0.01) ? probeUpSeries : trafficUpSeries;
   const downSeries = probeDownSeries.some((v) => Math.abs(v) > 0.01) ? probeDownSeries : trafficDownSeries;
   const latencySeries = probeRows.map((row) => row.latency_ms == null ? null : Number(row.latency_ms));
@@ -1582,8 +1667,9 @@ async function renderDetailPage(serverId) {
   const networkDownSeries = networkUseProbe ? smoothNumericSeries(probeDownSeries, 5) : (trafficDownSeries.length ? smoothNumericSeries(trafficDownSeries, 5) : displayDownSeries);
   const networkLabels = networkUseProbe ? probeLabels : (chartLabels.length ? chartLabels : probeLabels);
 
-  window.__DETAIL_TRACE__.push('before-grid-html');
+  window.__DBG__.DETAIL_TRACE.push('before-grid-html');
   app.innerHTML = detailLoadingShell(resolvedServer);
+  bindTopbarEvents(app);
   updateRateDisplay();
   const detailGrid = document.getElementById('detailPageGrid');
   detailGrid.setAttribute('aria-busy', 'false');
@@ -1591,6 +1677,7 @@ async function renderDetailPage(serverId) {
     resolvedServer,
     probeRows,
     pingTargetsData,
+    peerPingTargetsData: detailCache.peerPingTargets || peerPingTargetsData,
     pingData,
     trafficData,
     upSeries,
@@ -1601,7 +1688,10 @@ async function renderDetailPage(serverId) {
     displayRamSeries,
     freshMeta,
     stateServers: state.servers,
-    detailCachedPingTargets,
+    detailDays,
+    detailBucketMinutes,
+    detailCachedPingTargets: detailCache.pingTargets,
+    detailCachedPeerPingTargets: detailCache.peerPingTargets,
     helpers: {
       renderFleetShip,
       formatZhDuration,
@@ -1620,21 +1710,30 @@ async function renderDetailPage(serverId) {
     },
   });
 
+  detailGrid.querySelector('.detail-history-range')?.addEventListener('click', (event) => {
+    const button = event.target?.closest?.('[data-detail-history-days]');
+    if (!button) return;
+    event.preventDefault();
+    setDetailHistoryDays(button.dataset.detailHistoryDays);
+  });
+
   if (detailStarmapUnmount) { detailStarmapUnmount(); detailStarmapUnmount = null; }
   detailStarmapUnmount = mountGlobeStarmap(document.getElementById('detailGlobeStarmapMount'), state.servers, {
     width: 860,
     height: 440,
     baseRadius: 185,
     showInfoPanel: false,
+    originServerId: resolvedServer.id,
   });
-  window.__DETAIL_STARMAP_MOUNTED__ = !!detailStarmapUnmount;
-  window.__DETAIL_TRACE__.push('before-charts');
-  await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows, pingTargetsData: detailCachedPingTargets || pingTargetsData, pingTargetHistoryData: detailCachedPingTargetHistory || pingTargetHistoryData, latestServer: resolvedServer });
+  window.__DBG__.DETAIL_STARMAP_MOUNTED = !!detailStarmapUnmount;
+  window.__DBG__.DETAIL_TRACE.push('before-charts');
+  await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows, pingTargetsData: detailCache.pingTargets || pingTargetsData, pingTargetHistoryData: detailCache.pingTargetHistory || pingTargetHistoryData, latestServer: resolvedServer, detailDays });
+  refreshDetailProbeTargetsNow(resolvedServer.id);
   initNetworkTooltip();
   startDetailRealtimeRefresh(resolvedServer.id);
-  window.__DETAIL_TRACE__.push('done');
+  window.__DBG__.DETAIL_TRACE.push('done');
   } catch (error) {
-    window.__DETAIL_TRACE_ERROR__ = String(error?.stack || error);
+    window.__DBG__.DETAIL_TRACE_ERROR = String(error?.stack || error);
     console.error('renderDetailPage failed', error);
     const grid = document.getElementById('detailPageGrid');
     if (grid) grid.innerHTML = `<div class="detail-error">详情渲染失败：${escapeHtml(error?.message || error)}</div>`;
@@ -1679,7 +1778,7 @@ async function renderDetailMonitorCharts(args) {
     pingStepLabel,
     PING_AXIS_STEPS_MS,
     latestTimelineMs,
-    getDetailPingSampleCache: () => detailPingSampleCache,
+    getDetailPingSampleCache: () => detailPingSamples.store,
   });
 }
 
@@ -1690,13 +1789,13 @@ async function loadServers() {
     state.servers = await enrichServersWithIpGeo(rows.map(normalizeServer));
     state.serversUpdatedAt = new Date().toISOString();
     state.serversSource = '后台接口 /api/v1/servers + IP 坐标定位';
-    window.__LAST_SERVER_PAYLOAD__ = payload;
+    window.__DBG__.LAST_SERVER_PAYLOAD = payload;
     console.log('[display] loaded servers', state.servers.map(s => s.name));
     safeStorageSet('vps_servers', JSON.stringify(state.servers));
     renderSunBadge();
     renderMoonPanel();
   } catch (error) {
-    window.__LAST_LOAD_ERROR__ = { message: error?.message || String(error), stack: error?.stack || '' };
+    window.__DBG__.LAST_LOAD_ERROR = { message: error?.message || String(error), stack: error?.stack || '' };
     console.warn('[display] public servers fetch failed, fallback to seeded state', error);
   }
 }
@@ -1708,75 +1807,26 @@ async function refreshDisplayServers() {
   if (globe) globe.setServers(state.servers);
   if (overviewMode && document.querySelector('.public-overview-page')) {
     renderPublicOverviewPage();
-    window.__OVERVIEW_LAST_REFRESH__ = { at: new Date().toISOString(), count: state.servers.length, names: state.servers.map((s) => s.name) };
+    window.__DBG__.OVERVIEW_LAST_REFRESH = { at: new Date().toISOString(), count: state.servers.length, names: state.servers.map((s) => s.name) };
   }
   renderMoonPanel();
 }
 
 function stopDetailRealtimeRefresh() {
-  if (detailRefreshTimer) clearInterval(detailRefreshTimer);
-  detailRefreshTimer = null;
+  stopDetailRefreshTimer();
 }
 
-let detailHeavyRefreshAt = 0;
 let detailRefreshInFlight = false;
-let detailCachedTraffic = null;
-let detailCachedHistoryRows = [];
-let detailCachedProbeRows = [];
-let detailCachedPingTargets = null;
-let detailCachedPingTargetHistory = null;
-let detailPingTargetsFetchedAt = 0;
-let detailPingSampleCache = {};
-const DETAIL_PING_SAMPLE_WINDOW_MS = 12 * 60 * 60 * 1000;
-let detailTelemetrySampleCache = [];
-const DETAIL_TELEMETRY_SAMPLE_WINDOW_MS = 12 * 60 * 60 * 1000;
-function detailTelemetryStoreKey(serverId) { return `vps-detail-telemetry-samples:${serverId || unknown}`; }
-function loadStoredTelemetrySamples(serverId) {
-  if (typeof localStorage === undefined || !serverId) return;
-  try {
-    const raw = localStorage.getItem(detailTelemetryStoreKey(serverId));
-    if (!raw) return;
-    const cutoff = Date.now() - DETAIL_TELEMETRY_SAMPLE_WINDOW_MS;
-    detailTelemetrySampleCache = (JSON.parse(raw) || [])
-      .filter(row => Number.isFinite(Number(row.__timeMs)) && Number(row.__timeMs) >= cutoff)
-      .slice(-21600);
-    window.__DETAIL_TELEMETRY_SAMPLE_CACHE__ = detailTelemetrySampleCache;
-  } catch (_) {}
-}
-function saveStoredTelemetrySamples(serverId) {
-  if (typeof localStorage === undefined || !serverId) return;
-  try {
-    const cutoff = Date.now() - DETAIL_TELEMETRY_SAMPLE_WINDOW_MS;
-    const compact = (detailTelemetrySampleCache || [])
-      .filter(row => Number.isFinite(Number(row.__timeMs)) && Number(row.__timeMs) >= cutoff)
-      .slice(-21600);
-    localStorage.setItem(detailTelemetryStoreKey(serverId), JSON.stringify(compact));
-  } catch (_) {}
-}
+const detailPingSamples = createDetailPingSampleCache({ pingStepValue });
+const DETAIL_PING_SAMPLE_WINDOW_MS = detailPingSamples.windowMs;
+const detailTelemetrySamples = createDetailTelemetrySampleCache();
+function loadStoredTelemetrySamples(serverId) { detailTelemetrySamples.loadStored(serverId); }
 function recordLiveTelemetrySample(server = null, fetchedAt = Date.now()) {
-  if (!server?.id) return;
-  const last = detailTelemetrySampleCache[detailTelemetrySampleCache.length - 1];
-  // Frontend refresh is 500ms; keep one real chart sample per agent interval bucket.
-  if (last && fetchedAt - Number(last.__timeMs) < 180) return;
-  const row = {
-    __timeMs: fetchedAt,
-    created_at: new Date(fetchedAt).toISOString(),
-    __frontendCache: true,
-    status: server.status || 'online',
-    cpu_use: Number(server.cpu_use ?? server.cpu ?? 0),
-    ram_use: Number(server.ram_use ?? server.memory_percent ?? server.mem_use ?? 0),
-    net_up: Math.max(0, Number(server.net_up ?? server.netUp ?? 0)),
-    net_down: Math.max(0, Number(server.net_down ?? server.netDown ?? 0)),
-  };
-  detailTelemetrySampleCache.push(row);
-  const cutoff = fetchedAt - DETAIL_TELEMETRY_SAMPLE_WINDOW_MS;
-  detailTelemetrySampleCache = detailTelemetrySampleCache.filter(r => Number(r.__timeMs) >= cutoff).slice(-21600);
-  window.__DETAIL_TELEMETRY_SAMPLE_CACHE__ = detailTelemetrySampleCache;
-  saveStoredTelemetrySamples(server.id);
+  detailTelemetrySamples.record(server, fetchedAt);
 }
 function mergeTelemetryRows(rows = []) {
   const backendRows = Array.isArray(rows) ? rows : [];
-  const sourceRows = backendRows.length ? backendRows : (detailTelemetrySampleCache || []);
+  const sourceRows = backendRows;
   const bySecond = new Map();
   for (const row of sourceRows) {
     const t = Number(row.__timeMs) || rowTimeMs(row, NaN);
@@ -1785,35 +1835,7 @@ function mergeTelemetryRows(rows = []) {
   }
   return Array.from(bySecond.values()).sort((a, b) => Number(a.__timeMs) - Number(b.__timeMs));
 }
-function detailPingStoreKey(serverId) { return `vps-detail-ping-samples:${serverId || 'unknown'}`; }
-function loadStoredPingSamples(serverId) {
-  if (typeof localStorage === 'undefined' || !serverId) return;
-  try {
-    const raw = localStorage.getItem(detailPingStoreKey(serverId));
-    if (!raw) return;
-    const parsed = JSON.parse(raw);
-    const cutoff = Date.now() - DETAIL_PING_SAMPLE_WINDOW_MS;
-    const next = {};
-    for (const [key, arr] of Object.entries(parsed || {})) {
-      const rows = Array.isArray(arr) ? arr.filter(p => p && Number.isFinite(Number(p.x)) && Number.isFinite(Number(p.rawMs)) && Number(p.x) >= cutoff) : [];
-      if (rows.length) next[key] = rows.map(p => ({ ...p, x: Number(p.x), rawMs: Number(p.rawMs), y: pingStepValue(p.rawMs) }));
-    }
-    detailPingSampleCache = { ...next, ...detailPingSampleCache };
-    window.__DETAIL_PING_SAMPLE_CACHE__ = detailPingSampleCache;
-  } catch (_) {}
-}
-function saveStoredPingSamples(serverId) {
-  if (typeof localStorage === 'undefined' || !serverId) return;
-  try {
-    const cutoff = Date.now() - DETAIL_PING_SAMPLE_WINDOW_MS;
-    const compact = {};
-    for (const [key, arr] of Object.entries(detailPingSampleCache || {})) {
-      const rows = (Array.isArray(arr) ? arr : []).filter(p => Number.isFinite(Number(p.x)) && Number.isFinite(Number(p.rawMs)) && Number(p.x) >= cutoff).slice(-1600);
-      if (rows.length) compact[key] = rows;
-    }
-    localStorage.setItem(detailPingStoreKey(serverId), JSON.stringify(compact));
-  } catch (_) {}
-}
+function loadStoredPingSamples(serverId) { detailPingSamples.loadStored(serverId); }
 let overviewRefreshTimer = null;
 
 async function refreshDetailRealtime(serverId) {
@@ -1821,50 +1843,48 @@ async function refreshDetailRealtime(serverId) {
   if (!document.getElementById('detailRealtimePanels')) return;
   detailRefreshInFlight = true;
   try {
-  await loadServers();
+  // 详情页只刷新当前节点遥测，不再每轮全量重拉服务器列表(避免重复统计/重渲染循环)
   const current = state.servers.find((item) => Number(item.id) === Number(serverId));
   if (!current) return;
   const now = Date.now();
-  const doHeavy = now - detailHeavyRefreshAt > 500 || !detailCachedProbeRows.length;
+  const doHeavy = now - getDetailHeavyRefreshAt() > 60000;
   if (doHeavy) {
-    const shouldRefreshPingTargets = !detailCachedPingTargets?.targets?.length || now - detailPingTargetsFetchedAt > 500;
+    const shouldRefreshPingTargets = !detailCache.pingTargets?.targets?.length || now - getDetailPingTargetsFetchedAt() > 15000;
     const [traffic, history, probeHistory, pingTargets, pingTargetHistory] = await Promise.allSettled([
       fetchJson(`${API_ROOT}/api/v1/traffic/public/${current.id}`, { timeoutMs: 1000 }),
-      fetchJson(`${API_ROOT}/api/v1/traffic/public/${current.id}/history?days=1&limit=288`, { timeoutMs: 1000 }),
-      fetchServerHistory(current.id, 1, 3600),
-      shouldRefreshPingTargets ? fetchPingTargets(current.id, 1) : Promise.resolve(detailCachedPingTargets),
-      fetchPingTargetHistory(current.id, 12, 2000),
+      fetchJson(`${API_ROOT}/api/v1/traffic/public/${current.id}/history?days=${getDetailHistoryDays()}&bucket_minutes=${getDetailHistoryBucketMinutes(getDetailHistoryDays())}&limit=${getDetailHistoryDays() === 0 ? 14400 : 2000}`, { timeoutMs: 3000 }),
+      fetchServerHistory(current.id, getDetailHistoryDays() === 0 ? 1 : getDetailHistoryDays(), getDetailHistoryDays() === 0 ? 14400 : 2000, getDetailHistoryBucketMinutes(getDetailHistoryDays())),
+      Promise.resolve(detailCache.pingTargets),
+      shouldRefreshPingTargets ? fetchPingTargetHistory(current.id, 12, getDetailHistoryDays() === 0 ? 14400 : 2000) : Promise.resolve(detailCache.pingTargetHistory),
     ]);
-    detailCachedTraffic = traffic.status === 'fulfilled' ? traffic.value : detailCachedTraffic;
-    detailCachedHistoryRows = normalizeHistory24h((history.status === 'fulfilled' ? history.value?.data : detailCachedHistoryRows) || []);
-    detailCachedProbeRows = normalizeWindowRows((probeHistory.status === 'fulfilled' ? probeHistory.value?.data : detailCachedProbeRows) || [], 24).slice(-3600);
-    if (pingTargets.status === 'fulfilled' && pingTargets.value?.targets?.length) {
-      recordLivePingSamples(pingTargets.value, now, current.id);
-      detailCachedPingTargets = pingTargets.value;
-      detailPingTargetsFetchedAt = now;
-      window.__DETAIL_PING_TARGETS__ = detailCachedPingTargets;
+    detailCache.traffic = traffic.status === 'fulfilled' ? traffic.value : detailCache.traffic;
+    detailCache.historyRows = normalizeHistory24h((history.status === 'fulfilled' ? history.value?.data : detailCache.historyRows) || []);
+    detailCache.probeRows = normalizeWindowRows((probeHistory.status === 'fulfilled' ? probeHistory.value?.data : detailCache.probeRows) || [], getDetailHistoryDays() === 0 ? 12 : Math.max(1, getDetailHistoryDays()) * 24);
+    if (pingTargets.status === 'fulfilled' && (pingTargets.value?.targets?.length || pingTargets.value?.unavailable)) {
+      detailCache.pingTargets = pingTargets.value;
+      setDetailPingTargetsFetchedAt(now);
+      window.__DBG__.DETAIL_PING_TARGETS = detailCache.pingTargets;
     }
-    if (pingTargetHistory.status === 'fulfilled' && pingTargetHistory.value?.targets?.length) {
-      detailCachedPingTargetHistory = pingTargetHistory.value;
-      window.__DETAIL_PING_TARGET_HISTORY__ = detailCachedPingTargetHistory;
+    if (pingTargetHistory.status === 'fulfilled' && (pingTargetHistory.value?.targets?.length || pingTargetHistory.value?.unavailable)) {
+      detailCache.pingTargetHistory = pingTargetHistory.value;
+      window.__DBG__.DETAIL_PING_TARGET_HISTORY = detailCache.pingTargetHistory;
     }
-    detailHeavyRefreshAt = now;
+    setDetailHeavyRefreshAt(now);
   }
-  const historyRows = detailCachedHistoryRows;
-  recordLiveTelemetrySample(current, now);
-  const probeRows = mergeTelemetryRows(detailCachedProbeRows);
+  const historyRows = detailCache.historyRows;
+  const probeRows = mergeTelemetryRows(detailCache.probeRows);
   const trafficUpSeries = historyRows.map((row) => Number(row.net_up || 0));
   const trafficDownSeries = historyRows.map((row) => Number(row.net_down || 0));
-  const probeUpSeries = probeRows.map((row) => Number(row.net_up || 0));
-  const probeDownSeries = probeRows.map((row) => Number(row.net_down || 0));
+  const probeUpSeries = numericMetricSeries(probeRows, 'net_up');
+  const probeDownSeries = numericMetricSeries(probeRows, 'net_down');
   const upSeries = smoothNumericSeries(probeUpSeries.some((v) => Math.abs(v) > 0.01) ? probeUpSeries : trafficUpSeries, 5);
   const downSeries = smoothNumericSeries(probeDownSeries.some((v) => Math.abs(v) > 0.01) ? probeDownSeries : trafficDownSeries, 5);
-  const cpuSeries = probeRows.map((row) => Number(row.cpu_use || 0));
-  const ramSeries = probeRows.map((row) => Number(row.ram_use || 0));
+  const cpuSeries = numericMetricSeries(probeRows, 'cpu_use');
+  const ramSeries = numericMetricSeries(probeRows, 'ram_use');
   const chartLabels = historyRows.map((row, idx) => row.ts || row.time || row.timestamp || `T${idx + 1}`);
   const probeLabels = probeRows.map((row, idx) => row.created_at ? new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `P${idx + 1}`);
   const panel = document.getElementById('detailRealtimePanels');
-  if (panel) panel.outerHTML = renderRealtimeResourcePanels(current, detailCachedTraffic, upSeries, downSeries, cpuSeries, ramSeries);
+  if (panel) panel.outerHTML = renderRealtimeResourcePanels(current, detailCache.traffic, upSeries, downSeries, cpuSeries, ramSeries);
   applyLanguage();
   const freshMeta = detailFreshnessMeta(probeRows, current);
   const latestSampleMs = freshMeta.latestMs;
@@ -1877,14 +1897,17 @@ async function refreshDetailRealtime(serverId) {
   const freshnessLatest = document.querySelector('.data-freshness-card .freshness-latest');
   if (freshnessLatest) freshnessLatest.textContent = `${t('latestSample')}: ${Number.isFinite(latestSampleMs) ? new Date(latestSampleMs).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' }) : '—'}`;
   const pingHeadStrong = document.querySelector('.ping-multi-card .fleet-chart-head strong');
-  if (pingHeadStrong) pingHeadStrong.textContent = `${(detailCachedPingTargets?.targets || []).length || 0} 目标`;
+  if (pingHeadStrong) pingHeadStrong.textContent = detailCache.pingTargets?.unavailable ? '等待 agent' : `${(detailCache.pingTargets?.targets || []).length || 0} 目标`;
   const currentUpKbs = upSeries.slice(-1)[0] ?? current.net_up ?? null;
   const currentDownKbs = downSeries.slice(-1)[0] ?? current.net_down ?? null;
   const networkHeadStrong = document.querySelector(".network-throughput-card .fleet-chart-head strong");
   if (networkHeadStrong) networkHeadStrong.textContent = `↑ ${fmtRate(currentUpKbs)} · ↓ ${fmtRate(currentDownKbs)}`;
-  if (doHeavy) await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData: null, probeLabels, cpuSeries, ramSeries, probeRows, pingTargetsData: detailCachedPingTargets, pingTargetHistoryData: detailCachedPingTargetHistory, latestServer: current });
+  if (doHeavy) {
+    await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData: null, probeLabels, cpuSeries, ramSeries, probeRows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, latestServer: current, detailDays: getDetailHistoryDays() });
+    refreshDetailProbeTargetsNow(current.id);
+  }
   initNetworkTooltip();
-  window.__DETAIL_LAST_REFRESH__ = { at: new Date().toISOString(), serverId, pollMs: 200, heavy: doHeavy, sourceSampleMs: window.__DETAIL_SOURCE_SAMPLE_MS__ || null, latestSampleAt: Number.isFinite(latestSampleMs) ? new Date(latestSampleMs).toISOString() : null, sourceAge, upKBs: currentUpKbs, downKBs: currentDownKbs, cpu: cpuSeries.slice(-1)[0] ?? current.cpu_use ?? null, ram: ramSeries.slice(-1)[0] ?? current.ram_use ?? null };
+  window.__DBG__.DETAIL_LAST_REFRESH = { at: new Date().toISOString(), serverId, pollMs: 5000, heavy: doHeavy, sourceSampleMs: window.__DBG__.DETAIL_SOURCE_SAMPLE_MS || null, latestSampleAt: Number.isFinite(latestSampleMs) ? new Date(latestSampleMs).toISOString() : null, sourceAge, upKBs: currentUpKbs, downKBs: currentDownKbs, cpu: cpuSeries.slice(-1)[0] ?? current.cpu_use ?? null, ram: ramSeries.slice(-1)[0] ?? current.ram_use ?? null };
   } finally {
     detailRefreshInFlight = false;
   }
@@ -1892,16 +1915,13 @@ async function refreshDetailRealtime(serverId) {
 
 function startDetailRealtimeRefresh(serverId) {
   stopDetailRealtimeRefresh();
-  detailHeavyRefreshAt = 0;
-  detailRefreshTimer = setInterval(() => refreshDetailRealtime(serverId).catch((error) => {
-    window.__DETAIL_REFRESH_ERROR__ = String(error?.stack || error);
+  setDetailHeavyRefreshAt(Date.now());
+  startDetailRefreshTimer(() => refreshDetailRealtime(serverId).catch((error) => {
+    window.__DBG__.DETAIL_REFRESH_ERROR = String(error?.stack || error);
     console.warn('[detail] realtime refresh failed', error);
-  }), 200);
-  window.__DETAIL_REFRESH_ACTIVE__ = true;
-  window.__DETAIL_REFRESH_INTERVAL_MS__ = 200;
-  window.__DETAIL_SOURCE_SAMPLE_MS__ = 200;
+  }), 5000);
   refreshDetailRealtime(serverId).catch((error) => {
-    window.__DETAIL_REFRESH_ERROR__ = String(error?.stack || error);
+    window.__DBG__.DETAIL_REFRESH_ERROR = String(error?.stack || error);
     console.warn('[detail] initial realtime refresh failed', error);
   });
 }
@@ -1910,8 +1930,8 @@ function startSoftRefresh() {
   if (selectedServerId) return;
   if (overviewRefreshTimer) clearInterval(overviewRefreshTimer);
   overviewRefreshTimer = setInterval(refreshDisplayServers, 10000);
-  window.__OVERVIEW_REFRESH_TIMER__ = overviewRefreshTimer;
-  window.__OVERVIEW_REFRESH_INTERVAL_MS__ = 10000;
+  window.__DBG__.OVERVIEW_REFRESH_TIMER = overviewRefreshTimer;
+  window.__DBG__.OVERVIEW_REFRESH_INTERVAL_MS = 10000;
 }
 
 window.addEventListener('storage', async (e) => {
@@ -1923,16 +1943,16 @@ window.addEventListener('pageshow', refreshDisplayServers);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { selectedServerId ? refreshDetailRealtime(selectedServerId) : refreshDisplayServers(); } });
 if (serversChannel) serversChannel.addEventListener('message', refreshDisplayServers);
 
-window.__LOAD_SERVERS__ = loadServers;
+window.__DBG__.LOAD_SERVERS = loadServers;
 
 async function boot() {
-  window.__BOOT_TRACE__ = ['boot:start'];
+  window.__DBG__.BOOT_TRACE = ['boot:start'];
   safeStorageRemove('vps_servers');
   setTheme(safeStorageGet('display_theme', 'dark') || 'dark');
   applyLanguage();
   await refreshExchangeRates();
   await loadServers();
-  window.__BOOT_TRACE__.push('after-loadServers');
+  window.__DBG__.BOOT_TRACE.push('after-loadServers');
   if (location.pathname === '/verify-email') {
     await handleEmailVerificationRoute();
     return;
@@ -1940,11 +1960,11 @@ async function boot() {
     handlePasswordResetRoute();
     return;
   } else if (selectedServerId) {
-    window.__BOOT_TRACE__.push('branch:selectedServerId:' + selectedServerId);
+    window.__DBG__.BOOT_TRACE.push('branch:selectedServerId:' + selectedServerId);
     mountDisplayPage();
-    window.__BOOT_TRACE__.push('after-mountDisplayPage');
+    window.__DBG__.BOOT_TRACE.push('after-mountDisplayPage');
     await renderDetailPage(selectedServerId);
-    window.__BOOT_TRACE__.push('after-renderDetailPage');
+    window.__DBG__.BOOT_TRACE.push('after-renderDetailPage');
   } else if (loginMode) {
     renderFrontLoginPage();
   } else if (overviewMode) {

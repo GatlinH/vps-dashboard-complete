@@ -310,7 +310,7 @@ export class ServerManager {
         <label>Install Command<textarea readonly class="form-input komari-code" id="sm-copy-cmd">${this._escape(agent?.install_command || '')}</textarea></label>
       </div>
       <div id="sm-modal-msg" class="komari-msg"></div>
-      <div class="komari-modal-actions"><button class="add-btn" id="sm-copy-install">复制命令</button></div>`);
+      <div class="komari-modal-actions"><button type="button" class="add-btn" id="sm-copy-install">复制命令</button></div>`);
     this._el.querySelector('#sm-copy-install').addEventListener('click', () => this._copy(this._el.querySelector('#sm-copy-cmd').value));
   }
 
@@ -357,7 +357,7 @@ export class ServerManager {
         </div>
       </div>`;
   }
-  _closeModal(){ this._el.querySelector('#sm-modal-root').innerHTML = ''; }
+  _closeModal(){ this._el.querySelector('#sm-modal-root').replaceChildren(); }
   _find(id){ return this._servers.find(x => String(x.id) === String(id)); }
   _val(id){ return this._el.querySelector(`#${id}`)?.value?.trim() || ''; }
   _periodLabel(p){ return {monthly:'月付', quarterly:'季付', yearly:'年付', biennial:'二年付', one_time:'一次性', custom:'自定义'}[p] || p || 'monthly'; }
@@ -369,6 +369,34 @@ export class ServerManager {
   _attr(v){ return this._escape(v).replace(/`/g, '&#96;'); }
   _modalMsg(text,type){ const el=this._el.querySelector('#sm-modal-msg'); if(el){ el.style.color=type==='red'?'var(--red)':type==='green'?'var(--green)':'var(--accent)'; el.textContent=text; } }
   _toast(text,type){ const el=this._el.querySelector('#sm-msg'); if(!el)return; const colors={green:'var(--green)',red:'var(--red)',blue:'var(--accent)'}; el.style.color=colors[type]||'var(--text2)'; el.textContent=text; setTimeout(()=>{ if(el.textContent===text) el.textContent=''; }, 5000); }
-  async _copy(text){ try { await navigator.clipboard.writeText(text); this._modalMsg('✅ 已复制', 'green'); } catch (_) { this._modalMsg('复制失败：请手动选中复制', 'red'); } }
+  async _copy(text){
+    const value = String(text || '');
+    if (!value.trim()) { this._modalMsg('没有可复制的内容', 'red'); return; }
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        this._copyWithTextarea(value);
+      }
+      this._modalMsg('✅ 已复制', 'green');
+    } catch (_) {
+      try { this._copyWithTextarea(value); this._modalMsg('✅ 已复制', 'green'); }
+      catch (err) { this._modalMsg('复制失败：请手动选中复制', 'red'); }
+    }
+  }
+  _copyWithTextarea(text){
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    if (!ok) throw new Error('execCommand copy failed');
+  }
   _notifyServersChanged(action,id){ window.dispatchEvent(new CustomEvent('servers-changed',{detail:{action,id}})); localStorage.setItem('vps-servers-version',String(Date.now())); this._serversChannel?.postMessage({action,id,at:Date.now()}); }
 }

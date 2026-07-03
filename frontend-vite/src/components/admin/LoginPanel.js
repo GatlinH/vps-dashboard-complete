@@ -23,7 +23,7 @@ export class LoginPanel {
   _render() {
     this._el.innerHTML = /* html */`
       <div class="login-overlay" id="loginOverlay">
-        <div class="login-box" onclick="event.stopPropagation()">
+        <div class="login-box">
           <div class="login-logo">
             <div class="login-logo-text">VPS<span style="color:var(--gold)">·</span>星图</div>
             <div class="login-logo-sub">管理员登录 / Admin Access</div>
@@ -61,6 +61,7 @@ export class LoginPanel {
     const btn  = this._el.querySelector('#lp-btn');
     const pass = this._el.querySelector('#lp-pass');
     const totp = this._el.querySelector('#lp-totp');
+    this._el.querySelector('.login-box')?.addEventListener('click', e => e.stopPropagation());
     btn.addEventListener('click',  () => this._submit());
     pass.addEventListener('keydown', e => { if (e.key === 'Enter') this._submit(); });
     totp?.addEventListener('keydown', e => { if (e.key === 'Enter') this._submit(); });

@@ -965,7 +965,7 @@ html:has(.fleet-detail-console) body{
   padding:16px!important;
   box-sizing:border-box!important;
   display:grid!important;
-  grid-template-columns:minmax(280px,340px) minmax(0,1.05fr) minmax(420px,1.25fr)!important;
+  grid-template-columns:18.5% 24% 27.5% 30%!important;
   grid-template-rows:auto auto auto auto!important;
   gap:14px!important;
 }
@@ -1111,23 +1111,23 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console){
 }
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console{
   width:100%!important;max-width:none!important;margin:0!important;padding:16px!important;box-sizing:border-box!important;
-  display:grid!important;grid-template-columns:minmax(280px,340px) minmax(0,1.05fr) minmax(420px,1.25fr)!important;grid-template-rows:auto auto auto auto!important;gap:14px!important;
+  display:grid!important;grid-template-columns:18.5% minmax(520px,45%) minmax(430px,36.5%)!important;grid-template-rows:auto auto auto auto!important;gap:14px!important;
 }
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-console-header{grid-column:1/-1!important;grid-row:1!important;}
-html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail{grid-column:1!important;grid-row:2!important;}
-html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid{grid-column:2!important;grid-row:2!important;display:grid!important;grid-template-columns:1fr!important;gap:12px!important;}
-html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone{grid-column:3!important;grid-row:2 / span 2!important;display:grid!important;grid-template-columns:1fr!important;grid-template-rows:minmax(470px,auto) auto!important;gap:14px!important;min-width:0!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail{grid-column:1!important;grid-row:3!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid{grid-column:2!important;grid-row:3!important;display:grid!important;grid-template-columns:1fr!important;gap:12px!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone{grid-column:3!important;grid-row:3!important;display:grid!important;grid-template-columns:1fr!important;grid-template-rows:minmax(470px,auto) auto!important;gap:14px!important;min-width:0!important;}
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(230px,300px)!important;gap:14px!important;min-height:470px!important;}
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{min-height:470px!important;width:100%!important;max-width:none!important;}
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{height:410px!important;min-height:410px!important;width:100%!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;}
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel{min-height:470px!important;}
-html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{grid-column:1 / span 2!important;grid-row:3!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:14px!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{grid-column:2!important;grid-row:3!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:14px!important;}
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card{min-height:225px!important;padding:13px!important;}
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card canvas,
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-sparkline,
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-linechart{height:150px!important;min-height:150px!important;}
-html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-bottom-grid{grid-column:1/-1!important;grid-row:4!important;display:grid!important;grid-template-columns:minmax(260px,.85fr) minmax(520px,1.35fr) minmax(260px,.85fr)!important;gap:14px!important;}
-html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-console-footer{display:none!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-bottom-grid{grid-column:3!important;grid-row:4!important;display:grid!important;grid-template-columns:minmax(260px,.85fr) minmax(520px,1.35fr) minmax(260px,.85fr)!important;gap:14px!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-console-footer{grid-column:1/-1!important;grid-row:4!important;display:block!important;}
 @media(max-width:1180px){
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console{grid-template-columns:1fr!important;}
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail,
@@ -1149,7 +1149,7 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
   max-width:none!important;
 }
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-console-header{grid-column:1/-1!important;grid-row:1!important;}
-html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail{grid-column:1!important;grid-row:2!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail{grid-column:1!important;grid-row:3!important;}
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid{
   grid-column:2!important;grid-row:2!important;
   display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:14px!important;align-self:stretch!important;
@@ -1491,9 +1491,20 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
 }
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .compact-metric-card canvas,
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .compact-metric-card svg.mini-linechart{
-  height:176px!important;
-  min-height:176px!important;
-  max-height:176px!important;
+  height:193.75px!important;
+  min-height:193.75px!important;
+  max-height:193.75px!important;
+}
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console canvas#detailCpuChart,
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console canvas#detailMemoryChart{
+  height:210.5px!important;
+  min-height:210.5px!important;
+  max-height:210.5px!important;
+}
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console canvas#detailFreshnessChart{
+  height:190.75px!important;
+  min-height:190.75px!important;
+  max-height:190.75px!important;
 }
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .network-dual-chart .axis-label.axis-y{
   font-size:9.5px!important;
@@ -3217,4 +3228,990 @@ img, canvas, svg, video { max-width: 100%; }
   .login-input { height: 42px !important; }
   .login-btn { height: 44px !important; }
   .oauth-btn { min-height: 40px !important; }
+}
+
+/* FINAL-DETAIL-LAYOUT-REPAIR-20260629 */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console{
+  display:grid!important;
+  grid-template-columns:minmax(260px,340px) minmax(0,1fr)!important;
+  grid-template-rows:auto auto auto auto auto 32px!important;
+  gap:14px!important;
+  align-items:start!important;
+  overflow:visible!important;
+  height:auto!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-console-header{grid-column:1/-1!important;grid-row:1!important;margin:0!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-health-summary{grid-column:1/-1!important;grid-row:2!important;margin:0!important;padding:8px 10px!important;height:auto!important;min-height:0!important;align-self:start!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail{grid-column:1!important;grid-row:3!important;margin:0!important;align-self:start!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid{grid-column:2!important;grid-row:3!important;margin:0!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:12px!important;align-self:start!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone{grid-column:1/-1!important;grid-row:4!important;margin:0!important;display:block!important;width:100%!important;min-width:0!important;height:auto!important;min-height:0!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{display:grid!important;grid-template-columns:minmax(760px,1fr) minmax(260px,320px)!important;grid-template-areas:"star probe" "range probe"!important;gap:14px!important;min-height:520px!important;align-items:start!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{grid-area:star!important;min-height:520px!important;margin:0!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{height:460px!important;min-height:460px!important;width:100%!important;max-width:none!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar{grid-area:range!important;width:fit-content!important;max-width:100%!important;margin:0!important;padding:4px 8px!important;justify-self:start!important;align-self:start!important;display:flex!important;align-items:center!important;gap:6px!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel{grid-area:probe!important;min-height:520px!important;margin:0!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{grid-column:1/-1!important;grid-row:5!important;margin:0!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;grid-auto-rows:auto!important;gap:14px!important;width:100%!important;height:auto!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card{min-height:220px!important;height:auto!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .network-throughput-card,
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .ping-multi-card{min-height:245px!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card canvas,
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-sparkline,
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-linechart{height:150px!important;min-height:150px!important;max-height:170px!important;}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-console-footer{grid-column:1/-1!important;grid-row:6!important;display:block!important;height:auto!important;min-height:0!important;margin:0!important;padding-top:4px!important;}
+@media(max-width:1100px){
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console{grid-template-columns:1fr!important;}
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{grid-column:1!important;grid-row:auto!important;}
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{grid-template-columns:1fr!important;grid-template-areas:none!important;}
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel{grid-area:auto!important;}
+}
+
+/* FINAL-VPS-STARMAP-ONLY-LAYOUT-20260629 */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{
+  display:grid!important;
+  grid-template-columns:minmax(0,72fr) minmax(260px,28fr)!important;
+  grid-template-areas:"star probe" "range range"!important;
+  gap:12px!important;
+  min-height:0!important;
+  align-items:start!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
+  grid-area:star!important;
+  height:445px!important;
+  min-height:445px!important;
+  max-height:445px!important;
+  margin:0!important;
+  overflow:hidden!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
+  height:390px!important;
+  min-height:390px!important;
+  max-height:390px!important;
+  width:100%!important;
+  max-width:none!important;
+  overflow:hidden!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel{
+  grid-area:probe!important;
+  height:445px!important;
+  min-height:445px!important;
+  max-height:445px!important;
+  margin:0!important;
+  overflow:hidden!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar{
+  grid-area:range!important;
+  margin:0!important;
+  align-self:start!important;
+}
+
+/* FINAL-VPS-STARMAP-INTERNAL-UNCLIP-20260629 */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:visible!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
+  display:block!important;
+  align-items:initial!important;
+  justify-content:initial!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:visible!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
+  width:100%!important;
+  box-sizing:border-box!important;
+  overflow:visible!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
+  display:block!important;
+  width:100%!important;
+  max-width:860px!important;
+  height:auto!important;
+  aspect-ratio:860/440!important;
+  margin:0 auto!important;
+}
+
+/* FINAL-VPS-STARMAP-CARD-SIZE-20260629 */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{
+  grid-template-columns:minmax(0,74fr) minmax(320px,26fr)!important;
+  align-items:stretch!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel,
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel{
+  min-height:620px!important;
+  height:620px!important;
+  max-height:none!important;
+  align-self:stretch!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel{
+  overflow:hidden!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
+  height:auto!important;
+  min-height:0!important;
+  overflow:visible!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
+  width:100%!important;
+  min-height:560px!important;
+  padding:10px!important;
+  box-sizing:border-box!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
+  width:100%!important;
+  max-width:none!important;
+  height:auto!important;
+  aspect-ratio:860/440!important;
+}
+
+/* FINAL-VPS-STARMAP-CONTAIN-20260629 */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
+  box-sizing:border-box!important;
+  overflow:hidden!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
+  box-sizing:border-box!important;
+  height:calc(100% - 43px)!important;
+  min-height:0!important;
+  max-height:calc(100% - 43px)!important;
+  overflow:hidden!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
+  box-sizing:border-box!important;
+  height:100%!important;
+  min-height:0!important;
+  max-height:100%!important;
+  overflow:hidden!important;
+  padding:10px!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
+  max-height:calc(100% - 92px)!important;
+  width:100%!important;
+  height:auto!important;
+  object-fit:contain!important;
+}
+
+/* FINAL-VPS-STARMAP-REMOVE-INTERNAL-TITLE-20260629 */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone{
+  margin-top:-18px!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
+  height:calc(100% - 43px)!important;
+  max-height:calc(100% - 43px)!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
+  padding:10px!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
+  max-height:calc(100% - 50px)!important;
+}
+
+/* FINAL-DETAIL-TOP-CARD-HEIGHT-20260629 */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid{
+  align-items:stretch!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card,
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.resources-card,
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.bandwidth-card{
+  height:373px!important;
+  min-height:373px!important;
+  box-sizing:border-box!important;
+}
+
+/* FINAL-VPS-STARMAP-BOTTOM-CORNERS-20260629 */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
+  border-radius:16px!important;
+  overflow:hidden!important;
+  padding-bottom:16px!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
+  height:calc(100% - 59px)!important;
+  max-height:calc(100% - 59px)!important;
+  border-radius:14px!important;
+  overflow:hidden!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
+  height:100%!important;
+  max-height:100%!important;
+  border-radius:14px!important;
+  overflow:hidden!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
+  max-height:calc(100% - 50px)!important;
+  border-radius:14px!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar{
+  margin-top:4px!important;
+}
+
+/* FINAL-VPS-STARMAP-REAL-ROUND-CORNERS-20260629 */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
+  clip-path:none!important;
+  border-radius:18px!important;
+  overflow:hidden!important;
+  background:linear-gradient(180deg,rgba(5,27,42,.82),rgba(2,11,21,.78))!important;
+  border:1px solid rgba(98,245,238,.28)!important;
+  padding-bottom:18px!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel:after{
+  display:none!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel .fleet-title{
+  margin-bottom:9px!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
+  border-radius:15px!important;
+  overflow:hidden!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
+  border-radius:15px!important;
+  overflow:hidden!important;
+}
+
+/* FINAL-VPS-STARMAP-ROUND-FORCE-20260629 */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
+  position:relative!important;
+  isolation:isolate!important;
+  clip-path:none!important;
+  border-radius:20px!important;
+  overflow:hidden!important;
+  background:linear-gradient(180deg,rgba(5,27,42,.88),rgba(2,11,21,.84))!important;
+  border:0!important;
+  padding-bottom:22px!important;
+  box-shadow:0 0 20px rgba(38,221,220,.10), inset 0 0 18px rgba(38,221,220,.045)!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel::before{
+  content:""!important;
+  position:absolute!important;
+  inset:0!important;
+  border:1px solid rgba(98,245,238,.36)!important;
+  border-radius:20px!important;
+  pointer-events:none!important;
+  z-index:20!important;
+  box-sizing:border-box!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel::after{
+  display:none!important;
+  content:none!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel > *{
+  position:relative!important;
+  z-index:1!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
+  border-radius:16px!important;
+  overflow:hidden!important;
+  margin-bottom:0!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar{
+  margin-top:10px!important;
+}
+
+/* FINAL-VPS-STARMAP-VISUAL-BALANCE-20260629 */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
+  clip-path:none!important;
+  border-radius:20px!important;
+  overflow:hidden!important;
+  padding-bottom:20px!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
+  height:calc(100% - 62px)!important;
+  max-height:calc(100% - 62px)!important;
+  border-radius:18px!important;
+  overflow:hidden!important;
+  background:rgba(7,11,20,.92)!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
+  display:flex!important;
+  flex-direction:column!important;
+  height:100%!important;
+  max-height:100%!important;
+  padding:10px!important;
+  border-radius:18px!important;
+  overflow:hidden!important;
+  background:#070b14!important;
+  box-sizing:border-box!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div > div:first-child{
+  flex:0 0 auto!important;
+  margin-bottom:10px!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div > div:nth-child(2){
+  flex:1 1 auto!important;
+  min-height:0!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  border-radius:18px!important;
+  overflow:hidden!important;
+  background:#050812!important;
+  border:1px solid rgba(99,179,237,.18)!important;
+  box-sizing:border-box!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
+  display:block!important;
+  width:100%!important;
+  max-width:none!important;
+  height:auto!important;
+  max-height:100%!important;
+  aspect-ratio:860/440!important;
+  border-radius:18px!important;
+  border:0!important;
+  background:#050812!important;
+}
+
+/* FINAL-VPS-STARMAP-BOTTOM-GAP-20260629 */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
+  padding-bottom:8px!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
+  height:calc(100% - 36px)!important;
+  max-height:calc(100% - 36px)!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
+  padding-bottom:8px!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar{
+  margin-top:8px!important;
+}
+
+
+
+/* FINAL-VPS-ALLOCATION-BADGE-20260629 */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail{
+  grid-template-rows:auto!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card{
+  position:relative!important;
+  overflow:hidden!important;
+  padding-right:118px!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card .allocation-meter-list{
+  position:relative!important;
+  z-index:2!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot{
+  position:absolute!important;
+  right:10px!important;
+  bottom:10px!important;
+  width:104px!important;
+  height:104px!important;
+  display:grid!important;
+  place-items:center!important;
+  opacity:.82!important;
+  pointer-events:none!important;
+  z-index:1!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot .fleet-reference-badge,
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot .fleet-delta-badge{
+  position:static!important;
+  width:104px!important;
+  height:104px!important;
+  margin:0!important;
+  transform:none!important;
+  filter:drop-shadow(0 0 14px rgba(98,245,238,.22))!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+}
+@media(max-width:960px){
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card{padding-right:14px!important;}
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot{display:none!important;}
+}
+
+
+/* FINAL-VPS-COMPACT-HISTORY-GAP-20260629 */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{
+  row-gap:6px!important;
+  column-gap:12px!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar{
+  min-height:0!important;
+  height:auto!important;
+  margin:0!important;
+  padding:2px 6px!important;
+  gap:5px!important;
+  line-height:1!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-label{
+  font-size:10px!important;
+  line-height:1!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-history-range{
+  gap:4px!important;
+  padding-top:0!important;
+  align-items:center!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-history-btn{
+  padding:3px 7px!important;
+  min-height:0!important;
+  line-height:1.05!important;
+  font-size:10px!important;
+}
+
+
+/* HERMES-PUBLIC-OVERVIEW-POLISH-20260701 */
+.public-overview-page.starship-console-page{background:radial-gradient(circle at 20% 0%,rgba(98,245,238,.12),transparent 28%),linear-gradient(180deg,#01060e 0%,#03101d 46%,#01060e 100%)!important}
+.public-overview-hero,.public-overview-panel,.public-overview-card,.overview-network-table{backdrop-filter:blur(16px) saturate(150%);border-color:rgba(98,245,238,.20)!important;box-shadow:0 18px 48px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.04)!important}
+.public-overview-hero{border-radius:28px;padding:28px!important;background:radial-gradient(circle at 74% 10%,rgba(127,255,248,.16),transparent 32%),linear-gradient(135deg,rgba(8,20,38,.92),rgba(3,10,22,.78))!important}
+.public-overview-kicker,.public-overview-panel-title{color:#7ffff8!important;text-shadow:0 0 18px rgba(127,255,248,.28)}
+.public-overview-hero h1{letter-spacing:.08em;text-shadow:0 0 26px rgba(98,245,238,.22)}
+.public-overview-card{border-radius:20px!important;background:linear-gradient(180deg,rgba(7,18,34,.88),rgba(4,10,22,.78))!important;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.public-overview-card:hover{transform:translateY(-2px);border-color:rgba(127,255,248,.42)!important;box-shadow:0 22px 56px rgba(0,0,0,.42),0 0 24px rgba(98,245,238,.12)!important}
+.public-overview-status-bank .public-overview-stat strong{color:#7ffff8!important;text-shadow:0 0 18px rgba(98,245,238,.24)}
+body.light-theme .public-overview-page.starship-console-page{background:#eef4fb!important;color:#0a1622!important}
+body.light-theme .public-overview-hero,body.light-theme .public-overview-panel,body.light-theme .public-overview-card,body.light-theme .overview-network-table{backdrop-filter:none!important;text-shadow:none!important;box-shadow:0 10px 28px rgba(20,45,75,.10)!important;border-color:#cfe0ec!important;background:#ffffff!important;color:#0a1622!important}
+body.light-theme .public-overview-kicker,body.light-theme .public-overview-panel-title,body.light-theme .public-overview-hero h1{text-shadow:none!important;color:#0f766e!important}
+
+
+/* HERMES-MOBILE-DETAIL-ADMIN-FIX-20260701
+   Fix detail mobile stacking/clipping, allocation badge placement, chart label density,
+   admin mobile content visibility, and symmetric home sun/moon controls. */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card{
+  position:relative!important;
+  overflow:hidden!important;
+  padding-right:136px!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot{
+  right:14px!important;
+  top:50%!important;
+  bottom:auto!important;
+  transform:translateY(-50%)!important;
+  width:112px!important;
+  height:112px!important;
+  opacity:.78!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot .fleet-reference-badge,
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot .fleet-delta-badge{
+  width:112px!important;
+  height:112px!important;
+}
+@media(max-width:960px){
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot{
+    display:grid!important;
+    width:84px!important;
+    height:84px!important;
+    right:12px!important;
+    top:50%!important;
+    transform:translateY(-50%)!important;
+    opacity:.42!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot .fleet-reference-badge,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot .fleet-delta-badge{width:84px!important;height:84px!important;}
+}
+@media(max-width:720px){
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console){
+    padding:10px!important;
+    overflow-x:hidden!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console{
+    display:flex!important;
+    flex-direction:column!important;
+    gap:10px!important;
+    width:100%!important;
+    height:auto!important;
+    overflow:visible!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-console-header,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-health-summary,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{
+    width:100%!important;
+    min-width:0!important;
+    max-width:100%!important;
+    grid-column:auto!important;
+    grid-row:auto!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{
+    display:flex!important;
+    flex-direction:column!important;
+    gap:10px!important;
+    grid-template-columns:none!important;
+    grid-template-areas:none!important;
+    min-height:0!important;
+    overflow:visible!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.resources-card,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.bandwidth-card{
+    width:100%!important;
+    min-width:0!important;
+    height:auto!important;
+    min-height:0!important;
+    padding:12px!important;
+    box-sizing:border-box!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card{padding-right:104px!important;}
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel{
+    width:100%!important;
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    overflow:visible!important;
+    box-sizing:border-box!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
+    height:300px!important;
+    min-height:300px!important;
+    max-height:none!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
+    height:100%!important;
+    max-height:100%!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar{
+    width:100%!important;
+    overflow-x:auto!important;
+    white-space:nowrap!important;
+    padding:6px!important;
+    box-sizing:border-box!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-table{
+    display:block!important;
+    width:100%!important;
+    min-width:0!important;
+    overflow-x:auto!important;
+    white-space:nowrap!important;
+    table-layout:auto!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-table th,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-table td{
+    white-space:nowrap!important;
+    font-size:10px!important;
+    padding:7px 8px!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .network-throughput-card,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .ping-multi-card,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.resource-mini-card,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.data-freshness-card{
+    width:100%!important;
+    min-width:0!important;
+    height:auto!important;
+    min-height:270px!important;
+    overflow:visible!important;
+    box-sizing:border-box!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card canvas,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-sparkline,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-linechart{
+    height:190px!important;
+    min-height:190px!important;
+    max-height:none!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .network-legend{display:none!important;}
+  .three-globe-sun-badge,
+  .globe-moon-pill.moon-drag-only,
+  .globe-moon-pill.moon-solar-style{
+    top:18px!important;
+    width:64px!important;
+    height:64px!important;
+    min-width:64px!important;
+    min-height:64px!important;
+    box-sizing:border-box!important;
+  }
+  .three-globe-sun-badge{left:18px!important;}
+  .globe-moon-pill.moon-drag-only,
+  .globe-moon-pill.moon-solar-style{right:18px!important;}
+}
+
+
+/* HERMES-MOBILE-DETAIL-CHART-SUNMOON-SECOND-PASS-20260701 */
+@media(max-width:900px){
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console),
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) *{
+    max-width:100vw!important;
+    box-sizing:border-box!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{
+    display:flex!important;
+    flex-direction:column!important;
+    height:auto!important;
+    min-height:0!important;
+    overflow:visible!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .network-throughput-card,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .ping-multi-card{
+    height:auto!important;
+    min-height:360px!important;
+    max-height:none!important;
+    overflow:visible!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.resource-mini-card,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.data-freshness-card{
+    height:auto!important;
+    min-height:285px!important;
+    max-height:none!important;
+    overflow:visible!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card canvas{
+    width:100%!important;
+    max-width:100%!important;
+    height:220px!important;
+    max-height:220px!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .network-throughput-card canvas,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .ping-multi-card canvas{
+    height:260px!important;
+    max-height:260px!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-table{
+    max-width:100%!important;
+  }
+  html body .three-globe-sun-badge,
+  html body .globe-moon-pill,
+  html body .globe-moon-pill.moon-drag-only,
+  html body .globe-moon-pill.moon-solar-style{
+    top:18px!important;
+    width:64px!important;
+    height:64px!important;
+    min-width:64px!important;
+    min-height:64px!important;
+    max-width:64px!important;
+    max-height:64px!important;
+    margin:0!important;
+    transform:none!important;
+    box-sizing:border-box!important;
+  }
+  html body .three-globe-sun-badge{left:18px!important;right:auto!important;}
+  html body .globe-moon-pill,
+  html body .globe-moon-pill.moon-drag-only,
+  html body .globe-moon-pill.moon-solar-style{right:18px!important;left:auto!important;}
+}
+
+
+/* HERMES-MOBILE-BROAD-OVERRIDES-20260701 */
+@media(max-width:900px){
+  html body .detail-page-shell .fleet-detail-console .fleet-chart-matrix{
+    display:flex!important;
+    flex-direction:column!important;
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    overflow:visible!important;
+  }
+  html body .detail-page-shell .fleet-detail-console .fleet-chart-card,
+  html body .detail-page-shell .fleet-detail-console .network-throughput-card,
+  html body .detail-page-shell .fleet-detail-console .ping-multi-card{
+    height:auto!important;
+    min-height:360px!important;
+    max-height:none!important;
+    overflow:visible!important;
+  }
+  html body .detail-page-shell .fleet-detail-console .fleet-chart-card.resource-mini-card,
+  html body .detail-page-shell .fleet-detail-console .fleet-chart-card.data-freshness-card{
+    min-height:285px!important;
+    max-height:none!important;
+    overflow:visible!important;
+  }
+  html body .detail-page-shell .fleet-detail-console .network-throughput-card canvas,
+  html body .detail-page-shell .fleet-detail-console .ping-multi-card canvas{
+    height:260px!important;
+    max-height:260px!important;
+  }
+  html body .detail-page-shell .fleet-detail-console .fleet-chart-card.resource-mini-card canvas,
+  html body .detail-page-shell .fleet-detail-console .fleet-chart-card.data-freshness-card canvas{
+    height:220px!important;
+    max-height:220px!important;
+  }
+  html body .detail-page-shell .fleet-detail-console .detail-view-shell,
+  html body .detail-page-shell .fleet-detail-console .fleet-right-zone{
+    overflow:visible!important;
+    height:auto!important;
+    max-height:none!important;
+  }
+  html body .home-shell .globe-moon-pill,
+  html body .globe-stage .globe-moon-pill,
+  html body .globe-moon-pill.moon-drag-only.moon-solar-style{
+    position:absolute!important;
+    top:18px!important;
+    right:18px!important;
+    left:auto!important;
+    width:64px!important;
+    height:64px!important;
+    min-width:64px!important;
+    min-height:64px!important;
+    max-width:64px!important;
+    max-height:64px!important;
+    transform:none!important;
+  }
+}
+
+
+/* HERMES-FINAL-MOBILE-VISUAL-VERIFY-FIX-20260701 */
+@media(max-width:900px){
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .fleet-chart-card,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card{
+    height:auto!important;
+    min-height:360px!important;
+    max-height:none!important;
+    overflow:visible!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .resource-mini-card,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .data-freshness-card{
+    height:auto!important;
+    min-height:285px!important;
+    max-height:none!important;
+    overflow:visible!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card canvas,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card canvas{
+    height:260px!important;
+    min-height:260px!important;
+    max-height:260px!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .resource-mini-card canvas,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .data-freshness-card canvas{
+    height:220px!important;
+    min-height:220px!important;
+    max-height:220px!important;
+  }
+  html body .globe-moon-pill.moon-drag-only.moon-solar-style{
+    position:fixed!important;
+    top:18px!important;
+    right:18px!important;
+    left:auto!important;
+    bottom:auto!important;
+    width:64px!important;
+    height:64px!important;
+    min-width:64px!important;
+    min-height:64px!important;
+    max-width:64px!important;
+    max-height:64px!important;
+    transform:none!important;
+    margin:0!important;
+  }
+}
+
+
+/* HERMES-MOBILE-CHART-HEIGHT-SPECIFICITY-FIX-20260702 */
+@media(max-width:900px){
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.network-throughput-card,
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.ping-multi-card{
+    height:auto!important;
+    min-height:360px!important;
+    max-height:none!important;
+    overflow:visible!important;
+  }
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.resource-mini-card{
+    height:auto!important;
+    min-height:285px!important;
+    max-height:none!important;
+    overflow:visible!important;
+  }
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.network-throughput-card canvas,
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.ping-multi-card canvas{
+    height:260px!important;
+    min-height:260px!important;
+    max-height:260px!important;
+  }
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.resource-mini-card canvas{
+    height:220px!important;
+    min-height:220px!important;
+    max-height:220px!important;
+  }
+}
+
+
+/* HERMES-DETAIL-BADGE-NETWORK-MOBILE-FINAL-20260703 */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card{
+  padding-right:16px!important;
+  overflow:visible!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card .allocation-meter-list{
+  width:100%!important;
+  max-width:none!important;
+  padding-right:0!important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card .allocation-badge-slot{
+  left:50%!important;
+  right:auto!important;
+  bottom:18px!important;
+  top:auto!important;
+  width:104px!important;
+  height:104px!important;
+  transform:translateX(-50%)!important;
+  display:grid!important;
+  place-items:center!important;
+  opacity:.78!important;
+  pointer-events:none!important;
+  z-index:1!important;
+}
+@media(max-width:900px){
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console),
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-page-grid,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    overflow:visible!important;
+  }
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.network-throughput-card,
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.ping-multi-card{
+    height:390px!important;
+    min-height:390px!important;
+    max-height:none!important;
+    overflow:visible!important;
+  }
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.resource-mini-card{
+    height:315px!important;
+    min-height:315px!important;
+    max-height:none!important;
+    overflow:visible!important;
+  }
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.network-throughput-card canvas,
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.ping-multi-card canvas{
+    height:280px!important;
+    min-height:280px!important;
+    max-height:280px!important;
+  }
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.resource-mini-card canvas{
+    height:230px!important;
+    min-height:230px!important;
+    max-height:230px!important;
+  }
+}
+
+
+/* HERMES-MOBILE-STARMAP-PROBE-NO-OVERLAP-20260703 */
+@media(max-width:900px){
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{
+    overflow:visible!important;
+    height:auto!important;
+    max-height:none!important;
+    margin-bottom:22px!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    grid-auto-rows:auto!important;
+    align-items:start!important;
+    overflow:visible!important;
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    row-gap:18px!important;
+    margin-top:0!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
+    height:auto!important;
+    min-height:380px!important;
+    max-height:none!important;
+    overflow:hidden!important;
+    margin:0!important;
+    padding-bottom:18px!important;
+    box-sizing:border-box!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
+    height:300px!important;
+    min-height:300px!important;
+    max-height:300px!important;
+    margin-bottom:0!important;
+    overflow:hidden!important;
+    box-sizing:border-box!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar{
+    position:relative!important;
+    z-index:1!important;
+    margin-top:0!important;
+    clear:both!important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .ping-multi-card{
+    position:relative!important;
+    z-index:1!important;
+    margin-bottom:18px!important;
+    overflow:visible!important;
+  }
+}
+
+
+/* HERMES-MOBILE-STARMAP-PROBE-STACK-FIX-20260703 */
+@media(max-width:900px){
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-right-zone,
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-probe-grid{
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:stretch!important;
+    gap:18px!important;
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    overflow:visible!important;
+  }
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-probe-grid > *,
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-right-zone > *{
+    grid-area:auto!important;
+    grid-column:auto!important;
+    grid-row:auto!important;
+    position:relative!important;
+    width:100%!important;
+    max-width:100%!important;
+    transform:none!important;
+  }
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-starmap-panel{
+    flex:0 0 auto!important;
+    height:390px!important;
+    min-height:390px!important;
+    max-height:none!important;
+    overflow:hidden!important;
+    padding-bottom:22px!important;
+    margin:0!important;
+    box-sizing:border-box!important;
+  }
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .detail-globe-starmap-mount{
+    height:318px!important;
+    min-height:318px!important;
+    max-height:318px!important;
+    overflow:hidden!important;
+    margin:0!important;
+    box-sizing:border-box!important;
+  }
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .history-range-bar,
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-probe-table-panel{
+    flex:0 0 auto!important;
+    margin:0!important;
+  }
+}
+
+
+/* HERMES-DETAIL-STARMAP-PROBE-GAP-20260704
+   Give the VPS starmap + global probe latency block real breathing room from the cards above. */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone{
+  margin-top: clamp(22px, 3vh, 38px) !important;
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{
+  margin-top: 10px !important;
+}
+@media (max-width: 900px){
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone{
+    margin-top: 28px !important;
+  }
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{
+    margin-top: 12px !important;
+  }
 }

@@ -53,7 +53,7 @@ new GLTFLoader().load('/globe/star_trek_dsc_enterprise_user.glb?v=spike-single',
   if(gltf.animations?.length){ mixer = new THREE.AnimationMixer(ship); gltf.animations.forEach(c=>mixer.clipAction(c).play()); }
   info={animations:gltf.animations?.map(c=>({name:c.name,duration:c.duration,tracks:c.tracks.map(t=>t.name)})), size:size.toArray(), scale};
   loadedAt=performance.now();
-  window.__singleRendererSpike={scene,renderer,camera,root,ship,mixer,info};
+  window.__DBG__.singleRendererSpike={scene,renderer,camera,root,ship,mixer,info};
 }, undefined, (err)=>{ console.error('spike glb failed', err); hud.textContent='GLB failed '+err; });
 
 let last=performance.now(); let frames=[]; let lastHud=0;
@@ -74,7 +74,7 @@ function tick(now){
       'mixer='+(mixer?mixer.time.toFixed(2):'none'),
       'tracks='+(info?.animations?.[0]?.tracks?.join(',')||'…')
     ].join('\n');
-    window.__singleRendererSpikeStats={fps,canvasCount:document.querySelectorAll('canvas').length,loaded:!!ship,loadMs:loadedAt?Math.round(loadedAt-loadStart):null,mixer:mixer?.time||0,info};
+    window.__DBG__.singleRendererSpikeStats={fps,canvasCount:document.querySelectorAll('canvas').length,loaded:!!ship,loadMs:loadedAt?Math.round(loadedAt-loadStart):null,mixer:mixer?.time||0,info};
     lastHud=now;
   }
   requestAnimationFrame(tick);

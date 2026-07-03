@@ -1,4 +1,5 @@
 import * as Cesium from 'cesium';
+import { getGlobeRuntimeDebug } from '../utils/debugState.js';
 
 export function applyNodeLOD(globe, { midMode, nearMode, cityMode }) {
   for (const entity of globe._nodeEntities) {
@@ -13,7 +14,7 @@ export function applyNodeLOD(globe, { midMode, nearMode, cityMode }) {
     if (entity.label) entity.label.show = false;
   }
   if (typeof window !== 'undefined') {
-    window.__vpsBeaconDebug = (globe._nodeEntities || []).map((entity) => ({
+    getGlobeRuntimeDebug().vpsBeaconDebug = (globe._nodeEntities || []).map((entity) => ({
       id: entity?.id,
       show: !!entity?.show,
       hasPoint: !!entity?.point,

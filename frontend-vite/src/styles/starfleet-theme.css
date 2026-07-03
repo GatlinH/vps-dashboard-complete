@@ -1579,3 +1579,19 @@ body.starship-grabbing .starship-gltf-canvas { cursor: grabbing !important; }
 .globe-only-page #globeMoonMount {
   z-index: 40 !important;
 }
+
+/* beaconfix: keep starship foreground + VPS/visitor beacons visible above Cesium canvas, below sun/moon UI */
+.globe-only-page #globe-container .photo-space-showcase.is-globe-background-layer,
+#globe-container .photo-space-showcase.is-globe-background-layer {
+  z-index: 35 !important; opacity: 1 !important; visibility: visible !important; display: block !important; pointer-events: none !important;
+}
+.globe-only-page #globe-container .photo-space-showcase.is-globe-background-layer .starship-gltf-stage,
+.globe-only-page #globe-container .photo-space-showcase.is-globe-background-layer .starship-gltf-canvas,
+#globe-container .photo-space-showcase.is-globe-background-layer .starship-gltf-stage,
+#globe-container .photo-space-showcase.is-globe-background-layer .starship-gltf-canvas {
+  z-index: 35 !important; opacity: 1 !important; visibility: visible !important; display: block !important; pointer-events: none !important;
+}
+.globe-only-page .google-earth-node-label-layer,
+#globe-container .google-earth-node-label-layer {
+  z-index: 38 !important; opacity: 1 !important; visibility: visible !important; display: block !important;
+}

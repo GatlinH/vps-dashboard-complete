@@ -12,6 +12,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.exceptions import HTTPException
 from werkzeug.security import generate_password_hash
+from sqlalchemy import func
 
 from extensions import db
 import extensions
@@ -576,14 +577,51 @@ def get_public_history(sid):
         raise InternalServerError(error_detail=str(e))
 
     days, limit, offset = _parse_history_pagination()
+    bucket_minutes = request.args.get("bucket_minutes", type=int)
     since = datetime.now(timezone.utc) - timedelta(days=days)
-    base_query = (
-        ProbeResult.query
-        .filter(ProbeResult.server_id == sid, ProbeResult.created_at >= since)
-        .order_by(ProbeResult.created_at.desc())
-    )
+    base_query = ProbeResult.query.filter(ProbeResult.server_id == sid, ProbeResult.created_at >= since)
     total = base_query.count()
-    results = base_query.offset(offset).limit(limit).all()
+    if bucket_minutes:
+        bucket_minutes = max(1, min(1440, int(bucket_minutes)))
+        bucket_seconds = bucket_minutes * 60
+        bucket_expr = (func.floor(func.unix_timestamp(ProbeResult.created_at) / bucket_seconds) * bucket_seconds).label('bucket_ts')
+        rows = (
+            db.session.query(
+                bucket_expr,
+                func.avg(ProbeResult.cpu_use).label('cpu_use'),
+                func.avg(ProbeResult.ram_use).label('ram_use'),
+                func.avg(ProbeResult.disk_use).label('disk_use'),
+                func.avg(ProbeResult.net_up).label('net_up'),
+                func.avg(ProbeResult.net_down).label('net_down'),
+                func.avg(ProbeResult.latency_ms).label('latency_ms'),
+                func.count(ProbeResult.id).label('samples'),
+            )
+            .filter(ProbeResult.server_id == sid, ProbeResult.created_at >= since)
+            .group_by(bucket_expr)
+            .order_by(bucket_expr.asc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        data = []
+        for r in rows:
+            ts = int(r.bucket_ts or 0)
+            data.append({
+                'server_id': sid,
+                'created_at': datetime.fromtimestamp(ts, timezone.utc).isoformat(),
+                'timestamp': datetime.fromtimestamp(ts, timezone.utc).isoformat(),
+                'cpu_use': float(r.cpu_use) if r.cpu_use is not None else None,
+                'ram_use': float(r.ram_use) if r.ram_use is not None else None,
+                'disk_use': float(r.disk_use) if r.disk_use is not None else None,
+                'net_up': float(r.net_up) if r.net_up is not None else None,
+                'net_down': float(r.net_down) if r.net_down is not None else None,
+                'latency_ms': float(r.latency_ms) if r.latency_ms is not None else None,
+                'samples': int(r.samples or 0),
+                'bucket_minutes': bucket_minutes,
+            })
+        return jsonify(data=data, total=total, bucketed=True, bucket_minutes=bucket_minutes, days=days, limit=limit, offset=offset, count=len(data))
+
+    results = base_query.order_by(ProbeResult.created_at.desc()).offset(offset).limit(limit).all()
     rows = [r.to_dict() for r in results]
     return jsonify(data=rows, total=total, days=days, limit=limit, offset=offset)
 

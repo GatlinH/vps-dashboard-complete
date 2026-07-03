@@ -130,15 +130,22 @@ export class TelegramPanel {
   _fillBotForm(cfg = {}) {
     this._hasStoredToken = !!cfg.has_token;
     this._maskedToken = cfg.bot_token_masked || '';
-    this._q('#tp-bot-name').value = cfg.name || '';
-    this._q('#tp-token').value = '';
-    this._q('#tp-token').placeholder = this._maskedToken || (this._hasStoredToken ? '已保存 Bot Token（留空不修改）' : '');
-    this._q('#tp-chat').value = cfg.chat_id || '';
-    this._q('#tp-prefix').value = cfg.prefix || '【VPS星图】';
+    const botName = this._q('#tp-bot-name');
+    const token = this._q('#tp-token');
+    const chat = this._q('#tp-chat');
+    const prefix = this._q('#tp-prefix');
+    if (botName) botName.value = cfg.name || '';
+    if (token) {
+      token.value = '';
+      token.placeholder = this._maskedToken || (this._hasStoredToken ? '已保存 Bot Token（留空不修改）' : '');
+    }
+    if (chat) chat.value = cfg.chat_id || '';
+    if (prefix) prefix.value = cfg.prefix || '【VPS星图】';
   }
 
   _selectBot() {
-    this._activeBotId = this._q('#tp-bot-select').value;
+    const select = this._q('#tp-bot-select');
+    this._activeBotId = select?.value || '';
     const cfg = this._bots.find(b => String(b.id) === String(this._activeBotId)) || {};
     this._fillBotForm(cfg);
     this._updateStatus();
@@ -147,16 +154,20 @@ export class TelegramPanel {
   _newBot() {
     this._activeBotId = '';
     this._fillBotForm({ name: '', prefix: '【VPS星图】' });
-    this._q('#tp-bot-select').value = '';
+    const select = this._q('#tp-bot-select');
+    if (select) select.value = '';
     this._updateStatus();
   }
 
   // ── 状态显示 ─────────────────────────────────────────────────────────────
 
   _updateStatus() {
-    const el    = this._q('#tp-status');
-    const token = this._q('#tp-token').value.trim() || (this._hasStoredToken ? '__stored__' : '');
-    const chat  = this._q('#tp-chat').value.trim();
+    const el = this._q('#tp-status');
+    if (!el) return;
+    const tokenInput = this._q('#tp-token');
+    const chatInput = this._q('#tp-chat');
+    const token = (tokenInput?.value || '').trim() || (this._hasStoredToken ? '__stored__' : '');
+    const chat = (chatInput?.value || '').trim();
     if (token && chat) {
       el.className = 'tg-status tg-connected';
       el.innerHTML = '<span>●</span> 已配置 — Chat ID: ';
@@ -452,7 +463,7 @@ export class TelegramPanel {
   }
 
   _msg(elId, text, type) {
-    const el = this._el.querySelector(`#${elId}`);
+    const el = this._el.querySelector(`#${elId}`) || this._el.querySelector('#tp-alert-msg');
     if (!el) return;
     const colors = { green: 'var(--green)', red: 'var(--red)', blue: 'var(--accent)' };
     el.style.color = colors[type] || 'var(--text2)';

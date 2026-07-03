@@ -71,6 +71,12 @@ class RateLimitConfig:
             # redis URI 至少要有 hostname。port 可缺省（redis-py 会用默认端口）
             return bool(parsed.hostname)
         return False
+    @staticmethod
+    def _mask_redis_uri(uri: str) -> str:
+        """Mask password in Redis connection string for safe logging."""
+        import re as _re
+        return _re.sub(r"://(.+?)@", "://***:***@", uri)
+
 
     @staticmethod
     def _resolve_storage_uri(app: Flask) -> str:
@@ -161,7 +167,7 @@ class RateLimitConfig:
                 'retry_after': getattr(error.description, 'retry_after', 60), 
             }, 429
         
-        log.info(f"Rate limiting initialized. Storage: {storage_uri}")
+        log.info(f"Rate limiting initialized. Storage: {RateLimitConfig._mask_redis_uri(storage_uri)}")
         return limiter
 
 

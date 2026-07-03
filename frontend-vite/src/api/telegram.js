@@ -3,7 +3,7 @@
  * Telegram 机器人推送接口
  */
 import { request } from './base.js';
-const API_ROOT = window.__API_ROOT__ || (location.port === "5000" ? `${location.protocol}//${location.hostname}:5000` : location.origin);
+const API_ROOT = window.__DBG__.API_ROOT || (location.port === "5000" ? `${location.protocol}//${location.hostname}:5000` : location.origin);
 
 const TG_ERROR_MESSAGE_MAP = {
   TG_TIMEOUT: 'TG接口超时，请稍后重试',

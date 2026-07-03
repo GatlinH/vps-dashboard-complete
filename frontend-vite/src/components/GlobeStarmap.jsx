@@ -206,6 +206,7 @@ export default function GlobeStarmap({
   height  = 520,
   baseRadius = 230,
   showInfoPanel = true,
+  originServerId = null,
 }) {
   const servers = Array.isArray(serversProp) ? serversProp : [];
   const theme = useDocumentTheme();
@@ -215,7 +216,7 @@ export default function GlobeStarmap({
   const [showLines,     setShowLines]     = useState(true);
   const [autoSpin,      setAutoSpin]      = useState(true);
   const [showCountries, setShowCountries] = useState(true);
-  const [zoom,          setZoom]          = useState(1.0);
+  const [zoom,          setZoom]          = useState(0.68);
   const [status,        setStatus]        = useState("正在初始化...");
   const [spinning,      setSpinning]      = useState(false);
   const [liveServers,   setLiveServers]   = useState(() =>
@@ -238,7 +239,7 @@ export default function GlobeStarmap({
     fetchTimer: null,
     // mirrors of React state for use inside rAF closure
     showLines: true, autoSpin: true, showCountries: true,
-    tileMode: false, zoom: 1.0,
+    tileMode: false, zoom: 0.68,
     liveServers: servers.map(s => ({ ...s })),
     hovered: null,
   });
@@ -317,7 +318,9 @@ export default function GlobeStarmap({
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     const W = internalWidth, H = internalHeight;
-    const cx = W / 2, cy = H / 2;
+    const cx = W / 2;
+    // Visual centering: keep globe balanced inside the canvas at the 0.68 default zoom.
+    const cy = H / 2;
 
     // ── Pointer events ──────────────────────────────────────────────────────
     const onDown = e => {
@@ -521,26 +524,29 @@ export default function GlobeStarmap({
           return { ...s, p: project3d(ll.lat, ll.lng, r, cx, cy, S.rotY, S.rotX) };
         });
         const validProjLocs = projLocs.filter(Boolean);
-        for (let i = 0; i < validProjLocs.length; i++) {
-          for (let j = i + 1; j < validProjLocs.length; j++) {
-            const a = validProjLocs[i], b = validProjLocs[j];
-            if (a.status === "offline" || b.status === "offline") continue;
-            if (!a.p.visible || !b.p.visible) continue;
-            const mx2  = (a.p.px + b.p.px) / 2, my2 = (a.p.py + b.p.py) / 2;
-            const dist = Math.sqrt((b.p.px - a.p.px)**2 + (b.p.py - a.p.py)**2);
-            const lift = Math.min(dist * 0.38, 75);
-            const t    = (Date.now() % 2400) / 2400;
-            const grad = ctx.createLinearGradient(a.p.px, a.p.py, b.p.px, b.p.py);
-            grad.addColorStop(0,                   "rgba(99,179,237,0)");
-            grad.addColorStop(t,                   "rgba(104,246,255,0.95)");
-            grad.addColorStop(Math.min(1, t+0.14), "rgba(255,255,255,0.78)");
-            grad.addColorStop(Math.min(1, t+0.28), "rgba(99,179,237,0)");
-            grad.addColorStop(1,                   "rgba(99,179,237,0)");
-            ctx.beginPath();
-            ctx.moveTo(a.p.px, a.p.py);
-            ctx.quadraticCurveTo(mx2, my2 - lift, b.p.px, b.p.py);
-            ctx.strokeStyle = grad; ctx.lineWidth = 1.8; ctx.stroke();
-          }
+        const origin = originServerId == null
+          ? validProjLocs[0]
+          : validProjLocs.find(s => String(s.id) === String(originServerId)) || validProjLocs[0];
+        window.__DETAIL_STARMAP_ORIGIN__ = origin ? { id: origin.id, name: origin.name } : null;
+        const arcPairs = origin ? validProjLocs.filter(s => String(s.id) !== String(origin.id)).map(target => [origin, target]) : [];
+        window.__DETAIL_STARMAP_ARCS__ = arcPairs.map(([a, b]) => ({ from: a.name, fromId: a.id, to: b.name, toId: b.id }));
+        for (const [a, b] of arcPairs) {
+          if (a.status === "offline" || b.status === "offline") continue;
+          if (!a.p.visible || !b.p.visible) continue;
+          const mx2  = (a.p.px + b.p.px) / 2, my2 = (a.p.py + b.p.py) / 2;
+          const dist = Math.sqrt((b.p.px - a.p.px)**2 + (b.p.py - a.p.py)**2);
+          const lift = Math.min(dist * 0.38, 75);
+          const t    = (Date.now() % 2400) / 2400;
+          const grad = ctx.createLinearGradient(a.p.px, a.p.py, b.p.px, b.p.py);
+          grad.addColorStop(0,                   "rgba(99,179,237,0)");
+          grad.addColorStop(t,                   "rgba(104,246,255,0.95)");
+          grad.addColorStop(Math.min(1, t+0.14), "rgba(255,255,255,0.78)");
+          grad.addColorStop(Math.min(1, t+0.28), "rgba(99,179,237,0)");
+          grad.addColorStop(1,                   "rgba(99,179,237,0)");
+          ctx.beginPath();
+          ctx.moveTo(a.p.px, a.p.py);
+          ctx.quadraticCurveTo(mx2, my2 - lift, b.p.px, b.p.py);
+          ctx.strokeStyle = grad; ctx.lineWidth = 1.8; ctx.stroke();
         }
       }
 
@@ -624,23 +630,6 @@ export default function GlobeStarmap({
       minWidth: 0,
     }}>
 
-      {/* ── Header ── */}
-      <div style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        marginBottom: "1rem", paddingBottom: "0.75rem",
-        borderBottom: "1px solid rgba(99,179,237,0.15)",
-        flexWrap: "wrap", gap: 8,
-      }}>
-        <div style={{
-          fontFamily: "monospace", fontSize: 15, fontWeight: 700,
-          color: isLight ? "#0b6670" : "#63b3ed", letterSpacing: 3,
-        }}>
-          VPS<span style={{ color: isLight ? "#a56a13" : "#f6c90e" }}>·</span>星图
-        </div>
-        <div style={{ fontSize: 11, color: isLight ? "#476368" : "#64748b", fontFamily: "monospace", letterSpacing: 1 }}>
-          全球节点分布 · GLOBAL NODE MAP
-        </div>
-      </div>
 
       {/* ── Toolbar ── */}
       <div style={{

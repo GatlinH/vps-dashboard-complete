@@ -12,6 +12,8 @@ from middleware.error_handler import ErrorHandler
 from middleware.audit import AuditMiddleware
 from api.servers import servers_bp
 from api.auth import auth_bp
+from api.auth_account import account_bp
+from api.users import users_bp
 from api.probe import probe_bp
 from api.telegram import telegram_bp
 from api.ops import ops_bp
@@ -187,6 +189,7 @@ def create_app(**config_overrides):
         (aff_bp,      '/api/v1/aff'),
         (exchange_bp, '/api/v1/exchange'),
         (agent_bp, '/api/v1/agent'),
+        (account_bp, '/api/v1/auth'),
     ]
     for bp, prefix in blueprints:
         app.register_blueprint(bp, url_prefix=prefix)

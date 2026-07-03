@@ -13,7 +13,7 @@ export class NasaParallaxBackground {
     this.build();
     this.bind();
     this.animate();
-    window.__nasaParallaxBackground = this;
+    window.__DBG__.nasaParallaxBackground = this;
   }
 
   build() {
@@ -70,6 +70,6 @@ export class NasaParallaxBackground {
     if (this._raf) cancelAnimationFrame(this._raf);
     for (const { el } of this.layers) el.remove();
     this.layers = [];
-    if (window.__nasaParallaxBackground === this) window.__nasaParallaxBackground = null;
+    if (window.__DBG__.nasaParallaxBackground === this) window.__DBG__.nasaParallaxBackground = null;
   }
 }

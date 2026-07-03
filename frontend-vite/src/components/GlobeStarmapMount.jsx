@@ -97,6 +97,7 @@ export function mountGlobeStarmap(element, servers, options = {}) {
         height={options.height || 430}
         baseRadius={options.baseRadius || 180}
         showInfoPanel={options.showInfoPanel ?? false}
+        originServerId={options.originServerId ?? null}
       />
     );
   };

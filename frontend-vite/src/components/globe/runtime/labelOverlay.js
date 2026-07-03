@@ -129,7 +129,7 @@ export function installPlaceLabels(globe) {
     { text: '北美', lon: -105.0, lat: 44.0, level: 'region' },
     { text: '欧洲', lon: 14.0, lat: 49.0, level: 'region' },
   ];
-  globe._placeLabelLayer.innerHTML = '';
+  globe._placeLabelLayer.replaceChildren();
   globe._placeLabels = places.map((place) => {
     const el = document.createElement('div');
     el.className = `google-earth-place-label ${place.level}`;
@@ -197,26 +197,27 @@ export function updateHtmlNodeLabels(globe, cityMode) {
       if (!labelEl.classList.contains('is-vps-beacon-node')) hideLabel(labelEl);
     }
   }
+  const isBeacon = (el) => el && (el.classList.contains('is-vps-beacon-node') || el.classList.contains('is-visitor-node'));
   const placeLabel = (entity, labelEl, yOffset = 30) => {
     if (!labelEl) return;
-    if (!entity.show) { hideLabel(labelEl); return; }
+    const forceBeacon = isBeacon(labelEl);
+    if (!entity.show && !forceBeacon) { hideLabel(labelEl); return; }
     const pos = entity.position?.getValue(now);
     if (!pos) { hideLabel(labelEl); return; }
-    // Keep beacon labels glued to visible surface points only. Without this front-facing
-    // test, labels for points near/behind the globe project to unstable screen positions
-    // and look like they are floating around the page.
     const surfaceNormal = Cesium.Cartesian3.normalize(pos, new Cesium.Cartesian3());
     const cameraNormal = Cesium.Cartesian3.normalize(globe.viewer.camera.positionWC, new Cesium.Cartesian3());
-    if (Cesium.Cartesian3.dot(surfaceNormal, cameraNormal) < 0.08) {
-      hideLabel(labelEl);
-      return;
-    }
+    const frontFacing = Cesium.Cartesian3.dot(surfaceNormal, cameraNormal) >= -0.35;
     const win = Cesium.SceneTransforms.worldToWindowCoordinates(scene, pos);
-    if (!win || win.x < -40 || win.x > width + 40 || win.y < -40 || win.y > height + 40) {
+    const rawX = Number.isFinite(win?.x) ? win.x : width / 2;
+    const rawY = Number.isFinite(win?.y) ? win.y : height / 2;
+    if (!forceBeacon && (!frontFacing || rawX < -40 || rawX > width + 40 || rawY < -40 || rawY > height + 40)) {
       hideLabel(labelEl);
       return;
     }
-    labelEl.style.transform = `translate3d(${Math.round(win.x)}px, ${Math.round(win.y - yOffset)}px, 0) translate(-50%, -100%)`;
+    const padX = 56, padY = 70;
+    const clampedX = Math.max(padX, Math.min(width - padX, rawX));
+    const clampedY = Math.max(padY, Math.min(height - padY, rawY));
+    labelEl.style.transform = `translate3d(${Math.round(clampedX)}px, ${Math.round(clampedY - yOffset)}px, 0) translate(-50%, -100%)`;
     labelEl.classList.add('is-visible');
   };
   globe._nodeEntities.forEach((entity) => placeLabel(entity, globe._htmlLabels.get(entity.id), 30));

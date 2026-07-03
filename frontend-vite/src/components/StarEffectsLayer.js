@@ -52,7 +52,7 @@ export class StarEffectsLayer {
     window.addEventListener('pointerdown', this._onPointerDown, true);
     this.app.ticker.maxFPS = 30;
     this.app.ticker.add((delta) => this.tick(delta));
-    window.__starEffectsLayer = this;
+    window.__DBG__.starEffectsLayer = this;
   }
 
   buildStars() {
@@ -185,7 +185,7 @@ export class StarEffectsLayer {
   destroy() {
     window.removeEventListener('resize', this._onResize);
     window.removeEventListener('pointerdown', this._onPointerDown, true);
-    if (window.__starEffectsLayer === this) window.__starEffectsLayer = null;
+    if (window.__DBG__.starEffectsLayer === this) window.__DBG__.starEffectsLayer = null;
     try { this.app?.destroy(true, { children: true, texture: true, baseTexture: true }); } catch (_) {}
     this.app = null;
   }

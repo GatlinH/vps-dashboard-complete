@@ -11,6 +11,7 @@ import re
 import subprocess
 from urllib.parse import urlparse
 import requests
+from urllib.parse import urlencode
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, request, jsonify, current_app
 from extensions import db
@@ -23,6 +24,119 @@ from services.probe_fetcher import fetch_and_parse_probe, _parse_probe_payload_d
 
 probe_bp = Blueprint("probe", __name__)
 
+
+IP_GEO_CACHE_VERSION = "v4"
+
+def _is_public_ipv4(value):
+    try:
+        ip_obj = ipaddress.ip_address(str(value or "").strip())
+        return ip_obj.version == 4 and not (ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_reserved or ip_obj.is_multicast)
+    except Exception:
+        return False
+
+
+def _client_public_ip():
+    candidate = (request.remote_addr or "").strip()
+    return candidate if _is_public_ipv4(candidate) else ""
+
+
+def _fetch_json_url(url, timeout=5):
+    try:
+        resp = requests.get(url, timeout=timeout, headers={"Accept": "application/json", "User-Agent": "vps-dashboard-ipgeo/1.0"})
+        if resp.status_code >= 400:
+            return None
+        return resp.json()
+    except Exception:
+        return None
+
+
+def _normalize_ipwho(raw):
+    if not isinstance(raw, dict) or raw.get("success") is False:
+        return None
+    conn = raw.get("connection") if isinstance(raw.get("connection"), dict) else {}
+    tz = raw.get("timezone")
+    return {
+        "status": "success",
+        "country": raw.get("country") or "",
+        "countryCode": raw.get("country_code") or "",
+        "regionName": raw.get("region") or "",
+        "city": raw.get("city") or "",
+        "lat": raw.get("latitude"),
+        "lon": raw.get("longitude"),
+        "isp": conn.get("isp") or "",
+        "org": conn.get("org") or "",
+        "as": str(conn.get("asn") or ""),
+        "query": raw.get("ip") or "",
+        "timezone": tz.get("id") if isinstance(tz, dict) else tz,
+        "source": "ipwho.is",
+    }
+
+
+def _valid_geo(data):
+    try:
+        if not isinstance(data, dict) or data.get("status") not in (None, "success"):
+            return False
+        lat = float(data.get("lat"))
+        lon = float(data.get("lon"))
+        return -90 <= lat <= 90 and -180 <= lon <= 180
+    except Exception:
+        return False
+
+
+def lookup_ip_geo(ip=""):
+    target = (ip or _client_public_ip()).strip()
+    if target and not _is_public_ipv4(target):
+        raise ValueError("仅支持合法公网 IPv4 地址")
+
+    suffix = target or ""
+    ip_api = _fetch_json_url(
+        f"http://ip-api.com/json/{suffix}?fields=status,message,country,countryCode,regionName,city,lat,lon,isp,org,as,query,timezone&lang=zh-CN",
+        timeout=5,
+    )
+    who = _normalize_ipwho(_fetch_json_url(f"https://ipwho.is/{suffix}?lang=zh-CN", timeout=5))
+
+    candidates = [d for d in (ip_api, who) if _valid_geo(d)]
+    if candidates:
+        chosen = candidates[0]
+        if len(candidates) > 1:
+            a, b = candidates[0], candidates[1]
+            ac = str(a.get("countryCode") or "").upper()
+            bc = str(b.get("countryCode") or "").upper()
+            if ac != bc and ac == "US" and bc and bc != "US":
+                chosen = b
+            elif ac != bc and bc == "US" and ac and ac != "US":
+                chosen = a
+        sources = []
+        for name, data in (("ip-api", ip_api), ("ipwho.is", who)):
+            if _valid_geo(data):
+                sources.append({"source": name, "countryCode": data.get("countryCode"), "country": data.get("country"), "city": data.get("city"), "lat": data.get("lat"), "lon": data.get("lon")})
+        out = dict(chosen)
+        out["source"] = chosen.get("source") or ("ip-api" if chosen is ip_api else "ipwho.is")
+        out["geo_sources"] = sources
+        if len(sources) > 1 and str(sources[0].get("countryCode") or "").upper() != str(sources[1].get("countryCode") or "").upper():
+            out["geo_conflict"] = True
+        return out
+
+    # Controlled degradation: never leak upstream unavailability to the public UI.
+    # Return a safe anonymous placeholder so the visitor beacon can still render
+    # a non-identifying state instead of disappearing.
+    return {
+        "status": "success",
+        "query": target,
+        "country": "—",
+        "countryCode": "ZZ",
+        "regionName": "—",
+        "city": "—",
+        "lat": 0,
+        "lon": 0,
+        "timezone": None,
+        "isp": None,
+        "org": None,
+        "as": None,
+        "source": "fallback:anonymous",
+        "degraded": True,
+    }
+
 DEFAULT_PING_TARGET_PRESETS = [
     {"key": "hk", "label": "香港 CMI", "host": "43.155.88.12", "port": 443, "protocol": "tcp"},
     {"key": "jp", "label": "日本东京 SoftBank", "host": "27.0.234.55", "port": 443, "protocol": "tcp"},
@@ -31,7 +145,7 @@ DEFAULT_PING_TARGET_PRESETS = [
     {"key": "us", "label": "美国纽约 OVH", "host": "51.81.22.44", "port": 443, "protocol": "tcp"},
 ]
 
-PING_TARGETS_CACHE_TTL = 30
+PING_TARGETS_CACHE_TTL = 15
 _ping_targets_memory_cache = {}
 
 
@@ -77,7 +191,109 @@ def clear_ping_targets_cache(sid):
         pass
 
 
+
+def _is_private_or_loopback_host(host: str) -> bool:
+    try:
+        import ipaddress
+        ip = ipaddress.ip_address(str(host).strip().strip('[]'))
+        return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_unspecified or ip.is_multicast
+    except Exception:
+        return False
+
+
+def _peer_probe_endpoint(peer: Server):
+    cfg = peer.agent_config if isinstance(peer.agent_config, dict) else {}
+    network = cfg.get("network") if isinstance(cfg.get("network"), dict) else {}
+    nat = cfg.get("nat") if isinstance(cfg.get("nat"), dict) else {}
+    mapped = cfg.get("mapped_ports") if isinstance(cfg.get("mapped_ports"), dict) else {}
+    host = str(nat.get("public_ipv4") or network.get("public_ipv4") or cfg.get("public_ipv4") or "").strip()
+    port = nat.get("public_port") or nat.get("mapped_port") or mapped.get("https") or mapped.get("tcp") or cfg.get("public_port") or 80
+    if host and not _is_private_or_loopback_host(host):
+        try: port = int(port)
+        except Exception: port = 80
+        return host, port, "tcp", "public_ipv4"
+    ipv6 = str(network.get("public_ipv6") or nat.get("public_ipv6") or cfg.get("public_ipv6") or "").strip()
+    if ipv6 and not _is_private_or_loopback_host(ipv6):
+        return ipv6, int(nat.get("port") or mapped.get("https") or mapped.get("tcp") or cfg.get("probe_port") or 22), "tcp", "public_ipv6"
+    host = str(getattr(peer, "ip", "") or "").strip()
+    if host and not _is_private_or_loopback_host(host):
+        return host, 80, "tcp", "server_ip"
+    return None
+def _server_peer_ping_targets(server: Server):
+    """Default global probe targets: current VPS -> other VPS nodes in this dashboard."""
+    try:
+        peers = Server.query.filter(Server.id != server.id).order_by(Server.id.asc()).all()
+    except Exception:
+        return [], False
+    out = []
+    for peer in peers:
+        endpoint = _peer_probe_endpoint(peer)
+        if not endpoint:
+            continue
+        host, port, protocol, source = endpoint
+        label_parts = [str(getattr(peer, "name", "") or "").strip(), str(getattr(peer, "location", "") or "").strip()]
+        label = " · ".join([p for p in label_parts if p]) or host
+        out.append({
+            "key": f"vps-{peer.id}",
+            "label": label,
+            "host": host,
+            "port": port,
+            "protocol": protocol,
+            "peer_server_id": peer.id,
+            "source": source,
+            "type": "peer",
+        })
+    # has peer nodes means the semantic source is VPS-to-VPS, even if every peer is NAT-only/unreachable.
+    return out, bool(peers)
+
+
+def _ping_targets_are_peer_targets(server: Server, targets=None):
+    """True when targets describe VPS-to-VPS peer probes.
+
+    These must come from the source node/agent.  The API container is only the
+    controller and must not synthesize directional latency by probing from the
+    controller host; that produced false near-zero samples for controller-local
+    peers.
+    """
+    targets = targets if targets is not None else _resolve_ping_targets_for_server(server)
+    return bool(targets) and all(str(t.get("key", "")).startswith("vps-") or t.get("peer_server_id") for t in targets)
+
+
+def _agent_side_unavailable_payload(server_id, targets, hours=None):
+    sanitized = []
+    for t in targets or []:
+        sanitized.append({
+            "key": t.get("key"),
+            "label": t.get("label") or t.get("key") or "peer",
+            "port": t.get("port"),
+            "protocol": t.get("protocol") or "tcp",
+            "results": [],
+            "stats": {"avg_ms": None, "count": 0, "success": 0, "loss_pct": None, "port": t.get("port"), "protocol": t.get("protocol") or "tcp"},
+            "quality": None,
+            "source": "agent-side-unavailable",
+            "points": [],
+        })
+    payload = {
+        "server_id": server_id,
+        "targets": sanitized,
+        "derived_from": "agent-side peer probe unavailable",
+        "probe_source": "agent",
+        "unavailable": True,
+        "message": "暂无真实节点侧互探采样",
+    }
+    if hours is not None:
+        payload["hours"] = hours
+    return payload
+
+
 def _resolve_ping_targets_for_server(server: Server):
+    """Resolve user-facing latency monitor targets only.
+
+    Detail-page PING charts/tables must show only targets configured in the
+    admin latency monitor (agent_config.ping_targets), or global defaults when
+    no per-node config exists. Added VPS/peer nodes are reserved for
+    source=agent peer probing and must not be mixed into the public PING view.
+    """
     cfg = (server.agent_config or {}) if getattr(server, "agent_config", None) else {}
     targets = cfg.get("ping_targets")
     if isinstance(targets, list):
@@ -95,10 +311,9 @@ def _resolve_ping_targets_for_server(server: Server):
             except Exception:
                 port = 443
             if host:
-                cleaned.append({"key": key, "label": label, "host": host, "port": port, "protocol": _normalize_probe_protocol(item.get("protocol"))})
-        if cleaned:
-            return cleaned
-    return _load_ping_targets()
+                cleaned.append({"key": key, "label": label, "host": host, "port": port, "protocol": _normalize_probe_protocol(item.get("protocol")), "type": "external"})
+        return cleaned
+    return [{**dt, "type": "external"} for dt in _load_ping_targets()]
 
 def _load_ping_targets():
     raw = os.getenv("PING_TARGETS_JSON", "").strip()
@@ -121,172 +336,11 @@ def _load_ping_targets():
                 port = 443
             if not host:
                 continue
-            cleaned.append({"key": key, "label": label, "host": host, "port": port, "protocol": _normalize_probe_protocol(item.get("protocol"))})
+            cleaned.append({"key": key, "label": label, "host": host, "port": port, "protocol": _normalize_probe_protocol(item.get("protocol")), "type": "external"})
         return cleaned or DEFAULT_PING_TARGET_PRESETS
     except Exception:
         return DEFAULT_PING_TARGET_PRESETS
 
-
-def _tcp_ping_stats(host: str, port: int, count: int, timeout: float, protocol: str = "tcp"):
-    return _probe_stats(protocol, host, port, count, timeout, max_workers=5)
-
-
-
-
-
-def _target_history_table_ready():
-    try:
-        db.session.execute(db.text("""
-            CREATE TABLE IF NOT EXISTS ping_target_results (
-                id BIGINT AUTO_INCREMENT PRIMARY KEY,
-                server_id INT NOT NULL,
-                target_key VARCHAR(128) NOT NULL,
-                label VARCHAR(255) NOT NULL DEFAULT '',
-                host VARCHAR(255) NOT NULL DEFAULT '',
-                port INT NULL,
-                protocol VARCHAR(16) NOT NULL DEFAULT 'icmp',
-                latency_ms DOUBLE NULL,
-                success TINYINT(1) NOT NULL DEFAULT 0,
-                loss_pct DOUBLE NULL,
-                quality INT NULL,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_ptr_server_created (server_id, created_at),
-                INDEX idx_ptr_server_target_created (server_id, target_key, created_at)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        """))
-        db.session.commit()
-        return True
-    except Exception:
-        db.session.rollback()
-        return False
-
-
-def _persist_ping_target_results(server_id, targets, created_at=None):
-    if not targets or not _target_history_table_ready():
-        return
-    created_at = created_at or datetime.now(timezone.utc)
-    try:
-        for t in targets:
-            stats = t.get("stats") or {}
-            avg_ms = stats.get("avg_ms")
-            success = avg_ms is not None
-            db.session.execute(db.text("""
-                INSERT INTO ping_target_results
-                  (server_id, target_key, label, host, port, protocol, latency_ms, success, loss_pct, quality, created_at)
-                VALUES
-                  (:server_id, :target_key, :label, :host, :port, :protocol, :latency_ms, :success, :loss_pct, :quality, :created_at)
-            """), {
-                "server_id": server_id,
-                "target_key": str(t.get("key") or t.get("host") or t.get("label") or "unknown")[:128],
-                "label": str(t.get("label") or t.get("host") or "")[:255],
-                "host": str(t.get("host") or "")[:255],
-                "port": t.get("port"),
-                "protocol": str(t.get("protocol") or "icmp")[:16],
-                "latency_ms": float(avg_ms) if avg_ms is not None else None,
-                "success": 1 if success else 0,
-                "loss_pct": stats.get("loss_pct"),
-                "quality": t.get("quality"),
-                "created_at": created_at.replace(tzinfo=None) if hasattr(created_at, "replace") else created_at,
-            })
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-
-
-def _fetch_ping_target_history(server_id, hours=12, limit=2000):
-    if not _target_history_table_ready():
-        return []
-    hours = max(1, min(int(hours or 12), 168))
-    limit = max(1, min(int(limit or 2000), 10000))
-    since = datetime.now(timezone.utc) - timedelta(hours=hours)
-    rows = db.session.execute(db.text("""
-        SELECT server_id, target_key, label, host, port, protocol, latency_ms, success, loss_pct, quality, created_at
-        FROM ping_target_results
-        WHERE server_id = :server_id AND created_at >= :since
-        ORDER BY created_at ASC
-        LIMIT :limit
-    """), {"server_id": server_id, "since": since.replace(tzinfo=None), "limit": limit}).mappings().all()
-    return [dict(r) for r in rows]
-
-
-@probe_bp.get("/public/ping-targets/<int:sid>/history")
-def public_ping_targets_history(sid):
-    server = Server.query.get_or_404(sid)
-    hours = max(1, min(int(request.args.get("hours", 12)), 168))
-    limit = max(1, min(int(request.args.get("limit", 2000)), 10000))
-    rows = _fetch_ping_target_history(sid, hours, limit)
-    configured = _resolve_ping_targets_for_server(server)
-    targets_meta = {str(t.get("key") or t.get("host") or t.get("label") or f"target-{i}"): t for i, t in enumerate(configured)}
-    grouped = {}
-    for r in rows:
-        key = str(r.get("target_key") or "unknown")
-        meta = targets_meta.get(key, {})
-        item = grouped.setdefault(key, {
-            "key": key,
-            "label": r.get("label") or meta.get("label") or key,
-            "host": r.get("host") or meta.get("host") or "",
-            "port": r.get("port") or meta.get("port"),
-            "protocol": r.get("protocol") or meta.get("protocol") or "icmp",
-            "points": [],
-        })
-        if r.get("success") and r.get("latency_ms") is not None:
-            ca = r.get("created_at")
-            item["points"].append({
-                "x": ca.isoformat() if hasattr(ca, "isoformat") else str(ca),
-                "latency_ms": float(r.get("latency_ms")),
-                "success": True,
-                "loss_pct": r.get("loss_pct"),
-                "quality": r.get("quality"),
-            })
-    for i, meta in enumerate(configured):
-        key = str(meta.get("key") or meta.get("host") or meta.get("label") or f"target-{i}")
-        grouped.setdefault(key, {"key": key, "label": meta.get("label") or key, "host": meta.get("host") or "", "port": meta.get("port"), "protocol": meta.get("protocol") or "icmp", "points": []})
-    payload = {"server_id": sid, "hours": hours, "targets": list(grouped.values()), "derived_from": "persisted ping_target_results"}
-    resp = jsonify(payload)
-    resp.headers["Cache-Control"] = "no-store"
-    return resp
-
-
-@probe_bp.get("/public/ping-targets/<int:sid>")
-def public_ping_targets(sid):
-    server = Server.query.get_or_404(sid)
-    count = min(max(int(request.args.get("count", 1)), 1), 4)
-    timeout = min(float(current_app.config.get("PROBE_TIMEOUT_S", 5)), 5.0)
-    cache_key = f"vps:public:ping-targets:{sid}:{count}"
-    cached = _cache_get_json(cache_key)
-    if cached:
-        resp = jsonify(cached)
-        resp.headers["Cache-Control"] = f"public, max-age={PING_TARGETS_CACHE_TTL}"
-        resp.headers["X-Ping-Targets-Cache"] = "hit"
-        return resp
-
-    targets = []
-    for item in _resolve_ping_targets_for_server(server):
-        results, stats = _tcp_ping_stats(item["host"], item.get("port", 443), count, timeout, item.get("protocol", "tcp"))
-        avg_ms = stats.get("avg_ms")
-        if avg_ms is None:
-            quality = 0
-        else:
-            quality = max(0, min(100, round(100 - avg_ms / 4)))
-        targets.append({
-            "key": item["key"],
-            "label": item["label"],
-            "host": item["host"],
-            "port": item.get("port", 443),
-            "protocol": item.get("protocol", "tcp"),
-            "results": results,
-            "stats": stats,
-            "quality": quality,
-        })
-
-    targets.sort(key=lambda t: (t["stats"]["avg_ms"] is None, t["stats"]["avg_ms"] or 1e9))
-    payload = {"server_id": sid, "targets": targets, "derived_from": "live multi-protocol probe", "cache_ttl": PING_TARGETS_CACHE_TTL}
-    _persist_ping_target_results(sid, targets)
-    _cache_set_json(cache_key, payload, PING_TARGETS_CACHE_TTL)
-    resp = jsonify(payload)
-    resp.headers["Cache-Control"] = f"public, max-age={PING_TARGETS_CACHE_TTL}"
-    resp.headers["X-Ping-Targets-Cache"] = "miss"
-    return resp
 
 
 # ── TCP Ping ─────────────────────────────────────────────────────────────────
@@ -298,9 +352,27 @@ def tcp_ping(host: str, port: int, timeout: float = 5.0) -> dict:
     """
     start = time.perf_counter()
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        target = str(host or "").strip().strip("[]")
+        if ":" in target:
+            helper = os.getenv("HOST_PROBE_HELPER_URL", "http://172.18.0.1:9117/tcp").strip()
+            if helper:
+                try:
+                    url = helper + "?" + urlencode({"host": target, "port": int(port), "timeout": float(timeout)})
+                    resp = requests.get(url, timeout=timeout + 1)
+                    if resp.ok:
+                        data = resp.json()
+                        return {
+                            "success": bool(data.get("success")),
+                            "latency_ms": data.get("latency_ms"),
+                            "error": data.get("error"),
+                        }
+                    return {"success": False, "latency_ms": None, "error": f"helper HTTP {resp.status_code}"}
+                except Exception as helper_exc:
+                    return {"success": False, "latency_ms": None, "error": f"helper: {helper_exc}"}
+        family = socket.AF_INET6 if ":" in target else socket.AF_INET
+        sock = socket.socket(family, socket.SOCK_STREAM)
         sock.settimeout(timeout)
-        result = sock.connect_ex((host, port))
+        result = sock.connect_ex((target, port))
         elapsed = (time.perf_counter() - start) * 1000
         sock.close()
         if result == 0:
@@ -335,6 +407,9 @@ def _is_public_probe_hostname(hostname: str) -> bool:
     if not name:
         return False
     lowered = name.lower().rstrip(".")
+    # Block cloud metadata endpoints (SSRF prevention)
+    if name in {"169.254.169.254", "metadata.google.internal"}:
+        return False
     if lowered in {"localhost", "localhost.localdomain"}:
         return False
     try:
@@ -443,6 +518,304 @@ def _probe_stats(protocol: str, host: str, port: int, count: int, timeout: float
     return results, stats
 
 
+
+
+def _tcp_ping_stats(host: str, port: int, count: int, timeout: float, protocol: str = "tcp"):
+    return _probe_stats(protocol, host, port, count, timeout, max_workers=5)
+
+
+def _target_history_table_ready():
+    try:
+        db.session.execute(db.text("""
+            CREATE TABLE IF NOT EXISTS ping_target_results (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                server_id INT NOT NULL,
+                target_key VARCHAR(128) NOT NULL,
+                label VARCHAR(255) NOT NULL DEFAULT '',
+                host VARCHAR(255) NOT NULL DEFAULT '',
+                port INT NULL,
+                protocol VARCHAR(16) NOT NULL DEFAULT 'icmp',
+                latency_ms DOUBLE NULL,
+                success TINYINT(1) NOT NULL DEFAULT 0,
+                loss_pct DOUBLE NULL,
+                quality INT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_ptr_server_created (server_id, created_at),
+                INDEX idx_ptr_server_target_created (server_id, target_key, created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """))
+        db.session.commit()
+        return True
+    except Exception:
+        db.session.rollback()
+        return False
+
+
+def _persist_ping_target_results(server_id, targets, created_at=None):
+    if not targets or not _target_history_table_ready():
+        return
+    created_at = created_at or datetime.now(timezone.utc)
+    try:
+        for t in targets:
+            stats = t.get("stats") or {}
+            avg_ms = stats.get("avg_ms")
+            success = avg_ms is not None
+            db.session.execute(db.text("""
+                INSERT INTO ping_target_results
+                  (server_id, target_key, label, host, port, protocol, latency_ms, success, loss_pct, quality, created_at)
+                VALUES
+                  (:server_id, :target_key, :label, :host, :port, :protocol, :latency_ms, :success, :loss_pct, :quality, :created_at)
+            """), {
+                "server_id": server_id,
+                "target_key": str(t.get("key") or t.get("host") or t.get("label") or "unknown")[:128],
+                "label": str(t.get("label") or t.get("host") or "")[:255],
+                "host": str(t.get("host") or "")[:255],
+                "port": t.get("port"),
+                "protocol": str(t.get("protocol") or "icmp")[:16],
+                "latency_ms": float(avg_ms) if avg_ms is not None else None,
+                "success": 1 if success else 0,
+                "loss_pct": stats.get("loss_pct"),
+                "quality": t.get("quality"),
+                "created_at": created_at.replace(tzinfo=None) if hasattr(created_at, "replace") else created_at,
+            })
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
+def _fetch_ping_target_history(server_id, hours=12, limit=2000):
+    if not _target_history_table_ready():
+        return []
+    hours = max(1, min(int(hours or 12), 168))
+    limit = max(1, min(int(limit or 2000), 10000))
+    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    rows = db.session.execute(db.text("""
+        SELECT server_id, target_key, label, host, port, protocol, latency_ms, success, loss_pct, quality, created_at
+        FROM ping_target_results
+        WHERE server_id = :server_id AND created_at >= :since
+        ORDER BY created_at ASC
+        LIMIT :limit
+    """), {"server_id": server_id, "since": since.replace(tzinfo=None), "limit": limit}).mappings().all()
+    return [dict(r) for r in rows]
+
+
+
+def _backend_fallback_probe_peer_targets(server_id, targets):
+    if not targets:
+        return False
+    results = []
+    for t in targets:
+        host = t.get("host") or t.get("label")
+        port = t.get("port") or 22
+        if not host:
+            continue
+        try:
+            import socket, time
+            start = time.time()
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(3)
+            result = sock.connect_ex((str(host), int(port)))
+            elapsed = (time.time() - start) * 1000
+            sock.close()
+            if result == 0:
+                t["stats"] = {"avg_ms": round(elapsed, 1), "loss_pct": 0, "count": 1}
+                t["quality"] = "good" if elapsed < 100 else ("fair" if elapsed < 300 else "poor")
+                t["source"] = "backend-fallback"
+                results.append(t)
+            else:
+                t["stats"] = {"avg_ms": None, "loss_pct": 100, "count": 0}
+                t["quality"] = "dead"
+                t["source"] = "backend-fallback"
+                results.append(t)
+        except Exception as e:
+            t["stats"] = {"avg_ms": None, "loss_pct": 100, "count": 0, "error": str(e)[:200]}
+            t["quality"] = "dead"
+            t["source"] = "backend-fallback"
+            results.append(t)
+    if results:
+        _persist_ping_target_results(server_id, results)
+    return bool(results)
+@probe_bp.get("/public/ping-targets/<int:sid>/history")
+def public_ping_targets_history(sid):
+    server = Server.query.get_or_404(sid)
+    hours = max(1, min(int(request.args.get("hours", 12)), 168))
+    limit = max(1, min(int(request.args.get("limit", 2000)), 10000))
+    configured = _resolve_ping_targets_for_server(server)
+    if _ping_targets_are_peer_targets(server, configured):
+        # Peer latency history must come from agent reports only; never synthesize
+        # controller/API-side fallback samples.
+        stored_rows = _fetch_ping_target_history(sid, hours, limit)
+        if not stored_rows:
+            payload = _agent_side_unavailable_payload(sid, configured, hours=hours)
+            resp = jsonify(payload)
+            resp.headers["Cache-Control"] = "no-store"
+            return resp
+    rows = _fetch_ping_target_history(sid, hours, limit)
+    targets_meta = {}
+    for i, t in enumerate(configured):
+        primary = str(t.get("key") or t.get("host") or t.get("label") or f"target-{i}")
+        targets_meta[primary] = t
+        # Backward/agent compatibility: stored rows may use host or label as target_key
+        # while the current admin-configured latency targets use short keys (hk/jp/sg).
+        for alias in (t.get("host"), t.get("label")):
+            if alias:
+                targets_meta.setdefault(str(alias), t)
+    if not configured:
+        payload = {"server_id": sid, "hours": hours, "targets": [], "derived_from": "current peer targets unavailable"}
+        resp = jsonify(payload)
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
+    grouped = {}
+    for r in rows:
+        key = str(r.get("target_key") or "unknown")
+        if key not in targets_meta:
+            continue
+        meta_candidate = targets_meta.get(key, {})
+        if meta_candidate.get("type") == "peer" or key.startswith("vps-"):
+            continue
+        meta = targets_meta.get(key, {})
+        item = grouped.setdefault(key, {
+            "key": key,
+            "label": r.get("label") or meta.get("label") or key,
+            "port": r.get("port") or meta.get("port"),
+            "protocol": r.get("protocol") or meta.get("protocol") or "icmp",
+            "points": [],
+        })
+        if r.get("success") and r.get("latency_ms") is not None:
+            ca = r.get("created_at")
+            point_protocol = r.get("protocol") or meta.get("protocol") or "icmp"
+            item["points"].append({
+                "x": ca.isoformat() if hasattr(ca, "isoformat") else str(ca),
+                "latency_ms": float(r.get("latency_ms")),
+                "success": True,
+                "loss_pct": r.get("loss_pct"),
+                "quality": r.get("quality"),
+                "protocol": point_protocol,
+                "key": key,
+                "label": r.get("label") or meta.get("label") or key,
+            })
+    for i, meta in enumerate(configured):
+        key = str(meta.get("key") or meta.get("host") or meta.get("label") or f"target-{i}")
+        grouped.setdefault(key, {"key": key, "label": meta.get("label") or key, "port": meta.get("port"), "protocol": meta.get("protocol") or "icmp", "points": []})
+    payload = {"server_id": sid, "hours": hours, "targets": list(grouped.values()), "derived_from": "persisted ping_target_results"}
+    resp = jsonify(payload)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@probe_bp.get("/public/ping-targets/<int:sid>")
+def public_ping_targets(sid):
+    server = Server.query.get_or_404(sid)
+    count = min(max(int(request.args.get("count", 1)), 1), 4)
+    timeout = min(float(current_app.config.get("PROBE_TIMEOUT_S", 5)), 5.0)
+    source = str(request.args.get("source") or "public").strip().lower()
+    cache_key = f"vps:public:ping-targets:{sid}:{count}:{source}"
+    cached = _cache_get_json(cache_key)
+    if cached:
+        resp = jsonify(cached)
+        resp.headers["Cache-Control"] = f"public, max-age={PING_TARGETS_CACHE_TTL}"
+        resp.headers["X-Ping-Targets-Cache"] = "hit"
+        return resp
+
+    # Agent collectors ask for VPS peer targets explicitly. Keep this separate
+    # from the public/detail-page PING view so added VPS nodes never appear as
+    # user-facing latency monitor targets. Do NOT probe here from the controller:
+    # values must be real agent-side peer samples, otherwise the global latency
+    # table shows fake API-container-to-peer latency.
+    if source == "agent":
+        peer_only, _ = _server_peer_ping_targets(server)
+        rows = _fetch_ping_target_history(sid, 12, 500)
+        latest_by_key = {}
+        for r in rows:
+            key = str(r.get("target_key") or "")
+            if not key.startswith("vps-"):
+                continue
+            latest_by_key[key] = r
+        targets = []
+        has_real_sample = False
+        for item in peer_only:
+            key = str(item.get("key") or "")
+            sample = latest_by_key.get(key)
+            out = dict(item)
+            if sample:
+                latency = sample.get("latency_ms")
+                success = bool(sample.get("success")) and latency is not None
+                loss = sample.get("loss_pct")
+                out["stats"] = {
+                    "avg_ms": float(latency) if success else None,
+                    "loss_pct": float(loss) if loss is not None else (0 if success else 100),
+                    "count": 1,
+                    "protocol": sample.get("protocol") or item.get("protocol") or "tcp",
+                }
+                out["results"] = [{
+                    "success": success,
+                    "latency_ms": float(latency) if success else None,
+                    "loss_pct": out["stats"]["loss_pct"],
+                    "protocol": out["stats"]["protocol"],
+                }]
+                avg_ms = out["stats"].get("avg_ms")
+                out["quality"] = 0 if avg_ms is None else max(0, min(100, round(100 - avg_ms / 4)))
+                out["sample_source"] = "agent-reported"
+                has_real_sample = True
+            else:
+                out["stats"] = {"avg_ms": None, "loss_pct": None, "count": 0, "protocol": item.get("protocol") or "tcp"}
+                out["results"] = []
+                out["quality"] = None
+                out["sample_source"] = "missing"
+            targets.append(out)
+        payload = {
+            "server_id": sid,
+            "targets": targets,
+            "derived_from": "agent-reported peer results",
+            "probe_source": "agent",
+            "unavailable": (len(peer_only) > 0 and not has_real_sample),
+            "cache_ttl": PING_TARGETS_CACHE_TTL,
+        }
+        _cache_set_json(cache_key, payload, PING_TARGETS_CACHE_TTL)
+        resp = jsonify(payload)
+        resp.headers["Cache-Control"] = f"public, max-age={PING_TARGETS_CACHE_TTL}"
+        resp.headers["X-Ping-Targets-Cache"] = "miss"
+        return resp
+
+    # Public/detail-page PING = admin-configured latency monitor targets only
+    # (agent_config.ping_targets or global default presets). No VPS peers.
+    resolved_targets = [t for t in _resolve_ping_targets_for_server(server) if t.get("type") != "peer" and not str(t.get("key", "")).startswith("vps-")]
+    if not resolved_targets:
+        payload = {"server_id": sid, "targets": [], "derived_from": "configured ping targets", "cache_ttl": PING_TARGETS_CACHE_TTL}
+        _cache_set_json(cache_key, payload, PING_TARGETS_CACHE_TTL)
+        resp = jsonify(payload)
+        resp.headers["Cache-Control"] = f"public, max-age={PING_TARGETS_CACHE_TTL}"
+        resp.headers["X-Ping-Targets-Cache"] = "miss"
+        return resp
+
+    targets = []
+    for item in resolved_targets:
+        results, stats = _tcp_ping_stats(item["host"], item.get("port", 443), count, timeout, item.get("protocol", "tcp"))
+        stats = {k: v for k, v in (stats or {}).items() if k not in ("host",)}
+        avg_ms = stats.get("avg_ms")
+        quality = 0 if avg_ms is None else max(0, min(100, round(100 - avg_ms / 4)))
+        targets.append({
+            "key": item["key"],
+            "label": item["label"],
+            "host": item.get("host", ""),
+            "port": item.get("port", 443),
+            "protocol": item.get("protocol", "tcp"),
+            "results": results,
+            "stats": stats,
+            "quality": quality,
+            "type": "external",
+        })
+
+    targets.sort(key=lambda t: (t["stats"].get("avg_ms") is None, t["stats"].get("avg_ms") or 1e9))
+    payload = {"server_id": sid, "targets": targets, "derived_from": "configured latency monitor targets", "cache_ttl": PING_TARGETS_CACHE_TTL}
+    _persist_ping_target_results(sid, targets)
+    _cache_set_json(cache_key, payload, PING_TARGETS_CACHE_TTL)
+    resp = jsonify(payload)
+    resp.headers["Cache-Control"] = f"public, max-age={PING_TARGETS_CACHE_TTL}"
+    resp.headers["X-Ping-Targets-Cache"] = "miss"
+    return resp
+
+
 @probe_bp.post("/public/ping")
 @limiter.limit(PING_LIMIT)
 def public_ping():
@@ -461,12 +834,15 @@ def public_ping():
     if not _validate_probe_target(protocol, host):
         return jsonify(msg="host/url 格式不合法"), 400
 
-    try:
-        port = int(port_raw)
-    except (TypeError, ValueError):
-        return jsonify(msg="port 必须是数字"), 400
-    if not validate_port(port):
-        return jsonify(msg="port 必须在 1-65535"), 400
+    if protocol == "icmp":
+        port = 0
+    else:
+        try:
+            port = int(port_raw)
+        except (TypeError, ValueError):
+            return jsonify(msg="port 必须是数字"), 400
+        if not validate_port(port):
+            return jsonify(msg="port 必须在 1-65535"), 400
 
     results, stats = _probe_stats(protocol, host, port, count, timeout, max_workers=5)
     return jsonify(results=results, stats=stats)
@@ -491,12 +867,15 @@ def ping():
     if not _validate_probe_target(protocol, host):
         return jsonify(msg="host/url 格式不合法"), 400
 
-    try:
-        port = int(port_raw)
-    except (TypeError, ValueError):
-        return jsonify(msg="port 必须是数字"), 400
-    if not validate_port(port):
-        return jsonify(msg="port 必须在 1-65535"), 400
+    if protocol == "icmp":
+        port = 0
+    else:
+        try:
+            port = int(port_raw)
+        except (TypeError, ValueError):
+            return jsonify(msg="port 必须是数字"), 400
+        if not validate_port(port):
+            return jsonify(msg="port 必须在 1-65535"), 400
 
     max_workers = current_app.config.get("PROBE_PING_MAX_WORKERS", 20)
     results, stats = _probe_stats(protocol, host, port, count, timeout, max_workers=max_workers)
@@ -792,13 +1171,10 @@ def ip_info():
     ?ip=1.2.3.4  留空 = 查询客户端出口 IP
     """
     ip      = request.args.get("ip", "").strip()
-    cache_k = f"vps:ipinfo:{ip or 'self'}"
+    cache_k = f"vps:ipinfo:{IP_GEO_CACHE_VERSION}:{ip or _client_public_ip() or 'self'}"
 
-    if ip:
-        try:
-            socket.inet_pton(socket.AF_INET, ip)
-        except OSError:
-            return jsonify(error="仅支持合法 IPv4 地址"), 400
+    if ip and not _is_public_ipv4(ip):
+        return jsonify(error="仅支持合法公网 IPv4 地址"), 400
 
     try:
         cached = extensions.redis_client.get(cache_k)
@@ -810,11 +1186,8 @@ def ip_info():
     except Exception:
         pass
 
-    url = f"http://ip-api.com/json/{ip}?fields=status,message,country,regionName,city,lat,lon,isp,org,as,query&lang=zh-CN"
     try:
-        import urllib.request
-        with urllib.request.urlopen(url, timeout=6) as resp:
-            data = json.loads(resp.read().decode())
+        data = lookup_ip_geo(ip)
         try:
             ttl = int(current_app.config.get("IP_INFO_CACHE_TTL", 3600))
             extensions.redis_client.setex(cache_k, ttl, json.dumps(data, ensure_ascii=False))
@@ -824,5 +1197,7 @@ def ip_info():
         resp.headers["X-Cache"] = "MISS"
         resp.headers["Cache-Control"] = f"public, max-age={int(current_app.config.get('IP_INFO_CACHE_TTL', 3600))}"
         return resp
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
     except Exception:
         return jsonify(error_code="UPSTREAM_UNREACHABLE", message="上游 IP 服务不可用"), 502

@@ -56,9 +56,9 @@ def _parse_csv(raw: str) -> list[str]:
 
 
 def _validate_production_secrets():
-    """在生产环境中检查关键密钥，若仍为弱默认值则终止启动。"""
-    flask_env = os.getenv("FLASK_ENV", "development")
-    if flask_env != "production":
+    """在非开发环境中检查关键密钥，若仍为弱默认值则终止启动。"""
+    flask_env = os.getenv("FLASK_ENV", "").lower()
+    if flask_env in ("development", "testing"):
         return  # 开发 / 测试环境放行
 
     errors = []

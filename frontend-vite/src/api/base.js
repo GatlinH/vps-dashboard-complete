@@ -9,7 +9,7 @@
 
 import { getCsrfToken } from './csrf.js';
 
-const API_ROOT = window.__API_ROOT__ || (location.port === "5000" ? `${location.protocol}//${location.hostname}:5000` : location.origin);
+const API_ROOT = window.__DBG__.API_ROOT || (location.port === "5000" ? `${location.protocol}//${location.hostname}:5000` : location.origin);
 const BASE = `${API_ROOT}/api/v1`;
 
 // HTTP 方法集合：需要发送 CSRF token 的写操作

@@ -23,7 +23,7 @@ services:
       --max_allowed_packet=256M
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
+      interval: 30s
       timeout: 5s
       retries: 10
     networks:
@@ -51,7 +51,7 @@ services:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      interval: 30s
       timeout: 3s
       retries: 5
     networks:
@@ -78,9 +78,8 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "0"
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
-      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
-      TELEGRAM_TOKEN_SECRET: ${TELEGRAM_TOKEN_SECRET:-}
+      # Telegram secrets are loaded from /etc/vps-dashboard/secrets.env via env_file.
+      # Do not redeclare them here with ${VAR:-}; compose interpolation would override env_file with blank values.
       PROBE_TIMEOUT_S: ${PROBE_TIMEOUT_S:-5}
       PROBE_CACHE_TTL: ${PROBE_CACHE_TTL:-15}
       PING_TARGETS_JSON: ${PING_TARGETS_JSON:-[{"key":"hk","label":"香港 CMI","host":"43.155.88.12","port":443},{"key":"jp","label":"日本东京 SoftBank","host":"27.0.234.55","port":443},{"key":"de","label":"德国法兰克福","host":"95.216.12.88","port":443},{"key":"sg","label":"新加坡","host":"172.104.55.99","port":443},{"key":"us","label":"美国纽约 OVH","host":"51.81.22.44","port":443}]}

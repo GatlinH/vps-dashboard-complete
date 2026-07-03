@@ -1,277 +1,63 @@
-# VPS 星图 · Flask 后端
+# Backend
 
-## 依赖管理
+`backend/` 是 Flask API 服务，负责认证、服务器资产、指标历史、探针、Telegram 告警、站点设置、审计和后台运维接口。
 
-本项目使用 `pip-tools` 管理 Python 依赖版本：
-
-- **`requirements.in`**：直接依赖的宽松约束（`>=`），是人工维护的源文件
-- **`requirements.txt`**：精确版本锁定（`==`），由 `pip-compile` 自动生成，不应手动修改
-
-如需添加或升级依赖：
-1. 修改 `requirements.in`
-2. 运行以下命令重新生成 `requirements.txt`：
-   ```bash
-   pip install pip-tools
-   pip-compile requirements.in -o requirements.txt
-   ```
-3. 提交 `requirements.in` 和 `requirements.txt` 的变更
-
----
-
-## 数据库迁移（Flask-Migrate）
-
-首次初始化（已有数据库时只需执行一次）：
-```bash
-flask db init
-flask db migrate -m "initial schema"
-flask db upgrade
-```
-
-新增字段时：
-```bash
-flask db migrate -m "描述变更内容"
-flask db upgrade    # 应用到数据库
-flask db downgrade  # 回滚（如需要）
-```
-
----
-
-## 目录结构
-
-```
-backend/
-├── app.py                  # Flask 入口 & create_app()
-├── config.py               # 配置（MySQL / Redis / JWT / CORS）
-├── extensions.py           # db / jwt / redis_client 共享实例
-├── requirements.txt        # Python 依赖
-├── init_db.sql             # MySQL 初始化脚本
-├── .env.example            # 环境变量模板 → 复制为 .env
-├── Dockerfile              # 容器镜像
-├── docker-compose.yml      # MySQL + Redis + Flask + Nginx
-├── nginx.conf              # Nginx 反向代理配置
-│
-├── api/
-│   ├── auth.py             # /api/auth   — 登录/JWT/修改密码
-│   ├── servers.py          # /api/servers — CRUD + 实时指标推送
-│   ├── probe.py            # /api/probe  — TCP Ping / IP查询 / 探针抓取
-│   ├── telegram.py         # /api/telegram — Bot配置/发消息/告警规则
-│   └── geo.py              # /api/geo    — 瓦片代理 / 坐标查询
-│
-├── models/
-│   └── models.py           # SQLAlchemy 数据模型
-│
-└── services/
-    └── scheduler.py        # APScheduler 后台定时任务
-```
-
-## 快速启动
-
-### 1. 环境准备
+## 依赖
 
 ```bash
 cd backend
-cp .env.example .env
-# 编辑 .env，填入 MySQL / Redis 密码和密钥
-```
-
-### 2. 本地开发
-
-```bash
-# 创建虚拟环境
-python3 -m venv venv && source venv/bin/activate
-
-# 安装依赖
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-
-# 初始化数据库（确保 MySQL 已启动）
-mysql -u root -p < init_db.sql
-
-# 启动 Flask
-python app.py
-# API 运行在 http://localhost:5000
 ```
 
-### 3. Docker 一键部署（推荐）
+依赖源文件：
+
+- `requirements.in`：人工维护的直接依赖
+- `requirements.txt`：锁定版本
+
+更新依赖时使用：
 
 ```bash
-# 修改 docker-compose.yml 中的密码
-docker compose up -d
-
-# 带 Nginx（生产）
-docker compose --profile production up -d
-
-# 查看日志
-docker compose logs -f api
+pip install pip-tools
+pip-compile requirements.in -o requirements.txt
 ```
 
-### 4. 并发配置说明
-
-本项目使用 APScheduler 运行后台定时任务（TCP Ping、数据清理、告警等），**Gunicorn workers 必须保持为 1**，否则多个 worker 会重复执行调度器任务。提升并发请使用线程模式：
-
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `GUNICORN_WORKERS` | `1` | **不建议修改**，保持为 1 以避免调度器重复执行 |
-| `GUNICORN_THREADS` | `4` | 可按服务器 CPU 核心数调整（推荐 2×CPU+1） |
+## 本地运行
 
 ```bash
-# .env 中调整线程数（例如 4 核服务器）
-GUNICORN_WORKERS=1
-GUNICORN_THREADS=9
+cp .env.example .env
+# 编辑 .env，填入数据库、Redis 和 JWT/SECRET_KEY
+flask run
 ```
 
-## API 端点速览
+默认 API：`http://localhost:5000`。
 
-### 权限说明
+## Docker
 
-| 标记 | 含义 |
-|------|------|
-| （公开） | 无需鉴权，匿名可访问 |
-| `*JWT*` | 需要 `Authorization: Bearer <token>` 头（任意登录用户） |
-| `**admin**` | 需要 JWT 且角色为 `admin` |
-
-### 端点列表
-
-| 方法   | 路径                          | 权限      | 说明                       |
-|--------|-------------------------------|-----------|----------------------------|
-| POST   | /api/auth/login               | 公开      | 登录，返回 JWT             |
-| POST   | /api/auth/refresh             | *JWT*     | 刷新 Access Token          |
-| GET    | /api/auth/me                  | *JWT*     | 当前用户信息               |
-| GET    | /api/servers/                 | 公开      | 服务器列表（未登录时过滤敏感字段） |
-| POST   | /api/servers/                 | **admin** | 添加服务器                 |
-| PUT    | /api/servers/\<id\>           | **admin** | 更新服务器                 |
-| DELETE | /api/servers/\<id\>           | **admin** | 删除服务器                 |
-| POST   | /api/servers/\<id\>/metrics   | **admin** | 推送实时指标               |
-| GET    | /api/servers/\<id\>/history   | **admin** | 历史探针数据（`days/limit/offset`，支持 `export=csv`） |
-| POST   | /api/probe/ping               | **admin** | TCP Ping                   |
-| POST   | /api/probe/ping/batch         | **admin** | 批量 TCP Ping              |
-| POST   | /api/probe/fetch-probe        | **admin** | 抓取探针数据               |
-| GET    | /api/probe/ip-info?ip=x.x.x.x | 公开     | IP 地理信息                |
-| GET    | /api/telegram/config          | **admin** | Telegram 配置              |
-| POST   | /api/telegram/config          | **admin** | 保存 Bot 配置              |
-| POST   | /api/telegram/test            | **admin** | 发送测试消息               |
-| POST   | /api/telegram/send            | **admin** | 手动推送消息               |
-| GET    | /api/telegram/alerts          | **admin** | 获取告警规则               |
-| POST   | /api/telegram/alerts          | **admin** | 保存告警规则               |
-| GET    | /api/geo/tile/\<z\>/\<x\>/\<y\>.png | 公开 | 地图瓦片代理          |
-| GET    | /api/geo/countries            | 公开      | TopoJSON 矢量地图          |
-| GET    | /api/geo/servers/coords       | 公开      | 服务器经纬度（支持分页 / 聚合） |
-| GET    | /api/exchange/rates           | 公开      | 汇率查询（Redis 1 小时缓存）  |
-| POST   | /api/exchange/estimate        | 公开      | 交易估值（剩余价值 / 建议售价）|
-
-### Exchange API 示例
+项目根目录执行：
 
 ```bash
-# 查询汇率
-GET /api/v1/exchange/rates?base=CNY
-
-# 交易估值（使用 buy_date）
-POST /api/v1/exchange/estimate
-Content-Type: application/json
-
-{
-  "price": 99,
-  "period": "yearly",
-  "buy_date": "2025-06-15",
-  "premium_percent": 20
-}
-
-# 交易估值（使用 expiry）
-POST /api/v1/exchange/estimate
-Content-Type: application/json
-
-{
-  "price": 30,
-  "period": "monthly",
-  "expiry": "2026-07-01"
-}
+docker compose up -d --build
 ```
 
-成功响应示例（`/estimate`）：
-```json
-{
-  "ok": true,
-  "data": {
-    "price": 99, "period": "yearly",
-    "buy_date": "2025-06-15", "expiry": "2026-06-15",
-    "total_days": 365, "days_used": 120, "days_left": 245,
-    "daily_rate": 0.27, "consumed_value": 33, "residual_value": 66,
-    "premium_percent": 20, "suggested_price": 79, "residual_percent": 67
-  }
-}
-```
+生产环境中 API 应只绑定本机或容器内网，不应直接暴露公网。
 
-### 后台鉴权要求
+## 安全边界
 
-- 所有写操作（添加/更新/删除服务器、Telegram 配置、推送消息等）均需 JWT 且 `role == "admin"`
-- `backend/middleware/rbac.py` 中的 `@admin_required` 装饰器统一实现角色校验
-- 严禁仅依赖前端隐藏按钮实现"权限控制"——后端会独立校验每个请求的角色
+- 管理接口、备份接口、Telegram 配置和用户管理必须鉴权。
+- Public API 只能返回展示安全字段。
+- Agent 使用 UUID/key/HMAC/nonce 等机制鉴权，密钥不应写入 URL。
+- 数据库、Redis、真实 `.env`、allowlist 和备份不入库。
 
-
-### Geo API 字段与版本（Schema v2026-04-23）
-
-- `GET /api/geo/countries`：返回 TopoJSON；响应头含 `X-Cache: HIT|MISS|STALE`。
-- `GET /api/geo/servers/coords?mode=list&page=1&per_page=200`：
-  - `mode=list` 时返回 `{ mode, nodes, pagination, schema_version }`。
-  - `pagination` 字段：`page/per_page/pages/total/has_next`。
-- `GET /api/geo/servers/coords?mode=aggregate`：返回 `{ mode, total, coords_ready, by_status, top_locations, schema_version }`。
-- 地图 provider 异常时，`/api/geo/tile/*` 与 `/api/geo/countries` 在无法命中缓存时返回：
-  - `error_code=MAP_PROVIDER_UNAVAILABLE`
-  - `provider`、`message`、`detail`、`fallback_hint` 字段，便于前端智能降级。
-
-## Service Worker 缓存策略
-
-| 路径 | 策略 | 说明 |
-|------|------|------|
-| 公开静态资源（.html/.js/.css等） | 缓存优先 | public.html 及 JS 模块可离线访问 |
-| `/admin.html` | **network-only** | 管理页面不缓存，强制在线访问 |
-| `/api/auth/*` | **network-only** | 鉴权接口不缓存 |
-| `/api/servers/*` | **network-only** | 服务器数据不缓存 |
-| `/api/probe/*` | **network-only** | 探针数据不缓存 |
-| `/api/telegram/*` | **network-only** | Telegram 配置不缓存 |
-
-## 前端对接
-
-```js
-// 公开展示页使用 frontend-vite/src/api/public.js（无鉴权）
-import { listServersPublic, getCountries } from './api-public.js';
-const { servers } = await listServersPublic();
-
-// 管理后台使用 frontend-vite/src/api/admin.js（自动携带 JWT）
-import { login, createServer, getHistory } from './admin.js';
-await login('admin', '<your-admin-password>');
-await createServer({ name: 'my-vps', ip: '1.2.3.4', ... });
-await getHistory(1, 7, 200, 0);           // 分页
-await getHistory(1, 7, 500, 0, 'csv');    // 导出
-
-// 3D 星图瓦片（公开接口）
-const tileUrl = `/api/geo/tile/${z}/${x}/${y}.png`;
-```
-
-## Redis 缓存键说明
-
-| 键                          | 内容                | TTL    |
-|-----------------------------|---------------------|--------|
-| vps:servers:list            | 服务器列表 JSON      | 15s    |
-| vps:server:{id}:metrics     | 单台实时指标         | 15s    |
-| vps:tile:{z}:{x}:{y}        | 地图瓦片二进制       | 24h    |
-| vps:geo:countries-110m      | TopoJSON 矢量数据   | 7d     |
-| vps:geo:countries-110m:stale| TopoJSON 降级缓存    | 14d    |
-| vps:ipgeo:{ip}              | IP 地理信息          | 1h     |
-| vps:ipinfo:{ip}             | IP 详细信息          | 1h     |
-| vps:coords:{ip}             | IP 经纬度            | 24h    |
-| vps:geo:tile:burst:{ip}     | 瓦片短时限流计数       | 10s    |
-
-## HTTPS 配置（Let's Encrypt）
+## 测试
 
 ```bash
-# 安装 certbot
-apt install -y certbot python3-certbot-nginx
-
-# 申请证书（自动配置 Nginx）
-certbot --nginx -d your-domain.com
-
-# 验证自动续期
-certbot renew --dry-run
+pytest
 ```
 
-详细步骤请参阅 [DEPLOY_CHECKLIST.md](../DEPLOY_CHECKLIST.md#https-配置lets-encrypt)。
+发布前建议在项目根目录运行：
+
+```bash
+python3 scripts/security-scan.py
+```

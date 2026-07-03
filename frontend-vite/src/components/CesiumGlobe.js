@@ -1,3 +1,4 @@
+import { getDashboardDebug, getGlobeRuntimeDebug } from '../utils/debugState.js';
 /**
  * CesiumGlobe.js — 原生 CesiumJS 数字地球 (Google Earth 风格重建 v2)
  *
@@ -28,6 +29,7 @@ import { installPlaceLabels, updatePlaceLabels, updateHtmlNodeLabels } from './g
 import { StarEffectsLayer } from './StarEffectsLayer.js';
 import { NasaParallaxBackground } from './NasaParallaxBackground.js';
 
+
 const CESIUM_ION_TOKEN = import.meta.env.VITE_CESIUM_ION_TOKEN || '';
 const BLUE_MARBLE_TEXTURE_URL = '/globe/earth_atmos_2048.jpg';   // 真实地貌底图 (兜底 + 极区冰盖)
 const CLOUDS_TEXTURE_URL = '/globe/earth_clouds_1024.png';        // 半透明云层
@@ -57,6 +59,23 @@ const CLOUD_MAX_ALPHA = 0.55;
 const AUTOROTATE_MIN_HEIGHT = 4_500_000;
 const AUTOROTATE_SPEED = 0.00055;   // 弧度/帧, 约 190 秒一圈
 const AUTOROTATE_RESUME_MS = 5000;  // 用户停止交互后多久恢复自转
+
+// Google Earth 手感: 自定义自由旋转的松手惯性 / 近中远移动幅度
+const GE_MAX_MOVEMENT_RATIO = 0.08;      // 单帧最大输入比例，防止远景甩飞
+const GE_SPIN_INERTIA = 0.86;            // 松手旋转惯性：保留重量感，但避免地图层面滑跳
+const GE_SPIN_STOP_EPS = 0.035;          // 惯性速度低于该值时停止
+const GE_MAP_SPIN_SPEED   = 0.000012;    // <500m：极慢，街景级
+const GE_NEAR_SPIN_SPEED  = 0.000028;    // 500m–50km：地图级，Google Maps 近景手感
+const GE_MID_SPIN_SPEED   = 0.000065;    // 50km–500km：区级
+const GE_MID2_SPIN_SPEED  = 0.00012;     // 500km–3000km：省级
+const GE_HIGH_SPIN_SPEED  = 0.00035;     // 3000km–8000km：国家级
+const GE_FAR_SPIN_SPEED   = 0.0028;      // 8000km+：太空级，整颗地球快扫
+const GE_MAP_MAX_STEP   = 3;
+const GE_NEAR_MAX_STEP  = 6;
+const GE_MID_MAX_STEP   = 10;
+const GE_MID2_MAX_STEP  = 14;
+const GE_HIGH_MAX_STEP  = 22;
+const GE_FAR_MAX_STEP   = 68;
 
 // 节点标签可见的高度阈值
 const NODE_LABEL_HEIGHT = 3_500_000;
@@ -92,12 +111,16 @@ export class CesiumGlobe {
     this._userInteracting = false;
     this._resumeTimer = null;
     this._raf = null;
+    this._freeSpinVelocity = { x: 0, y: 0 };
+    this._freeSpinMomentumActive = false;
+    this._clickSuppressUntil = 0;
+    this._dragMovedPx = 0;
 
-    try { this._init(); } catch (e) { window.__globeError = e; throw e; }
+    try { this._init(); } catch (e) { window.__DBG__.globeError = e; throw e; }
   }
 
   _init() {
-    this.container.innerHTML = '';
+    this.container.replaceChildren();
     this._starProjectionBg = document.createElement('div');
     this._starProjectionBg.className = 'globe-star-projection-bg heic-nebula-host';
     this._starProjectionBg.setAttribute('aria-hidden', 'true');
@@ -168,9 +191,9 @@ export class CesiumGlobe {
     this._onCameraChanged();
     this._installAutoRotate();
 
-    window.__globe = this;
-    window.__CESIUM_GLOBE__ = this;
-    window.__globeMode = 'Native CesiumJS rebuild v2 (real imagery + clouds + spin)';
+    window.__DBG__.globe = this;
+    window.__DBG__.CESIUM_GLOBE = this;
+    getGlobeRuntimeDebug().globeMode = 'Native CesiumJS rebuild v2 (real imagery + clouds + spin)';
   }
 
   _hiddenCreditContainer() {
@@ -219,8 +242,8 @@ export class CesiumGlobe {
     if (scene.moon) scene.moon.show = false;
     // 背景星空改为 DOM 平面投影层，避免 SkyBox 六面体/正方体空间感。
     if (scene.skyBox) scene.skyBox.show = false;
-    window.__customSkyBoxSources = null;
-    window.__starProjectionBackground = '/globe/star-projection-bg.png';
+    window.__DBG__.customSkyBoxSources = null;
+    window.__DBG__.starProjectionBackground = '/globe/star-projection-bg.png';
 
     // 固定方向光 (仅用于实体/大气方向感, 地表 enableLighting=false 不受其变暗)
     scene.light = new Cesium.DirectionalLight({
@@ -238,9 +261,12 @@ export class CesiumGlobe {
     c.enableTilt = false;
     c.enableLook = false;
     c.enableCollisionDetection = true;
+    // Native Cesium zoom inertia + our custom free-spin momentum together approximate
+    // Google Earth's weighted, floating feel while keeping the globe centered.
     c.inertiaSpin = 0.0;
     c.inertiaTranslate = 0.0;
-    c.inertiaZoom = 0.0;
+    c.inertiaZoom = 0.15;
+    c.maximumMovementRatio = GE_MAX_MOVEMENT_RATIO;
     c.minimumZoomDistance = MIN_ZOOM;
     c.maximumZoomDistance = MAX_ZOOM;
     c.zoomEventTypes = [Cesium.CameraEventType.WHEEL, Cesium.CameraEventType.PINCH];
@@ -284,29 +310,21 @@ export class CesiumGlobe {
       Object.assign(clouds, { show: true, alpha: CLOUD_MAX_ALPHA, brightness: 1.32, contrast: 1.08, gamma: 0.86 });
       this._cloudLayer = clouds;
 
-      window.__imageryMode = 'ArcGIS World Imagery + Blue Marble base + cloud overlay';
+      getDashboardDebug('globe').imageryMode = 'ArcGIS World Imagery + Blue Marble base + cloud overlay';
       this._onCameraChanged();
       this.viewer.scene.requestRender();
     } catch (e) {
-      window.__imageryError = String(e?.message || e);
+      getDashboardDebug('globe').imageryError = String(e?.message || e);
     }
   }
 
   async _installWorldTerrain() {
-    try {
-      const terrain = await Cesium.CesiumTerrainProvider.fromIonAssetId(1, {
-        requestVertexNormals: true,
-        requestWaterMask: false,
-      });
-      if (this._destroyed || !this.viewer) return;
-      this.viewer.terrainProvider = terrain;
-      this._terrainReady = true;
-      window.__terrainMode = 'Cesium Ion World Terrain';
-      this.viewer.scene.requestRender();
-    } catch (e) {
-      this._terrainReady = false;
-      window.__terrainError = String(e?.message || e);
-    }
+    // Public homepage must not depend on Cesium Ion. Empty/expired Ion token makes
+    // asset 1 return 401. Keep ellipsoid terrain: zoom/rotation/imagery tiles still work.
+    this._terrainReady = false;
+    getDashboardDebug('globe').terrainMode = 'EllipsoidTerrainProvider (Ion terrain disabled)';
+    getDashboardDebug('globe').terrainError = '';
+    try { this.viewer?.scene?.requestRender(); } catch (_) {}
   }
 
   _installPlaceLabels() {
@@ -368,23 +386,50 @@ export class CesiumGlobe {
       const up = Cesium.Cartesian3.normalize(Cesium.Matrix3.multiplyByVector(m, camera.upWC, new Cesium.Cartesian3()), new Cesium.Cartesian3());
       camera.setView({ destination, orientation: { direction, up } });
     };
-    this._applyFreeSpinDelta = (dx, dy) => {
-      if (Math.abs(dx) + Math.abs(dy) < 0.25) return;
+    this._googleEarthDragProfile = () => {
+      const height = this.viewer.camera.positionCartographic?.height || HOME_HEIGHT;
+      const zoomT = clamp01((height - MIN_ZOOM) / Math.max(1, MAX_ZOOM - MIN_ZOOM));
+      // Google-Maps-style 6-tier curve: each zoom band has its own drag sensitivity.
+      //   <500m        → GE_MAP_SPIN_SPEED   (street-level, barely moves)
+      //   500m–50km    → GE_NEAR_SPIN_SPEED  (map level)
+      //   50km–500km   → GE_MID_SPIN_SPEED   (district level)
+      //   500km–3000km → GE_MID2_SPIN_SPEED  (regional level)
+      //   3000km–8000km→ GE_HIGH_SPIN_SPEED  (country level)
+      //   8000km+      → GE_FAR_SPIN_SPEED   (space, whole-globe sweep)
+      const t1   = smoothstep(500,       50_000,     height);
+      const t2   = smoothstep(50_000,   500_000,    height);
+      const t3   = smoothstep(500_000,  3_000_000,  height);
+      const t4   = smoothstep(3_000_000,8_000_000,  height);
+      const t5   = smoothstep(8_000_000,MAX_ZOOM,   height);
+      const s1 = Cesium.Math.lerp(GE_MAP_SPIN_SPEED,  GE_NEAR_SPIN_SPEED, t1);
+      const s2 = Cesium.Math.lerp(s1,                  GE_MID_SPIN_SPEED,   t2);
+      const s3 = Cesium.Math.lerp(s2,                  GE_MID2_SPIN_SPEED,  t3);
+      const s4 = Cesium.Math.lerp(s3,                  GE_HIGH_SPIN_SPEED,  t4);
+      const spinSpeed = Cesium.Math.lerp(s4,            GE_FAR_SPIN_SPEED,   t5);
+      const m1 = Cesium.Math.lerp(GE_MAP_MAX_STEP,  GE_NEAR_MAX_STEP, t1);
+      const m2 = Cesium.Math.lerp(m1,               GE_MID_MAX_STEP,  t2);
+      const m3 = Cesium.Math.lerp(m2,               GE_MID2_MAX_STEP, t3);
+      const m4 = Cesium.Math.lerp(m3,               GE_HIGH_MAX_STEP, t4);
+      const maxStep = Cesium.Math.lerp(m4,           GE_FAR_MAX_STEP,  t5);
+      const dragScale = spinSpeed / GE_MAP_SPIN_SPEED;
+      return { height, zoomT, midT: t2, farT: t5, dragScale, maxStep, spinSpeed };
+    };
+    this._applyFreeSpinDelta = (dx, dy, fromMomentum = false) => {
+      if (Math.abs(dx) + Math.abs(dy) < 0.015) return;
       // Quaternion free-spin around Earth center. This avoids Cesium rotateUp polar clamps,
       // so vertical dragging can cross both poles and continue through a full 360°.
-      // Keep close-zoom drags conservative: a tiny hand move should not throw the globe.
       const camera = this.viewer.camera;
-      const height = camera.positionCartographic?.height || HOME_HEIGHT;
-      const zoomT = Math.max(0, Math.min(1, (height - 300_000) / 12_000_000));
-      const mapT = Math.max(0, Math.min(1, (height - 1_500_000) / 8_000_000));
-      const globeT = Math.max(0, Math.min(1, (height - 6_000_000) / 7_000_000));
-      const spinSpeed = 0.000025 + zoomT * 0.000035 + mapT * 0.00025 + globeT * 0.00070;
-      const maxStep = height < 1_500_000 ? 8 : height < 6_000_000 ? 18 : 36;
-      const stepX = Math.max(-maxStep, Math.min(maxStep, dx));
-      const stepY = Math.max(-maxStep, Math.min(maxStep, dy));
-      window.__freeSpinLast = { dx: +dx.toFixed(2), dy: +dy.toFixed(2), stepX: +stepX.toFixed(2), stepY: +stepY.toFixed(2), height: Math.round(height), zoomT: +zoomT.toFixed(3), mapT: +mapT.toFixed(3), globeT: +globeT.toFixed(3), spinSpeed: +spinSpeed.toFixed(6) };
-      if (Math.abs(stepX) >= 0.01) this._rotateCameraAroundEarth(Cesium.Cartesian3.UNIT_Z, -stepX * spinSpeed);
-      if (Math.abs(stepY) >= 0.01) this._rotateCameraAroundEarth(camera.rightWC, -stepY * spinSpeed);
+      const profile = this._googleEarthDragProfile();
+      const stepX = Math.max(-profile.maxStep, Math.min(profile.maxStep, dx));
+      const stepY = Math.max(-profile.maxStep, Math.min(profile.maxStep, dy));
+      getDashboardDebug().freeSpinLast = {
+        dx: +dx.toFixed(2), dy: +dy.toFixed(2), stepX: +stepX.toFixed(2), stepY: +stepY.toFixed(2),
+        height: Math.round(profile.height), zoomT: +profile.zoomT.toFixed(3), dragScale: +profile.dragScale.toFixed(3),
+        maxStep: +profile.maxStep.toFixed(2), spinSpeed: +profile.spinSpeed.toFixed(6), momentum: !!fromMomentum,
+        inertia: GE_SPIN_INERTIA, maxMovementRatio: GE_MAX_MOVEMENT_RATIO,
+      };
+      if (Math.abs(stepX) >= 0.01) this._rotateCameraAroundEarth(Cesium.Cartesian3.UNIT_Z, -stepX * profile.spinSpeed);
+      if (Math.abs(stepY) >= 0.01) this._rotateCameraAroundEarth(camera.rightWC, -stepY * profile.spinSpeed);
       camera.constrainedAxis = undefined;
       this._forceLitGlobe();
       this._updateOverlays();
@@ -393,31 +438,56 @@ export class CesiumGlobe {
     this._onPointerDown = (event) => {
       if (!isPlainPrimaryDrag(event)) return;
       pause();
-      freeSpin = { pointerId: eventKey(event), ...getCanvasPoint(event) };
+      this._freeSpinMomentumActive = false;
+      this._freeSpinVelocity = { x: 0, y: 0 };
+      const startPoint = getCanvasPoint(event);
+      this._dragMovedPx = 0;
+      freeSpin = { pointerId: eventKey(event), startX: startPoint.x, startY: startPoint.y, ...startPoint };
       canvas.setPointerCapture?.(event.pointerId);
-      window.__freeSpinStarted = (window.__freeSpinStarted || 0) + 1;
+      getDashboardDebug().freeSpinStarted = (getDashboardDebug().freeSpinStarted || 0) + 1;
     };
     this._onPointerMove = (event) => {
       if (!freeSpin || freeSpin.pointerId !== eventKey(event)) return;
       const p = getCanvasPoint(event);
       const dx = p.x - freeSpin.x;
       const dy = p.y - freeSpin.y;
-      freeSpin = { pointerId: eventKey(event), ...p };
+      this._dragMovedPx = Math.max(this._dragMovedPx || 0, Math.hypot(p.x - (freeSpin.startX ?? p.x), p.y - (freeSpin.startY ?? p.y)));
+      freeSpin = { pointerId: eventKey(event), startX: freeSpin.startX, startY: freeSpin.startY, ...p };
+      this._freeSpinVelocity = { x: dx * 0.82 + this._freeSpinVelocity.x * 0.18, y: dy * 0.82 + this._freeSpinVelocity.y * 0.18 };
       event.preventDefault?.();
       event.stopImmediatePropagation?.();
-      window.__freeSpinMoves = (window.__freeSpinMoves || 0) + 1;
+      getDashboardDebug().freeSpinMoves = (getDashboardDebug().freeSpinMoves || 0) + 1;
       this._applyFreeSpinDelta(dx, dy);
     };
+    const startMomentum = () => {
+      const v = this._freeSpinVelocity || { x: 0, y: 0 };
+      const height = this.viewer.camera.positionCartographic?.height || HOME_HEIGHT;
+      const allowMomentum = height >= AUTOROTATE_MIN_HEIGHT;
+      this._freeSpinMomentumActive = allowMomentum && Math.abs(v.x) + Math.abs(v.y) > GE_SPIN_STOP_EPS;
+      if (!this._freeSpinMomentumActive) this._freeSpinVelocity = { x: 0, y: 0 };
+      getDashboardDebug().freeSpinMomentumStart = {
+        x: +v.x.toFixed(2), y: +v.y.toFixed(2), height: Math.round(height),
+        allowMomentum, active: this._freeSpinMomentumActive,
+      };
+    };
     this._onPointerUp = (event) => {
-      if (freeSpin && (!event || freeSpin.pointerId === eventKey(event))) freeSpin = null;
+      if (freeSpin && (!event || freeSpin.pointerId === eventKey(event))) {
+        if ((this._dragMovedPx || 0) > 6) this._clickSuppressUntil = Date.now() + 450;
+        freeSpin = null;
+        startMomentum();
+      }
       scheduleResume();
     };
     this._onMouseDown = (event) => {
       if (supportsPointerEvents) return;
       if (!isPlainPrimaryDrag(event)) return;
       pause();
-      freeSpin = { pointerId: 'mouse', ...getCanvasPoint(event) };
-      window.__freeSpinStarted = (window.__freeSpinStarted || 0) + 1;
+      this._freeSpinMomentumActive = false;
+      this._freeSpinVelocity = { x: 0, y: 0 };
+      const startPoint = getCanvasPoint(event);
+      this._dragMovedPx = 0;
+      freeSpin = { pointerId: 'mouse', startX: startPoint.x, startY: startPoint.y, ...startPoint };
+      getDashboardDebug().freeSpinStarted = (getDashboardDebug().freeSpinStarted || 0) + 1;
     };
     this._onMouseMove = (event) => {
       if (supportsPointerEvents) return;
@@ -425,15 +495,19 @@ export class CesiumGlobe {
       const p = getCanvasPoint(event);
       const dx = p.x - freeSpin.x;
       const dy = p.y - freeSpin.y;
-      freeSpin = { pointerId: 'mouse', ...p };
+      this._dragMovedPx = Math.max(this._dragMovedPx || 0, Math.hypot(p.x - (freeSpin.startX ?? p.x), p.y - (freeSpin.startY ?? p.y)));
+      freeSpin = { pointerId: 'mouse', startX: freeSpin.startX, startY: freeSpin.startY, ...p };
+      this._freeSpinVelocity = { x: dx * 0.82 + this._freeSpinVelocity.x * 0.18, y: dy * 0.82 + this._freeSpinVelocity.y * 0.18 };
       event.preventDefault?.();
       event.stopImmediatePropagation?.();
-      window.__freeSpinMoves = (window.__freeSpinMoves || 0) + 1;
+      getDashboardDebug().freeSpinMoves = (getDashboardDebug().freeSpinMoves || 0) + 1;
       this._applyFreeSpinDelta(dx, dy);
     };
-    this._onMouseUp = () => { if (supportsPointerEvents) return; if (freeSpin?.pointerId === 'mouse') freeSpin = null; scheduleResume(); };
+    this._onMouseUp = () => { if (supportsPointerEvents) return; if (freeSpin?.pointerId === 'mouse') { if ((this._dragMovedPx || 0) > 6) this._clickSuppressUntil = Date.now() + 450; freeSpin = null; startMomentum(); } scheduleResume(); };
     this._onWheel = () => {
       pause();
+      this._freeSpinMomentumActive = false;
+      this._freeSpinVelocity = { x: 0, y: 0 };
       this.viewer.camera.constrainedAxis = undefined;
       this._updateOverlays();
       this.viewer.scene.requestRender();
@@ -451,7 +525,16 @@ export class CesiumGlobe {
       if (this._destroyed) return;
       const carto = this.viewer.camera.positionCartographic;
       const height = carto?.height || HOME_HEIGHT;
-      const shouldSpin = this._autoRotateEnabled && !this._userInteracting
+      if (this._freeSpinMomentumActive && !document.hidden) {
+        this._applyFreeSpinDelta(this._freeSpinVelocity.x, this._freeSpinVelocity.y, true);
+        this._freeSpinVelocity.x *= GE_SPIN_INERTIA;
+        this._freeSpinVelocity.y *= GE_SPIN_INERTIA;
+        if (Math.abs(this._freeSpinVelocity.x) + Math.abs(this._freeSpinVelocity.y) < GE_SPIN_STOP_EPS) {
+          this._freeSpinMomentumActive = false;
+          this._freeSpinVelocity = { x: 0, y: 0 };
+        }
+      }
+      const shouldSpin = this._autoRotateEnabled && !this._userInteracting && !this._freeSpinMomentumActive
         && !document.hidden && height >= AUTOROTATE_MIN_HEIGHT;
       if (shouldSpin) {
         // 绕地球自转轴 (世界 Z 轴) 缓慢旋转相机, 视觉上即地球自西向东自转
@@ -497,11 +580,13 @@ export class CesiumGlobe {
       if (entity?.label) entity.label.show = false;
     }
     const latAbs = carto ? Math.abs(Cesium.Math.toDegrees(carto.latitude)) : 0;
-    window.__globeView = {
+    getGlobeRuntimeDebug().globeView = {
       height: Math.round(height),
       latAbs: Math.round(latAbs),
       cloudAlpha: this._cloudLayer ? +this._cloudLayer.alpha.toFixed(2) : null,
-      spinning: this._autoRotateEnabled && !this._userInteracting && height >= AUTOROTATE_MIN_HEIGHT,
+      spinning: this._autoRotateEnabled && !this._userInteracting && !this._freeSpinMomentumActive && height >= AUTOROTATE_MIN_HEIGHT,
+      freeSpinMomentum: !!this._freeSpinMomentumActive,
+      googleEarthFeel: this._googleEarthDragProfile ? this._googleEarthDragProfile() : null,
     };
   }
 
@@ -509,12 +594,16 @@ export class CesiumGlobe {
     if (this._destroyed || !this.viewer) return;
     const height = this.viewer.camera.positionCartographic?.height || HOME_HEIGHT;
     const cityMode = height < 400_000;
-    window.__overlaySyncTick = (window.__overlaySyncTick || 0) + 1;
+    getDashboardDebug().overlaySyncTick = (getDashboardDebug().overlaySyncTick || 0) + 1;
     try { updatePlaceLabels(this, height); } catch (_) {}
     try { updateHtmlNodeLabels(this, cityMode); } catch (_) {}
   }
 
   _onClick(movement) {
+    if (Date.now() < (this._clickSuppressUntil || 0)) {
+      getDashboardDebug().nodeClickSuppressed = { at: Date.now(), dragMovedPx: +(this._dragMovedPx || 0).toFixed(1) };
+      return;
+    }
     const picks = this.viewer.scene.drillPick(movement.position) || [];
     for (const picked of picks) {
       const props = picked?.id?.properties;
@@ -593,6 +682,6 @@ export class CesiumGlobe {
     this._htmlLabels?.forEach((el) => el.remove());
     this._htmlLabels = new Map();
     if (this.viewer) { try { this.viewer.destroy(); } catch (_) {} this.viewer = null; }
-    if (this.container) this.container.innerHTML = '';
+    if (this.container) this.container.replaceChildren();
   }
 }

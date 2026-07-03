@@ -29,6 +29,13 @@ docker-compose*.yml
 Dockerfile*
 .dockerignore
 
+# 热修复/备份污染（不进入生产镜像）
+*.bak*
+*.old
+*.orig
+*.tmp
+*~
+
 # Nginx 配置（由 volume 挂载）
 nginx.conf
 nginx-logs/
@@ -39,3 +46,12 @@ nginx-logs/
 *.egg-info/
 dist/
 build/
+# Security/release hygiene: never ship local history or ad-hoc backup trees
+**/backups/
+**/_archive/
+*.bak
+*.bak*
+*.old
+*.orig
+*.tmp
+*~

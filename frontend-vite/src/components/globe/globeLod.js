@@ -1,4 +1,5 @@
 import * as Cesium from 'cesium';
+import { getGlobeRuntimeDebug } from '../../utils/debugState.js';
 
 function clamp01(v) { return Math.max(0, Math.min(1, v)); }
 function smoothstep(edge0, edge1, x) {
@@ -24,7 +25,7 @@ export function applyNodeLOD(globe, { midMode, nearMode, cityMode }) {
     if (entity.label) entity.label.show = nearMode || cityMode;
   }
   if (typeof window !== 'undefined') {
-    window.__vpsBeaconDebug = (globe._nodeEntities || []).map((entity) => ({
+    getGlobeRuntimeDebug().vpsBeaconDebug = (globe._nodeEntities || []).map((entity) => ({
       id: entity?.id,
       show: !!entity?.show,
       hasPoint: !!entity?.point,

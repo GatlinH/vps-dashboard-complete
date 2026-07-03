@@ -88,7 +88,7 @@ export class StarshipShowcase {
 
     this.anchor = new THREE.Group();
     // Initial composition: dark-metal hero pose, lifted to reduce bottom crowding.
-    this.basePosition = new THREE.Vector3(2.85, -0.28, 0.0);
+    this.basePosition = new THREE.Vector3(3.0, -0.18, 0.0);
     this.baseRotation = new THREE.Euler(0.62, -0.72, 0.18);
     this.anchor.position.copy(this.basePosition);
     this.anchor.rotation.copy(this.baseRotation);
@@ -114,7 +114,7 @@ export class StarshipShowcase {
           duration: clip.duration,
           tracks: clip.tracks?.map((track) => track.name) || [],
         }));
-        window.__starshipGltfAnimationInfo = this.ship.userData.gltfAnimationInfo;
+        window.__DBG__.starshipGltfAnimationInfo = this.ship.userData.gltfAnimationInfo;
       }
       this._normalizeUserModel(this.ship);
       this.ship.traverse((obj) => {
@@ -1671,8 +1671,8 @@ export class StarshipShowcase {
       const dt = this.gltfLastUpdate == null ? 0.016 : Math.min(0.25, Math.max(0, (now - this.gltfLastUpdate) / 1000));
       this.gltfLastUpdate = now;
       this.gltfMixer.update(dt);
-      window.__starshipGltfMixerTime = this.gltfMixer.time;
-      window.__starshipGltfMixerTicks = (window.__starshipGltfMixerTicks || 0) + 1;
+      window.__DBG__.starshipGltfMixerTime = this.gltfMixer.time;
+      window.__DBG__.starshipGltfMixerTicks = (window.__DBG__.starshipGltfMixerTicks || 0) + 1;
     }
     this.anchor.position.set(
       this.basePosition.x + this.userOffset.x,

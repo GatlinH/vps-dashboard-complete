@@ -118,7 +118,7 @@ export class SettingsPanel {
   }
 
   _renderBanner() {
-    this._el.querySelector('#settings-banner').innerHTML = '';
+    this._el.querySelector('#settings-banner').replaceChildren();
   }
 
   _fillSite(data) {

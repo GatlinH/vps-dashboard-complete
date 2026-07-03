@@ -270,7 +270,11 @@ def _apply_agent_inventory(server: Server, data: dict):
     hostname = inv.get('hostname')
     os_name = inv.get('os') or inv.get('os_name')
     arch = inv.get('arch') or inv.get('architecture')
-    agent_ip = str(inv.get('ip') or data.get('ip') or server.ip or '').strip()
+    network_report = data.get('network') if isinstance(data.get('network'), dict) else {}
+    public_ipv4 = str(network_report.get('public_ipv4') or data.get('public_ipv4') or '').strip()
+    public_ipv6 = str(network_report.get('public_ipv6') or data.get('public_ipv6') or '').strip()
+    local_ipv4 = str(network_report.get('local_ipv4') or inv.get('ip') or data.get('ip') or '').strip()
+    agent_ip = public_ipv4 or local_ipv4 or str(server.ip or '').strip()
 
     if cpu is not None and 0 < cpu <= 1024 and server.cpu_cores != cpu:
         server.cpu_cores = cpu
@@ -295,13 +299,27 @@ def _apply_agent_inventory(server: Server, data: dict):
     if arch:
         extra['arch'] = str(arch).strip()
 
+    if network_report:
+        network = dict(cfg.get('network') or {})
+        for key in ('local_ipv4', 'public_ipv4', 'public_ipv6'):
+            value = str(network_report.get(key) or '').strip()
+            if value:
+                network[key] = value
+        local_ipv6 = network_report.get('local_ipv6')
+        if isinstance(local_ipv6, list):
+            network['local_ipv6'] = [str(v).strip() for v in local_ipv6 if str(v).strip()][:8]
+        network['updated_at'] = _utc_now().isoformat()
+        cfg['network'] = network
+        extra['network'] = network
+
     if agent_ip:
         extra['ip'] = agent_ip
         if server.ip != agent_ip:
             server.ip = agent_ip
             changed = True
 
-    geo = _geo_lookup_by_ip(agent_ip) if agent_ip else {}
+    geo_lookup_ip = public_ipv4 or agent_ip
+    geo = _geo_lookup_by_ip(geo_lookup_ip) if geo_lookup_ip else {}
     if geo:
         for key in ('city', 'country', 'region', 'isp', 'org', 'query'):
             value = str(geo.get(key) or '').strip()
@@ -336,6 +354,11 @@ def _authenticate_agent(payload: dict) -> tuple[Server, str]:
     _enforce_transport_security()
     uuid = payload.get("uuid") or request.headers.get("X-Agent-UUID")
     if not uuid:
+        try:
+            record_ops_event("agent_auth_failed", "Agent 认证失败", message="missing uuid", level="warn", payload={"reason": "missing_uuid", "remote_addr": request.headers.get("X-Forwarded-For", request.remote_addr), "has_json": bool(payload), "has_agent_key_header": bool(request.headers.get("X-Agent-Key")), "has_uuid_header": bool(request.headers.get("X-Agent-UUID")), "user_agent": request.headers.get("User-Agent", "")[:120]})
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
         raise AuthenticationError("missing uuid")
 
     server = Server.query.filter_by(uuid=uuid).first()
@@ -352,6 +375,11 @@ def _authenticate_agent(payload: dict) -> tuple[Server, str]:
     sig = request.headers.get("X-Agent-Signature", "")
     agent_key = request.headers.get("X-Agent-Key", "")
     if not all([ts, nonce, sig, agent_key]):
+        try:
+            record_ops_event("agent_auth_failed", f"Agent 认证失败 · {server.name}", message="missing auth headers", level="warn", server_id=server.id, payload={"uuid": uuid, "reason": "missing_auth_headers", "remote_addr": request.headers.get("X-Forwarded-For", request.remote_addr), "has_ts": bool(ts), "has_nonce": bool(nonce), "has_sig": bool(sig), "has_key": bool(agent_key), "user_agent": request.headers.get("User-Agent", "")[:120]})
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
         raise AuthenticationError("missing auth headers")
 
     _parse_ts(ts)
@@ -365,6 +393,11 @@ def _authenticate_agent(payload: dict) -> tuple[Server, str]:
         and check_password_hash(server.agent_key_prev_hash, agent_key)
     )
     if not (valid_key or within_overlap):
+        try:
+            record_ops_event("agent_auth_failed", f"Agent 认证失败 · {server.name}", message="invalid key", level="warn", server_id=server.id, payload={"uuid": uuid, "reason": "invalid_key", "remote_addr": request.headers.get("X-Forwarded-For", request.remote_addr)})
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
         raise AuthenticationError("invalid key")
 
     expected = _hmac_digest(
@@ -374,11 +407,35 @@ def _authenticate_agent(payload: dict) -> tuple[Server, str]:
         nonce=nonce,
     )
     if not hmac.compare_digest(expected, sig):
+        try:
+            record_ops_event("agent_auth_failed", f"Agent 认证失败 · {server.name}", message="signature mismatch", level="warn", server_id=server.id, payload={"uuid": uuid, "reason": "signature_mismatch", "remote_addr": request.headers.get("X-Forwarded-For", request.remote_addr)})
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
         raise AuthenticationError("signature mismatch")
 
     server.agent_key_last_used = _utc_now()
     return server, uuid
 
+
+@agent_bp.post("/register")
+def agent_register():
+    data = request.get_json(silent=True) or {}
+    hostname = (data.get("hostname") or data.get("host") or socket.gethostname() or "auto")[:64]
+    import uuid, secrets
+    from werkzeug.security import generate_password_hash
+    new_uuid = str(uuid.uuid4())
+    new_key = secrets.token_urlsafe(32)
+    remote_ip = request.headers.get("X-Forwarded-For", request.remote_addr) or ""
+    srv = Server(
+        name=hostname, uuid=new_uuid,
+        agent_key_hash=generate_password_hash(new_key),
+        agent_key_last_used=datetime.utcnow(),
+        agent_config={}, ip=remote_ip
+    )
+    db.session.add(srv)
+    db.session.commit()
+    return jsonify({"ok": True, "server_id": srv.id, "uuid": new_uuid, "agent_key": new_key}), 201
 
 @agent_bp.post("/claim")
 @owner_required
@@ -477,6 +534,39 @@ def agent_push():
 
     return jsonify({"accepted": True}), 202
 
+
+@agent_bp.post("/probe-results")
+@limiter.limit(
+    lambda: current_app.config.get("AGENT_PUSH_RATE_LIMIT", "60 per minute"),
+    key_func=_agent_rate_limit_key,
+)
+def agent_probe_results():
+    data = request.get_json(silent=True) or {}
+    server, uuid = _authenticate_agent(data)
+    results = data.get("results") or []
+    for r in results:
+        if "latency_ms" in r and "stats" not in r:
+            r["stats"] = {"avg_ms": r.get("latency_ms"), "loss_pct": r.get("loss_pct", 0), "count": 1}
+            r["quality"] = 100 if (r.get("latency_ms") and r["latency_ms"] < 100) else (50 if r.get("latency_ms") and r["latency_ms"] < 300 else 0)
+    if not results:
+        return jsonify({"accepted": False, "reason": "no results"}), 400
+    try:
+        from datetime import datetime as dt
+        ts = dt.utcnow()
+        stored = 0
+        for r in results:
+            lat = r.get("latency_ms") or (r.get("stats") or {}).get("avg_ms")
+            db.session.execute(db.text(
+                "INSERT INTO ping_target_results (server_id,target_key,label,host,port,protocol,latency_ms,success,loss_pct,quality,created_at) VALUES (:sid,:key,:label,:host,:port,:proto,:lat,:ok,:loss,:qual,:ts)"),
+                {"sid":server.id,"key":str(r.get("key") or r.get("host") or "unknown")[:128],"label":str(r.get("label") or r.get("host") or "")[:255],"host":str(r.get("host") or "")[:255],"port":r.get("port"),"proto":str(r.get("protocol") or "tcp")[:16],"lat":float(lat) if lat is not None else None,"ok":1 if lat is not None else 0,"loss":r.get("loss_pct"),"qual":int(r.get("quality",0)) if isinstance(r.get("quality"),(int,float)) else (100 if (r.get("latency_ms") and r["latency_ms"]<100) else (50 if r.get("latency_ms") and r["latency_ms"]<300 else 0)),"ts":ts})
+            stored += 1
+        db.session.commit()
+        logger.info("agent probe stored", extra={"server_id": server.id, "count": stored})
+        return jsonify({"accepted": True, "stored": stored}), 202
+    except Exception as exc:
+        db.session.rollback()
+        logger.warning("agent probe results failed: %s", exc, extra={"server_id": server.id})
+        return jsonify({"accepted": False, "reason": str(exc)[:200]}), 500
 
 @agent_bp.get("/poll")
 @limiter.limit(
@@ -603,7 +693,11 @@ INTERVAL="20"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --api-root) API_ROOT="$2"; shift 2 ;;
-    --uuid) AGENT_UUID="$2"; shift 2 ;;
+    --auto-register)
+      AUTO_REGISTER=1
+      shift
+      ;;
+  --uuid) AGENT_UUID="$2"; shift 2 ;;
     --agent-key) AGENT_KEY="$2"; shift 2 ;;
     --server-id) SERVER_ID="$2"; shift 2 ;;
     --interval) INTERVAL="$2"; shift 2 ;;
@@ -636,93 +730,68 @@ umask 077
 } > "$INSTALL_DIR/agent.env"
 
 cat > "$INSTALL_DIR/agent.py" <<'PY2'
-#!/usr/bin/env python3
-import hashlib
-import hmac
-import json
-import os
-import platform
-import shutil
-import socket
-import time
-import urllib.request
-from datetime import datetime
-
-API_ROOT = os.environ['API_ROOT'].rstrip('/')
-AGENT_UUID = os.environ['AGENT_UUID']
-AGENT_KEY = os.environ['AGENT_KEY']
-INTERVAL = max(10, int(os.environ.get('INTERVAL', '20')))
-STATE_PATH = '/opt/vps-agent/state.json'
-
 def read_os_name():
     try:
         data = {}
-        with open('/etc/os-release', 'r', encoding='utf-8') as f:
+        with open("/etc/os-release", "r", encoding="utf-8") as f:
             for line in f:
-                if '=' in line:
-                    k, v = line.rstrip().split('=', 1)
+                if "=" in line:
+                    k, v = line.rstrip().split("=", 1)
                     data[k] = v.strip().strip('"')
-        return data.get('PRETTY_NAME') or data.get('NAME') or platform.platform()
+        return data.get("PRETTY_NAME") or data.get("NAME") or platform.platform()
     except Exception:
         return platform.platform()
 
 def get_ip():
     try:
-        for fam, _, _, _, sockaddr in socket.getaddrinfo(socket.gethostname(), None):
-            if fam == socket.AF_INET and sockaddr and sockaddr[0] and not sockaddr[0].startswith('127.'):
-                return sockaddr[0]
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.settimeout(2)
+            sock.connect(("8.8.8.8", 80))
+            ip = sock.getsockname()[0]
+        return ip or "127.0.0.1"
     except Exception:
-        pass
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.connect(('8.8.8.8', 80))
-            return s.getsockname()[0]
-    except Exception:
-        return '127.0.0.1'
+        return "127.0.0.1"
 
 def meminfo():
     vals = {}
-    with open('/proc/meminfo', 'r', encoding='utf-8') as f:
+    with open("/proc/meminfo", "r", encoding="utf-8") as f:
         for line in f:
-            key, rest = line.split(':', 1)
+            key, rest = line.split(":", 1)
             vals[key] = int(rest.strip().split()[0])
-    total = vals.get('MemTotal', 0) / 1024 / 1024
-    avail = vals.get('MemAvailable', 0) / 1024 / 1024
+    total = vals.get("MemTotal", 0) / 1024 / 1024
+    avail = vals.get("MemAvailable", 0) / 1024 / 1024
     used_pct = 0 if total <= 0 else round((1 - avail / total) * 100, 2)
     return round(total, 2), used_pct
 
 def diskinfo():
-    du = shutil.disk_usage('/')
+    du = shutil.disk_usage("/")
     total = du.total / 1024 / 1024 / 1024
     used_pct = 0 if du.total <= 0 else round((du.used / du.total) * 100, 2)
     return int(round(total)), used_pct
 
 def uptime_text():
     try:
-        with open('/proc/uptime', 'r', encoding='utf-8') as f:
+        with open("/proc/uptime", "r", encoding="utf-8") as f:
             sec = int(float(f.read().split()[0]))
         days, rem = divmod(sec, 86400)
         hours, rem = divmod(rem, 3600)
         mins, _ = divmod(rem, 60)
         parts = []
-        if days:
-            parts.append(f'{days} days')
-        if hours:
-            parts.append(f'{hours} hours')
-        parts.append(f'{mins} minutes')
-        return ', '.join(parts)
+        if days: parts.append(f"{days} days")
+        if hours: parts.append(f"{hours} hours")
+        parts.append(f"{mins} minutes")
+        return ", ".join(parts)
     except Exception:
-        return ''
+        return ""
 
 def net_totals():
     rx = tx = 0
-    with open('/proc/net/dev', 'r', encoding='utf-8') as f:
+    with open("/proc/net/dev", "r", encoding="utf-8") as f:
         lines = f.readlines()[2:]
     for line in lines:
-        iface, rest = line.split(':', 1)
+        iface, rest = line.split(":", 1)
         iface = iface.strip()
-        if iface == 'lo':
-            continue
+        if iface == "lo": continue
         parts = rest.split()
         rx += int(parts[0])
         tx += int(parts[8])
@@ -733,19 +802,19 @@ def net_rates():
     rx, tx = net_totals()
     prev = {}
     try:
-        with open(STATE_PATH, 'r', encoding='utf-8') as f:
+        with open(STATE_PATH, "r", encoding="utf-8") as f:
             prev = json.load(f)
     except Exception:
         prev = {}
-    prev_t = float(prev.get('t', now))
-    prev_rx = int(prev.get('rx', rx))
-    prev_tx = int(prev.get('tx', tx))
+    prev_t = float(prev.get("t", now))
+    prev_rx = int(prev.get("rx", rx))
+    prev_tx = int(prev.get("tx", tx))
     dt = max(1e-6, now - prev_t)
     down = max(0.0, (rx - prev_rx) / 1024 / dt)
     up = max(0.0, (tx - prev_tx) / 1024 / dt)
     try:
-        with open(STATE_PATH, 'w', encoding='utf-8') as f:
-            json.dump({'t': now, 'rx': rx, 'tx': tx}, f)
+        with open(STATE_PATH, "w", encoding="utf-8") as f:
+            json.dump({"t": now, "rx": rx, "tx": tx}, f)
     except Exception:
         pass
     return round(up, 2), round(down, 2)
@@ -763,48 +832,101 @@ def payload():
     disk_gb, disk_use = diskinfo()
     net_up, net_down = net_rates()
     return {
-        'uuid': AGENT_UUID,
-        'status': 'online',
-        'hostname': socket.gethostname(),
-        'os': read_os_name(),
-        'arch': platform.machine(),
-        'cpu_cores': cores,
-        'ram_gb': ram_gb,
-        'disk_gb': disk_gb,
-        'bandwidth': '待人工补充',
-        'ip': get_ip(),
-        'cpu_use': cpu_use(cores),
-        'ram_use': ram_use,
-        'disk_use': disk_use,
-        'net_up': net_up,
-        'net_down': net_down,
-        'uptime': uptime_text(),
+        "uuid": AGENT_UUID, "status": "online", "hostname": socket.gethostname(),
+        "os": read_os_name(), "arch": platform.machine(), "cpu_cores": cores,
+        "ram_gb": ram_gb, "disk_gb": disk_gb, "bandwidth": "N/A",
+        "ip": get_ip(), "cpu_use": cpu_use(cores), "ram_use": ram_use,
+        "disk_use": disk_use, "net_up": net_up, "net_down": net_down,
+        "uptime": uptime_text(),
     }
 
-def sign(body: bytes, ts: str, nonce: str) -> str:
-    msg = f'{ts}.{nonce}.'.encode('utf-8') + body
-    return hmac.new(AGENT_KEY.encode('utf-8'), msg, hashlib.sha256).hexdigest()
+def sign(body, ts, nonce):
+    msg = f"{ts}.{nonce}.".encode("utf-8") + body
+    return hmac.new(AGENT_KEY.encode("utf-8"), msg, hashlib.sha256).hexdigest()
+
+def http_get(path, timeout=10):
+    req = urllib.request.Request(API_ROOT + path, method="GET")
+    req.add_header("X-Agent-UUID", AGENT_UUID)
+    req.add_header("X-Agent-Key", AGENT_KEY)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8", "ignore"))
 
 def push_once():
     data = payload()
-    body = json.dumps(data, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+    body = json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     ts = str(int(time.time()))
     nonce = str(int(time.time() * 1000))
-    req = urllib.request.Request(API_ROOT + '/api/v1/agent/push', data=body, method='POST')
-    req.add_header('Content-Type', 'application/json')
-    req.add_header('X-Agent-UUID', AGENT_UUID)
-    req.add_header('X-Agent-Key', AGENT_KEY)
-    req.add_header('X-Agent-Timestamp', ts)
-    req.add_header('X-Agent-Nonce', nonce)
-    req.add_header('X-Agent-Signature', sign(body, ts, nonce))
+    req = urllib.request.Request(API_ROOT + "/api/v1/agent/push", data=body, method="POST")
+    req.add_header("Content-Type", "application/json")
+    req.add_header("X-Agent-UUID", AGENT_UUID)
+    req.add_header("X-Agent-Key", AGENT_KEY)
+    req.add_header("X-Agent-Timestamp", ts)
+    req.add_header("X-Agent-Nonce", nonce)
+    req.add_header("X-Agent-Signature", sign(body, ts, nonce))
     with urllib.request.urlopen(req, timeout=15) as resp:
-        return resp.read().decode('utf-8', 'ignore')
+        return resp.read().decode("utf-8", "ignore")
 
+# ── Peer probe ─────────────────────────────────────────────────
+def tcp_probe(host, port, timeout=5):
+    try:
+        start = time.time()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        result = sock.connect_ex((str(host), int(port)))
+        elapsed = (time.time() - start) * 1000
+        sock.close()
+        return round(elapsed, 1) if result == 0 else None
+    except Exception:
+        return None
+
+def probe_targets():
+    try:
+        targets_resp = http_get(f"/api/v1/probe/public/ping-targets/{SERVER_ID}?count=2&source=agent")
+    except Exception:
+        return
+    targets = targets_resp.get("targets", [])
+    if not targets:
+        return
+    results = []
+    for t in targets:
+        host = t.get("host") or t.get("label")
+        port = t.get("port") or 80
+        latency = tcp_probe(host, port)
+        results.append({
+            "key": t.get("key", str(host)), "host": host, "port": port,
+            "protocol": t.get("protocol", "tcp"),
+            "latency_ms": latency, "success": latency is not None,
+            "loss_pct": 0 if latency is not None else 100,
+        })
+    if results:
+        body = json.dumps({"results": results, "agent_uuid": AGENT_UUID}, ensure_ascii=False).encode("utf-8")
+        ts = str(int(time.time()))
+        nonce = str(int(time.time() * 1000))
+        req = urllib.request.Request(API_ROOT + "/api/v1/agent/probe-results", data=body, method="POST")
+        req.add_header("Content-Type", "application/json")
+        req.add_header("X-Agent-UUID", AGENT_UUID)
+        req.add_header("X-Agent-Key", AGENT_KEY)
+        req.add_header("X-Agent-Timestamp", ts)
+        req.add_header("X-Agent-Nonce", nonce)
+        req.add_header("X-Agent-Signature", sign(body, ts, nonce))
+        try:
+            urllib.request.urlopen(req, timeout=15)
+        except Exception:
+            pass
+
+last_probe = 0
 while True:
     try:
         push_once()
     except Exception as e:
-        print(f'[{datetime.utcnow().isoformat()}] push failed: {e}', flush=True)
+        print(f"[{datetime.utcnow().isoformat()}] push failed: {e}", flush=True)
+    now = time.time()
+    if now - last_probe >= PROBE_INTERVAL:
+        try:
+            probe_targets()
+        except Exception as e:
+            print(f"[{datetime.utcnow().isoformat()}] probe failed: {e}", flush=True)
+        last_probe = now
     time.sleep(INTERVAL)
 PY2
 chmod +x "$INSTALL_DIR/agent.py"

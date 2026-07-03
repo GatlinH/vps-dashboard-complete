@@ -115,8 +115,14 @@ def ingest_metrics(
             setattr(server, field, val)
             applied[field] = val
         else:
-            # Agent path: must be a string no longer than 64 chars.
-            if isinstance(val, str) and len(val) <= 64:
+            # Agent path: accepted signed push means the node is reachable now.
+            # Do not trust agent-reported `status` to mark the server offline,
+            # otherwise a local probe mismatch on the node can override real
+            # backend visibility and cause online/offline flapping.
+            if field == "status":
+                setattr(server, field, "online")
+                applied[field] = "online"
+            elif isinstance(val, str) and len(val) <= 64:
                 setattr(server, field, val)
                 applied[field] = val
 

@@ -6,6 +6,12 @@
   <link id="dynamic-favicon" rel="icon" href="/api/v1/ops/settings/site/favicon">
   <title>VPS 星图展示</title>
   <meta name="color-scheme" content="dark light" />
+  <script>
+    window.__DBG__ = window.__DBG__ || {};
+    if (window.__API_ROOT__ && !window.__DBG__.API_ROOT) {
+      window.__DBG__.API_ROOT = window.__API_ROOT__;
+    }
+  </script>
 </head>
 <body>
   <canvas id="starfield"></canvas>

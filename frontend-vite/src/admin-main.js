@@ -129,8 +129,29 @@ function initAdminToolbar() {
       const caret = settingsToggle.querySelector('.settings-caret') || settingsToggle.querySelector('b');
       if (caret) caret.textContent = collapsed ? '⌃' : '⌄';
       settingsToggle.setAttribute('aria-expanded', String(!collapsed));
-      if (!collapsed) window.switchTab?.('settings','site');
+      if (!collapsed) switchTab('settings','site');
     }, true);
+
+    document.addEventListener('click', (ev) => {
+      const tabButton = ev.target.closest?.('.admin-tab[data-tab]:not(.has-children)');
+      if (!tabButton) return;
+      ev.preventDefault();
+      switchTab(tabButton.dataset.tab);
+    });
+
+    document.addEventListener('click', (ev) => {
+      const subtabButton = ev.target.closest?.('.admin-subtab[data-settings-section]');
+      if (!subtabButton) return;
+      ev.preventDefault();
+      switchTab('settings', subtabButton.dataset.settingsSection || null);
+    });
+
+    document.addEventListener('click', (ev) => {
+      const logoutButton = ev.target.closest?.('.btn-logout');
+      if (!logoutButton) return;
+      ev.preventDefault();
+      adminLogout();
+    });
 
     document.addEventListener('click', (ev) => {
       const collapseBtn = ev.target.closest?.('.notify-collapse');
@@ -189,7 +210,7 @@ async function adminLogout() {
  * 初始化后台面板
  */
 async function showAdminPanel() {
-  document.getElementById('login-mount').innerHTML = '';
+  document.getElementById('login-mount').replaceChildren();
   document.body.classList.remove('admin-preboot');
   document.body.classList.add('komari-admin-shell', 'admin-loading');
   // Keep the panel hidden until theme, toolbar labels and first data paint are ready.
@@ -251,10 +272,6 @@ async function boot() {
     showLogin();
   }
 }
-
-// 将函数暴露给 window，以便 HTML 中的 onclick 事件调用
-window.switchTab = switchTab;
-window.adminLogout = adminLogout;
 
 applySavedAdminTheme();
 boot();

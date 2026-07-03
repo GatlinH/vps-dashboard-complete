@@ -58,7 +58,7 @@ export class UserAdminPanel {
 
   async load() {
     const wrap = this._el.querySelector('#sessions-table-wrap');
-    wrap.innerHTML = '加载中...';
+    wrap.textContent = '加载中...';
     try {
       const data = await listSessions();
       this._sessions = data.sessions || [];

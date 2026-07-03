@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link id="dynamic-favicon" rel="icon" href="/api/v1/ops/settings/site/favicon">
   <title>VPS星图·管理后台</title>
+  <script>
+    window.__DBG__ = window.__DBG__ || {};
+  </script>
   
   <style>
     :root {
@@ -254,26 +257,26 @@
       </div>
       
       <div class="admin-tabs">
-        <button class="admin-tab active" data-tab="servers" onclick="switchTab('servers')"><span class="nav-ico">▦</span><span data-i18n="servers">服务器</span></button>
+        <button class="admin-tab active" data-tab="servers"><span class="nav-ico">▦</span><span data-i18n="servers">服务器</span></button>
         <button id="admin-settings-toggle" class="admin-tab has-children" data-tab="settings" type="button"><span class="nav-ico">⚙</span><span data-i18n="settings">设置</span><b class="settings-caret">⌄</b></button>
         <div id="admin-settings-subtabs" class="admin-subtabs" aria-label="设置子菜单">
-          <button class="admin-subtab" data-settings-section="site" onclick="switchTab('settings','site')"><span class="nav-ico">⌂</span> <span data-i18n="site">站点</span></button>
-          <button class="admin-subtab" data-settings-section="login" onclick="switchTab('settings','login')"><span class="nav-ico">↪</span> <span data-i18n="login">登录</span></button>
-          <button class="admin-subtab" data-settings-section="notify" onclick="switchTab('settings','notify')"><span class="nav-ico">🔔</span> <span data-i18n="notify">通知</span></button>
-          <button class="admin-subtab" data-settings-section="general" onclick="switchTab('settings','general')"><span class="nav-ico">⋯</span> <span data-i18n="general">通用</span></button>
-          <button class="admin-subtab" data-settings-section="proxy" onclick="switchTab('settings','proxy')"><span class="nav-ico">⇄</span> <span data-i18n="proxy">反向代理</span></button>
+          <button class="admin-subtab" data-settings-section="site"><span class="nav-ico">⌂</span> <span data-i18n="site">站点</span></button>
+          <button class="admin-subtab" data-settings-section="login"><span class="nav-ico">↪</span> <span data-i18n="login">登录</span></button>
+          <button class="admin-subtab" data-settings-section="notify"><span class="nav-ico">🔔</span> <span data-i18n="notify">通知</span></button>
+          <button class="admin-subtab" data-settings-section="general"><span class="nav-ico">⋯</span> <span data-i18n="general">通用</span></button>
+          <button class="admin-subtab" data-settings-section="proxy"><span class="nav-ico">⇄</span> <span data-i18n="proxy">反向代理</span></button>
         </div>
-        <button class="admin-tab" data-tab="alerts" onclick="switchTab('alerts')"><span class="nav-ico">🔔</span><span data-i18n="alert_rules">通知规则</span></button>
-        <button class="admin-tab" data-tab="network" onclick="switchTab('network')"><span class="nav-ico">⌁</span><span data-i18n="latency_monitor">延迟监测</span></button>
-        <button class="admin-tab" data-tab="users" onclick="switchTab('users')"><span class="nav-ico">☷</span><span data-i18n="sessions">会话管理</span></button>
-        <button class="admin-tab" data-tab="account" onclick="switchTab('account')"><span class="nav-ico">👤</span><span data-i18n="account">账户</span></button>
-        <button class="admin-tab" data-tab="ops" onclick="switchTab('ops')"><span class="nav-ico">☰</span><span data-i18n="logs">日志</span></button>
-        <button class="admin-tab" data-tab="theme" onclick="switchTab('theme')"><span class="nav-ico">◐</span><span data-i18n="theme_management">默认主题管理</span></button>
+        <button class="admin-tab" data-tab="alerts"><span class="nav-ico">🔔</span><span data-i18n="alert_rules">通知规则</span></button>
+        <button class="admin-tab" data-tab="network"><span class="nav-ico">⌁</span><span data-i18n="latency_monitor">延迟监测</span></button>
+        <button class="admin-tab" data-tab="users"><span class="nav-ico">☷</span><span data-i18n="sessions">会话管理</span></button>
+        <button class="admin-tab" data-tab="account"><span class="nav-ico">👤</span><span data-i18n="account">账户</span></button>
+        <button class="admin-tab" data-tab="ops"><span class="nav-ico">☰</span><span data-i18n="logs">日志</span></button>
+        <button class="admin-tab" data-tab="theme"><span class="nav-ico">◐</span><span data-i18n="theme_management">默认主题管理</span></button>
       </div>
 
       <div class="nav-actions">
         <a href="/" class="btn-return" data-i18n="return_starmap">返回星图</a>
-        <button onclick="adminLogout()" class="btn-logout" data-i18n="logout">退出登录</button>
+        <button class="btn-logout" data-i18n="logout">退出登录</button>
       </div>
     </div>
 

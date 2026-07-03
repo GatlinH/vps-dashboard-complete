@@ -1,5 +1,6 @@
 import * as Cesium from 'cesium';
 import { FULL_GLOBE_RECTANGLE, GEOGRAPHIC_TILING_SCHEME } from './imageryProviders.js';
+import { getGlobeResourceDebug } from '../../utils/debugState.js';
 
 export const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || '';
 export const MAPTILER_STYLE = 'basic-v2';
@@ -21,8 +22,8 @@ export function installMaptilerLayer(globe) {
     Object.assign(layer, { show: false, alpha: 0.0, brightness: 1.02, contrast: 1.04, saturation: 0.86 });
     globe._labelTileLayer = layer;
     globe._maptilerLayer = layer;
-    window.__globalLabelTiles = `MapTiler ${MAPTILER_STYLE}`;
+    getGlobeResourceDebug().globalLabelTiles = `MapTiler ${MAPTILER_STYLE}`;
   } catch (error) {
-    window.__globalLabelTilesError = String(error?.message || error);
+    getGlobeResourceDebug().globalLabelTilesError = String(error?.message || error);
   }
 }

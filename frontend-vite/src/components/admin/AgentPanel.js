@@ -6,6 +6,7 @@ import {
   updateAgentConfig,
   fetchAgentInstallCommand,
 } from '../../api/servers.js';
+import { getKomariPanelUrl } from '../../config/externalLinks.js';
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>\"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[ch]));
@@ -48,7 +49,7 @@ export class AgentPanel {
         <div class="admin-card-title">🛰 Komari / Agent 接入总览</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px">
           <div class="metric-tile"><div class="metric-k">监控源</div><div class="metric-v">Agent + Komari</div><div class="metric-d">本项目负责星图、告警、资产管理</div></div>
-          <div class="metric-tile"><div class="metric-k">192 Komari</div><div class="metric-v"><a href="http://192.129.221.4:25774" target="_blank" rel="noreferrer">打开面板</a></div><div class="metric-d">端口 25774，适合做探针与节点监控</div></div>
+          <div class="metric-tile"><div class="metric-k">192 Komari</div><div class="metric-v"><a href="${getKomariPanelUrl()}" target="_blank" rel="noreferrer">打开面板</a></div><div class="metric-d">端口 25774，适合做探针与节点监控</div></div>
           <div class="metric-tile"><div class="metric-k">控制面</div><div class="metric-v">只读监控</div><div class="metric-d">不接受远程执行、在线终端、文件任务</div></div>
         </div>
       </div>
@@ -57,11 +58,12 @@ export class AgentPanel {
         <div class="admin-card-title">🔐 密钥与绑定状态</div>
         <div id="ap-overview" style="font-size:13px;line-height:1.8;color:var(--text2)">请选择服务器</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
-          <button id="ap-gen" class="add-btn">生成新密钥</button>
-          <button id="ap-rotate" style="padding:8px 18px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:13px">轮换密钥</button>
-          <button id="ap-install" style="padding:8px 18px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:13px">生成安装命令</button>
+          <button type="button" id="ap-gen" class="add-btn">生成新密钥</button>
+          <button type="button" id="ap-rotate" style="padding:8px 18px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:13px">轮换密钥</button>
+          <button type="button" id="ap-install" style="padding:8px 18px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:13px">生成安装命令</button>
+          <button type="button" id="ap-copy-install" style="padding:8px 18px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:13px">复制安装命令</button>
         </div>
-        <div id="ap-key" style="margin-top:10px;font-size:12px;color:var(--gold);word-break:break-all"></div><textarea id="ap-install-cmd" class="form-input" style="min-height:92px;margin-top:10px;font-family:var(--mono);resize:vertical" placeholder="生成 Agent Key 后，这里会出现安装命令"></textarea>
+        <div id="ap-key" style="margin-top:10px;font-size:12px;color:var(--gold);word-break:break-all"></div><textarea id="ap-install-cmd" readonly class="form-input" style="min-height:92px;margin-top:10px;font-family:var(--mono);resize:vertical" placeholder="生成 Agent Key 后，这里会出现安装命令"></textarea>
       </div>
 
       <div class="admin-card">
@@ -94,6 +96,7 @@ export class AgentPanel {
     this._el.querySelector('#ap-rotate').addEventListener('click', () => this._createKey(true));
     this._el.querySelector('#ap-save').addEventListener('click', () => this._saveConfig());
     this._el.querySelector('#ap-install').addEventListener('click', () => this._buildInstallCommand());
+    this._el.querySelector('#ap-copy-install').addEventListener('click', () => this._copyInstallCommand());
   }
 
   _renderServerOptions() {
@@ -105,7 +108,7 @@ export class AgentPanel {
     if (!this._selectedId) return;
     try {
       const data = await getAgentOverview(this._selectedId);
-      const komariUrl = 'http://192.129.221.4:25774';
+      const komariUrl = getKomariPanelUrl();
       this._el.querySelector('#ap-overview').innerHTML = [
         `UUID: <b>${escapeHtml(data.uuid || '未绑定')}</b>`,
         `密钥创建时间: ${escapeHtml(data.agent_key_created_at || '—')}`,
@@ -149,6 +152,56 @@ export class AgentPanel {
   }
 
 
+  async _buildInstallCommand() {
+    if (!this._selectedId) return;
+    try {
+      this._msg('正在生成安装命令...', 'blue');
+      const keyLine = this._el.querySelector('#ap-key')?.textContent || '';
+      let agentKey = keyLine.includes(':') ? keyLine.slice(keyLine.indexOf(':') + 1).trim() : '';
+      if (!agentKey) {
+        const data = await generateAgentKey(this._selectedId);
+        agentKey = data.agent_key || '';
+        this._el.querySelector('#ap-key').textContent = `请立即复制并保存密钥: ${agentKey}`;
+      }
+      const data = await fetchAgentInstallCommand(this._selectedId, agentKey);
+      const cmd = data.install_command || data.command || '';
+      this._el.querySelector('#ap-install-cmd').value = cmd;
+      this._msg(cmd ? '安装命令已生成，可点击复制' : '安装命令为空', cmd ? 'green' : 'red');
+    } catch (e) {
+      this._msg(`生成安装命令失败: ${e.message}`, 'red');
+    }
+  }
+
+  async _copyInstallCommand() {
+    const text = this._el.querySelector('#ap-install-cmd')?.value || '';
+    if (!text.trim()) { this._msg('没有可复制的安装命令', 'red'); return; }
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        this._copyWithTextarea(text);
+      }
+      this._msg('✅ 安装命令已复制', 'green');
+    } catch (_) {
+      try { this._copyWithTextarea(text); this._msg('✅ 安装命令已复制', 'green'); }
+      catch (err) { this._msg('复制失败：请手动选中复制', 'red'); }
+    }
+  }
+
+  _copyWithTextarea(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    if (!ok) throw new Error('execCommand copy failed');
+  }
 
   _msg(text, type) {
     const el = this._el.querySelector('#ap-status');

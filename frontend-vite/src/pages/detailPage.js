@@ -12,16 +12,16 @@ export function detailLoadingShell() {
       <div class="detail-page-topbar">
         <a class="detail-back-link" href="/" data-i18n="back">${t('back')}</a>
         <div class="detail-page-tools">
-          <button class="theme-toggle" id="themeToggle" type="button" onclick="toggleTheme()" aria-label="${t('themeAria')}">
+          <button class="theme-toggle" id="themeToggle" type="button" aria-label="${t('themeAria')}">
             <span id="themeIcon">☾</span><span id="themeLabel">${document.documentElement.getAttribute('data-theme') === 'light' ? t('daylight') : t('bridge')}</span>
           </button>
-          <select class="language-select" id="languageSelect" onchange="setLanguage(this.value)" aria-label="${t('langAria')}">
+          <select class="language-select" id="languageSelect" aria-label="${t('langAria')}">
             ${Object.entries(LANGUAGE_PACKS).map(([code, pack]) => `<option value="${code}" ${currentLanguage === code ? 'selected' : ''}>${pack.name}</option>`).join('')}
           </select>
           <div class="currency-switch detail-currency-switch">
-            <button class="currency-btn ${state.currency === 'CNY' ? 'active' : ''}" onclick="setCurrency('CNY')">CNY</button>
-            <button class="currency-btn ${state.currency === 'USD' ? 'active' : ''}" onclick="setCurrency('USD')">USD</button>
-            <button class="currency-btn ${state.currency === 'EUR' ? 'active' : ''}" onclick="setCurrency('EUR')">EUR</button>
+            <button class="currency-btn ${state.currency === 'CNY' ? 'active' : ''}" data-currency="CNY">CNY</button>
+            <button class="currency-btn ${state.currency === 'USD' ? 'active' : ''}" data-currency="USD">USD</button>
+            <button class="currency-btn ${state.currency === 'EUR' ? 'active' : ''}" data-currency="EUR">EUR</button>
           </div>
           <div class="rate-display" id="rateDisplay"></div>
         </div>
@@ -43,6 +43,7 @@ export function renderDetailConsole(ctx) {
     resolvedServer,
     probeRows,
     pingTargetsData,
+    peerPingTargetsData,
     pingData,
     trafficData,
     upSeries,
@@ -53,10 +54,14 @@ export function renderDetailConsole(ctx) {
     displayRamSeries,
     freshMeta,
     stateServers,
+    detailDays = 0,
+    detailBucketMinutes = 5,
     helpers,
   } = ctx;
   const h = helpers;
-  const targetCount = ((ctx.detailCachedPingTargets || pingTargetsData)?.targets || []).length || 0;
+  const displayPingTargetsData = ((pingTargetsData?.targets || []).length ? pingTargetsData : ctx.detailCachedPingTargets) || pingTargetsData || ctx.detailCachedPingTargets;
+  const displayPeerPingTargetsData = ((peerPingTargetsData?.targets || []).length ? peerPingTargetsData : ctx.detailCachedPeerPingTargets) || peerPingTargetsData || ctx.detailCachedPeerPingTargets;
+  const targetCount = (displayPingTargetsData?.targets || []).filter(t => t.type !== 'peer' && !String(t.key || '').startsWith('vps-')).length || 0;
   return `
     <section class="fleet-detail-console">
       <header class="fleet-console-header">
@@ -71,13 +76,13 @@ export function renderDetailConsole(ctx) {
         <div class="fleet-status-bank">
           <div><span data-i18n="sector">${t('sector')}</span><strong>${escapeHtml(resolvedServer.city || resolvedServer.region || resolvedServer.location || 'Unknown')}</strong></div>
           <div><span data-i18n="systemCore">${t('systemCore')}</span><strong>${resolvedServer.status === 'online' ? '稳定' : '告警'}</strong></div>
-          <div><span data-i18n="runtime">${t('runtime')}</span><strong>${h.formatZhDuration(resolvedServer.uptime)}</strong></div>
+          <div><span data-i18n="runtime">${t('runtime')}</span><strong>${h.formatZhDuration(resolvedServer.uptime, resolvedServer.agent_key_created_at)}</strong></div>
           <div><span data-i18n="expiry">${t('expiry')}</span><strong>${h.formatExpiryCountdown(resolvedServer.expiry)}</strong></div>
           <div class="fleet-online ${resolvedServer.status}"><strong>${h.statusLabel(resolvedServer.status)}</strong><span>Agent / 心跳</span></div>
         </div>
       </header>
 
-      ${h.renderHealthSummary(resolvedServer, probeRows, ctx.detailCachedPingTargets || pingTargetsData, displayCpuSeries, displayRamSeries)}
+      ${h.renderHealthSummary(resolvedServer, probeRows, displayPingTargetsData, displayCpuSeries, displayRamSeries)}
 
       <aside class="fleet-left-rail">
         <div class="fleet-panel node-card">
@@ -90,36 +95,31 @@ export function renderDetailConsole(ctx) {
             ${h.renderCompactNodeFacts(resolvedServer)}
           </div>
         </div>
-        ${h.renderFleetInsignia()}
       </aside>
 
       ${h.renderRealtimeResourcePanels(resolvedServer, trafficData, upSeries, downSeries, displayCpuSeries, displayRamSeries)}
-
       <main class="fleet-chart-matrix">
-        <div class="fleet-chart-card compact-metric-card network-throughput-card"><div class="fleet-chart-head"><span>网络吞吐量 · 12小时 · 自动量程</span><strong>↑ ${h.detailRateValue(displayUpSeries, resolvedServer.net_up)} · ↓ ${h.detailRateValue(displayDownSeries, resolvedServer.net_down)}</strong></div><div class="network-legend"><i class="up"></i>上行 <i class="down"></i>下行</div><canvas id="detailNetworkChart"></canvas></div>
-        <div class="fleet-chart-card compact-metric-card ping-multi-card"><div class="fleet-chart-head"><span>PING · ICMP 真实采样 · 12小时 · 失败不画 0</span><strong>${targetCount} 目标</strong></div><canvas id="detailPingChart"></canvas></div>
-        <div class="fleet-chart-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>CPU 使用率 · 2小时</span><strong>${h.detailMetricValue(displayCpuSeries, resolvedServer.cpu_use, '%')}</strong></div><canvas id="detailCpuChart"></canvas></div>
-        <div class="fleet-chart-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>内存使用率 · 2小时</span><strong>${h.detailMetricValue(displayRamSeries, resolvedServer.ram_use, '%')}</strong></div><canvas id="detailMemoryChart"></canvas></div>
-        <div class="fleet-chart-card pseudo data-freshness-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>${t('dataFreshness')} · 2小时实时滚动</span><strong>${freshMeta.ageText}</strong></div><div class="freshness-meta"><span>${t('sampleInterval')}: ${freshMeta.sampleSec ? `${freshMeta.sampleSec}s` : '—'}</span><span class="freshness-latest">${t('latestSample')}: ${freshMeta.ageText}</span></div><canvas id="detailFreshnessChart"></canvas></div>
+        <div class="fleet-chart-card compact-metric-card network-throughput-card"><div class="fleet-chart-head"><span>网络吞吐量 · ${detailDays}天 · ${detailBucketMinutes === 0 ? '1秒' : detailBucketMinutes + '分钟'}桶 · 自动量程</span><strong>↑ ${h.detailRateValue(displayUpSeries, resolvedServer.net_up)} · ↓ ${h.detailRateValue(displayDownSeries, resolvedServer.net_down)}</strong></div><div class="network-legend"><i class="up"></i>上行 <i class="down"></i>下行</div><canvas id="detailNetworkChart"></canvas></div>
+        <div class="fleet-chart-card compact-metric-card ping-multi-card"><div class="fleet-chart-head"><span>PING · ${detailDays}天 · ${detailBucketMinutes === 0 ? '1秒' : detailBucketMinutes + '分钟'}桶 · 失败不画 0</span><strong>${targetCount} 目标</strong></div><canvas id="detailPingChart"></canvas></div>
+        <div class="fleet-chart-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>CPU 使用率 · ${detailDays}天 · ${detailBucketMinutes === 0 ? '1秒' : detailBucketMinutes + '分钟'}桶</span><strong>${h.detailMetricValue(displayCpuSeries, resolvedServer.cpu_use, '%')}</strong></div><canvas id="detailCpuChart"></canvas></div>
+        <div class="fleet-chart-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>内存使用率 · ${detailDays}天 · ${detailBucketMinutes === 0 ? '1秒' : detailBucketMinutes + '分钟'}桶</span><strong>${h.detailMetricValue(displayRamSeries, resolvedServer.ram_use, '%')}</strong></div><canvas id="detailMemoryChart"></canvas></div>
+        <div class="fleet-chart-card pseudo data-freshness-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>${t('dataFreshness')} · ${detailDays}天窗口</span><strong>${freshMeta.ageText}</strong></div><div class="freshness-meta"><span>${t('sampleInterval')}: ${freshMeta.sampleSec ? `${freshMeta.sampleSec}s` : '—'}</span><span class="freshness-latest">${t('latestSample')}: ${freshMeta.ageText}</span></div><canvas id="detailFreshnessChart"></canvas></div>
       </main>
 
       <section class="fleet-right-zone">
-        <div class="fleet-panel fleet-database-panel">
-          <div class="fleet-title">节点资产记录</div>
-          <div class="fleet-table-wrap"><table class="fleet-table"><thead><tr><th data-i18n="identity">${t('identity')}</th><th data-i18n="supplier">${t('supplier')}</th><th data-i18n="city">${t('city')}</th><th data-i18n="ip">${t('ip')}</th><th data-i18n="arch">${t('arch')}</th><th data-i18n="disk">${t('disk')}</th><th data-i18n="uuid">${t('uuid')}</th></tr></thead><tbody>${h.renderNodeDatabaseRows(resolvedServer, stateServers)}</tbody></table></div>
-        </div>
         <div class="fleet-probe-grid">
           <div class="fleet-panel fleet-starmap-panel">
             <div class="fleet-title fleet-starmap-title">VPS·星图</div>
             <div id="detailGlobeStarmapMount" class="detail-globe-starmap-mount"></div>
           </div>
+          <div class="history-range-bar"><span class="history-range-label">${detailDays || '今天'} · ${detailBucketMinutes === 0 ? '1秒' : detailBucketMinutes + '分钟'}桶</span><div class="detail-history-range" role="group" aria-label="历史图表范围"><button type="button" class="detail-history-btn ${Number(detailDays) === 0 ? 'active' : ''}" data-detail-history-days="0">今天实时图表数据</button>${[1,2,3,4,5,6,7].map((d) => `<button type="button" class="detail-history-btn ${Number(detailDays) === d ? 'active' : ''}" data-detail-history-days="${d}">${d}天</button>`).join('')}</div></div>
           <div class="fleet-panel fleet-probe-table-panel">
             <div class="fleet-title">全球探针延迟</div>
-            <table class="fleet-table compact"><thead><tr><th data-i18n="probe">${t('probe')}</th><th>ms</th><th data-i18n="loss">${t('loss')} %</th><th>链路</th></tr></thead><tbody>${h.renderProbeRows(pingTargetsData, pingData)}</tbody></table>
+            <table class="fleet-table compact"><thead><tr><th data-i18n="probe">${t('probe')}</th><th>ms</th><th data-i18n="loss">${t('loss')} %</th><th>链路</th></tr></thead><tbody>${h.renderProbeRows(displayPeerPingTargetsData, pingData)}</tbody></table>
           </div>
         </div>
       </section>
 
-      <footer class="fleet-console-footer">Starfleet Network Services · Advanced Quantum Diagnostics · Sector Monitor</footer>
+      <footer class="fleet-console-footer" aria-hidden="true"></footer>
     </section>`;
 }

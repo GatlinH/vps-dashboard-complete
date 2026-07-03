@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request, current_app, send_file, Response
 from middleware.rbac import viewer_or_admin_required, admin_required, owner_required
-from models.models import OpsEvent, Server, TelegramConfig, record_ops_event
+from models.models import db, OpsEvent, Server, TelegramConfig, record_ops_event
 
 import os
 import shutil

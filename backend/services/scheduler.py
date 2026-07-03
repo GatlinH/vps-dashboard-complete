@@ -406,21 +406,51 @@ def _job_tcp_ping(app):
 
         # ── 写库（主线程，单一 DB session）────────────────────────────────
         server_map = {s.id: s for s in servers}
+        now = datetime.now(timezone.utc)
+        agent_fresh_seconds = int(app.config.get("AGENT_STATUS_FRESH_SECONDS") or 180)
         for sid, r in results.items():
             s          = server_map[sid]
             status     = r["status"]
             latency_ms = r["latency_ms"]
 
+            # Agent push is authoritative when fresh. This prevents the central
+            # monitor from overwriting IPv6-only agents as offline/unknown when
+            # the monitor host has no IPv6 route, while the VPS itself is alive
+            # and actively reporting signed metrics.
+            last_agent = s.agent_key_last_used
+            if last_agent is not None:
+                if last_agent.tzinfo is None:
+                    last_agent = last_agent.replace(tzinfo=timezone.utc)
+                if (now - last_agent).total_seconds() <= agent_fresh_seconds:
+                    status = "online"
+                    latency_ms = None
+
             s.status = status
-            if _is_local_master_server(s):
+            is_local_master = _is_local_master_server(s)
+            telemetry_snapshot = None
+            if is_local_master:
                 local_metrics = _collect_local_host_metrics()
                 for k, v in local_metrics.items():
                     setattr(s, k, v)
+                telemetry_snapshot = {
+                    "cpu_use": s.cpu_use,
+                    "ram_use": s.ram_use,
+                    "disk_use": s.disk_use,
+                    "net_up": s.net_up,
+                    "net_down": s.net_down,
+                }
 
+            # IMPORTANT: the TCP/PING scheduler is not a telemetry source for
+            # normal agent nodes.  Copying Server.cpu/net fields here creates
+            # fake historical flat lines whenever an agent stops changing or
+            # only reports through the signed push path.  Persist only
+            # status/latency for central probes; real telemetry history is
+            # written by ingest_metrics(agent/admin) or fetch_probes.
             db.session.add(ProbeResult(
-                server_id=s.id, latency_ms=latency_ms, status=status,
-                cpu_use=s.cpu_use, ram_use=s.ram_use,
-                disk_use=s.disk_use, net_up=s.net_up, net_down=s.net_down,
+                server_id=s.id,
+                latency_ms=latency_ms,
+                status=status,
+                **(telemetry_snapshot or {}),
             ))
 
             # 记录延迟指标

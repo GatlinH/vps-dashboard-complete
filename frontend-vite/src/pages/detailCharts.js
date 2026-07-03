@@ -82,7 +82,13 @@ function networkEqualStepSeries(points = []) {
   });
 }
 
+function isDetailMobileChart() {
+  return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
+}
+
 function makeHudChartOptions(maxTicks = 5, yUnit = '') {
+  const mobile = isDetailMobileChart();
+  const tickLimit = mobile ? Math.min(4, maxTicks) : maxTicks;
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -93,8 +99,8 @@ function makeHudChartOptions(maxTicks = 5, yUnit = '') {
       tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, titleColor: '#eaffff', bodyColor: '#bffffb' }
     },
     scales: {
-      x: { ticks: { color: '#8ab5bd', maxRotation: 0, autoSkip: true, maxTicksLimit: maxTicks, font: { size: 8 } }, grid: { color: 'rgba(98,245,238,0.13)' }, border: { color: 'rgba(98,245,238,.18)' } },
-      y: { ticks: { color: '#8ab5bd', font: { size: 8 }, callback: (v) => yUnit ? `${v}${yUnit}` : v }, grid: { color: 'rgba(98,245,238,0.15)' }, border: { color: 'rgba(98,245,238,.18)' } }
+      x: { ticks: { color: '#8ab5bd', maxRotation: 0, autoSkip: true, maxTicksLimit: tickLimit, font: { size: mobile ? 7 : 8 } }, grid: { color: 'rgba(98,245,238,0.13)' }, border: { color: 'rgba(98,245,238,.18)' } },
+      y: { afterFit(axis){ if (mobile) axis.width = Math.max(axis.width, 44); }, ticks: { color: '#8ab5bd', autoSkip: true, maxTicksLimit: mobile ? 4 : undefined, font: { size: mobile ? 7 : 8 }, padding: mobile ? 4 : 3, callback: (v) => yUnit ? `${v}${yUnit}` : v }, grid: { color: 'rgba(98,245,238,0.15)' }, border: { color: 'rgba(98,245,238,.18)' } }
     }
   };
 }
@@ -196,7 +202,6 @@ function attachPingPointTooltip(canvas, datasets = [], axisBounds = null) {
       spanText('span', `丢包：${Number(p.lossPct || 0).toFixed(0)}%`),
       spanText('span', `协议：${p.protocol || 'icmp'}`),
     ];
-    if (p.host) lines.push(spanText('span', `目标：${p.host}`));
     replaceChildrenSafe(tip, lines);
     const cardRect = card.getBoundingClientRect();
     tip.style.display = 'block';
@@ -206,7 +211,7 @@ function attachPingPointTooltip(canvas, datasets = [], axisBounds = null) {
   canvas.addEventListener('mousemove', show);
   canvas.addEventListener('mouseenter', show);
   canvas.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
-  window.__DETAIL_PING_TOOLTIP_ATTACHED__ = true;
+  window.__DBG__.DETAIL_PING_TOOLTIP_ATTACHED = true;
 }
 
 function aggregatePointSeriesForDisplay(points = [], bucketMs = 30 * 1000) {
@@ -264,7 +269,7 @@ function aggregateRateRowsForDisplay(rows = [], bucketMs = 60 * 1000) {
   }));
 }
 
-export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [], downSeries = [], pingData = null, probeLabels = [], cpuSeries = [], ramSeries = [], probeRows = [], pingTargetsData = null, pingTargetHistoryData = null, latestServer = null }, deps) {
+export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [], downSeries = [], pingData = null, probeLabels = [], cpuSeries = [], ramSeries = [], probeRows = [], pingTargetsData = null, pingTargetHistoryData = null, latestServer = null, detailDays = 0 }, deps) {
   const { detailCharts, rowTimeMs, formatHourTickWithDate, formatTooltipClock, telemetryTooltipTime, seriesWindowFromRows, freshnessWindowFromRows, adaptiveRollingBounds, fitSeriesToRollingAxis, buildPingDatasets, accumulatingAxisBoundsFromTimes, fmtRate, pingStepLabel, PING_AXIS_STEPS_MS, latestTimelineMs, getDetailPingSampleCache } = deps;
   const networkCanvas = document.getElementById('detailNetworkChart');
   const cpuCanvas = document.getElementById('detailCpuChart');
@@ -292,29 +297,47 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   chartLabels = chartLabels.length ? chartLabels : upSeries.map((_, i) => `T${String(i + 1).padStart(2, '0')}`);
   probeLabels = probeLabels.length ? probeLabels : cpuSeries.map((_, i) => `P${String(i + 1).padStart(2, '0')}`);
   const xTickFmt = (v) => formatHourTickWithDate(v);
-  const telemetryHours = 2;
+  detailDays = Math.max(0, Math.min(7, Number(detailDays ?? window.__DBG__.DETAIL_HISTORY_DAYS ?? 0) || 0));
+  const detailBucketMinutes = detailDays === 0 ? 0 : ({ 1: 5, 2: 10, 3: 15, 4: 20, 5: 30, 6: 30, 7: 60 })[detailDays] || 5;
+  const detailBucketMs = detailDays === 0 ? 1000 : detailBucketMinutes * 60 * 1000;
+  const telemetryHours = detailDays === 0 ? 2 : detailDays * 24;
+  window.__DBG__.DETAIL_CHART_BUCKET = { days: detailDays, bucketMinutes: detailBucketMinutes, bucketMs: detailBucketMs };
   const cpu12hSeries = seriesWindowFromRows(probeRows, 'cpu_use', telemetryHours, latestServer);
   const ram12hSeries = seriesWindowFromRows(probeRows, 'ram_use', telemetryHours, latestServer);
   const fresh12hSeries = freshnessWindowFromRows(probeRows, telemetryHours, latestServer);
   const freshnessMax = Math.max(6, Math.ceil(Math.max(...fresh12hSeries.map(point => Number(point.y) || 0), 0) + 1));
-  const pingHours = 12;
+  const pingHours = detailDays === 0 ? 12 : detailDays * 24;
   const ping24hDatasets = buildPingDatasets(probeRows, pingHours, pingTargetsData, pingTargetHistoryData);
   const pingAxisBounds = accumulatingAxisBoundsFromTimes(ping24hDatasets.flatMap(ds => (ds.data || []).map(p => p.x)), pingHours, 2 * 60 * 1000);
   const axis24h = Array.from({ length: 5 }, (_, i) => pingAxisBounds.min + (i / 4) * (pingAxisBounds.max - pingAxisBounds.min));
   const axis12hBounds = adaptiveRollingBounds([cpu12hSeries, ram12hSeries, fresh12hSeries], telemetryHours);
-  const cpuBuckets = aggregatePointSeriesForDisplay(cpu12hSeries, 30 * 1000);
-  const ramBuckets = aggregatePointSeriesForDisplay(ram12hSeries, 30 * 1000);
-  const freshBuckets = aggregatePointSeriesForDisplay(fresh12hSeries, 30 * 1000);
+  const cpuBuckets = aggregatePointSeriesForDisplay(cpu12hSeries, detailBucketMs);
+  const ramBuckets = aggregatePointSeriesForDisplay(ram12hSeries, detailBucketMs);
+  const freshBuckets = aggregatePointSeriesForDisplay(fresh12hSeries, detailBucketMs);
   const cpuDisplaySeries = fitSeriesToRollingAxis(cpuBuckets, axis12hBounds, 300);
   const ramDisplaySeries = fitSeriesToRollingAxis(ramBuckets, axis12hBounds, 300);
   const freshDisplaySeries = fitSeriesToRollingAxis(freshBuckets, axis12hBounds, 300);
   const label12h = cpuDisplaySeries.map(r => r.x);
-  const networkHours = 12;
+  const smallChartXScale = () => ({
+    type: 'linear',
+    min: axis12hBounds.min,
+    max: axis12hBounds.max,
+    afterFit: (scale) => { scale.paddingLeft = 0; scale.paddingRight = 0; },
+    ticks: { color: '#8ab5bd', stepSize: axis12hBounds.step, callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: false, font: { size: 8 }, padding: 10 },
+    offset: false,
+    bounds: 'ticks',
+    grid: { color: 'rgba(98,245,238,0.13)' },
+    border: { color: 'rgba(98,245,238,.18)' }
+  });
+  const fixedSmallY = (scale) => { scale.width = 28; };
+  const networkHours = detailDays === 0 ? 12 : detailDays * 24;
   const networkNow = Date.now();
   const networkStart = networkNow - networkHours * 60 * 60 * 1000;
   const probeNetworkRows = (Array.isArray(probeRows) ? probeRows : []).map((row) => {
     const x = Number(row?.__timeMs) || rowTimeMs(row, NaN);
-    return { x, up: Number(row?.net_up ?? 0), down: Number(row?.net_down ?? 0), source: 'agent-probe' };
+    const hasUp = row?.net_up != null && row?.net_up !== '';
+    const hasDown = row?.net_down != null && row?.net_down !== '';
+    return { x, up: hasUp ? Number(row.net_up) : NaN, down: hasDown ? Number(row.net_down) : NaN, source: 'agent-probe' };
   }).filter(r => Number.isFinite(r.x) && r.x >= networkStart && r.x <= networkNow + 60 * 1000 && (Number.isFinite(r.up) || Number.isFinite(r.down)))
     .sort((a, b) => a.x - b.x);
   const networkN = Math.max(upSeries.length, downSeries.length, chartLabels.length);
@@ -325,14 +348,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     return { x: parsed, up: Number(upSeries[i] || 0), down: Number(downSeries[i] || 0), source: 'traffic-history' };
   }).filter(r => Number.isFinite(r.x) && r.x >= networkStart && r.x <= networkNow + 60 * 1000).sort((a, b) => a.x - b.x);
   const networkRows = probeNetworkRows.length ? probeNetworkRows : historyNetworkRows;
-  if (!networkRows.length && latestServer) {
-    const up = Number(latestServer.net_up ?? latestServer.netUp ?? 0);
-    const down = Number(latestServer.net_down ?? latestServer.netDown ?? 0);
-    if (Number.isFinite(up) || Number.isFinite(down)) {
-      networkRows.push({ x: networkNow, up: Math.max(0, up || 0), down: Math.max(0, down || 0), realtimeFallback: true, source: 'latest-server' });
-    }
-  }
-  const networkBuckets = aggregateRateRowsForDisplay(networkRows, 30 * 1000);
+  const networkBuckets = aggregateRateRowsForDisplay(networkRows, detailBucketMs);
   const networkAxisBounds = accumulatingAxisBoundsFromTimes(networkBuckets.map(r => r.x), networkHours);
   const networkUpDisplay = fitSeriesToRollingAxis(networkBuckets.map(r => ({ x: r.rawX || r.x, rawX: r.rawX || r.x, y: r.up, maxY: r.upMax, samples: r.samples })), networkAxisBounds, 288);
   const networkDownDisplay = fitSeriesToRollingAxis(networkBuckets.map(r => ({ x: r.rawX || r.x, rawX: r.rawX || r.x, y: r.down, maxY: r.downMax, samples: r.samples })), networkAxisBounds, 288);
@@ -345,11 +361,11 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
       type: 'line',
       data: {
         datasets: [
-          { label: '上行', parsing: false, data: networkUpEqualDisplay, borderColor: '#68f6ff', backgroundColor: 'rgba(104,246,255,0.04)', fill: false, tension: 0.18, pointRadius: visiblePointRadius(networkUpEqualDisplay, 4), pointHoverRadius: 6, borderWidth: 3.2 },
-          { label: '下行', parsing: false, data: networkDownEqualDisplay, borderColor: '#ffd66b', backgroundColor: 'rgba(255,214,107,0.04)', fill: false, tension: 0.18, pointRadius: visiblePointRadius(networkDownEqualDisplay, 4), pointHoverRadius: 6, borderWidth: 3.2 },
+          { label: '上行', parsing: false, data: networkUpEqualDisplay, borderColor: '#68f6ff', backgroundColor: 'transparent', fill: false, tension: 0.18, pointRadius: visiblePointRadius(networkUpEqualDisplay, 4), pointHoverRadius: 6, borderWidth: 3.2 },
+          { label: '下行', parsing: false, data: networkDownEqualDisplay, borderColor: '#ffd66b', backgroundColor: 'transparent', fill: false, tension: 0.18, pointRadius: visiblePointRadius(networkDownEqualDisplay, 4), pointHoverRadius: 6, borderWidth: 3.2 },
         ]
       },
-      options: { ...baseOptions, plugins: { ...baseOptions.plugins, legend: { display: true, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `${item.dataset.label}: ${fmtRate(Number(item.raw.rawY ?? item.raw.y ?? 0))}${Number.isFinite(Number(item.raw.rawMaxY)) ? ` · 峰值 ${fmtRate(Number(item.raw.rawMaxY))}` : ''}${Number(item.raw.samples) > 1 ? ` · ${Number(item.raw.samples)}个采样点聚合` : ''}` } } }, scales: { x: { type: 'linear', min: networkAxisBounds.min, max: networkAxisBounds.max, ticks: { color: '#45676c', stepSize: Math.max(60 * 1000, Math.round((networkAxisBounds.max - networkAxisBounds.min) / 4)), callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: false, font: { size: 9, weight: '700' } }, grid: { color: 'rgba(55,95,101,0.20)' }, border: { color: 'rgba(55,95,101,.30)' } }, y: { ...baseOptions.scales.y, min: 0, max: NETWORK_EQUAL_STEP_AXIS.length - 1, afterBuildTicks: (axis) => { axis.ticks = networkStepTicks.map(value => ({ value })); }, ticks: { color: '#6fa4ad', callback: (v) => networkEqualStepLabel(v), font: { size: 11, weight: '800' }, padding: 8, maxTicksLimit: NETWORK_EQUAL_STEP_AXIS.length } } } }
+      options: { ...baseOptions, plugins: { ...baseOptions.plugins, legend: { display: false, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `${item.dataset.label}: ${fmtRate(Number(item.raw.rawY ?? item.raw.y ?? 0))}${Number.isFinite(Number(item.raw.rawMaxY)) ? ` · 峰值 ${fmtRate(Number(item.raw.rawMaxY))}` : ''}${Number(item.raw.samples) > 1 ? ` · ${Number(item.raw.samples)}个采样点聚合` : ''}` } } }, scales: { x: { type: 'linear', min: networkAxisBounds.min, max: networkAxisBounds.max, ticks: { color: '#45676c', stepSize: Math.max(60 * 1000, Math.round((networkAxisBounds.max - networkAxisBounds.min) / (isDetailMobileChart() ? 3 : 4))), callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: isDetailMobileChart(), maxTicksLimit: isDetailMobileChart() ? 4 : undefined, font: { size: isDetailMobileChart() ? 7 : 9, weight: '700' } }, grid: { color: 'rgba(55,95,101,0.20)' }, border: { color: 'rgba(55,95,101,.30)' } }, y: { ...baseOptions.scales.y, min: 0, max: NETWORK_EQUAL_STEP_AXIS.length - 1, afterBuildTicks: (axis) => { axis.ticks = networkStepTicks.map(value => ({ value })); }, ticks: { color: '#6fa4ad', callback: (v) => networkEqualStepLabel(v), font: { size: isDetailMobileChart() ? 8 : 11, weight: '800' }, padding: isDetailMobileChart() ? 4 : 8, maxTicksLimit: isDetailMobileChart() ? 5 : NETWORK_EQUAL_STEP_AXIS.length }, afterFit(axis){ if (isDetailMobileChart()) axis.width = Math.max(axis.width, 48); } } } }
     }));
   }
   if (cpuCtx) {
@@ -370,7 +386,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
           borderWidth: 3,
         }]
       },
-      options: { ...makeHudChartOptions(5, '%'), plugins: { ...makeHudChartOptions(5, '%').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `CPU ${Number(item.raw.y || 0).toFixed(1)}%` } } }, scales: { x: { type: 'linear', min: axis12hBounds.min, max: axis12hBounds.max, ticks: { color: '#8ab5bd', stepSize: axis12hBounds.step, callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: false, font: { size: 8 } }, grid: { color: 'rgba(98,245,238,0.13)' }, border: { color: 'rgba(98,245,238,.18)' } }, y: { ...makeHudChartOptions(5, '%').scales.y, min: 0, max: 100 } } }
+      options: { ...makeHudChartOptions(5, '%'), plugins: { ...makeHudChartOptions(5, '%').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `CPU ${Number(item.raw.y || 0).toFixed(1)}%` } } }, scales: { x: smallChartXScale(), y: { ...makeHudChartOptions(5, '%').scales.y, afterFit: fixedSmallY, min: 0, max: 100 } } }
     }));
   }
 
@@ -392,7 +408,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
           borderWidth: 3,
         }]
       },
-      options: { ...makeHudChartOptions(5, '%'), plugins: { ...makeHudChartOptions(5, '%').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `内存 ${Number(item.raw.y || 0).toFixed(1)}%` } } }, scales: { x: { type: 'linear', min: axis12hBounds.min, max: axis12hBounds.max, ticks: { color: '#8ab5bd', stepSize: axis12hBounds.step, callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: false, font: { size: 8 } }, grid: { color: 'rgba(98,245,238,0.13)' }, border: { color: 'rgba(98,245,238,.18)' } }, y: { ...makeHudChartOptions(5, '%').scales.y, min: 0, max: 100 } } }
+      options: { ...makeHudChartOptions(5, '%'), plugins: { ...makeHudChartOptions(5, '%').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `内存 ${Number(item.raw.y || 0).toFixed(1)}%` } } }, scales: { x: smallChartXScale(), y: { ...makeHudChartOptions(5, '%').scales.y, afterFit: fixedSmallY, min: 0, max: 100 } } }
     }));
   }
 
@@ -402,7 +418,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     detailCharts._register('detailFreshnessChart', new Chart(ctx, {
       type: 'line',
       data: { datasets: [{ label: 'Freshness s', parsing: false, data: freshDisplaySeries, borderColor: '#8dffd0', backgroundColor: 'rgba(125,255,193,0.20)', fill: true, tension: 0.18, pointRadius: visiblePointRadius(freshDisplaySeries, 3.5), pointHoverRadius: 6, borderWidth: 3 }] },
-      options: { ...makeHudChartOptions(5, 's'), plugins: { ...makeHudChartOptions(5, 's').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => telemetryTooltipTime(items[0]), label: (item) => `采样间隔 ${Number(item.raw.y || 0).toFixed(1)}s` } } }, scales: { x: { type: 'linear', min: axis12hBounds.min, max: axis12hBounds.max, ticks: { color: '#8ab5bd', stepSize: axis12hBounds.step, callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: false, font: { size: 8 } }, grid: { color: 'rgba(98,245,238,0.13)' }, border: { color: 'rgba(98,245,238,.18)' } }, y: { ...makeHudChartOptions(5, 's').scales.y, min: 0, max: freshnessMax } } }
+      options: { ...makeHudChartOptions(5, 's'), plugins: { ...makeHudChartOptions(5, 's').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => telemetryTooltipTime(items[0]), label: (item) => `采样间隔 ${Number(item.raw.y || 0).toFixed(1)}s` } } }, scales: { x: smallChartXScale(), y: { ...makeHudChartOptions(5, 's').scales.y, afterFit: fixedSmallY, min: 0, max: freshnessMax } } }
     }));
   }
 
@@ -422,10 +438,10 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
         chart.ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
         chart.ctx.textAlign = 'center';
         chart.ctx.textBaseline = 'middle';
-        chart.ctx.fillText(targets.length ? '正在累计真实 ICMP 采样点' : '暂无有效 PING 延迟数据', (area.left + area.right) / 2, (area.top + area.bottom) / 2 - 8);
+        chart.ctx.fillText(pingTargetsData?.unavailable ? '暂无真实节点侧互探采样' : (targets.length ? '正在累计真实 ICMP 采样点' : '暂无有效 PING 延迟数据'), (area.left + area.right) / 2, (area.top + area.bottom) / 2 - 8);
         chart.ctx.fillStyle = 'rgba(102,141,154,.92)';
         chart.ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
-        chart.ctx.fillText(Number.isFinite(loss) ? `当前探测失败 / 丢包 ${loss.toFixed(0)}%` : '等待探测样本', (area.left + area.right) / 2, (area.top + area.bottom) / 2 + 12);
+        chart.ctx.fillText(pingTargetsData?.unavailable ? '已停止主控代测，等待 agent 上报' : (Number.isFinite(loss) ? `当前探测失败 / 丢包 ${loss.toFixed(0)}%` : '等待探测样本'), (area.left + area.right) / 2, (area.top + area.bottom) / 2 + 12);
         chart.ctx.restore();
       }
     };
@@ -433,12 +449,12 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
       type: 'line',
       data: { datasets: ping24hDatasets.map(ds => ({ ...ds, parsing: false })) },
       plugins: [pingEmptyPlugin],
-      options: { ...makeHudChartOptions(5, 'ms'), plugins: { ...makeHudChartOptions(5, 'ms').plugins, legend: { display: hasPingPoints, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: hasPingPoints, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? `采样时间 ${formatTooltipClock(items[0].raw.x)}` : '', label: (item) => `${item.dataset.label}: ${Number(item.raw.rawMs ?? 0).toFixed(1)} ms`, afterLabel: (item) => `协议 ${item.raw.protocol || 'icmp'} · 丢包 ${Number(item.raw.lossPct ?? 0).toFixed(0)}%${item.raw.host ? ` · ${item.raw.host}` : ''}` } } }, scales: { x: { type: 'linear', min: axis24h[0], max: axis24h[4], ticks: { color: '#8ab5bd', stepSize: 3 * 60 * 60 * 1000, callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: false, font: { size: 8 } }, grid: { color: 'rgba(98,245,238,0.13)' }, border: { color: 'rgba(98,245,238,.18)' } }, y: { ...makeHudChartOptions(5, 'ms').scales.y, min: 0, max: PING_AXIS_STEPS_MS.length - 1, ticks: { color: '#8ab5bd', stepSize: 1, callback: (v) => pingStepLabel(v), font: { size: 9 } } } } }
+      options: { ...makeHudChartOptions(5, 'ms'), plugins: { ...makeHudChartOptions(5, 'ms').plugins, legend: { display: false, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: hasPingPoints, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? `采样时间 ${formatTooltipClock(items[0].raw.x)}` : '', label: (item) => `${item.dataset.label}: ${Number(item.raw.rawMs ?? 0).toFixed(1)} ms`, afterLabel: (item) => `协议 ${item.raw.protocol || 'icmp'} · 丢包 ${Number(item.raw.lossPct ?? 0).toFixed(0)}%` } } }, scales: { x: { type: 'linear', min: axis24h[0], max: axis24h[4], ticks: { color: '#8ab5bd', stepSize: 3 * 60 * 60 * 1000, callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: isDetailMobileChart(), maxTicksLimit: isDetailMobileChart() ? 4 : undefined, font: { size: isDetailMobileChart() ? 7 : 8 } }, grid: { color: 'rgba(98,245,238,0.13)' }, border: { color: 'rgba(98,245,238,.18)' } }, y: { ...makeHudChartOptions(5, 'ms').scales.y, min: 0, max: PING_AXIS_STEPS_MS.length - 1, ticks: { color: '#8ab5bd', stepSize: 1, callback: (v) => pingStepLabel(v), font: { size: isDetailMobileChart() ? 8 : 9 }, maxTicksLimit: isDetailMobileChart() ? 5 : undefined }, afterFit(axis){ if (isDetailMobileChart()) axis.width = Math.max(axis.width, 44); } } } }
     }));
     attachPingPointTooltip(pingCanvas, ping24hDatasets, { min: pingAxisBounds.min, max: pingAxisBounds.max });
   }
   try {
-    window.__DETAIL_CHART_DEBUG__ = {
+    window.__DBG__.DETAIL_CHART_DEBUG = {
       cpuPoints: cpu12hSeries.length,
       ramPoints: ram12hSeries.length,
       freshPoints: fresh12hSeries.length,
@@ -462,7 +478,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
       pingHours,
       pingAxisBounds,
       pingTargetCount: (pingTargetsData?.targets || []).length,
-      pingTargets: (pingTargetsData?.targets || []).map(t => ({ label: t.label || t.host, host: t.host, avg: t.stats?.avg_ms ?? null, loss: t.stats?.loss_pct ?? null, results: Array.isArray(t.results) ? t.results.length : 0 })),
+      pingTargets: (pingTargetsData?.targets || []).map(t => ({ label: t.label || t.key, avg: t.stats?.avg_ms ?? null, loss: t.stats?.loss_pct ?? null, results: Array.isArray(t.results) ? t.results.length : 0 })),
       pingAxis: PING_AXIS_STEPS_MS,
       chartInstances: detailCharts?._instances ? Array.from(detailCharts._instances.keys()) : [],
     };

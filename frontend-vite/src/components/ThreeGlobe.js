@@ -90,8 +90,8 @@ class GlobeControls {
     this.listeners[type]?.delete(handler);
   }
 
-  emit(type) {
-    this.listeners[type]?.forEach((handler) => handler());
+  emit(type, payload) {
+    this.listeners[type]?.forEach((handler) => handler(payload));
   }
 
   updateDistanceFromCamera() {
@@ -602,6 +602,12 @@ function colorForStatus(status) {
   return 'rgb(248, 113, 113)';
 }
 
+function statusTextForServer(status) {
+  if (status === 'online') return '在线';
+  if (status === 'warn') return '波动';
+  return '离线';
+}
+
 export class ThreeGlobe {
   constructor(selector, servers = [], options = {}) {
     this.container = typeof selector === 'string' ? document.querySelector(selector) : selector;
@@ -650,12 +656,12 @@ export class ThreeGlobe {
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.domElement.className = 'three-globe-canvas';
 
-    this.container.innerHTML = '';
+    this.container.replaceChildren();
     this.container.appendChild(this.renderer.domElement);
     this.labelLayer = createLayer(this.container, 'three-globe-label-layer');
     this.geoLayer = createLayer(this.container, 'three-globe-geo-layer');
     this.sunBadge = createLayer(this.container, 'three-globe-sun-badge');
-    this.sunBadge.innerHTML = '<span class="three-globe-sun-core"></span><span class="three-globe-sun-halo"></span><span class="three-globe-sun-glow"></span>';
+    this.sunBadge.replaceChildren(...['three-globe-sun-core', 'three-globe-sun-halo', 'three-globe-sun-glow'].map((className) => { const span = document.createElement('span'); span.className = className; return span; }));
 
     this.controls = new GlobeControls(this.camera, this.renderer.domElement, {
       minDistance: this.options.minDistance,
@@ -664,8 +670,18 @@ export class ThreeGlobe {
       zoomSpeed: 0.0014,
     });
     this.controls.addEventListener('rotate', ({ dx, dy }) => {
-      const yaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), dx * this.controls.rotateSpeed);
-      const pitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), dy * this.controls.rotateSpeed);
+      const distanceSpan = Math.max(0.001, this.options.maxDistance - this.options.minDistance);
+      const zoomT = THREE.MathUtils.clamp((this.controls.distance - this.options.minDistance) / distanceSpan, 0, 1);
+      // Google Earth style, alternate strategy: close zoom is deliberate/slow for
+      // precise local inspection; far zoom is faster so dragging can turn the whole globe.
+      const midT = smoothstep01((zoomT - 0.18) / 0.62);
+      const farT = smoothstep01((zoomT - 0.72) / 0.28);
+      const dragDamping = THREE.MathUtils.lerp(0.45, 1.0, Math.max(midT, farT));
+      this.lastDragDamping = dragDamping;
+      window.__DBG__.THREE_GLOBE_DRAG_DEBUG = { zoomT, distance: this.controls.distance, dragDamping };
+      const yaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), dx * this.controls.rotateSpeed * dragDamping);
+      const pitchAxis = new THREE.Vector3(1, 0, 0).applyQuaternion(this.root.quaternion).normalize();
+      const pitch = new THREE.Quaternion().setFromAxisAngle(pitchAxis, dy * this.controls.rotateSpeed * dragDamping);
       this.root.quaternion.premultiply(yaw).premultiply(pitch).normalize();
     });
     this.controls.addEventListener('start', () => {
@@ -809,7 +825,7 @@ export class ThreeGlobe {
         }));
       }
       this.starshipLoadedAt = performance.now();
-      window.__SINGLE_RENDERER_STARSHIP__ = {
+      window.__DBG__.SINGLE_RENDERER_STARSHIP = {
         root: this.starshipRoot,
         model: this.starshipModel,
         mixer: this.starshipMixer,
@@ -820,12 +836,12 @@ export class ThreeGlobe {
       };
     }, undefined, (error) => {
       console.warn('[three-globe] single-renderer starship load failed', error);
-      window.__SINGLE_RENDERER_STARSHIP_ERROR__ = String(error?.message || error);
+      window.__DBG__.SINGLE_RENDERER_STARSHIP_ERROR = String(error?.message || error);
     });
   }
 
   createGeoLabels() {
-    this.geoLayer.innerHTML = '';
+    this.geoLayer.replaceChildren();
     this.geoLabelEntries = GEO_LABELS.map((item) => {
       const element = document.createElement('div');
       element.className = `three-globe-geo-label is-${item.kind}`;
@@ -858,7 +874,7 @@ export class ThreeGlobe {
   async rebuildNodes() {
     const token = ++this.rebuildToken;
     while (this.nodeGroup.children.length) this.nodeGroup.remove(this.nodeGroup.children[0]);
-    this.labelLayer.innerHTML = '';
+    this.labelLayer.replaceChildren();
     this.nodeEntries = [];
 
     const resolvedServers = await Promise.all(this.servers.map(async (server) => ({
@@ -909,7 +925,10 @@ export class ThreeGlobe {
       const label = document.createElement('button');
       label.type = 'button';
       label.className = 'three-globe-label';
-      label.textContent = `${server.flag || '🌐'} ${server.name}`;
+      const coordTag = coords.source === 'direct' ? '后台坐标' : coords.source.startsWith('fallback:') ? '名称定位' : 'IP定位';
+      const beaconNote = String(server.location || '').trim();
+      label.textContent = `${server.flag || '🌐'} ${server.name}${beaconNote ? ' · ' + beaconNote : ''}`;
+      label.title = `${server.name}${beaconNote ? ' (' + beaconNote + ')' : ''} · ${statusTextForServer(server.status)} · ${coordTag}`;
       label.addEventListener('click', () => this.onSelect?.(server));
       this.labelLayer.appendChild(label);
 
@@ -939,6 +958,7 @@ export class ThreeGlobe {
       point,
       coordSource: activeEntry?.coordSource || '',
       coordQuery: activeEntry?.coordQuery || '',
+      public_note: activeEntry?.server?.public_note || activeEntry?.server?.publicRemark || activeEntry?.server?.public_remark || activeEntry?.server?.remark || (activeEntry?.server?.location && !String(activeEntry?.server?.region || '').trim() ? activeEntry.server.location : ''),
     } : null);
   }
 
@@ -1100,7 +1120,7 @@ export class ThreeGlobe {
         edgePinned: clampedToEdge,
       });
     }
-    window.__THREE_GLOBE_NODE_VIS__ = nodeVisDebug;
+    window.__DBG__.THREE_GLOBE_NODE_VIS = nodeVisDebug;
   }
 
   pick(clientX, clientY) {
@@ -1149,7 +1169,7 @@ export class ThreeGlobe {
     if (typeof this.controls.saveState === 'function') this.controls.saveState();
     this.loadBorders();
     this.animate();
-    window.__THREE_GLOBE__ = this;
+    window.__DBG__.THREE_GLOBE = this;
   }
 
   animate() {
@@ -1171,7 +1191,7 @@ export class ThreeGlobe {
     if (this.starshipRoot) {
       this.starshipRoot.position.y = 0.04 + Math.sin(now * 0.0007) * 0.006;
       this.starshipRoot.rotation.y = -0.22 + Math.sin(now * 0.00036) * 0.014;
-      window.__SINGLE_RENDERER_STARSHIP_STATS__ = {
+      window.__DBG__.SINGLE_RENDERER_STARSHIP_STATS = {
         loaded: !!this.starshipModel,
         mixerTime: this.starshipMixer?.time || 0,
         animations: this.starshipAnimationInfo,
@@ -1203,6 +1223,6 @@ export class ThreeGlobe {
     this.labelLayer?.remove();
     this.geoLayer?.remove();
     this.renderer.dispose();
-    delete window.__THREE_GLOBE__;
+    delete window.__DBG__.THREE_GLOBE;
   }
 }

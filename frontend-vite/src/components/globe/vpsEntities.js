@@ -104,7 +104,7 @@ export function rebuildVpsEntities(globe) {
         font: '700 15px Inter, system-ui, sans-serif',
         fillColor: Cesium.Color.WHITE.withAlpha(0.96),
         outlineColor: Cesium.Color.BLACK.withAlpha(0.88),
-        outlineWidth: 3,
+        outlineWidth: 1.5,
         style: Cesium.LabelStyle.FILL_AND_OUTLINE,
         showBackground: true,
         backgroundColor: Cesium.Color.BLACK.withAlpha(0.78),
@@ -143,9 +143,10 @@ export function rebuildVpsEntities(globe) {
     if (globe._labelLayer) {
       const labelEl = document.createElement('div');
       labelEl.className = 'google-earth-node-html-label is-vps-node is-vps-beacon-node';
-      const placeParts = [server.city, server.region, server.country].filter(Boolean)
+      const explicitPlace = server.public_note || server.publicRemark || server.public_remark || server.remark || server.location;
+      const placeParts = explicitPlace ? [explicitPlace] : [server.city, server.country].filter(Boolean)
         .filter((part, idx, arr) => arr.findIndex(x => String(x).toLowerCase() === String(part).toLowerCase()) === idx);
-      const place = placeParts.join(' · ') || server.location || '未知地区';
+      const place = placeParts.join(' · ') || '未知地区';
       const displayName = shortServerLabel(server) || String(server?.name || `VPS-${server?.id || ''}`);
       const flag = serverFlag(server);
       const flagCode = serverFlagCode(server);

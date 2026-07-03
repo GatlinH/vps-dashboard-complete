@@ -101,6 +101,8 @@ export function normalizeServer(s) {
     city: s.city ?? meta.city ?? s.geo?.city ?? '',
     region: s.region ?? meta.region ?? s.state ?? s.province ?? s.geo?.region ?? '',
     country: s.country ?? meta.country ?? s.country_name ?? s.geo?.country ?? '',
+    public_note: s.public_note || s.publicRemark || s.public_remark || s.remark || (s.location && !String(s.region || '').trim() ? s.location : ''),
+    publicRemark: s.publicRemark || s.public_note || s.public_remark || s.remark || (s.location && !String(s.region || '').trim() ? s.location : ''),
     address: s.address ?? s.address_text ?? locationParts.join(', '),
     location: s.location || locationParts.join(' · '),
   };
@@ -131,16 +133,21 @@ export async function fetchJson(url, options = {}) {
 }
 
 
-export async function fetchServerHistory(serverId, days = 1, limit = 48) {
-  return fetchJson(`${API_ROOT}/api/v1/servers/public/${serverId}/history?days=${days}&limit=${limit}`, { timeoutMs: Math.max(1200, limit > 1000 ? 12000 : 1200) });
+export async function fetchServerHistory(serverId, days = 1, limit = 48, bucketMinutes = null) {
+  const root = window.__DBG__.API_ROOT || (location.port === 5000 ? `${location.protocol}//${location.hostname}:5000` : location.origin);
+  const bucketParam = bucketMinutes ? `&bucket_minutes=${encodeURIComponent(bucketMinutes)}` : '';
+  return fetchJson(`${root}/api/v1/servers/public/${serverId}/history?days=${days}${bucketParam}&limit=${limit}`, { timeoutMs: Math.max(1200, limit > 1000 ? 12000 : 1200) });
 }
 
-export async function fetchPingTargets(serverId, count = 1) {
-  return fetchJson(`${API_ROOT}/api/v1/probe/public/ping-targets/${serverId}?count=${count}`, { timeoutMs: 9000 });
+export async function fetchPingTargets(serverId, count = 1, source = '') {
+  const root = window.__DBG__.API_ROOT || (location.port === 5000 ? `${location.protocol}//${location.hostname}:5000` : location.origin);
+  const sourceParam = source ? `&source=${encodeURIComponent(source)}` : '';
+  return fetchJson(`${root}/api/v1/probe/public/ping-targets/${serverId}?count=${count}${sourceParam}`, { timeoutMs: 9000 });
 }
 
 export async function fetchPingTargetHistory(serverId, hours = 12, limit = 2000) {
-  return fetchJson(`${API_ROOT}/api/v1/probe/public/ping-targets/${serverId}/history?hours=${hours}&limit=${limit}`, { timeoutMs: 9000 });
+  const root = window.__DBG__.API_ROOT || (location.port === 5000 ? `${location.protocol}//${location.hostname}:5000` : location.origin);
+  return fetchJson(`${root}/api/v1/probe/public/ping-targets/${serverId}/history?hours=${hours}&limit=${limit}`, { timeoutMs: 9000 });
 }
 
 export async function fetchPing(resolvedServer) {
@@ -195,7 +202,7 @@ export async function enrichServersWithIpGeo(servers) {
       }
     } catch (error) {
       server.coord_source = server.coord_source || 'fallback';
-      window.__LAST_IP_GEO_ERROR__ = { id: server.id, ip, message: error?.message || String(error) };
+      window.__DBG__.LAST_IP_GEO_ERROR = { id: server.id, ip, message: error?.message || String(error) };
     }
   }));
   return rows;

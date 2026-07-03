@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, Response, jsonify, request, current_app
 
 import extensions
+from api.probe import lookup_ip_geo
 from middleware.rbac import viewer_or_admin_required
 
 geo_bp = Blueprint("geo", __name__)
@@ -166,7 +167,7 @@ def ip_geo(ip=None):
         # 跳过本地/私有地址(本机自测或容器内网), 让 ip-api 自检公网出口
         if candidate and not candidate.startswith(("127.", "10.", "192.168.", "172.")) and candidate != "::1":
             ip = candidate
-    cache_key = f"vps:ipgeo:{ip or 'self'}"
+    cache_key = f"vps:ipgeo:v3:{ip or 'self'}"
 
     try:
         cached = extensions.redis_client.get(cache_key)
@@ -175,15 +176,15 @@ def ip_geo(ip=None):
     except Exception:
         pass
 
-    url = f"http://ip-api.com/json/{ip}?fields=status,country,regionName,city,lat,lon,isp,org,query&lang=zh-CN"
     try:
-        resp = requests.get(url, timeout=6)
-        data = resp.json()
+        data = lookup_ip_geo(ip)
         try:
             extensions.redis_client.setex(cache_key, 3600, json.dumps(data, ensure_ascii=False))
         except Exception:
             pass
         return jsonify(data)
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
     except Exception as e:
         return jsonify(error=str(e)), 502
 

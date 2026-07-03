@@ -491,21 +491,29 @@ def save_alerts():
     AlertRule.query.filter_by(server_id=None).delete()
     if seen_server_ids:
         AlertRule.query.filter(AlertRule.server_id.in_(seen_server_ids)).delete(synchronize_session=False)
-    for r in rules:
-        clean = _clean_alert_rule_payload(r)
-        db.session.add(AlertRule(**clean))
-    db.session.commit()
-    return jsonify(msg="告警规则已保存", rules=[r.to_dict() for r in AlertRule.query.order_by(AlertRule.id.desc()).all()])
+    try:
+        for r in rules:
+            clean = _clean_alert_rule_payload(r)
+            db.session.add(AlertRule(**clean))
+        db.session.commit()
+        return jsonify(msg="告警规则已保存", rules=[r.to_dict() for r in AlertRule.query.order_by(AlertRule.id.desc()).all()])
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify(msg=str(e)), 400
 
 
 @telegram_bp.post("/alerts/rule")
 @admin_required
 def create_alert_rule():
-    clean = _clean_alert_rule_payload(request.get_json(silent=True) or {})
-    rule = AlertRule(**clean)
-    db.session.add(rule)
-    db.session.commit()
-    return jsonify(msg="规则已创建", rule=rule.to_dict())
+    try:
+        clean = _clean_alert_rule_payload(request.get_json(silent=True) or {})
+        rule = AlertRule(**clean)
+        db.session.add(rule)
+        db.session.commit()
+        return jsonify(msg="规则已创建", rule=rule.to_dict())
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify(msg=str(e)), 400
 
 
 @telegram_bp.put("/alerts/<int:rule_id>")
@@ -514,11 +522,15 @@ def update_alert_rule(rule_id: int):
     rule = db.session.get(AlertRule, rule_id)
     if not rule:
         return jsonify(msg="规则不存在"), 404
-    clean = _clean_alert_rule_payload(request.get_json(silent=True) or {}, existing=rule)
-    for k, v in clean.items():
-        setattr(rule, k, v)
-    db.session.commit()
-    return jsonify(msg="规则已更新", rule=rule.to_dict())
+    try:
+        clean = _clean_alert_rule_payload(request.get_json(silent=True) or {}, existing=rule)
+        for k, v in clean.items():
+            setattr(rule, k, v)
+        db.session.commit()
+        return jsonify(msg="规则已更新", rule=rule.to_dict())
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify(msg=str(e)), 400
 
 
 @telegram_bp.post("/alerts/<int:rule_id>/toggle")

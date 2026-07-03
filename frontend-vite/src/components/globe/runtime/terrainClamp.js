@@ -1,5 +1,6 @@
 import * as Cesium from 'cesium';
 import { getServerCoords } from '../../globe-utils.js';
+import { getGlobeResourceDebug } from '../../../utils/debugState.js';
 
 export async function refreshNodeGroundHeights(globe, force = false) {
   const now = performance.now();
@@ -38,9 +39,9 @@ export async function refreshNodeGroundHeights(globe, force = false) {
       if (entities[i].point) entities[i].point.heightReference = Cesium.HeightReference.RELATIVE_TO_GROUND;
       count += 1;
     });
-    window.__nodesClampedToTerrain = count;
+    getGlobeResourceDebug().nodesClampedToTerrain = count;
     scene.requestRender();
   } catch (error) {
-    window.__nodeClampError = String(error?.message || error);
+    getGlobeResourceDebug().nodeClampError = String(error?.message || error);
   }
 }

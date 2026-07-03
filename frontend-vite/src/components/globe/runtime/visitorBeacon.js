@@ -1,5 +1,6 @@
 import * as Cesium from 'cesium';
 import { escapeHtml } from '../vpsEntities.js';
+import { getGlobeRuntimeDebug } from '../../../utils/debugState.js';
 
 const VISITOR_FLAG_BY_CODE = {
   US:'🇺🇸', CA:'🇨🇦', MX:'🇲🇽', BR:'🇧🇷', GB:'🇬🇧', UK:'🇬🇧', FR:'🇫🇷', DE:'🇩🇪', NL:'🇳🇱', ES:'🇪🇸', IT:'🇮🇹', SG:'🇸🇬', HK:'🇭🇰', MO:'🇲🇴', TW:'🇹🇼', CN:'🇨🇳', JP:'🇯🇵', KR:'🇰🇷', IN:'🇮🇳', AU:'🇦🇺', RU:'🇷🇺'
@@ -42,7 +43,7 @@ function renderFlagImg(flag, code) {
   return `<img class="node-flag-img node-flag-${escapeHtml(cc)}" src="${src}"${srcset} alt="${escapeHtml(flag)}" title="${escapeHtml(flag)}" loading="eager" decoding="sync">`;
 }
 
-if (typeof window !== 'undefined') window.__inferVisitorFlagForTest = inferVisitorFlag;
+if (typeof window !== 'undefined') window.__DBG__.inferVisitorFlagForTest = inferVisitorFlag;
 
 function clearVisitorBeacon(globe) {
   for (const entity of globe._visitorEntities || []) {
@@ -61,19 +62,8 @@ export async function installVisitorBeacon(globe) {
     return;
   }
   globe._visitorFetchStarted = true;
-  const fallbackInfo = {
-    city: '西雅圖',
-    regionName: '华盛顿州',
-    country: '美国',
-    countryCode: 'US',
-    query: '192.129.221.4',
-    lat: 47.4941,
-    lon: -122.294,
-    flag: '🇺🇸',
-    fallback: true,
-  };
   try {
-    const resp = await fetch('/api/v1/geo/ip', { headers: { Accept: 'application/json' }, cache: 'no-store' });
+    const resp = await fetch('/api/v1/probe/ip-info', { headers: { Accept: 'application/json' }, cache: 'no-store' });
     if (!resp.ok) throw new Error(`visitor geo HTTP ${resp.status}`);
     const info = await resp.json();
     const lat = Number(info.lat ?? info.latitude);
@@ -82,14 +72,13 @@ export async function installVisitorBeacon(globe) {
     const flag = inferVisitorFlag(info);
     globe._visitorInfo = { ...info, lat, lon, flag };
     addVisitorBeacon(globe);
-    window.__visitorBeaconDebug = { flag, lat, lon, location: [info.city, info.regionName, info.country].filter(Boolean).join(' · '), source: '/api/v1/geo/ip' };
+    getGlobeRuntimeDebug().visitorBeaconDebug = { flag, lat, lon, location: [info.city, info.regionName, info.country].filter(Boolean).join(' · '), source: info.source || '/api/v1/probe/ip-info' };
   } catch (error) {
-    const flag = fallbackInfo.flag;
-    globe._visitorInfo = fallbackInfo;
-    addVisitorBeacon(globe);
-    window.__visitorBeaconError = String(error?.message || error);
-    window.__visitorBeaconDebug = { flag, lat: fallbackInfo.lat, lon: fallbackInfo.lon, location: [fallbackInfo.city, fallbackInfo.regionName, fallbackInfo.country].filter(Boolean).join(' · '), source: 'fallback:/api/v1/geo/ip' };
-    console.warn('[cesium-globe] visitor beacon fallback used', error);
+    globe._visitorInfo = null;
+    const visitorBeaconError = String(error?.message || error);
+    getGlobeRuntimeDebug().visitorBeaconError = visitorBeaconError;
+    getGlobeRuntimeDebug().visitorBeaconDebug = { hidden: true, source: '/api/v1/probe/ip-info', error: visitorBeaconError };
+    console.warn('[cesium-globe] visitor beacon hidden: geo lookup failed', error);
   }
 }
 

@@ -1,3 +1,4 @@
+import { getDashboardDebug, getGlobeResourceDebug } from '../utils/debugState.js';
 /**
  * CesiumDeckGlobe.js — Cesium 1.141 科幻地球 / 真实感增强版
  */
@@ -57,11 +58,11 @@ export class CesiumDeckGlobe {
     this._htmlLabels = new Map();
     this._placeLabels = [];
     this._placeLabelLayer = null;
-    try { this._init(); } catch (e) { window.__deckGlobeError = e; throw e; }
+    try { this._init(); } catch (e) { window.__DBG__.deckGlobeError = e; throw e; }
   }
 
   _init() {
-    this.container.innerHTML = '';
+    this.container.replaceChildren();
     this._cesiumDiv = document.createElement('div');
     this._cesiumDiv.id = 'cesium-globe-container';
     this._cesiumDiv.style.cssText = 'width:100%;height:100%;position:absolute;inset:0;';
@@ -122,8 +123,8 @@ export class CesiumDeckGlobe {
     this._buildEntities();
     this._installVisitorBeacon();
     this._startLoop();
-    window.__globe = this;
-    window.__CESIUM_GLOBE__ = this;
+    window.__DBG__.globe = this;
+    window.__DBG__.CESIUM_GLOBE = this;
   }
 
   async _installWorldTerrain() {
@@ -137,17 +138,19 @@ export class CesiumDeckGlobe {
       this.viewer.terrainProvider = terrain;
       this._terrainReady = true;
       this._terrainError = '';
-      window.__terrainMode = 'Cesium Ion World Terrain asset 1';
-      window.__terrainReady = true;
-      window.__ionTerrainAssetId = 1;
+      const dbg = getDashboardDebug('globe');
+      dbg.terrainMode = 'Cesium Ion World Terrain asset 1';
+      dbg.terrainReady = true;
+      window.__DBG__.ionTerrainAssetId = 1;
       this.viewer.scene.requestRender();
       window.setTimeout(() => this._refreshNodeGroundHeights(true), 900);
     } catch (error) {
       this._terrainReady = false;
       this._terrainError = String(error?.message || error);
-      window.__terrainMode = 'ellipsoid fallback';
-      window.__terrainError = this._terrainError;
-      window.__terrainReady = false;
+      const dbg = getDashboardDebug('globe');
+      dbg.terrainMode = 'ellipsoid fallback';
+      dbg.terrainError = this._terrainError;
+      dbg.terrainReady = false;
     }
   }
 
@@ -216,7 +219,7 @@ export class CesiumDeckGlobe {
       event.preventDefault?.();
     }, true);
     window.addEventListener('pointerup', () => { dragging = false; last = null; }, true);
-    window.__vpsGlobeFreeTumble = true;
+    window.__DBG__.vpsGlobeFreeTumble = true;
   }
 
   _installCloudLayer() {
@@ -244,7 +247,7 @@ export class CesiumDeckGlobe {
       this._cloudCollection = this.viewer.scene.primitives.add(clouds);
       this.viewer.scene.requestRender();
     } catch (error) {
-      window.__cloudLayerError = String(error?.message || error);
+      getGlobeResourceDebug().cloudLayerError = String(error?.message || error);
     }
   }
 
@@ -354,7 +357,7 @@ export class CesiumDeckGlobe {
     const imagery = applyImageryLOD(this, view);
     disableLegacyFallbacks();
 
-    window.__imageryGuard = {
+    window.__DBG__.imageryGuard = {
       mode: truePolar ? 'truePolar' : 'normal',
       polarView,
       highLatitudeView,
@@ -442,6 +445,6 @@ export class CesiumDeckGlobe {
     if (this._handler) this._handler.destroy();
     if (this._visualShell) { this._visualShell.destroy(); this._visualShell = null; }
     if (this.viewer) { this.viewer.destroy(); this.viewer = null; }
-    this.container.innerHTML = '';
+    this.container.replaceChildren();
   }
 }

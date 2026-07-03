@@ -1,4 +1,5 @@
 import * as Cesium from 'cesium';
+import { getDashboardDebug, getGlobeResourceDebug } from '../../utils/debugState.js';
 
 export const ARCGIS_WORLD_IMAGERY_URL = 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer';
 export const UNIFIED_EARTH_TEXTURE_URL = '/cesium/Assets/Textures/clean-earth-map-v2.jpg';
@@ -9,8 +10,9 @@ function wireProviderErrors(provider, label) {
   try {
     provider?.errorEvent?.addEventListener?.((error) => {
       const msg = String(error?.message || error || 'unknown imagery error');
-      window.__imageryProviderErrors = window.__imageryProviderErrors || [];
-      window.__imageryProviderErrors.push({ label, message: msg, timesRetried: error?.timesRetried ?? null });
+      const resources = getGlobeResourceDebug();
+      resources.imageryProviderErrors = resources.imageryProviderErrors || [];
+      resources.imageryProviderErrors.push({ label, message: msg, timesRetried: error?.timesRetried ?? null });
     });
   } catch (_) {}
 }
@@ -56,15 +58,16 @@ export async function installEarthImagery(globe) {
     globe._detailLayer = detail;
     globe._baseImageryProvider = unifiedProvider;
     globe._detailImageryProvider = detailProvider;
-    window.__safeBaseMode = 'Unified global texture base + ArcGIS detail LOD';
-    window.__unifiedEarthTextureUrl = UNIFIED_EARTH_TEXTURE_URL;
-    window.__arcgisWorldImageryUrl = ARCGIS_WORLD_IMAGERY_URL;
-    delete window.__nasaGibsPolarLayers;
-    delete window.__ionImageryAssetId;
-    delete window.__detailLayerSkipped;
-    delete window.__safeBaseError;
+    const dbg = getDashboardDebug('globe');
+    dbg.safeBaseMode = 'Unified global texture base + ArcGIS detail LOD';
+    dbg.unifiedEarthTextureUrl = UNIFIED_EARTH_TEXTURE_URL;
+    dbg.arcgisWorldImageryUrl = ARCGIS_WORLD_IMAGERY_URL;
+    delete dbg.nasaGibsPolarLayers;
+    delete dbg.ionImageryAssetId;
+    delete dbg.detailLayerSkipped;
+    delete dbg.safeBaseError;
   } catch (baseError) {
-    window.__safeBaseError = String(baseError?.message || baseError);
+    getDashboardDebug('globe').safeBaseError = String(baseError?.message || baseError);
     throw baseError;
   }
   globe.viewer.scene.requestRender();

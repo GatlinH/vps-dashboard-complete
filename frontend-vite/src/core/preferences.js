@@ -43,7 +43,7 @@ export function configureLanguageSwitcher(callbacks = {}) {
   languageSwitcherCallbacks = { ...languageSwitcherCallbacks, ...callbacks };
 }
 
-window.setLanguage = (lang) => {
+export function setLanguage(lang) {
   currentLanguage = LANGUAGE_PACKS[lang] ? lang : 'zh';
   safeStorageSet('display_language', currentLanguage);
   applyLanguage();
@@ -52,7 +52,7 @@ window.setLanguage = (lang) => {
     const serverId = languageSwitcherCallbacks.getSelectedServerId();
     if (serverId) languageSwitcherCallbacks.renderDetail(serverId);
   }
-};
+}
 
 
 export function setTheme(theme) {
@@ -64,7 +64,7 @@ export function setTheme(theme) {
   if (label) label.textContent = theme === 'dark' ? t('bridge') : t('daylight');
 }
 
-window.toggleTheme = () => {
+export function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
   setTheme(current === 'dark' ? 'light' : 'dark');
-};
+}
