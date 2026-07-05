@@ -1,0 +1,164 @@
+/* HERMES-ADMIN-POLISH-20260706
+   One-shot polish for theme-aware text, sessions, notifications, ops filters and day cards. */
+
+html body.komari-admin-shell {
+  --admin-day-card: #dff3ff;
+  --admin-day-card-2: #eaf7ff;
+  --admin-day-line: #b7ddf3;
+  --admin-day-text: #0a1622;
+  --admin-day-muted: #345064;
+  --admin-dark-text: #eaf6ff;
+  --admin-dark-muted: #9eb7d5;
+  --admin-cyan: #62f5ee;
+}
+
+/* Theme-aware typography: IP lookup, favicon, API, form help text, status/details. */
+html body.komari-admin-shell.admin-day-mode .komari-setting-copy,
+html body.komari-admin-shell.admin-day-mode .komari-setting-copy strong,
+html body.komari-admin-shell.admin-day-mode .favicon-state,
+html body.komari-admin-shell.admin-day-mode .login-api-card,
+html body.komari-admin-shell.admin-day-mode .login-api-card strong,
+html body.komari-admin-shell.admin-day-mode .login-param-card,
+html body.komari-admin-shell.admin-day-mode .komari-kv-box,
+html body.komari-admin-shell.admin-day-mode .komari-kv-box b,
+html body.komari-admin-shell.admin-day-mode .komari-kv-box span,
+html body.komari-admin-shell.admin-day-mode .ping-server-item,
+html body.komari-admin-shell.admin-day-mode .ping-server-item div,
+html body.komari-admin-shell.admin-day-mode .metric-k,
+html body.komari-admin-shell.admin-day-mode .metric-d,
+html body.komari-admin-shell.admin-day-mode .form-label,
+html body.komari-admin-shell.admin-day-mode .komari-muted-line,
+html body.komari-admin-shell.admin-day-mode .komari-note {
+  color: var(--admin-day-text) !important;
+  text-shadow: none !important;
+}
+html body.komari-admin-shell.admin-day-mode small,
+html body.komari-admin-shell.admin-day-mode .komari-setting-copy small,
+html body.komari-admin-shell.admin-day-mode .login-api-card small,
+html body.komari-admin-shell.admin-day-mode .metric-d,
+html body.komari-admin-shell.admin-day-mode .metric-k {
+  color: var(--admin-day-muted) !important;
+  text-shadow: none !important;
+}
+html body.komari-admin-shell.admin-bridge-mode .komari-setting-copy,
+html body.komari-admin-shell.admin-bridge-mode .login-api-card,
+html body.komari-admin-shell.admin-bridge-mode .login-param-card,
+html body.komari-admin-shell.admin-bridge-mode .komari-kv-box,
+html body.komari-admin-shell.admin-bridge-mode .ping-server-item,
+html body.komari-admin-shell.admin-bridge-mode .form-label {
+  color: var(--admin-dark-text) !important;
+}
+html body.komari-admin-shell.admin-bridge-mode .komari-setting-copy small,
+html body.komari-admin-shell.admin-bridge-mode .login-api-card small,
+html body.komari-admin-shell.admin-bridge-mode .metric-d,
+html body.komari-admin-shell.admin-bridge-mode .metric-k,
+html body.komari-admin-shell.admin-bridge-mode .komari-note {
+  color: var(--admin-dark-muted) !important;
+}
+
+/* Day mode cards: unified sky-blue instead of mixed white/green. */
+html body.komari-admin-shell.admin-day-mode .admin-card,
+html body.komari-admin-shell.admin-day-mode .komari-panel,
+html body.komari-admin-shell.admin-day-mode .komari-flat-section,
+html body.komari-admin-shell.admin-day-mode .settings-card,
+html body.komari-admin-shell.admin-day-mode .metric-tile,
+html body.komari-admin-shell.admin-day-mode .komari-kv-box > div,
+html body.komari-admin-shell.admin-day-mode .ping-server-item,
+html body.komari-admin-shell.admin-day-mode .komari-notify-settings-card,
+html body.komari-admin-shell.admin-day-mode .komari-notify-card,
+html body.komari-admin-shell.admin-day-mode .komari-notify-template-card,
+html body.komari-admin-shell.admin-day-mode .komari-notify-master-card,
+html body.komari-admin-shell.admin-day-mode .komari-setting-card,
+html body.komari-admin-shell.admin-day-mode .login-api-card,
+html body.komari-admin-shell.admin-day-mode .login-param-card,
+html body.komari-admin-shell.admin-day-mode .ops-summary-card,
+html body.komari-admin-shell.admin-day-mode .ops-filter-bar,
+html body.komari-admin-shell.admin-day-mode #tp-rules-list .ping-server-item {
+  background: linear-gradient(180deg, var(--admin-day-card), var(--admin-day-card-2)) !important;
+  border-color: var(--admin-day-line) !important;
+  color: var(--admin-day-text) !important;
+  box-shadow: 0 12px 28px rgba(25, 83, 126, .08) !important;
+  text-shadow: none !important;
+}
+html body.komari-admin-shell.admin-day-mode .admin-overview-metric .metric-v,
+html body.komari-admin-shell.admin-day-mode .metric-v {
+  color: #087ea4 !important;
+  text-shadow: none !important;
+}
+
+/* Backend layout: reduce excessive gaps around node list and lower cards. */
+html body.komari-admin-shell .admin-body { padding-top: 22px !important; }
+html body.komari-admin-shell .admin-page.active { display: grid !important; gap: 14px !important; align-content: start !important; }
+html body.komari-admin-shell .komari-node-page { gap: 10px !important; }
+html body.komari-admin-shell .komari-node-toolbar { margin-bottom: 0 !important; }
+html body.komari-admin-shell .komari-table-wrap { margin-top: 0 !important; }
+html body.komari-admin-shell .admin-card { margin-bottom: 12px !important; }
+
+/* Ops event stream dropdown/filter alignment. */
+html body.komari-admin-shell #tab-ops .ops-filter-pro,
+html body.komari-admin-shell #tab-ops .ops-filter-bar {
+  align-items: end !important;
+  gap: 12px !important;
+}
+html body.komari-admin-shell #tab-ops .ops-filter-pro .form-group,
+html body.komari-admin-shell #tab-ops .ops-filter-bar .form-group {
+  display: grid !important;
+  grid-template-rows: auto 40px !important;
+  gap: 6px !important;
+  margin: 0 !important;
+}
+html body.komari-admin-shell #tab-ops .ops-filter-pro .form-input,
+html body.komari-admin-shell #tab-ops .ops-filter-bar .form-input,
+html body.komari-admin-shell #tab-ops .ops-filter-pro select,
+html body.komari-admin-shell #tab-ops .ops-filter-bar select,
+html body.komari-admin-shell #tab-ops .ops-filter-pro button,
+html body.komari-admin-shell #tab-ops .ops-filter-bar button {
+  height: 40px !important;
+  min-height: 40px !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Notification channel add/delete layout. */
+html body.komari-admin-shell .notify-channel-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+}
+html body.komari-admin-shell .notify-add-channel,
+html body.komari-admin-shell .notify-delete-channel {
+  border: 1px solid rgba(98,245,238,.22) !important;
+  border-radius: 9px !important;
+  height: 34px !important;
+  padding: 0 11px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+}
+html body.komari-admin-shell .notify-add-channel { background: rgba(98,245,238,.14) !important; color: var(--admin-cyan) !important; }
+html body.komari-admin-shell .notify-delete-channel { background: rgba(255,107,107,.12) !important; color: #ff8a9e !important; }
+html body.komari-admin-shell.admin-day-mode .notify-add-channel { background: #d9f5ff !important; color: #087ea4 !important; border-color: #addff2 !important; }
+html body.komari-admin-shell.admin-day-mode .notify-delete-channel { background: #fff1f2 !important; color: #e11d48 !important; border-color: #fecdd3 !important; }
+
+/* Account sessions. */
+html body.komari-admin-shell .acct-session-list { display: grid !important; gap: 10px !important; }
+html body.komari-admin-shell .acct-session-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 14px !important;
+  padding: 12px 14px !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(98,245,238,.16) !important;
+  background: rgba(7,18,34,.58) !important;
+}
+html body.komari-admin-shell.admin-day-mode .acct-session-row { background: #eaf7ff !important; border-color: #b7ddf3 !important; }
+html body.komari-admin-shell .acct-session-row strong { display:block !important; }
+html body.komari-admin-shell .acct-session-row small { display:block !important; margin-top:4px !important; overflow-wrap:anywhere !important; }
+
+@media(max-width:760px){
+  html body.komari-admin-shell .notify-channel-actions,
+  html body.komari-admin-shell .acct-session-row { display:grid !important; grid-template-columns:1fr !important; justify-content:stretch !important; }
+}

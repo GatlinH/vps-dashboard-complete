@@ -34,7 +34,7 @@ export class SettingsPanel {
 </section></section></div><div class="komari-settings-grid two" style="margin-top:18px"><section class="komari-panel komari-section-panel" data-settings-section="notify">
   <div class="komari-notify-master-card"><div><strong>开启通知</strong><small>开启后可在需要时接收通知消息。</small></div><label class="komari-switch"><input id="notify-enabled" type="checkbox"><span></span></label></div>
   <div class="komari-notify-template-card"><div class="komari-notify-template-head"><div><strong>消息通知模板</strong><small>Komari 将使用此消息模板发送通知。</small></div></div><textarea id="notify-template" class="form-input notify-template-box" rows="8" placeholder="{{emoji}}{{title}}{{emoji}}&#10;Event: {{event}}&#10;Client: {{client}}"></textarea><div class="notify-save-row"><button class="komari-primary" id="notify-template-save" type="button">保存</button></div></div>
-  <div class="komari-notify-settings-card" id="notify-settings-card"><div class="komari-notify-settings-head"><div><strong>发送设置</strong><small>详细设置您选择的信息发送渠道</small></div><select id="notify-channel" class="notify-select"><option>Javascript</option><option>Server酱Turbo</option><option>Server酱³</option><option>Server酱</option><option>bark</option><option>email</option><option>empty</option><option>telegram</option><option>webhook</option></select><button class="notify-collapse" type="button">⌃</button></div><div id="notify-channel-fields" class="notify-field-stack"></div><div class="notify-save-row"><button class="komari-primary" id="notify-save">保存</button></div><div id="notify-msg" class="komari-msg"></div></div>
+  <div class="komari-notify-settings-card" id="notify-settings-card"><div class="komari-notify-settings-head"><div><strong>发送设置</strong><small>详细设置您选择的信息发送渠道</small></div><div class="notify-channel-actions"><select id="notify-channel" class="notify-select"><option>Javascript</option><option>Server酱Turbo</option><option>Server酱³</option><option>Server酱</option><option>bark</option><option>email</option><option>empty</option><option>telegram</option><option>webhook</option></select><button class="notify-add-channel" id="notify-add-channel" type="button">添加方式</button><button class="notify-delete-channel" id="notify-delete-channel" type="button">删除方式</button><button class="notify-collapse" type="button">⌃</button></div></div><div id="notify-channel-fields" class="notify-field-stack"></div><div class="notify-save-row"><button class="komari-primary" id="notify-save">保存</button></div><div id="notify-msg" class="komari-msg"></div></div>
   <div class="komari-notify-card"><div><strong>发送测试消息</strong><small>发送测试消息</small></div><button class="komari-primary" id="notify-test">GO</button></div>
   <div class="komari-note">正在寻找过期通知？ 已经迁移到通知-通用 ↗</div>
 </section><section class="komari-panel komari-section-panel" data-settings-section="login notify proxy"><div class="komari-panel-title"><span>运行态摘要</span><small>security / oauth</small></div><div id="oauth-runtime" class="komari-kv-box">加载中...</div><div class="komari-note">登录配置已接入后台持久化；真正把这些配置写回环境变量 / OAuth 启动参数，还需要下一步接服务重载闭环。</div></section></div></div>`;
@@ -65,6 +65,8 @@ export class SettingsPanel {
     this._el.querySelector('#notify-save').addEventListener('click', () => this._saveNotify());
     this._el.querySelector('#notify-template-save').addEventListener('click', () => this._saveNotify());
     this._el.querySelector('#notify-channel').addEventListener('change', () => this._renderNotifyChannelFields());
+    this._el.querySelector('#notify-add-channel')?.addEventListener('click', () => this._addNotifyChannel());
+    this._el.querySelector('#notify-delete-channel')?.addEventListener('click', () => this._deleteNotifyChannel());
     this._el.querySelector('#notify-test').addEventListener('click', () => this._testNotify());
   }
 
@@ -203,9 +205,49 @@ export class SettingsPanel {
     this._el.querySelector('#login-callback-url').textContent = cb;
   }
 
+
+  _refreshNotifyChannelOptions(data = this._notifyData || {}) {
+    const select = this._el.querySelector('#notify-channel');
+    if (!select) return;
+    const defaults = ['Javascript','Server酱Turbo','Server酱³','Server酱','bark','email','empty','telegram','webhook'];
+    const channels = Object.keys((data || {}).channels || {});
+    const names = Array.from(new Set([...defaults, ...channels]));
+    const current = select.value || (data || {}).default_channel || 'telegram';
+    select.innerHTML = names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    select.value = names.includes(current) ? current : 'telegram';
+  }
+
+  async _addNotifyChannel() {
+    const name = prompt('请输入发送方式名称（例如 telegram2 / webhook-prod）：');
+    if (!name) return;
+    const key = name.trim();
+    if (!key) return;
+    const channels = { ...((this._notifyData || {}).channels || {}) };
+    if (!channels[key]) channels[key] = {};
+    this._notifyData = { ...(this._notifyData || {}), channels };
+    this._refreshNotifyChannelOptions(this._notifyData);
+    this._set('#notify-channel', key);
+    this._renderNotifyChannelFields();
+    this._msg('#notify-msg', '已添加发送方式，填写参数后点保存', 'ok');
+  }
+
+  async _deleteNotifyChannel() {
+    const channel = this._val('#notify-channel');
+    if (!channel || !confirm(`删除发送方式 ${channel}？`)) return;
+    const channels = { ...((this._notifyData || {}).channels || {}) };
+    delete channels[channel];
+    const next = Object.keys(channels)[0] || 'telegram';
+    this._notifyData = await saveNotificationSettings({ ...(this._notifyData || {}), channels, default_channel: next });
+    this._refreshNotifyChannelOptions(this._notifyData);
+    this._set('#notify-channel', next);
+    this._renderNotifyChannelFields();
+    this._msg('#notify-msg', '✅ 发送方式已删除', 'ok');
+  }
+
   _fillNotify(data) {
     this._notifyData = data || {};
     this._check('#notify-enabled', !!data.enabled);
+    this._refreshNotifyChannelOptions(data);
     this._set('#notify-channel', data.default_channel || 'telegram');
     this._set('#notify-template', data.message_template || '{{emoji}}{{title}}{{emoji}}\nEvent: {{event}}\nClient: {{client}}\nMessage: {{message}}\nTime: {{time}}');
     this._renderNotifyChannelFields();

@@ -57,7 +57,7 @@ export class TelegramPanel {
         <div style="font-size:12px;color:var(--text3);margin-bottom:10px">支持全局 / 节点级规则、冷却时间、重复通知、到期提醒、延迟与连续失败。</div>
         <div class="tp-rule-form-grid">
           <div class="form-group"><label class="form-label">规则名称</label><input class="form-input" id="tp-rule-name" placeholder="如：全局 CPU 90%"></div>
-          <div class="form-group"><label class="form-label">规则类型</label><select class="form-input" id="tp-rule-type"><option value="cpu">CPU</option><option value="ram">RAM</option><option value="disk">磁盘</option><option value="offline">离线</option><option value="latency">延迟</option><option value="consecutive_failures">连续失败</option><option value="expiry">到期提醒</option></select></div>
+          <div class="form-group"><label class="form-label">规则类型</label><select class="form-input" id="tp-rule-type"><option value="cpu">CPU</option><option value="ram">RAM</option><option value="disk">磁盘</option><option value="bandwidth">带宽</option><option value="offline">离线</option><option value="latency">延迟</option><option value="consecutive_failures">连续失败</option><option value="expiry">到期提醒</option></select></div>
           <div class="form-group"><label class="form-label">阈值</label><input class="form-input" id="tp-rule-threshold" type="number" value="90"></div>
           <div class="form-group"><label class="form-label">冷却秒数</label><input class="form-input" id="tp-rule-cooldown" type="number" value="300"></div>
           <div class="form-group"><label class="form-label">节点 ID</label><input class="form-input" id="tp-rule-server-id" placeholder="留空=全局"></div>

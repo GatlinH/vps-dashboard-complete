@@ -1,9 +1,10 @@
 """/auth 账户与密码流程"""
 import logging
 import time
+import json
 from datetime import datetime, timezone
 from flask import Blueprint, jsonify, request, current_app
-from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt, set_access_cookies, set_refresh_cookies, unset_jwt_cookies, create_access_token, create_refresh_token
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt, set_access_cookies, set_refresh_cookies, unset_jwt_cookies, create_access_token, create_refresh_token, decode_token
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from extensions import db
@@ -14,10 +15,88 @@ from middleware.rate_limit import limiter, LOGIN_LIMIT, WRITE_LIMIT
 from services.email_service import send_verification_email, send_password_reset_email, send_welcome_email
 from utils.errors import AuthenticationError
 from utils.token_blocklist import is_refresh_token_revoked, revoke_refresh_token, revoke_access_token
+import extensions
 from utils.validators import validate_password_strength
 
 account_bp = Blueprint("account", __name__)
 logger = logging.getLogger(__name__)
+
+
+def _session_key(jti: str) -> str:
+    return f"auth:session:{jti}"
+
+def _fmt_ua(ua) -> str:
+    try:
+        browser = ua.browser or "Browser"
+        platform = ua.platform or "OS"
+        return f"{browser} / {platform}"
+    except Exception:
+        return "未知浏览器"
+
+def _store_session(user, access_token: str) -> None:
+    try:
+        claims = decode_token(access_token)
+        jti = claims.get("jti")
+        exp = int(claims.get("exp") or 0)
+        if not jti or not exp:
+            return
+        now = int(time.time())
+        ip = request.remote_addr or ""
+        payload = {"id": jti, "user_id": str(user.id), "username": user.username, "ua": _fmt_ua(request.user_agent), "user_agent": request.user_agent.string or "", "ip": ip, "latest_ip": ip, "created_at": now, "last_login": now, "last_seen": now, "expires_at": exp}
+        extensions.redis_client.setex(_session_key(jti), max(1, exp - now), json.dumps(payload, ensure_ascii=False))
+    except Exception as exc:
+        logger.warning("记录登录会话失败: %s", exc)
+
+def _ensure_current_session():
+    try:
+        claims = get_jwt() or {}
+        jti = claims.get("jti")
+        exp = int(claims.get("exp") or 0)
+        uid = get_jwt_identity()
+        if not jti or not exp or not uid:
+            return
+        key = _session_key(jti)
+        raw = extensions.redis_client.get(key)
+        now = int(time.time())
+        if raw:
+            item = json.loads(raw)
+        else:
+            user = db.session.get(User, int(uid)) if str(uid).isdigit() else None
+            item = {"id": jti, "user_id": str(uid), "username": getattr(user, "username", None) or str(uid), "ua": _fmt_ua(request.user_agent), "user_agent": request.user_agent.string or "", "ip": request.remote_addr or "", "created_at": now, "last_login": now, "expires_at": exp, "backfilled": True}
+        item["latest_ip"] = request.remote_addr or item.get("latest_ip") or item.get("ip") or ""
+        item["last_seen"] = now
+        extensions.redis_client.setex(key, max(1, exp - now), json.dumps(item, ensure_ascii=False))
+    except Exception as exc:
+        logger.warning("补登记当前会话失败: %s", exc)
+
+def _iter_sessions(user_id: str):
+    _ensure_current_session()
+    current = (get_jwt() or {}).get("jti")
+    now = int(time.time())
+    rows = []
+    try:
+        for key in extensions.redis_client.scan_iter("auth:session:*"):
+            raw = extensions.redis_client.get(key)
+            if not raw:
+                continue
+            try:
+                item = json.loads(raw)
+            except Exception:
+                continue
+            if str(item.get("user_id")) != str(user_id):
+                continue
+            exp = int(item.get("expires_at") or 0)
+            if exp and exp <= now:
+                extensions.redis_client.delete(key)
+                continue
+            item["id"] = item.get("id") or str(key).rsplit(":", 1)[-1]
+            item["current"] = bool(current and item["id"] == current)
+            item["ttl"] = max(0, exp - now) if exp else 0
+            rows.append(item)
+    except Exception as exc:
+        logger.warning("读取会话列表失败: %s", exc)
+    rows.sort(key=lambda x: int(x.get("last_seen") or x.get("last_login") or x.get("created_at") or 0), reverse=True)
+    return rows
 
 
 def _generate_random_password(length: int = 20) -> str:
@@ -75,6 +154,7 @@ def login():
     resp = jsonify(access_token=access, refresh_token=refresh, user=user.to_dict())
     set_access_cookies(resp, access)
     set_refresh_cookies(resp, refresh)
+    _store_session(user, access)
     return resp
 
 
@@ -269,16 +349,40 @@ def reset_password():
 
 # ── Sessions ───────────────────────────────────────────────────
 @account_bp.get("/sessions")
+@jwt_required()
 def list_sessions():
-    return jsonify({"sessions": [], "count": 0})
+    rows = _iter_sessions(get_jwt_identity())
+    return jsonify({"sessions": rows, "count": len(rows)})
 
 @account_bp.delete("/sessions/<session_id>")
+@jwt_required()
 def delete_session(session_id):
+    current = (get_jwt() or {}).get("jti")
+    if session_id == current:
+        return jsonify(msg="当前会话不能在这里删除，请使用退出登录"), 400
+    extensions.redis_client.delete(_session_key(session_id))
+    try:
+        revoke_access_token(session_id, 3600, user_id=get_jwt_identity())
+    except Exception:
+        pass
     return jsonify({"deleted": 1})
 
 @account_bp.delete("/sessions")
+@jwt_required()
 def delete_other_sessions():
-    return jsonify({"deleted": 0})
+    uid = get_jwt_identity()
+    current = (get_jwt() or {}).get("jti")
+    deleted = 0
+    for item in _iter_sessions(uid):
+        sid = item.get("id")
+        if sid and sid != current:
+            extensions.redis_client.delete(_session_key(sid))
+            try:
+                revoke_access_token(sid, int(item.get("ttl") or 3600), user_id=uid)
+            except Exception:
+                pass
+            deleted += 1
+    return jsonify({"deleted": deleted})
 
 # ── Users admin ────────────────────────────────────────────────
 @account_bp.get("/users")

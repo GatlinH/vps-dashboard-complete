@@ -4,6 +4,7 @@
  */
 
 import './styles/admin.css'; // 确保引入样式
+import './styles/hermes_admin_polish_20260706.css';
 import { logout, checkSession } from './api/auth.js';
 import { ServerManager } from './components/admin/ServerManager.js';
 import { PingTool } from './components/admin/PingTool.js';
