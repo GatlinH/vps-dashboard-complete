@@ -191,7 +191,6 @@ def create_app(**config_overrides):
         (aff_bp,      '/api/v1/aff'),
         (exchange_bp, '/api/v1/exchange'),
         (agent_bp, '/api/v1/agent'),
-        (account_bp, '/api/v1/auth'),
     ]
     for bp, prefix in blueprints:
         app.register_blueprint(bp, url_prefix=prefix)
