@@ -179,6 +179,8 @@ def create_app(**config_overrides):
     # ===== 蓝图注册 =====
     blueprints = [
         (auth_bp,     '/api/v1/auth'),
+        (account_bp,  '/api/v1/auth'),
+        (users_bp,    '/api/v1/auth'),
         (servers_bp,  '/api/v1/servers'),
         (probe_bp,    '/api/v1/probe'),
         (telegram_bp, '/api/v1/telegram'),
