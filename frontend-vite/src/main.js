@@ -1610,7 +1610,7 @@ async function renderDetailPage(serverId) {
     fetchJson(`${API_ROOT}/api/v1/traffic/public/${resolvedServer.id}/history?days=${detailDays}&bucket_minutes=${detailBucketMinutes}&limit=${detailDays === 0 ? 14400 : 2000}`, { timeoutMs: 1200 }),
     fetchPing(resolvedServer),
     fetchServerHistory(resolvedServer.id, detailDays === 0 ? 1 : detailDays, detailDays === 0 ? 14400 : 2000, detailBucketMinutes),
-    Promise.resolve(null),
+    fetchPingTargets(resolvedServer.id, 3),
     fetchPingTargetHistory(resolvedServer.id, detailDays === 0 ? 12 : detailDays * 24, detailDays === 0 ? 14400 : 2000),
     fetchPingTargets(resolvedServer.id, 3, 'agent'),
   ]);
@@ -1622,6 +1622,7 @@ async function renderDetailPage(serverId) {
   const pingTargetsData = pingTargets.status === 'fulfilled' ? pingTargets.value : null;
   const pingTargetHistoryData = pingTargetHistory.status === 'fulfilled' ? pingTargetHistory.value : null;
   const peerPingTargetsData = peerPingTargets.status === 'fulfilled' ? peerPingTargets.value : null;
+  if (pingTargetsData?.targets?.length) recordLivePingSamples(pingTargetsData, Date.now(), resolvedServer.id);
   detailCache.pingTargets = pingTargetsData?.targets?.length ? pingTargetsData : detailCache.pingTargets;
   detailCache.pingTargetHistory = pingTargetHistoryData?.targets?.length ? pingTargetHistoryData : detailCache.pingTargetHistory;
   detailCache.peerPingTargets = peerPingTargetsData?.targets?.length ? peerPingTargetsData : detailCache.peerPingTargets;
@@ -1854,7 +1855,7 @@ async function refreshDetailRealtime(serverId) {
       fetchJson(`${API_ROOT}/api/v1/traffic/public/${current.id}`, { timeoutMs: 1000 }),
       fetchJson(`${API_ROOT}/api/v1/traffic/public/${current.id}/history?days=${getDetailHistoryDays()}&bucket_minutes=${getDetailHistoryBucketMinutes(getDetailHistoryDays())}&limit=${getDetailHistoryDays() === 0 ? 14400 : 2000}`, { timeoutMs: 3000 }),
       fetchServerHistory(current.id, getDetailHistoryDays() === 0 ? 1 : getDetailHistoryDays(), getDetailHistoryDays() === 0 ? 14400 : 2000, getDetailHistoryBucketMinutes(getDetailHistoryDays())),
-      Promise.resolve(detailCache.pingTargets),
+      shouldRefreshPingTargets ? fetchPingTargets(current.id, 3) : Promise.resolve(detailCache.pingTargets),
       shouldRefreshPingTargets ? fetchPingTargetHistory(current.id, 12, getDetailHistoryDays() === 0 ? 14400 : 2000) : Promise.resolve(detailCache.pingTargetHistory),
     ]);
     detailCache.traffic = traffic.status === 'fulfilled' ? traffic.value : detailCache.traffic;
@@ -1864,6 +1865,7 @@ async function refreshDetailRealtime(serverId) {
       detailCache.pingTargets = pingTargets.value;
       setDetailPingTargetsFetchedAt(now);
       window.__DBG__.DETAIL_PING_TARGETS = detailCache.pingTargets;
+      if (pingTargets.value?.targets?.length) recordLivePingSamples(pingTargets.value, now, current.id);
     }
     if (pingTargetHistory.status === 'fulfilled' && (pingTargetHistory.value?.targets?.length || pingTargetHistory.value?.unavailable)) {
       detailCache.pingTargetHistory = pingTargetHistory.value;

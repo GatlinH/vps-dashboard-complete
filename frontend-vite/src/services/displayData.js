@@ -151,14 +151,14 @@ export async function fetchPingTargetHistory(serverId, hours = 12, limit = 2000)
 }
 
 export async function fetchPing(resolvedServer) {
-  if (!server.ip) return null;
+  if (!resolvedServer?.ip) return null;
   if (pingAbortController) pingAbortController.abort();
   pingAbortController = new AbortController();
   return fetchJson(`${API_ROOT}/api/v1/probe/public/ping`, {
     timeoutMs: 1200,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ host: server.ip, port: 443, count: 3 }),
+    body: JSON.stringify({ host: resolvedServer.ip, port: 443, count: 3 }),
     signal: pingAbortController.signal,
   });
 }
