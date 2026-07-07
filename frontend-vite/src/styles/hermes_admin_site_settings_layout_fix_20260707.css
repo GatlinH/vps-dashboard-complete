@@ -1,0 +1,74 @@
+/* HERMES-ADMIN-SITE-SETTINGS-LAYOUT-FIX-20260707
+   User feedback: site page should align with other admin layouts; temporary share controls need breathing room. */
+
+/* Match other admin setting pages: do not leave an odd empty right column. */
+html body.komari-admin-shell .site-settings-panel {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+html body.komari-admin-shell .site-settings-stack {
+  width: 100% !important;
+}
+
+/* Use full row width while keeping content readable inside grouped cards. */
+html body.komari-admin-shell .site-settings-group {
+  width: 100% !important;
+}
+
+/* Temporary access link row: avoid controls touching each other. */
+html body.komari-admin-shell .site-settings-group .site-share-card {
+  display: grid !important;
+  grid-template-columns: minmax(240px, 1fr) minmax(320px, auto) !important;
+  align-items: center !important;
+  gap: 16px 22px !important;
+  padding: 16px !important;
+}
+
+html body.komari-admin-shell .site-settings-group .site-share-controls {
+  display: grid !important;
+  grid-template-columns: 96px auto auto !important;
+  align-items: center !important;
+  justify-content: end !important;
+  gap: 12px !important;
+  width: 100% !important;
+}
+
+html body.komari-admin-shell .site-settings-group .site-share-controls .form-input,
+html body.komari-admin-shell .site-settings-group .site-share-controls button {
+  height: 40px !important;
+  min-height: 40px !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+}
+
+html body.komari-admin-shell .site-settings-group .site-share-controls button {
+  min-width: 92px !important;
+  padding: 0 16px !important;
+  white-space: nowrap !important;
+}
+
+html body.komari-admin-shell .site-settings-group #site-share-url {
+  grid-column: 1 / -1 !important;
+  width: 100% !important;
+  margin-top: 0 !important;
+}
+
+@media (max-width: 900px) {
+  html body.komari-admin-shell .site-settings-group .site-share-card {
+    grid-template-columns: 1fr !important;
+  }
+  html body.komari-admin-shell .site-settings-group .site-share-controls {
+    justify-content: start !important;
+    grid-template-columns: 96px auto auto !important;
+  }
+}
+
+@media (max-width: 560px) {
+  html body.komari-admin-shell .site-settings-group .site-share-controls {
+    grid-template-columns: 1fr !important;
+  }
+  html body.komari-admin-shell .site-settings-group .site-share-controls button {
+    width: 100% !important;
+  }
+}

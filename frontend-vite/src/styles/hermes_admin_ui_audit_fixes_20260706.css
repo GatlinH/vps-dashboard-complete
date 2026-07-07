@@ -1,0 +1,82 @@
+/* HERMES-ADMIN-UI-AUDIT-FIXES-20260706
+   Fixes from full logged-in admin UI audit. */
+
+/* Top toolbar should not overflow the viewport/content area. */
+body.komari-admin-shell .admin-toolbar {
+  left: auto !important;
+  right: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+}
+body.komari-admin-shell .admin-main,
+body.komari-admin-shell .admin-content,
+body.komari-admin-shell .admin-page {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+/* Primary add/action buttons were visually too short compared with 38px controls. */
+body.komari-admin-shell .add-btn,
+body.komari-admin-shell .notify-add-channel,
+body.komari-admin-shell .notify-delete-channel,
+body.komari-admin-shell .login-generate,
+body.komari-admin-shell .login-collapse,
+body.komari-admin-shell .notify-collapse {
+  min-height: 38px !important;
+  height: 38px !important;
+  padding: 0 14px !important;
+  border-radius: 11px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+}
+body.komari-admin-shell .login-collapse,
+body.komari-admin-shell .notify-collapse {
+  width: 38px !important;
+  min-width: 38px !important;
+  padding: 0 !important;
+}
+
+/* Hide account current-password compatibility field without pushing it far offscreen. */
+body.komari-admin-shell .komari-current-pass {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  left: 0 !important;
+  top: 0 !important;
+  transform: translate(-200vw, -200vh) !important;
+}
+
+/* Keep compact table row operation buttons compact; do not inherit add-btn height. */
+body.komari-admin-shell .komari-node-table td:last-child button,
+body.komari-admin-shell .sessions-table button,
+body.komari-admin-shell .komari-icon-danger {
+  min-height: 30px !important;
+}
+body.komari-admin-shell .komari-icon-danger {
+  height: 36px !important;
+}
+
+/* Light mode action buttons: consistent readable sky style. */
+body.komari-admin-shell.admin-day-mode .add-btn,
+body.komari-admin-shell.admin-day-mode .notify-add-channel,
+body.komari-admin-shell.admin-day-mode .notify-delete-channel,
+body.komari-admin-shell.admin-day-mode .login-generate {
+  background: linear-gradient(135deg, #4cc9f0, #0891b2) !important;
+  color: #fff !important;
+  border: 1px solid #38bdf8 !important;
+  box-shadow: 0 8px 18px rgba(8,145,178,.18) !important;
+}

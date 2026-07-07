@@ -1,0 +1,240 @@
+/* HERMES-ADMIN-SESSION-AUDIT-20260706
+   Upgrade login session management from a sparse table into a useful security audit view. */
+
+body.komari-admin-shell .session-audit-card {
+  display: grid !important;
+  gap: 14px !important;
+}
+body.komari-admin-shell .session-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
+}
+body.komari-admin-shell .session-action-btn,
+body.komari-admin-shell .session-danger-btn,
+body.komari-admin-shell #sessions-refresh,
+body.komari-admin-shell #sessions-delete-all {
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0 16px !important;
+  border-radius: 11px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+}
+body.komari-admin-shell .session-action-btn.ghost {
+  border: 1px solid rgba(148,163,184,.28) !important;
+  background: rgba(148,163,184,.10) !important;
+  color: #9fbad0 !important;
+}
+body.komari-admin-shell .session-action-btn.danger,
+body.komari-admin-shell .session-danger-btn {
+  border: 1px solid rgba(248,113,113,.36) !important;
+  background: linear-gradient(135deg, #ef4444, #b91c1c) !important;
+  color: #fff !important;
+}
+body.komari-admin-shell .session-overview-grid {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
+body.komari-admin-shell .session-stat {
+  padding: 12px !important;
+  border-radius: 14px !important;
+  border: 1px solid rgba(98,245,238,.14) !important;
+  background: rgba(2, 12, 22, .46) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04) !important;
+}
+body.komari-admin-shell .session-stat span,
+body.komari-admin-shell .session-stat small {
+  display: block !important;
+  color: #8fb4c8 !important;
+  font-size: 12px !important;
+}
+body.komari-admin-shell .session-stat strong {
+  display: block !important;
+  margin: 5px 0 3px !important;
+  color: #eff8ff !important;
+  font-size: 22px !important;
+  letter-spacing: .02em !important;
+}
+body.komari-admin-shell .session-stat.ok strong { color: #86efac !important; }
+body.komari-admin-shell .session-stat.warn strong { color: #facc15 !important; }
+body.komari-admin-shell .session-table-wrap {
+  overflow: visible !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+body.komari-admin-shell .session-card-list {
+  display: grid !important;
+  gap: 11px !important;
+}
+body.komari-admin-shell .session-device-card {
+  display: grid !important;
+  gap: 12px !important;
+  padding: 14px !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(98,245,238,.14) !important;
+  background: linear-gradient(135deg, rgba(6,18,35,.88), rgba(4,12,24,.74)) !important;
+  box-shadow: 0 14px 32px rgba(0,0,0,.20) !important;
+}
+body.komari-admin-shell .session-device-card.current {
+  border-color: rgba(98,245,238,.34) !important;
+  box-shadow: 0 0 0 1px rgba(98,245,238,.08), 0 16px 34px rgba(0,0,0,.22) !important;
+}
+body.komari-admin-shell .session-device-main {
+  display: flex !important;
+  gap: 12px !important;
+  align-items: center !important;
+}
+body.komari-admin-shell .session-device-icon {
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 14px !important;
+  display: grid !important;
+  place-items: center !important;
+  background: rgba(98,245,238,.10) !important;
+  border: 1px solid rgba(98,245,238,.18) !important;
+  font-size: 20px !important;
+}
+body.komari-admin-shell .session-device-title {
+  color: #eff8ff !important;
+  font-size: 15px !important;
+  font-weight: 850 !important;
+  display: flex !important;
+  gap: 8px !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+}
+body.komari-admin-shell .session-current-pill,
+body.komari-admin-shell .session-risk {
+  border-radius: 999px !important;
+  padding: 3px 8px !important;
+  font-size: 11px !important;
+  font-weight: 850 !important;
+}
+body.komari-admin-shell .session-current-pill {
+  background: rgba(98,245,238,.14) !important;
+  color: #7ffff8 !important;
+  border: 1px solid rgba(98,245,238,.26) !important;
+}
+body.komari-admin-shell .session-device-ua {
+  margin-top: 4px !important;
+  color: #9fbad0 !important;
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+}
+body.komari-admin-shell .session-device-meta {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+body.komari-admin-shell .session-device-meta div {
+  padding: 9px 10px !important;
+  border-radius: 12px !important;
+  background: rgba(255,255,255,.035) !important;
+  border: 1px solid rgba(148,163,184,.10) !important;
+  min-width: 0 !important;
+}
+body.komari-admin-shell .session-device-meta span {
+  display: block !important;
+  color: #83a8bc !important;
+  font-size: 11px !important;
+  margin-bottom: 4px !important;
+}
+body.komari-admin-shell .session-device-meta b {
+  display: block !important;
+  color: #e8f6ff !important;
+  font-size: 12px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+body.komari-admin-shell .session-device-footer {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  justify-content: space-between !important;
+  flex-wrap: wrap !important;
+}
+body.komari-admin-shell .session-device-footer small {
+  flex: 1 1 260px !important;
+  color: #8fb4c8 !important;
+  line-height: 1.5 !important;
+}
+body.komari-admin-shell .session-risk.ok {
+  color: #86efac !important;
+  background: rgba(34,197,94,.12) !important;
+  border: 1px solid rgba(34,197,94,.24) !important;
+}
+body.komari-admin-shell .session-risk.warn {
+  color: #fde68a !important;
+  background: rgba(234,179,8,.12) !important;
+  border: 1px solid rgba(234,179,8,.24) !important;
+}
+
+body.komari-admin-shell.admin-day-mode .session-audit-card,
+body.komari-admin-shell.admin-day-mode .session-stat,
+body.komari-admin-shell.admin-day-mode .session-device-card {
+  background: linear-gradient(180deg, #e2f5ff, #f5fcff) !important;
+  border-color: #a9d9ef !important;
+  box-shadow: 0 14px 32px rgba(22,100,150,.10) !important;
+}
+body.komari-admin-shell.admin-day-mode .session-stat span,
+body.komari-admin-shell.admin-day-mode .session-stat small,
+body.komari-admin-shell.admin-day-mode .session-device-ua,
+body.komari-admin-shell.admin-day-mode .session-device-meta span,
+body.komari-admin-shell.admin-day-mode .session-device-footer small {
+  color: #31566b !important;
+}
+body.komari-admin-shell.admin-day-mode .session-stat strong,
+body.komari-admin-shell.admin-day-mode .session-device-title,
+body.komari-admin-shell.admin-day-mode .session-device-meta b {
+  color: #071827 !important;
+}
+body.komari-admin-shell.admin-day-mode .session-device-meta div,
+body.komari-admin-shell.admin-day-mode .session-device-icon {
+  background: #eef9ff !important;
+  border-color: #b7ddf3 !important;
+}
+body.komari-admin-shell.admin-day-mode .session-action-btn.ghost {
+  color: #244960 !important;
+  background: #eef9ff !important;
+  border-color: #b7ddf3 !important;
+}
+body.komari-admin-shell.admin-day-mode .session-current-pill {
+  color: #075985 !important;
+  background: #dff3ff !important;
+  border-color: #a9d9ef !important;
+}
+body.komari-admin-shell.admin-day-mode .session-risk.ok {
+  color: #166534 !important;
+  background: #dcfce7 !important;
+  border-color: #86efac !important;
+}
+body.komari-admin-shell.admin-day-mode .session-risk.warn {
+  color: #854d0e !important;
+  background: #fef3c7 !important;
+  border-color: #facc15 !important;
+}
+
+@media (max-width: 980px) {
+  body.komari-admin-shell .session-overview-grid,
+  body.komari-admin-shell .session-device-meta { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 640px) {
+  body.komari-admin-shell .session-overview-grid,
+  body.komari-admin-shell .session-device-meta { grid-template-columns: 1fr !important; }
+  body.komari-admin-shell .session-actions { width: 100% !important; }
+  body.komari-admin-shell .session-action-btn,
+  body.komari-admin-shell .session-danger-btn,
+  body.komari-admin-shell #sessions-refresh,
+  body.komari-admin-shell #sessions-delete-all { flex: 1 1 140px !important; }
+}

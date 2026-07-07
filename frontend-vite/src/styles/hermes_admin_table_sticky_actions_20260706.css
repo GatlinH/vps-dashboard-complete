@@ -1,0 +1,41 @@
+/* HERMES-ADMIN-TABLE-STICKY-ACTIONS-20260706
+   Keep server row actions visible; discovered during logged-in visual verification. */
+
+body.komari-admin-shell .komari-table-wrap {
+  position: relative !important;
+  overflow-x: auto !important;
+  padding-right: 0 !important;
+}
+body.komari-admin-shell .komari-node-table th:last-child,
+body.komari-admin-shell .komari-node-table td:last-child {
+  position: sticky !important;
+  right: 0 !important;
+  z-index: 3 !important;
+  min-width: 184px !important;
+  width: 184px !important;
+  padding-left: 10px !important;
+  padding-right: 14px !important;
+  box-shadow: -14px 0 24px rgba(0,0,0,.18) !important;
+}
+body.komari-admin-shell .komari-node-table th:last-child {
+  display: table-cell !important;
+  background: rgba(7,18,34,.96) !important;
+}
+body.komari-admin-shell .komari-node-table td:last-child {
+  background: rgba(7,18,34,.94) !important;
+  display: flex !important;
+  gap: 7px !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+}
+body.komari-admin-shell.admin-day-mode .komari-node-table th:last-child,
+body.komari-admin-shell.admin-day-mode .komari-node-table td:last-child {
+  background: linear-gradient(180deg, #e2f5ff, #f4fbff) !important;
+  box-shadow: -14px 0 24px rgba(22,100,150,.12) !important;
+}
+body.komari-admin-shell .komari-node-table td:last-child button {
+  flex: 0 0 30px !important;
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 30px !important;
+}

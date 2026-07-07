@@ -9,19 +9,73 @@ export class SettingsPanel {
   }
 
   _render() {
-    this._el.innerHTML = `<div class="komari-settings-page"><div class="komari-page-head"><div><h2 id="settings-title">站点</h2><p id="settings-subtitle">设置站点名称、描述和展示行为。</p></div></div><div id="settings-banner"></div><div class="komari-section-tabs"><button data-section="site">站点</button><button data-section="login">登录</button><button data-section="notify">通知</button><button data-section="general">通用</button><button data-section="proxy">反向代理</button></div><div class="komari-settings-grid two"><section class="komari-panel komari-section-panel" data-settings-section="site"><div class="komari-panel-title"><span>站点名称</span><small>设置站点名称</small></div><div class="komari-form-grid one"><label><input id="site-name" class="form-input"></label></div><div class="komari-action-row"><button class="komari-primary" id="site-save">保存</button></div><div class="komari-panel-title sub"><span>站点描述</span><small>设置站点描述，用于元信息及社交媒体关联。</small></div><div class="komari-form-grid one"><label><textarea id="site-description" class="form-input" rows="3"></textarea></label></div><div class="komari-action-row"><button class="komari-primary" id="site-save-2">保存</button></div><div class="komari-toggle-row"><div><strong>允许跨域请求</strong><small>允许来自其他域名的请求访问 API</small></div><label class="komari-switch"><input id="site-cors" type="checkbox"><span></span></label></div><div class="komari-toggle-row"><div><strong>向访客显示部分 IP 地址</strong><small>未登录时仅展示部分隐藏 IP，用于部分主题显示 IP</small></div><label class="komari-switch"><input id="site-show-ip" type="checkbox"><span></span></label></div><div class="komari-panel-title sub"><span>代理连接地址</span><small>用于安装探针和配置代理连接地址</small></div><div class="komari-form-grid one"><label><input id="site-proxy-url" class="form-input" placeholder="http://127.0.0.1:25777"></label><div class="komari-inline-field"><span>临时分享</span><select id="site-auto-share" class="form-input"><option value="off">关闭</option><option value="manual">手动</option><option value="auto">自动</option></select></div><input id="site-custom-head" type="hidden"><input id="site-custom-body" type="hidden"></div><div class="komari-action-row"><button class="komari-primary" id="site-save-3">保存</button></div><h3 class="komari-settings-heading">私有站点</h3><div class="komari-toggle-row"><div><strong>私有站点</strong><small>开启后前台数据需要登录后才可查看。</small></div><label class="komari-switch"><input id="site-single-mode" type="checkbox"><span></span></label></div><div class="komari-setting-card site-share-card"><div class="komari-setting-copy"><strong>临时访问链接</strong><small>为访客生成限时访问链接，用于临时分享私有站点。</small></div><div class="site-share-controls"><input id="site-share-hours" class="form-input" type="number" min="1" max="720" value="24"><button class="komari-secondary" id="site-share-generate" type="button">生成链接</button><button class="komari-danger" id="site-share-revoke" type="button">撤销</button></div><input id="site-share-url" class="form-input" readonly placeholder="尚未生成临时访问链接"></div><h3 class="komari-settings-heading">习惯</h3><div class="komari-panel-title sub"><span>头部</span><small>添加自定义 HTML/CSS/JavaScript 到站点头部，这些内容将在所有页面加载</small></div><textarea class="form-input" rows="4" disabled></textarea><div class="komari-action-row"><button class="komari-primary">保存</button></div><div class="komari-panel-title sub"><span>自定义身体</span><small>在页面区域添加自定义内容</small></div><textarea class="form-input" rows="4" disabled></textarea><div class="komari-action-row"><button class="komari-primary">保存</button></div><div class="komari-site-bottom-tools" id="site-bottom-tools">
-  <div class="komari-panel-title sub"><span>自定义图标</span><small>设置或更换站点图标。</small></div>
-  <div class="komari-setting-card favicon-card">
-    <div class="komari-setting-copy"><strong>当前网站图标</strong><small>Favicon 会显示在浏览器标签页、收藏夹和站点快捷方式中。</small></div>
-    <div class="favicon-preview-wrap"><img id="site-favicon-preview" class="favicon-preview" alt="当前网站图标"><span id="site-favicon-state" class="favicon-state">默认</span></div>
+    this._el.innerHTML = `<div class="komari-settings-page"><div class="komari-page-head"><div><h2 id="settings-title">站点</h2><p id="settings-subtitle">设置站点名称、描述和展示行为。</p></div></div><div id="settings-banner"></div><div class="komari-section-tabs"><button data-section="site">站点</button><button data-section="login">登录</button><button data-section="notify">通知</button><button data-section="general">通用</button><button data-section="proxy">反向代理</button></div><div class="komari-settings-grid two"><section class="komari-panel komari-section-panel site-settings-panel" data-settings-section="site">
+  <div class="site-settings-stack">
+    <div class="site-settings-group">
+      <div class="komari-panel-title"><span>基础信息</span><small>站点名称、描述和公开展示信息。</small></div>
+      <div class="komari-form-grid one">
+        <label><span>站点名称</span><input id="site-name" class="form-input" placeholder="VPS星图"></label>
+        <label><span>站点描述</span><textarea id="site-description" class="form-input" rows="4" placeholder="用于页面元信息和社交媒体分享展示"></textarea></label>
+      </div>
+    </div>
+
+    <div class="site-settings-group">
+      <div class="komari-panel-title sub"><span>访问与展示</span><small>CORS、访客可见信息和私有访问。</small></div>
+      <div class="komari-toggle-row"><div><strong>允许跨域请求</strong><small>启用 CORS，允许其他域名访问 API。</small></div><label class="komari-switch"><input id="site-cors" type="checkbox"><span></span></label></div>
+      <div class="komari-toggle-row"><div><strong>访客可见部分 IP 地址</strong><small>未登录时仅显示脱敏后的 IP 地址，用于部分主题展示。</small></div><label class="komari-switch"><input id="site-show-ip" type="checkbox"><span></span></label></div>
+      <div class="komari-toggle-row"><div><strong>私有站点</strong><small>开启后前台数据需要登录后才可查看。</small></div><label class="komari-switch"><input id="site-single-mode" type="checkbox"><span></span></label></div>
+    </div>
+
+    <div class="site-settings-group">
+      <div class="komari-panel-title sub"><span>连接配置</span><small>探针安装、代理连接和临时分享。</small></div>
+      <div class="komari-form-grid two site-connection-grid">
+        <label><span>代理连接地址</span><input id="site-proxy-url" class="form-input" placeholder="http://127.0.0.1:25777"></label>
+        <label><span>临时分享</span><select id="site-auto-share" class="form-input"><option value="off">关闭</option><option value="manual">手动</option><option value="auto">自动</option></select></label>
+      </div>
+      <div class="site-share-card"><div class="komari-setting-copy"><strong>临时访问链接</strong><small>为访客生成限时访问链接，用于临时分享私有站点。</small></div><div class="site-share-controls"><input id="site-share-hours" class="form-input" type="number" min="1" max="720" value="24"><button class="komari-secondary" id="site-share-generate" type="button">生成链接</button><button class="komari-danger" id="site-share-revoke" type="button">撤销</button></div><input id="site-share-url" class="form-input" readonly placeholder="尚未生成临时访问链接"></div>
+    </div>
+
+    <div class="site-settings-group">
+      <div class="komari-panel-title sub"><span>自定义代码</span><small>插入到页面 Head / Body 的自定义片段。</small></div>
+      <div class="komari-form-grid one custom-html-grid">
+        <label><span>自定义 Head 代码</span><textarea id="site-custom-head" class="form-input custom-html-input" rows="7" placeholder="例如：&lt;meta ...&gt; / &lt;style&gt;...&lt;/style&gt;"></textarea></label>
+        <label><span>自定义 Body 代码</span><textarea id="site-custom-body" class="form-input custom-html-input" rows="7" placeholder="例如：统计代码、自定义 HTML 片段"></textarea></label>
+      </div>
+    </div>
+
+    <div class="site-settings-group site-bottom-tools" id="site-bottom-tools">
+      <div class="komari-panel-title sub"><span>自定义图标</span><small>设置或更换站点图标。</small></div>
+      <div class="komari-setting-card favicon-card">
+        <div class="komari-setting-copy"><strong>当前网站图标</strong><small>Favicon 会显示在浏览器标签页、收藏夹和站点快捷方式中。</small></div>
+        <div class="favicon-preview-wrap"><img id="site-favicon-preview" class="favicon-preview" alt="当前网站图标"><span id="site-favicon-state" class="favicon-state">默认</span></div>
+      </div>
+      <div class="komari-action-row"><button class="komari-danger" id="site-favicon-reset" type="button">恢复默认</button><button class="komari-primary" id="site-favicon-pick" type="button">更新网站图标</button><input id="site-favicon-file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon,.ico" hidden></div>
+    </div>
+
+    <div class="site-settings-group">
+      <h3 class="komari-settings-heading">备份</h3>
+      <div class="komari-backup-list">
+        <div class="komari-backup-row"><div><strong>下载备份</strong><small>下载当前站点设置备份（站点、通用、登录、通知、反向代理配置）。</small></div><button class="komari-icon-button blue" id="site-backup-download" type="button" title="下载备份">↓</button></div>
+        <div class="komari-backup-row"><div><strong>恢复备份</strong><small>从 ZIP 备份文件恢复站点设置，会覆盖当前配置。</small></div><button class="komari-secondary purple" id="site-backup-pick" type="button">选择</button><input id="site-backup-file" type="file" accept="application/zip,.zip" hidden></div>
+      </div>
+    </div>
+
+    <div class="site-save-sticky"><button class="komari-primary" id="site-save" type="button">保存站点设置</button><div id="site-msg" class="komari-msg"></div></div>
   </div>
-  <div class="komari-action-row"><button class="komari-danger" id="site-favicon-reset" type="button">恢复默认</button><button class="komari-primary" id="site-favicon-pick" type="button">更新 网站图标</button><input id="site-favicon-file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon,.ico" hidden></div>
-  <h3 class="komari-settings-heading">备份</h3>
-  <div class="komari-backup-list">
-    <div class="komari-backup-row"><div><strong>下载备份</strong><small>下载当前站点设置备份（站点、通用、登录、通知、反向代理配置）。</small></div><button class="komari-icon-button blue" id="site-backup-download" type="button" title="下载备份">↓</button></div>
-    <div class="komari-backup-row"><div><strong>恢复备份</strong><small>从 ZIP 备份文件恢复站点设置，会覆盖当前配置。</small></div><button class="komari-secondary purple" id="site-backup-pick" type="button">选择</button><input id="site-backup-file" type="file" accept="application/zip,.zip" hidden></div>
+</section></section><section class="komari-panel komari-section-panel" data-settings-section="general"><div class="komari-panel-title"><span>通用</span><small>geoip / history / grpc</small></div><div class="komari-form-grid one"><label><span>自动发现按钮内容</span><input id="general-auto-discovery" class="form-input"></label><label class="komari-inline-check"><input id="general-geoip-enabled" type="checkbox"> <span>完善归属信息 / 启用 GeoIP</span></label><label><span>GeoIP 数据源</span><select id="general-geoip-provider" class="form-input"><option value="ipinfo.io">ipinfo.io</option><option value="ip-api.com">ip-api.com</option><option value="geojs.io">geojs.io</option><option value="maxmind">maxmind</option></select></label><div class="komari-action-row geoip-update-row"><button class="komari-secondary" id="general-geoip-update" type="button">更新 GeoIP 数据库</button></div><label class="komari-inline-check"><input id="general-history-enabled" type="checkbox"> <span>开启历史记录</span></label><label><span>负载数据保存时间（小时）</span><input id="general-load-hours" class="form-input" type="number"></label><label><span>Ping 数据保存时间（小时）</span><input id="general-ping-hours" class="form-input" type="number"></label></div><div class="komari-action-row"><button class="komari-primary" id="general-save">保存通用设置</button></div><div id="general-msg" class="komari-msg"></div></section></div><div class="komari-settings-grid two" style="margin-top:18px"><section class="komari-panel komari-section-panel cf-proxy-panel" data-settings-section="proxy">
+  <div class="komari-panel-title"><span>Cloudflare 隧道</span><small>反向代理运行状态</small></div>
+  <div class="cf-proxy-stack">
+    <div class="cf-proxy-group cf-runtime-group">
+      <div class="cf-proxy-group-head"><strong>运行状态</strong><small>cloudflared 安装、运行和令牌状态。</small></div>
+      <div id="cf-status-box" class="cf-status-grid">加载中...</div>
+    </div>
+    <div class="cf-proxy-group cf-config-group">
+      <div class="cf-proxy-group-head"><strong>Cloudflare Tunnel 配置</strong><small>保存令牌和本机 cloudflared 路径。</small></div>
+      <div class="komari-form-grid one cf-config-fields"><label><span>Cloudflare Tunnel 令牌</span><input id="cf-token" type="password" class="form-input" placeholder="请输入 Cloudflare Tunnel 令牌"></label><label><span>cloudflared 二进制路径</span><input id="cf-bin" class="form-input" placeholder="/usr/local/bin/cloudflared"></label></div>
+      <div class="komari-action-row cf-action-row"><button class="komari-primary" id="cf-save">保存 Cloudflare 设置</button><button class="komari-secondary" id="cf-refresh">刷新状态</button></div><div id="cf-msg" class="komari-msg"></div>
+    </div>
   </div>
-</div><div id="site-msg" class="komari-msg"></div></section><section class="komari-panel komari-section-panel" data-settings-section="general"><div class="komari-panel-title"><span>通用</span><small>geoip / history / grpc</small></div><div class="komari-form-grid one"><label><span>自动发现按钮内容</span><input id="general-auto-discovery" class="form-input"></label><label class="komari-inline-check"><input id="general-geoip-enabled" type="checkbox"> <span>完善归属信息 / 启用 GeoIP</span></label><label><span>GeoIP 数据源</span><select id="general-geoip-provider" class="form-input"><option value="ipinfo.io">ipinfo.io</option><option value="ip-api.com">ip-api.com</option><option value="geojs.io">geojs.io</option><option value="maxmind">maxmind</option></select></label><div class="komari-action-row geoip-update-row"><button class="komari-secondary" id="general-geoip-update" type="button">更新 GeoIP 数据库</button></div><label class="komari-inline-check"><input id="general-history-enabled" type="checkbox"> <span>开启历史记录</span></label><label><span>负载数据保存时间（小时）</span><input id="general-load-hours" class="form-input" type="number"></label><label><span>Ping 数据保存时间（小时）</span><input id="general-ping-hours" class="form-input" type="number"></label><h3 class="komari-settings-heading">哪吒兼容</h3><label class="komari-inline-check"><input id="general-grpc-enabled" type="checkbox"> <span>开启哪吒兼容 gRPC</span></label><label><span>哪吒 gRPC 监听地址</span><input id="general-grpc-listen" class="form-input" placeholder="0.0.0.0:5555"></label></div><div class="komari-action-row"><button class="komari-primary" id="general-save">保存通用设置</button></div><div id="general-msg" class="komari-msg"></div></section></div><div class="komari-settings-grid two" style="margin-top:18px"><section class="komari-panel komari-section-panel" data-settings-section="proxy"><div class="komari-panel-title"><span>Cloudflare 隧道</span><small>reverse proxy runtime</small></div><div id="cf-status-box" class="komari-kv-box">加载中...</div><div class="komari-form-grid one"><label><span>Cloudflare Tunnel 令牌</span><input id="cf-token" type="password" class="form-input" placeholder="请输入 Cloudflare Tunnel 令牌"></label><label><span>cloudflared 二进制路径</span><input id="cf-bin" class="form-input" placeholder="/usr/local/bin/cloudflared"></label></div><div class="komari-action-row"><button class="komari-primary" id="cf-save">保存 Cloudflare 设置</button><button class="komari-secondary" id="cf-refresh">刷新状态</button></div><div id="cf-msg" class="komari-msg"></div></section><section class="komari-panel komari-section-panel komari-login-panel" data-settings-section="login">
+</section><section class="komari-panel komari-section-panel komari-login-panel" data-settings-section="login">
   <h3 class="login-section-heading first">登录</h3>
   <div class="login-setting-row"><div><strong>禁止密码登录</strong></div><label class="komari-switch"><input id="login-disable-password" type="checkbox"><span></span></label></div>
   <h3 class="login-section-heading">单点登录</h3>
@@ -34,17 +88,15 @@ export class SettingsPanel {
 </section></section></div><div class="komari-settings-grid two" style="margin-top:18px"><section class="komari-panel komari-section-panel" data-settings-section="notify">
   <div class="komari-notify-master-card"><div><strong>开启通知</strong><small>开启后可在需要时接收通知消息。</small></div><label class="komari-switch"><input id="notify-enabled" type="checkbox"><span></span></label></div>
   <div class="komari-notify-template-card"><div class="komari-notify-template-head"><div><strong>消息通知模板</strong><small>Komari 将使用此消息模板发送通知。</small></div></div><textarea id="notify-template" class="form-input notify-template-box" rows="8" placeholder="{{emoji}}{{title}}{{emoji}}&#10;Event: {{event}}&#10;Client: {{client}}"></textarea><div class="notify-save-row"><button class="komari-primary" id="notify-template-save" type="button">保存</button></div></div>
-  <div class="komari-notify-settings-card" id="notify-settings-card"><div class="komari-notify-settings-head"><div><strong>发送设置</strong><small>详细设置您选择的信息发送渠道</small></div><div class="notify-channel-actions"><select id="notify-channel" class="notify-select"><option>Javascript</option><option>Server酱Turbo</option><option>Server酱³</option><option>Server酱</option><option>bark</option><option>email</option><option>empty</option><option>telegram</option><option>webhook</option></select><button class="notify-add-channel" id="notify-add-channel" type="button">添加方式</button><button class="notify-delete-channel" id="notify-delete-channel" type="button">删除方式</button><button class="notify-collapse" type="button">⌃</button></div></div><div id="notify-channel-fields" class="notify-field-stack"></div><div class="notify-save-row"><button class="komari-primary" id="notify-save">保存</button></div><div id="notify-msg" class="komari-msg"></div></div>
+  <div class="komari-notify-settings-card" id="notify-settings-card"><div class="komari-notify-settings-head"><div><strong>发送设置</strong><small>详细设置您选择的信息发送渠道</small></div><div class="notify-channel-actions"><select id="notify-channel" class="notify-select"><option>Javascript</option><option>Server酱Turbo</option><option>Server酱³</option><option>Server酱</option><option>bark</option><option>email</option><option>empty</option><option>telegram</option><option>webhook</option><option value="custom">自定义名称...</option></select><button class="notify-add-channel" id="notify-add-channel" type="button">添加方式</button><button class="notify-collapse" type="button">⌃</button></div></div><div id="notify-channel-fields" class="notify-field-stack"></div><div class="notify-save-row"><button class="komari-primary" id="notify-save">保存</button></div><div id="notify-msg" class="komari-msg"></div></div>
   <div class="komari-notify-card"><div><strong>发送测试消息</strong><small>发送测试消息</small></div><button class="komari-primary" id="notify-test">GO</button></div>
-  <div class="komari-note">正在寻找过期通知？ 已经迁移到通知-通用 ↗</div>
-</section><section class="komari-panel komari-section-panel" data-settings-section="login notify proxy"><div class="komari-panel-title"><span>运行态摘要</span><small>security / oauth</small></div><div id="oauth-runtime" class="komari-kv-box">加载中...</div><div class="komari-note">登录配置已接入后台持久化；真正把这些配置写回环境变量 / OAuth 启动参数，还需要下一步接服务重载闭环。</div></section></div></div>`;
+  <div class="komari-note">正在寻找过期通知？ 已经迁移到通知-通用 ↗</div><div class="notify-channel-management"><div class="notify-channel-management-head"><strong>已添加发送方式管理</strong><small>这里只显示已添加或已配置的发送方式；删除操作统一放在这里。</small></div><div id="notify-channel-list" class="notify-channel-list"></div></div>
+</section></div></div>`;
   }
 
   _bind() {
     this._el.querySelectorAll('.komari-section-tabs button').forEach((btn) => btn.addEventListener('click', () => this.setSection(btn.dataset.section)));
-    this._el.querySelector('#site-save').addEventListener('click', () => this._saveSite());
-    this._el.querySelector('#site-save-2').addEventListener('click', () => this._saveSite());
-    this._el.querySelector('#site-save-3').addEventListener('click', () => this._saveSite());
+    this._el.querySelector('#site-save')?.addEventListener('click', () => this._saveSite());
     this._el.querySelector('#site-share-generate')?.addEventListener('click', () => this._generateShareLink());
     this._el.querySelector('#site-share-revoke')?.addEventListener('click', () => this._revokeShareLink());
     this._el.querySelector('#site-favicon-pick')?.addEventListener('click', () => this._el.querySelector('#site-favicon-file')?.click());
@@ -66,8 +118,10 @@ export class SettingsPanel {
     this._el.querySelector('#notify-template-save').addEventListener('click', () => this._saveNotify());
     this._el.querySelector('#notify-channel').addEventListener('change', () => this._renderNotifyChannelFields());
     this._el.querySelector('#notify-add-channel')?.addEventListener('click', () => this._addNotifyChannel());
-    this._el.querySelector('#notify-delete-channel')?.addEventListener('click', () => this._deleteNotifyChannel());
+
     this._el.querySelector('#notify-test').addEventListener('click', () => this._testNotify());
+    this._el.querySelector('#notify-channel-list')?.addEventListener('click', (ev) => { const btn = ev.target.closest('[data-notify-delete]'); if (btn) this._deleteNotifyChannel(btn.dataset.notifyDelete); });
+    this._el.querySelector('#notify-channel-list')?.addEventListener('click', (ev) => { const btn = ev.target.closest('[data-notify-select]'); if (btn) { this._set('#notify-channel', btn.dataset.notifySelect); this._renderNotifyChannelFields(); } });
   }
 
   async load() {
@@ -103,7 +157,7 @@ export class SettingsPanel {
   _showSection() {
     if (!this._el) return;
     const active = this._activeSection || 'site';
-    const titles = {site:['站点','设置站点名称、描述和展示行为。'], login:['登录','登录、OAuth 和回退策略。'], notify:['通知','告警和消息渠道设置。'], general:['通用','GeoIP、历史记录和兼容接口。'], proxy:['反向代理','Cloudflare 隧道与反代运行状态。']};
+    const titles = {site:['站点','设置站点名称、描述和展示行为。'], login:['登录','登录、OAuth 和回退策略。'], notify:['通知','告警和消息渠道设置。'], general:['通用','GeoIP、历史记录和兼容接口。'], proxy:['反向代理','Cloudflare 隧道与反向代理运行状态。']};
     const title = this._el.querySelector('#settings-title'); const sub = this._el.querySelector('#settings-subtitle');
     if (title && titles[active]) { title.textContent = titles[active][0]; sub.textContent = titles[active][1]; }
     this._renderBanner();
@@ -164,8 +218,18 @@ export class SettingsPanel {
     this._set('#general-grpc-listen', data.nezha_grpc_listen || '0.0.0.0:5555');
   }
 
-  _fillCloudflare(data) {
-    const html = `<div><span>cloudflared</span><b>${data.installed ? '已安装' : '未安装'}</b></div><div><span>状态</span><b>${esc(data.status || 'stopped')}</b></div><div><span>已保存令牌</span><b>${esc(data.cloudflare_token_masked || '未保存')}</b></div><div><span>二进制路径</span><b>${esc(data.binary || data.cloudflared_bin || '未检测到')}</b></div>`;
+  _fillCloudflare(data = {}) {
+    const statusRaw = String(data.status || 'stopped').toLowerCase();
+    const statusText = statusRaw === 'running' ? '运行中' : statusRaw === 'stopped' ? '已停止' : (data.status || '未知');
+    const statusTone = statusRaw === 'running' ? 'ok' : statusRaw === 'stopped' ? 'warn' : 'muted';
+    const installedTone = data.installed ? 'ok' : 'danger';
+    const tokenSaved = !!data.cloudflare_token_masked;
+    const bin = data.binary || data.cloudflared_bin || '';
+    const html = `
+      <div class="cf-status-item"><span>cloudflared</span><b class="cf-status-pill ${installedTone}">${data.installed ? '已安装' : '未安装'}</b></div>
+      <div class="cf-status-item"><span>状态</span><b class="cf-status-pill ${statusTone}">${esc(statusText)}</b></div>
+      <div class="cf-status-item"><span>已保存令牌</span><b class="cf-status-pill ${tokenSaved ? 'ok' : 'muted'}">${esc(data.cloudflare_token_masked || '未保存')}</b></div>
+      <div class="cf-status-item wide"><span>二进制路径</span><b>${esc(bin || '未检测到')}</b></div>`;
     this._el.querySelector('#cf-status-box').innerHTML = html;
     this._set('#cf-bin', data.cloudflared_bin || data.binary || '');
     this._el.querySelector('#cf-token').value = '';
@@ -209,30 +273,81 @@ export class SettingsPanel {
   _refreshNotifyChannelOptions(data = this._notifyData || {}) {
     const select = this._el.querySelector('#notify-channel');
     if (!select) return;
-    const defaults = ['Javascript','Server酱Turbo','Server酱³','Server酱','bark','email','empty','telegram','webhook'];
-    const channels = Object.keys((data || {}).channels || {});
+    const defaults = ['Javascript','Server酱Turbo','Server酱³','Server酱','bark','email','empty','telegram','webhook','custom'];
+    const channelsObj = (data || {}).channels || {};
+    const channels = Object.keys(channelsObj);
     const names = Array.from(new Set([...defaults, ...channels]));
     const current = select.value || (data || {}).default_channel || 'telegram';
     select.innerHTML = names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
     select.value = names.includes(current) ? current : 'telegram';
+    this._renderNotifyChannelList(names, channelsObj, select.value, (data || {}).default_channel || '', data || {});
+  }
+
+  _renderNotifyChannelList(names = [], channelsObj = {}, current = '', defaultChannel = '', notifyData = {}) {
+    const mount = this._el.querySelector('#notify-channel-list');
+    if (!mount) return;
+    const configured = Object.keys(channelsObj || {}).filter(name => this._isNotifyChannelConfigured(name, channelsObj[name], defaultChannel));
+    if (!configured.length) {
+      mount.innerHTML = '<div class="notify-channel-empty">还没有添加发送方式。请选择上方模板后点击“添加方式”，填写参数并保存。</div>';
+      return;
+    }
+    mount.innerHTML = configured.map(name => {
+      const cfg = { ...(channelsObj[name] || {}) };
+      if ((name === 'telegram' || this._notifyChannelKind(name, cfg) === 'telegram') && !cfg.chat_id && notifyData.telegram_chat_id) cfg.chat_id = notifyData.telegram_chat_id;
+      const status = name === current ? '当前编辑' : (name === defaultChannel ? '默认方式' : '已添加');
+      const details = this._notifyChannelDetails(name, cfg);
+      return `<div class="notify-channel-chip active-config ${name===current?'active':''}"><button type="button" data-notify-select="${esc(name)}"><strong>${esc(this._notifyChannelTitle(name, cfg))}</strong><small>${esc(status)}${details ? ' · '+details : ''}</small></button><button type="button" class="notify-channel-delete" data-notify-delete="${esc(name)}">删除</button></div>`;
+    }).join('');
+  }
+
+  _notifyChannelTitle(name, cfg = {}) {
+    if (this._notifyChannelKind(name, cfg) === 'telegram') return `${name} · Telegram`;
+    if (cfg.url) return `${name} · Webhook`;
+    if (cfg.to || cfg.smtp_server) return `${name} · Email`;
+    return name;
+  }
+
+  _notifyChannelDetails(name, cfg = {}) {
+    const parts = [];
+    if (cfg.chat_id) parts.push(`Chat ${cfg.chat_id}`);
+    if (cfg.message_thread_id) parts.push(`Thread ${cfg.message_thread_id}`);
+    if (cfg.endpoint) parts.push(String(cfg.endpoint).replace(/^https?:\/\//, '').slice(0, 36));
+    if (cfg.url) parts.push(String(cfg.url).replace(/^https?:\/\//, '').slice(0, 48));
+    if (cfg.to) parts.push(`To ${cfg.to}`);
+    if (cfg.smtp_server) parts.push(`SMTP ${cfg.smtp_server}`);
+    if (cfg.api_url) parts.push(String(cfg.api_url).replace(/^https?:\/\//, '').slice(0, 48));
+    if (cfg.server_url) parts.push(String(cfg.server_url).replace(/^https?:\/\//, '').slice(0, 48));
+    if (cfg.device_key) parts.push(`Device ${String(cfg.device_key).slice(0, 8)}…`);
+    if (!parts.length && cfg.__draft) parts.push('草稿，尚未保存参数');
+    return parts.map(x => esc(x)).join(' · ');
+  }
+
+  _isNotifyChannelConfigured(name, cfg = {}, defaultChannel = '') {
+    if (name === defaultChannel) return true;
+    if (!cfg || typeof cfg !== 'object') return false;
+    return Object.entries(cfg).some(([key, value]) => key === '__draft' || (value !== undefined && value !== null && String(value).trim() !== ''));
   }
 
   async _addNotifyChannel() {
-    const name = prompt('请输入发送方式名称（例如 telegram2 / webhook-prod）：');
-    if (!name) return;
-    const key = name.trim();
+    const selected = (this._val('#notify-channel') || 'telegram').trim();
+    const custom = selected === 'custom' ? (prompt('请输入发送方式名称（例如 telegram2 / webhook-prod）：') || '').trim() : '';
+    const key = custom || selected;
     if (!key) return;
     const channels = { ...((this._notifyData || {}).channels || {}) };
-    if (!channels[key]) channels[key] = {};
+    if (channels[key]) {
+      this._msg('#notify-msg', `发送方式 ${key} 已存在，可直接编辑`, 'ok');
+    } else {
+      channels[key] = { __draft: true };
+      this._msg('#notify-msg', `已添加发送方式 ${key}，填写参数后点保存`, 'ok');
+    }
     this._notifyData = { ...(this._notifyData || {}), channels };
     this._refreshNotifyChannelOptions(this._notifyData);
     this._set('#notify-channel', key);
     this._renderNotifyChannelFields();
-    this._msg('#notify-msg', '已添加发送方式，填写参数后点保存', 'ok');
   }
 
-  async _deleteNotifyChannel() {
-    const channel = this._val('#notify-channel');
+  async _deleteNotifyChannel(channelArg = '') {
+    const channel = channelArg || this._val('#notify-channel');
     if (!channel || !confirm(`删除发送方式 ${channel}？`)) return;
     const channels = { ...((this._notifyData || {}).channels || {}) };
     delete channels[channel];
@@ -253,44 +368,57 @@ export class SettingsPanel {
     this._renderNotifyChannelFields();
   }
 
+  _notifyChannelKind(channel, cfg = {}) {
+    const n = String(channel || '').toLowerCase();
+    if (n === 'telegram' || n.startsWith('telegram') || n.startsWith('tg') || cfg.bot_token || cfg.chat_id || cfg.message_thread_id) return 'telegram';
+    if (n === 'webhook' || n.startsWith('webhook') || cfg.url) return 'webhook';
+    if (n === 'email' || n.startsWith('email') || cfg.smtp_server || cfg.to) return 'email';
+    if (n === 'bark' || n.startsWith('bark') || cfg.device_key || cfg.server_url) return 'bark';
+    if (n === 'javascript' || n.startsWith('js') || cfg.code) return 'Javascript';
+    return channel;
+  }
+
   _renderNotifyChannelFields() {
     const channel = this._val('#notify-channel');
     const data = this._notifyData || {};
     const channels = data.channels || {};
     const cfg = channels[channel] || {};
+    const kind = this._notifyChannelKind(channel, cfg);
     const e = esc;
     const field = (id, label, help='', value='', type='text') => `<label class="notify-field"><span>${label}</span>${help ? `<small>${help}</small>` : ''}<input id="${id}" class="form-input" type="${type}" value="${e(value)}"></label>`;
     const select = (id, label, options, value='', help='') => `<label class="notify-field notify-select-field"><span>${label}</span>${help ? `<small>${help}</small>` : ''}<select id="${id}" class="notify-select small"><option value="">选择</option>${options.map(o => `<option value="${e(o)}" ${String(value)===String(o)?'selected':''}>${e(o)}</option>`).join('')}</select></label>`;
     const toggle = (id, label, help='', checked=false) => `<label class="notify-toggle-row"><div><strong>${label}</strong>${help ? `<small>${help}</small>` : ''}</div><span class="komari-switch"><input id="${id}" type="checkbox" ${checked?'checked':''}><span></span></span></label>`;
     let html = '';
-    if (channel === 'Server酱Turbo') {
+    if (kind === 'Server酱Turbo') {
       html = field('notify-sct-api-url','api_url *','接口完整地址，例如 https://sctapi.ftqq.com/<sendkey>.send；参考：https://sct.ftqq.com/', cfg.api_url || '') + field('notify-sct-channel','channel','消息通道，可选，多个用 | 隔开，例如 9|66', cfg.channel || '') + field('notify-sct-noip','noip','是否隐藏调用IP，填 1 隐藏；为空则不隐藏', cfg.noip || '') + field('notify-sct-openid','openid','抄送 openid，测试号用 , 分隔；企业微信应用用 | 分隔', cfg.openid || '');
-    } else if (channel === 'webhook') {
+    } else if (kind === 'webhook') {
       html = field('notify-webhook-url','url *','', cfg.url || '') + select('notify-webhook-method','method',['POST','GET'], cfg.method || '') + field('notify-webhook-content-type','content_type','', cfg.content_type || '') + field('notify-webhook-headers','headers','HTTP headers in JSON format', cfg.headers || '') + field('notify-webhook-body','body','', cfg.body || '') + field('notify-webhook-username','username','', cfg.username || '') + field('notify-webhook-password','password','', cfg.password || '', 'password');
-    } else if (channel === 'empty') {
+    } else if (kind === 'empty') {
       html = '';
       this._el.querySelector('#notify-settings-card')?.classList.add('is-empty-channel');
-    } else if (channel === 'email') {
+    } else if (kind === 'email') {
       html = field('notify-email-smtp','SMTP 服务器 *','', cfg.smtp_server || '') + field('notify-email-port','端口 *','', cfg.port ?? 0, 'number') + field('notify-email-username','用户名','', cfg.username || '') + field('notify-email-password','密码','', cfg.password || '', 'password') + field('notify-email-from','发件人邮箱','', cfg.from || '') + field('notify-email-to','收件人邮箱','', cfg.to || '') + toggle('notify-email-ssl','启用 SSL','', !!cfg.ssl) + toggle('notify-email-login-auth','use_login_auth','Use LOGIN authentication method instead of PLAIN. Enable this if you encounter authentication errors with Microsoft (Outlook/Office365), NetEase (163.com), or other email providers', !!cfg.use_login_auth);
-    } else if (channel === 'Server酱³') {
+    } else if (kind === 'Server酱³') {
       html = field('notify-sc3-api-url','api_url *','接口完整地址，例如 https://<uid>.push.ft07.com/send/<sendkey>.send；参考：https://sc3.ft07.com/', cfg.api_url || '') + field('notify-sc3-tags','tags','可选标签，使用 | 分割，例如 tag1|tag2|tag3', cfg.tags || '');
-    } else if (channel === 'bark') {
+    } else if (kind === 'bark') {
       html = field('notify-bark-server-url','server_url *','Bark server URL, e.g., https://api.day.app or your self-hosted server address', cfg.server_url || '') + field('notify-bark-device-key','device_key *','Your Bark device key, which can be found in the Bark App', cfg.device_key || '') + field('notify-bark-icon','icon','Push notification icon, supports URL or system icon name', cfg.icon || '') + select('notify-bark-level','level',['active','timeSensitive','passive','critical'], cfg.level || '', 'Push notification level: active, timeSensitive (default), passive, critical');
-    } else if (channel === 'telegram') {
+    } else if (kind === 'telegram') {
       html = field('notify-tg-token','Telegram Bot Token *','', cfg.bot_token || '', 'password') + field('notify-tg-chat','Chat ID *','-1001234567890 或 @channel', cfg.chat_id || data.telegram_chat_id || '') + field('notify-tg-thread','message_thread_id','supergroup topic optional', cfg.message_thread_id || '') + field('notify-tg-endpoint','请求端点 *','https://api.telegram.org/bot', cfg.endpoint || 'https://api.telegram.org/bot');
-    } else if (channel === 'Javascript') {
+    } else if (kind === 'Javascript') {
       html = '<label class="notify-field"><span>JavaScript 代码 *</span><small>实现 sendEvent(event)，支持 fetch/xhr/console.log，返回 Promise 或 boolean。</small><textarea id="notify-js-code" class="form-input" rows="7">'+e(cfg.code || '')+'</textarea></label>';
     } else {
       html = field('notify-serverchan-api-url','api_url *','Server酱接口完整地址', cfg.api_url || cfg.target || '');
     }
-    if (channel !== 'empty') this._el.querySelector('#notify-settings-card')?.classList.remove('is-empty-channel');
+    if (kind !== 'empty') this._el.querySelector('#notify-settings-card')?.classList.remove('is-empty-channel');
     this._el.querySelector('#notify-channel-fields').innerHTML = html;
   }
 
   _fillRuntime(summary) {
     const oauth = summary.oauth || {};
     const sec = summary.security || {};
-    this._el.querySelector('#oauth-runtime').innerHTML = `<div><span>GitHub OAuth</span><b>${pill(!!oauth.github, '已配置', '未配置')}</b></div><div><span>Google OAuth</span><b>${pill(!!oauth.google, '已配置', '未配置')}</b></div><div><span>白名单邮箱数</span><b>${esc(oauth.allowlist_count ?? 0)}</b></div><div><span>回调地址</span><b>${esc(oauth.callback_url || '—')}</b></div><div><span>Cookie Secure</span><b>${pill(!!sec.jwt_cookie_secure, '开启', '关闭')}</b></div><div><span>CSRF 保护</span><b>${pill(!!sec.jwt_cookie_csrf_protect, '开启', '关闭')}</b></div>`;
+    const runtimeEl = this._el.querySelector('#oauth-runtime');
+    if (!runtimeEl) return;
+    runtimeEl.innerHTML = `<div><span>GitHub OAuth</span><b>${pill(!!oauth.github, '已配置', '未配置')}</b></div><div><span>Google OAuth</span><b>${pill(!!oauth.google, '已配置', '未配置')}</b></div><div><span>白名单邮箱数</span><b>${esc(oauth.allowlist_count ?? 0)}</b></div><div><span>回调地址</span><b>${esc(oauth.callback_url || '—')}</b></div><div><span>Cookie Secure</span><b>${pill(!!sec.jwt_cookie_secure, '开启', '关闭')}</b></div><div><span>CSRF 保护</span><b>${pill(!!sec.jwt_cookie_csrf_protect, '开启', '关闭')}</b></div>`;
   }
 
   async _saveSite() {
@@ -302,9 +430,25 @@ export class SettingsPanel {
 
   async _saveGeneral() {
     try {
-      await saveGeneralSettings({ auto_discovery_button: this._val('#general-auto-discovery'), geoip_enabled: this._isChecked('#general-geoip-enabled'), geoip_provider: this._val('#general-geoip-provider'), history_enabled: this._isChecked('#general-history-enabled'), retention_load_hours: Number(this._val('#general-load-hours') || 720), retention_ping_hours: Number(this._val('#general-ping-hours') || 24), nezha_grpc_enabled: this._isChecked('#general-grpc-enabled'), nezha_grpc_listen: this._val('#general-grpc-listen') });
+      await saveGeneralSettings({ auto_discovery_button: this._val('#general-auto-discovery'), geoip_enabled: this._isChecked('#general-geoip-enabled'), geoip_provider: this._val('#general-geoip-provider'), history_enabled: this._isChecked('#general-history-enabled'), retention_load_hours: Number(this._val('#general-load-hours') || 720), retention_ping_hours: Number(this._val('#general-ping-hours') || 24) });
       this._msg('#general-msg', '✅ 通用设置已保存', 'ok');
     } catch (e) { this._msg('#general-msg', e.message || '保存失败', 'err'); }
+  }
+
+  async _updateGeoipDatabase() {
+    const btn = this._el.querySelector('#general-geoip-update');
+    const oldText = btn?.textContent || '更新 GeoIP 数据库';
+    try {
+      if (btn) { btn.disabled = true; btn.textContent = '更新中…'; }
+      this._msg('#general-msg', '正在刷新 GeoIP 数据库状态...', '');
+      const res = await updateGeoipDatabase();
+      this._fillGeneral(res || {});
+      this._msg('#general-msg', res?.msg || '✅ GeoIP 数据库状态已刷新', 'ok');
+    } catch (e) {
+      this._msg('#general-msg', e.message || 'GeoIP 更新失败', 'err');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = oldText; }
+    }
   }
 
   async _saveCloudflare() {
@@ -373,17 +517,21 @@ export class SettingsPanel {
       const val = (sel) => q(sel)?.value || '';
       const checked = (sel) => !!q(sel)?.checked;
       let cfg = {};
-      if (channel === 'Server酱Turbo') cfg = { api_url: val('#notify-sct-api-url'), channel: val('#notify-sct-channel'), noip: val('#notify-sct-noip'), openid: val('#notify-sct-openid') };
-      else if (channel === 'webhook') cfg = { url: val('#notify-webhook-url'), method: val('#notify-webhook-method'), content_type: val('#notify-webhook-content-type'), headers: val('#notify-webhook-headers'), body: val('#notify-webhook-body'), username: val('#notify-webhook-username'), password: val('#notify-webhook-password') };
-      else if (channel === 'empty') cfg = {};
-      else if (channel === 'email') cfg = { smtp_server: val('#notify-email-smtp'), port: Number(val('#notify-email-port') || 0), username: val('#notify-email-username'), password: val('#notify-email-password'), from: val('#notify-email-from'), to: val('#notify-email-to'), ssl: checked('#notify-email-ssl'), use_login_auth: checked('#notify-email-login-auth') };
-      else if (channel === 'Server酱³') cfg = { api_url: val('#notify-sc3-api-url'), tags: val('#notify-sc3-tags') };
-      else if (channel === 'bark') cfg = { server_url: val('#notify-bark-server-url'), device_key: val('#notify-bark-device-key'), icon: val('#notify-bark-icon'), level: val('#notify-bark-level') };
-      else if (channel === 'telegram') cfg = { bot_token: val('#notify-tg-token'), chat_id: val('#notify-tg-chat'), message_thread_id: val('#notify-tg-thread'), endpoint: val('#notify-tg-endpoint') || 'https://api.telegram.org/bot' };
-      else if (channel === 'Javascript') cfg = { code: val('#notify-js-code') };
+      const currentCfg = channels[channel] || {};
+      const kind = this._notifyChannelKind(channel, currentCfg);
+      if (kind === 'Server酱Turbo') cfg = { api_url: val('#notify-sct-api-url'), channel: val('#notify-sct-channel'), noip: val('#notify-sct-noip'), openid: val('#notify-sct-openid') };
+      else if (kind === 'webhook') cfg = { url: val('#notify-webhook-url'), method: val('#notify-webhook-method'), content_type: val('#notify-webhook-content-type'), headers: val('#notify-webhook-headers'), body: val('#notify-webhook-body'), username: val('#notify-webhook-username'), password: val('#notify-webhook-password') };
+      else if (kind === 'empty') cfg = {};
+      else if (kind === 'email') cfg = { smtp_server: val('#notify-email-smtp'), port: Number(val('#notify-email-port') || 0), username: val('#notify-email-username'), password: val('#notify-email-password'), from: val('#notify-email-from'), to: val('#notify-email-to'), ssl: checked('#notify-email-ssl'), use_login_auth: checked('#notify-email-login-auth') };
+      else if (kind === 'Server酱³') cfg = { api_url: val('#notify-sc3-api-url'), tags: val('#notify-sc3-tags') };
+      else if (kind === 'bark') cfg = { server_url: val('#notify-bark-server-url'), device_key: val('#notify-bark-device-key'), icon: val('#notify-bark-icon'), level: val('#notify-bark-level') };
+      else if (kind === 'telegram') cfg = { bot_token: val('#notify-tg-token'), chat_id: val('#notify-tg-chat'), message_thread_id: val('#notify-tg-thread'), endpoint: val('#notify-tg-endpoint') || 'https://api.telegram.org/bot' };
+      else if (kind === 'Javascript') cfg = { code: val('#notify-js-code') };
       else cfg = { api_url: val('#notify-serverchan-api-url') };
       channels[channel] = cfg;
       this._notifyData = await saveNotificationSettings({ enabled: this._isChecked('#notify-enabled'), default_channel: channel, message_template: this._val('#notify-template') || '{{emoji}}{{title}}{{emoji}}\nEvent: {{event}}\nClient: {{client}}\nMessage: {{message}}\nTime: {{time}}', channels, telegram_chat_id: cfg.chat_id || '' });
+      this._refreshNotifyChannelOptions(this._notifyData);
+      this._set('#notify-channel', channel);
       this._msg('#notify-msg', '✅ 通知设置已保存', 'ok');
     } catch (e) { this._msg('#notify-msg', e.message || '保存失败', 'err'); }
   }
@@ -452,11 +600,11 @@ export class SettingsPanel {
     }
   }
 
-  _val(sel) { return this._el.querySelector(sel).value; }
-  _set(sel, v) { this._el.querySelector(sel).value = v; }
-  _check(sel, v) { this._el.querySelector(sel).checked = v; }
-  _isChecked(sel) { return !!this._el.querySelector(sel).checked; }
-  _msg(sel, text, kind) { const el = this._el.querySelector(sel); el.textContent = text; el.className = `komari-msg ${kind}`; }
+  _val(sel) { return this._el.querySelector(sel)?.value ?? ''; }
+  _set(sel, v) { const el = this._el.querySelector(sel); if (el) el.value = v ?? ''; }
+  _check(sel, v) { const el = this._el.querySelector(sel); if (el) el.checked = !!v; }
+  _isChecked(sel) { return !!this._el.querySelector(sel)?.checked; }
+  _msg(sel, text, kind) { const el = this._el.querySelector(sel); if (!el) return; el.textContent = text; el.className = `komari-msg ${kind || ''}`; }
 }
 
 function pill(ok, yes, no) { return `<span class="acct-pill ${ok ? 'ok' : 'warn'}">${esc(ok ? yes : no)}</span>`; }

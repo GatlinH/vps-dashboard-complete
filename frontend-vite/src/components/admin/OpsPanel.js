@@ -4,11 +4,23 @@ const esc = (v) => String(v ?? '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&
 const normalizeTime = (v) => {
   if (!v) return null;
   const s = String(v);
-  // Backend stores UTC timestamps without timezone; force UTC so range filters don't appear empty in +08 browsers.
   return /[zZ]|[+-]\d{2}:?\d{2}$/.test(s) ? s : `${s.replace(' ', 'T')}Z`;
 };
 const fmtTime = (v) => v ? new Date(normalizeTime(v)).toLocaleString('zh-CN', { hour12:false }) : '—';
 const toMs = (v) => v ? new Date(normalizeTime(v)).getTime() : 0;
+
+const EVENT_META = {
+  agent_register_failed: { name:'Agent 接入失败', icon:'🛰️', impact:'节点无法加入监控，通常是密钥、UUID、网络或后端鉴权问题。', action:'检查 install.sh 注册参数、Agent 日志、服务器 UUID/KEY 是否匹配。' },
+  agent_register_ok: { name:'Agent 接入成功', icon:'🛰️', impact:'节点已完成注册，可以开始上报指标。', action:'无需处理；可在节点详情确认实时指标。' },
+  agent_push_ok: { name:'Agent 指标上报', icon:'📡', impact:'节点在线，监控数据已被后端接受。', action:'正常心跳；若数量过多，可用筛选只看 warn/error。' },
+  agent_push_failed: { name:'Agent 上报失败', icon:'📡', impact:'该节点近期数据可能缺失，图表会断点或延迟。', action:'检查 Agent 网络、后端 /metrics 接口、服务器时间和密钥。' },
+  alert_rule_fired: { name:'告警规则命中', icon:'🚨', impact:'监控指标触发阈值，可能需要人工处理。', action:'查看规则 ID、节点和 payload 中的指标值，必要时调整阈值或处理故障。' },
+  telegram_send_failed: { name:'通知发送失败', icon:'✉️', impact:'告警可能没有送达 Telegram/通知渠道。', action:'检查 Bot Token、Chat ID、网络代理和发送方式配置。' },
+  telegram_send_ok: { name:'通知发送成功', icon:'✉️', impact:'告警/测试消息已送达配置渠道。', action:'无需处理。' },
+  login_success: { name:'后台登录成功', icon:'🔐', impact:'管理员会话已建立。', action:'若不是本人操作，立即改密码并删除其他会话。' },
+  login_failed: { name:'后台登录失败', icon:'🔐', impact:'可能是密码错误，也可能是异常尝试。', action:'关注来源 IP 和频率；必要时改密码或限制访问。' },
+  security_http_anomaly: { name:'异常 HTTP 访问', icon:'🛡️', impact:'出现未授权、扫描或异常访问，可能来自公网探测器或恶意请求。', action:'查看来源 IP、状态码和路径；如频率高，建议加访问限制、黑名单或反向代理规则。' },
+};
 
 export class OpsPanel {
   constructor(mountId) {
@@ -24,7 +36,7 @@ export class OpsPanel {
       <div class="ops-page-head">
         <div>
           <div class="admin-section-title ops-title">诊断 / 日志</div>
-          <div class="ops-subtitle">按时间倒序查看 Agent 上报、告警命中、通知发送和接入异常。</div>
+          <div class="ops-subtitle">把原始事件翻译成可排障的信息：影响范围、建议动作、关键字段和原始摘要。</div>
         </div>
         <div class="ops-refresh-state" id="ops-refresh-state">尚未刷新</div>
       </div>
@@ -36,19 +48,20 @@ export class OpsPanel {
         <div class="ops-section-row">
           <div>
             <div class="admin-card-title ops-card-title">事件流</div>
-            <div class="ops-subtitle small">默认按最新事件排序，适合快速排查异常。</div>
+            <div class="ops-subtitle small">默认保留最近事件；失败/告警会以更醒目的排障卡片展示。</div>
           </div>
-          <button class="komari-secondary ops-density" id="ops-density">紧凑模式</button>
+          <button class="komari-secondary ops-density" id="ops-density" type="button">当前：紧凑</button>
         </div>
         <div class="ops-filter-bar ops-filter-pro">
-          <div class="form-group"><label class="form-label">等级</label><select class="form-input" id="ops-level"><option value="">全部</option><option value="info">info</option><option value="warn">warn</option><option value="warning">warning</option><option value="error">error</option></select></div>
-          <div class="form-group"><label class="form-label">事件类型</label><select class="form-input" id="ops-type"><option value="">全部</option><option value="agent_register_failed">接入失败</option><option value="agent_push_ok">上报成功</option><option value="agent_push_failed">上报失败</option><option value="alert_rule_fired">规则命中</option><option value="telegram_send_failed">TG 发送失败</option><option value="telegram_send_ok">TG 发送成功</option><option value="login_success">登录成功</option><option value="login_failed">登录失败</option></select></div>
+          <div class="form-group"><label class="form-label">等级</label><select class="form-input" id="ops-level"><option value="">全部等级</option><option value="info">info 正常</option><option value="warn">warn 警告</option><option value="warning">warning 警告</option><option value="error">error 错误</option></select></div>
+          <div class="form-group"><label class="form-label">事件类型</label><select class="form-input" id="ops-type"><option value="">全部事件</option><option value="agent_register_failed">Agent 接入失败</option><option value="agent_register_ok">Agent 接入成功</option><option value="agent_push_ok">Agent 指标上报</option><option value="agent_push_failed">Agent 上报失败</option><option value="alert_rule_fired">告警规则命中</option><option value="telegram_send_failed">通知发送失败</option><option value="telegram_send_ok">通知发送成功</option><option value="login_success">登录成功</option><option value="login_failed">登录失败</option></select></div>
           <div class="form-group"><label class="form-label">节点 ID</label><input class="form-input" id="ops-server-id" placeholder="留空=全部"></div>
           <div class="form-group"><label class="form-label">时间范围</label><select class="form-input" id="ops-range"><option value="15m">最近15分钟</option><option value="1h" selected>最近1小时</option><option value="24h">最近24小时</option><option value="all">全部</option></select></div>
-          <div class="form-group ops-keyword"><label class="form-label">关键词</label><input class="form-input" id="ops-keyword" placeholder="事件 / 节点 / 消息"></div>
+          <div class="form-group ops-keyword"><label class="form-label">关键词</label><input class="form-input" id="ops-keyword" placeholder="IP / UUID / 节点 / 原因"></div>
           <button class="add-btn" id="ops-refresh">刷新</button>
         </div>
-        <div class="ops-table" id="ops-events-list"></div>
+        <div class="ops-log-help">提示：大量 <b>Agent 指标上报</b> 是健康心跳；排障时优先筛选 <b>warn/error</b>、接入失败、通知失败、告警命中。</div>
+        <div class="ops-table ops-diagnostic-list" id="ops-events-list"></div>
       </div>`;
   }
 
@@ -58,8 +71,12 @@ export class OpsPanel {
     this._el.querySelector('#ops-type')?.addEventListener('change', () => this.load());
     this._el.querySelector('#ops-server-id')?.addEventListener('change', () => this.load());
     this._el.querySelector('#ops-density')?.addEventListener('click', () => {
-      this._el.classList.toggle('ops-comfy');
-      this._el.querySelector('#ops-density').textContent = this._el.classList.contains('ops-comfy') ? '舒适模式' : '紧凑模式';
+      const comfy = this._el.classList.toggle('ops-comfy');
+      const btn = this._el.querySelector('#ops-density');
+      if (btn) {
+        btn.textContent = comfy ? '当前：舒适' : '当前：紧凑';
+        btn.classList.toggle('is-comfy', comfy);
+      }
     });
   }
 
@@ -71,7 +88,7 @@ export class OpsPanel {
     try {
       const [summary, eventsPayload] = await Promise.all([
         fetchOpsSummary(),
-        fetchOpsEvents({ limit: 100, event_type: type, server_id: serverId || '' })
+        fetchOpsEvents({ limit: 120, event_type: type, server_id: serverId || '' })
       ]);
       this._events = eventsPayload.events || [];
       this._lastLoadedAt = new Date();
@@ -94,7 +111,7 @@ export class OpsPanel {
   _renderSummary(summary) {
     const mount = this._el.querySelector('#ops-summary-grid');
     if (!mount) return;
-    const mapRows = (list=[]) => list.slice(0,3).map(item => ({ title: item.title || item.event_type, meta: fmtTime(item.created_at), event_type:item.event_type, server_id:item.server_id }));
+    const mapRows = (list=[]) => list.slice(0,3).map(item => ({ title: readableTitle(item), meta: fmtTime(item.created_at), event_type:item.event_type, server_id:item.server_id }));
     mount.innerHTML = [
       this._summaryCard('接入失败', mapRows(summary.recent_agent_failures), 'danger'),
       this._summaryCard('规则命中', mapRows(summary.recent_rule_hits), 'warn'),
@@ -121,7 +138,7 @@ export class OpsPanel {
       if (level && evtLevel !== level) return false;
       if (rangeMs && toMs(evt.created_at) && now - toMs(evt.created_at) > rangeMs) return false;
       if (keyword) {
-        const hay = [evt.title, evt.level, evt.event_type, evt.message, evt.server_id, evt.rule_id, evt.created_at].join(' ').toLowerCase();
+        const hay = [evt.title, evt.level, evt.event_type, readableTitle(evt), evt.message, evt.server_id, evt.rule_id, evt.created_at, JSON.stringify(evt.payload || {})].join(' ').toLowerCase();
         if (!hay.includes(keyword)) return false;
       }
       return true;
@@ -137,17 +154,66 @@ export class OpsPanel {
     const mount = this._el.querySelector('#ops-events-list');
     if (!mount) return;
     const filtered = this._filtered(events);
-    if (!filtered.length) { mount.innerHTML = '<div class="ops-empty-table">暂无事件，调整筛选条件后重试。</div>'; return; }
-    mount.innerHTML = `
-      <div class="ops-table-head"><span>时间</span><span>等级</span><span>事件</span><span>节点</span><span>消息</span></div>
-      ${filtered.map(evt => `
-        <div class="ops-event-row">
-          <time>${esc(fmtTime(evt.created_at))}</time>
-          <span class="ops-level ${this._levelClass(evt.level)}">${esc(evt.level || 'info')}</span>
-          <code>${esc(evt.event_type || '—')}</code>
-          <button class="ops-node-filter" data-server="${esc(evt.server_id || '')}">${esc(evt.server_id || '—')}</button>
-          <div class="ops-message"><strong>${esc(evt.title || '—')}</strong><small>${esc(evt.message || '—')} · 规则：${esc(evt.rule_id || '—')}</small></div>
-        </div>`).join('')}`;
+    if (!filtered.length) { mount.innerHTML = '<div class="ops-empty-table">暂无事件。可放宽时间范围，或切换到“全部事件”。</div>'; return; }
+    const heartbeat = filtered.filter(evt => evt.event_type === 'agent_push_ok');
+    const important = filtered.filter(evt => evt.event_type !== 'agent_push_ok');
+    const heartbeatPreview = heartbeat.slice(0, 6);
+    mount.innerHTML = [
+      heartbeat.length ? renderHeartbeatSummary(heartbeat) : '',
+      ...important.map(evt => renderDiagnosticEvent(evt, this._levelClass(evt.level))),
+      ...heartbeatPreview.map(evt => renderDiagnosticEvent(evt, this._levelClass(evt.level)))
+    ].join('');
     mount.querySelectorAll('.ops-node-filter').forEach(btn => btn.addEventListener('click', () => { if (btn.dataset.server) { this._el.querySelector('#ops-server-id').value = btn.dataset.server; this.load(); } }));
   }
+}
+
+function renderHeartbeatSummary(events) {
+  const latest = events[0];
+  const servers = [...new Set(events.map(e => e.server_id).filter(Boolean))];
+  const ips = [...new Set(events.map(e => e.payload?.ip).filter(Boolean))].slice(0, 6);
+  return `<section class="ops-heartbeat-summary"><div><strong>健康心跳汇总</strong><small>已折叠 ${events.length} 条 Agent 指标上报，下面仅展示最近 ${Math.min(6, events.length)} 条样例。</small></div><div class="ops-heartbeat-meta"><span>节点 ${servers.length || '—'}</span><span>最新 ${esc(fmtTime(latest?.created_at))}</span>${ips.map(ip=>`<span>${esc(ip)}</span>`).join('')}</div></section>`;
+}
+
+function readableTitle(evt) {
+  return EVENT_META[evt.event_type]?.name || evt.title || evt.event_type || '未知事件';
+}
+
+function renderDiagnosticEvent(evt, levelClass) {
+  const meta = EVENT_META[evt.event_type] || { name: evt.event_type || '未知事件', icon:'📌', impact:'暂无内置解释，请查看原始消息和关键字段。', action:'根据 payload 字段和后端日志进一步排查。' };
+  const payload = evt.payload && typeof evt.payload === 'object' ? evt.payload : {};
+  const keyFields = compactFields(payload, ['ip','status','uuid','host','port','protocol','latency_ms','loss','error','reason','channel','chat_id','metric','value','threshold']);
+  const raw = [evt.message, payloadPreview(payload)].filter(Boolean).join(' ｜ ');
+  return `
+    <article class="ops-diag-card ${levelClass} ${evt.event_type === 'agent_push_ok' ? 'heartbeat' : ''}">
+      <div class="ops-diag-main">
+        <div class="ops-diag-icon">${esc(meta.icon)}</div>
+        <div class="ops-diag-body">
+          <div class="ops-diag-title-row">
+            <strong>${esc(meta.name)}</strong>
+            <span class="ops-level ${levelClass}">${esc(evt.level || 'info')}</span>
+            <code>${esc(evt.event_type || '—')}</code>
+          </div>
+          <div class="ops-diag-title">${esc(evt.title || meta.name)}</div>
+          <div class="ops-diag-grid">
+            <div><span>时间</span><b>${esc(fmtTime(evt.created_at))}</b></div>
+            <div><span>节点</span><button class="ops-node-filter" data-server="${esc(evt.server_id || '')}">${esc(evt.server_id || '全部/无')}</button></div>
+            <div><span>规则</span><b>${esc(evt.rule_id || '—')}</b></div>
+          </div>
+          <div class="ops-diag-explain"><b>影响：</b>${esc(meta.impact)}</div>
+          <div class="ops-diag-action"><b>建议：</b>${esc(meta.action)}</div>
+          ${keyFields ? `<div class="ops-diag-fields">${keyFields}</div>` : ''}
+          ${raw ? `<details class="ops-diag-raw"><summary>原始详情</summary><pre>${esc(raw)}</pre></details>` : ''}
+        </div>
+      </div>
+    </article>`;
+}
+
+function compactFields(payload, keys) {
+  const items = keys.filter(k => payload[k] !== undefined && payload[k] !== null && payload[k] !== '').map(k => `<span><em>${esc(k)}</em>${esc(payload[k])}</span>`);
+  return items.join('');
+}
+function payloadPreview(payload) {
+  const keys = Object.keys(payload || {});
+  if (!keys.length) return '';
+  try { return JSON.stringify(payload).slice(0, 500); } catch { return String(payload).slice(0, 500); }
 }

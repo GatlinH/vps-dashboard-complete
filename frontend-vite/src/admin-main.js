@@ -5,6 +5,29 @@
 
 import './styles/admin.css'; // 确保引入样式
 import './styles/hermes_admin_polish_20260706.css';
+import './styles/hermes_admin_ui_hardening_20260706.css';
+import './styles/hermes_admin_ops_diagnostics_20260706.css';
+import './styles/hermes_admin_spacing_sessions_20260706.css';
+import './styles/hermes_admin_verified_fixes_20260706.css';
+import './styles/hermes_admin_table_sticky_actions_20260706.css';
+import './styles/hermes_admin_session_audit_20260706.css';
+import './styles/hermes_admin_ui_audit_fixes_20260706.css';
+import './styles/hermes_admin_ui_audit_final_20260706.css';
+import './styles/hermes_admin_user_reported_fixes_20260706.css';
+import './styles/hermes_admin_node_table_complete_20260706.css';
+import './styles/hermes_admin_node_table_readability_20260706.css';
+import './styles/hermes_admin_node_table_clean_select_20260706.css';
+import './styles/hermes_admin_node_checkbox_square_20260706.css';
+import './styles/hermes_admin_ops_filter_spacing_20260706.css';
+import './styles/hermes_admin_settings_ops_functional_20260706.css';
+import './styles/hermes_admin_site_settings_redesign_20260707.css';
+import './styles/hermes_admin_site_settings_layout_fix_20260707.css';
+import './styles/hermes_admin_notify_management_bottom_20260707.css';
+import './styles/hermes_admin_proxy_redesign_20260707.css';
+import './styles/hermes_admin_proxy_spacing_fix_20260707.css';
+import './styles/hermes_admin_proxy_lift_20260707.css';
+import './styles/hermes_admin_theme_followups_20260707.css';
+import { applyAdminTextLanguage, initAdminTextI18nObserver } from './admin-i18n-runtime.js';
 import { logout, checkSession } from './api/auth.js';
 import { ServerManager } from './components/admin/ServerManager.js';
 import { PingTool } from './components/admin/PingTool.js';
@@ -79,7 +102,7 @@ function switchTab(tab, section = null) {
 
 
 const ADMIN_I18N = {
-  zh:{help:'帮助',bridge:'舰桥',day:'日间',return_starmap:'返回星图',logout:'退出登录',servers:'服务器',settings:'设置',site:'站点',login:'登录',notify:'通知',general:'通用',proxy:'反向代理',alert_rules:'通知规则',latency_monitor:'延迟监测',sessions:'会话管理',account:'账户',logs:'日志',theme_management:'站点外观'},
+  zh:{help:'帮助',bridge:'舰桥',day:'日间',return_starmap:'返回星图',logout:'退出登录',servers:'服务器',settings:'设置',site:'站点',login:'登录',notify:'通知',general:'通用',proxy:'反向代理',alert_rules:'通知规则',latency_monitor:'延迟监测',sessions:'登录会话',account:'账户',logs:'日志',theme_management:'站点外观'},
   en:{help:'Help',bridge:'Bridge',day:'Day',return_starmap:'Return to Starmap',logout:'Logout',servers:'Servers',settings:'Settings',site:'Site',login:'Login',notify:'Notifications',general:'General',proxy:'Reverse Proxy',alert_rules:'Notification Rules',latency_monitor:'Latency Monitor',sessions:'Sessions',account:'Account',logs:'Logs',theme_management:'Default Theme'},
   ja:{help:'ヘルプ',bridge:'ブリッジ',day:'昼間',return_starmap:'星図へ戻る',logout:'ログアウト',servers:'サーバー',settings:'設定',site:'サイト',login:'ログイン',notify:'通知',general:'一般',proxy:'リバースプロキシ',alert_rules:'通知ルール',latency_monitor:'遅延監視',sessions:'セッション',account:'アカウント',logs:'ログ',theme_management:'デフォルトテーマ'},
   ko:{help:'도움말',bridge:'브리지',day:'주간',return_starmap:'별 지도 반환',logout:'로그아웃',servers:'서버',settings:'설정',site:'사이트',login:'로그인',notify:'알림',general:'일반',proxy:'리버스 프록시',alert_rules:'알림 규칙',latency_monitor:'지연 모니터',sessions:'세션',account:'계정',logs:'로그',theme_management:'기본 테마'},
@@ -97,6 +120,7 @@ function applyAdminLanguage(lang) {
   });
   const btn = document.getElementById('admin-theme-toggle');
   if (btn) btn.textContent = document.body.classList.contains('admin-day-mode') ? dict.day : dict.bridge;
+  applyAdminTextLanguage(lang || 'zh');
 }
 function initAdminToolbar() {
   const btn = document.getElementById('admin-theme-toggle');
@@ -166,6 +190,7 @@ function initAdminToolbar() {
     });
   }
 
+  initAdminTextI18nObserver(() => localStorage.getItem('admin_lang') || 'zh');
   applyTheme((localStorage.getItem('vps_default_theme') === 'komari-light') ? 'day' : 'bridge');
   btn?.addEventListener('click', () => applyTheme(document.body.classList.contains('admin-day-mode') ? 'bridge' : 'day'));
   sel?.addEventListener('change', () => {

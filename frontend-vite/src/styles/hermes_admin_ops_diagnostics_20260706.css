@@ -1,0 +1,185 @@
+/* Diagnostic ops log cards: richer, more useful than raw event rows. */
+body.komari-admin-shell .ops-log-help {
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(98,245,238,.14);
+  background: rgba(98,245,238,.06);
+  color: #a9c7dc;
+  font-size: 12px;
+  line-height: 1.6;
+}
+body.komari-admin-shell .ops-diagnostic-list {
+  display: grid !important;
+  gap: 10px !important;
+}
+body.komari-admin-shell .ops-diag-card {
+  border: 1px solid rgba(98,245,238,.16);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(7,18,34,.74), rgba(10,28,48,.52));
+  box-shadow: 0 16px 34px rgba(0,0,0,.18);
+  overflow: hidden;
+}
+body.komari-admin-shell .ops-diag-card.error { border-color: rgba(255,91,122,.36); box-shadow: 0 16px 34px rgba(255,91,122,.08); }
+body.komari-admin-shell .ops-diag-card.warn { border-color: rgba(255,196,77,.34); box-shadow: 0 16px 34px rgba(255,196,77,.07); }
+body.komari-admin-shell .ops-diag-card.heartbeat { opacity: .82; }
+body.komari-admin-shell .ops-diag-main {
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  gap: 12px;
+  padding: 14px;
+}
+body.komari-admin-shell .ops-diag-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(98,245,238,.11);
+  border: 1px solid rgba(98,245,238,.18);
+  font-size: 20px;
+}
+body.komari-admin-shell .ops-diag-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+body.komari-admin-shell .ops-diag-title-row strong {
+  font-size: 15px;
+  color: #f1fbff;
+}
+body.komari-admin-shell .ops-diag-title-row code {
+  font-size: 11px;
+  color: #8ad9ff;
+  background: rgba(98,245,238,.08);
+  border: 1px solid rgba(98,245,238,.14);
+  border-radius: 999px;
+  padding: 4px 8px;
+}
+body.komari-admin-shell .ops-diag-title {
+  margin-top: 5px;
+  color: #cfe9f8;
+  font-size: 13px;
+}
+body.komari-admin-shell .ops-diag-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 8px;
+  margin: 10px 0;
+}
+body.komari-admin-shell .ops-diag-grid > div {
+  border-radius: 12px;
+  background: rgba(255,255,255,.035);
+  border: 1px solid rgba(255,255,255,.06);
+  padding: 8px 10px;
+  min-width: 0;
+}
+body.komari-admin-shell .ops-diag-grid span,
+body.komari-admin-shell .ops-diag-fields em {
+  display: block;
+  color: #87a8bd;
+  font-size: 11px;
+  font-style: normal;
+  margin-bottom: 3px;
+}
+body.komari-admin-shell .ops-diag-grid b,
+body.komari-admin-shell .ops-node-filter {
+  color: #e6f6ff;
+  font-size: 12px;
+  word-break: break-word;
+}
+body.komari-admin-shell .ops-node-filter {
+  border: 1px solid rgba(98,245,238,.18);
+  background: rgba(98,245,238,.08);
+  border-radius: 999px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+body.komari-admin-shell .ops-diag-explain,
+body.komari-admin-shell .ops-diag-action {
+  margin-top: 7px;
+  color: #b9d5e5;
+  font-size: 13px;
+  line-height: 1.55;
+}
+body.komari-admin-shell .ops-diag-action { color: #d7ecf8; }
+body.komari-admin-shell .ops-diag-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+body.komari-admin-shell .ops-diag-fields span {
+  display: grid;
+  gap: 1px;
+  min-width: 98px;
+  max-width: 260px;
+  border-radius: 11px;
+  padding: 7px 9px;
+  background: rgba(98,245,238,.07);
+  border: 1px solid rgba(98,245,238,.13);
+  color: #effbff;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+body.komari-admin-shell .ops-diag-raw {
+  margin-top: 9px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.07);
+  background: rgba(0,0,0,.16);
+  padding: 8px 10px;
+}
+body.komari-admin-shell .ops-diag-raw summary {
+  cursor: pointer;
+  color: #8ad9ff;
+  font-size: 12px;
+  font-weight: 700;
+}
+body.komari-admin-shell .ops-diag-raw pre {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #c4e1ef;
+  font-size: 11px;
+  line-height: 1.45;
+}
+body.komari-admin-shell.admin-day-mode .ops-log-help,
+body.komari-admin-shell.admin-day-mode .ops-diag-card {
+  background: linear-gradient(180deg, #e2f5ff, #f4fbff) !important;
+  border-color: #a9d9ef !important;
+  color: #071827 !important;
+  box-shadow: 0 12px 28px rgba(22,100,150,.08) !important;
+}
+body.komari-admin-shell.admin-day-mode .ops-diag-icon,
+body.komari-admin-shell.admin-day-mode .ops-diag-grid > div,
+body.komari-admin-shell.admin-day-mode .ops-diag-fields span,
+body.komari-admin-shell.admin-day-mode .ops-diag-raw {
+  background: #eef9ff !important;
+  border-color: #b7ddf3 !important;
+}
+body.komari-admin-shell.admin-day-mode .ops-diag-title-row strong,
+body.komari-admin-shell.admin-day-mode .ops-diag-title,
+body.komari-admin-shell.admin-day-mode .ops-diag-grid b,
+body.komari-admin-shell.admin-day-mode .ops-node-filter,
+body.komari-admin-shell.admin-day-mode .ops-diag-explain,
+body.komari-admin-shell.admin-day-mode .ops-diag-action,
+body.komari-admin-shell.admin-day-mode .ops-diag-fields span,
+body.komari-admin-shell.admin-day-mode .ops-diag-raw pre {
+  color: #071827 !important;
+}
+body.komari-admin-shell.admin-day-mode .ops-diag-grid span,
+body.komari-admin-shell.admin-day-mode .ops-diag-fields em,
+body.komari-admin-shell.admin-day-mode .ops-diag-raw summary {
+  color: #24546a !important;
+}
+body.komari-admin-shell.admin-day-mode .ops-diag-title-row code,
+body.komari-admin-shell.admin-day-mode .ops-node-filter {
+  background: #d9f3ff !important;
+  border-color: #9bd4ed !important;
+  color: #0787b8 !important;
+}
+@media (max-width: 760px) {
+  body.komari-admin-shell .ops-diag-main { grid-template-columns: 1fr; }
+  body.komari-admin-shell .ops-diag-grid { grid-template-columns: 1fr; }
+}

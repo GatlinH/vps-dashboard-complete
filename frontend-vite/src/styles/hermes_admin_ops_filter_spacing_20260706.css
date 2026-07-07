@@ -1,0 +1,76 @@
+/* HERMES-ADMIN-OPS-FILTER-SPACING-20260706
+   Fix screenshot issue: level and event type filters were visually glued together.
+   Keep labels/controls aligned and give every filter item breathing room. */
+
+html body.komari-admin-shell #tab-ops .ops-filter-bar.ops-filter-pro,
+html body.komari-admin-shell #tab-ops .ops-filter-pro {
+  display: grid !important;
+  grid-template-columns: minmax(132px, .75fr) minmax(178px, 1fr) minmax(132px, .75fr) minmax(150px, .85fr) minmax(260px, 1.45fr) max-content !important;
+  column-gap: 16px !important;
+  row-gap: 12px !important;
+  align-items: end !important;
+  padding: 14px 16px !important;
+  margin: 12px 0 14px !important;
+}
+html body.komari-admin-shell #tab-ops .ops-filter-pro .form-group {
+  display: grid !important;
+  grid-template-rows: 16px 40px !important;
+  gap: 7px !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+html body.komari-admin-shell #tab-ops .ops-filter-pro .form-label {
+  display: block !important;
+  line-height: 16px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  white-space: nowrap !important;
+}
+html body.komari-admin-shell #tab-ops .ops-filter-pro .form-input,
+html body.komari-admin-shell #tab-ops .ops-filter-pro select,
+html body.komari-admin-shell #tab-ops .ops-filter-pro input {
+  width: 100% !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  max-height: 40px !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+}
+html body.komari-admin-shell #tab-ops .ops-filter-pro #ops-refresh {
+  height: 40px !important;
+  min-height: 40px !important;
+  align-self: end !important;
+  white-space: nowrap !important;
+  padding: 0 18px !important;
+  margin: 0 !important;
+}
+
+/* Hard guard: the first two fields must never touch. */
+html body.komari-admin-shell #tab-ops .ops-filter-pro .form-group:nth-child(1) {
+  margin-right: 2px !important;
+}
+html body.komari-admin-shell #tab-ops .ops-filter-pro .form-group:nth-child(2) {
+  margin-left: 2px !important;
+}
+
+@media (max-width: 1280px) {
+  html body.komari-admin-shell #tab-ops .ops-filter-bar.ops-filter-pro,
+  html body.komari-admin-shell #tab-ops .ops-filter-pro {
+    grid-template-columns: repeat(3, minmax(150px, 1fr)) !important;
+  }
+  html body.komari-admin-shell #tab-ops .ops-filter-pro .ops-keyword {
+    grid-column: span 2 !important;
+  }
+  html body.komari-admin-shell #tab-ops .ops-filter-pro #ops-refresh {
+    width: 100% !important;
+  }
+}
+@media (max-width: 860px) {
+  html body.komari-admin-shell #tab-ops .ops-filter-bar.ops-filter-pro,
+  html body.komari-admin-shell #tab-ops .ops-filter-pro {
+    grid-template-columns: 1fr !important;
+  }
+  html body.komari-admin-shell #tab-ops .ops-filter-pro .ops-keyword {
+    grid-column: auto !important;
+  }
+}

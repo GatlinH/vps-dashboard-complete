@@ -1,0 +1,63 @@
+/* HERMES-ADMIN-NODE-TABLE-COMPLETE-20260706
+   Final node table layout: complete display without horizontal overflow. */
+
+html body.komari-admin-shell .komari-table-wrap {
+  overflow-x: hidden !important;
+}
+html body.komari-admin-shell .komari-node-table {
+  width: 100% !important;
+  min-width: 0 !important;
+  table-layout: fixed !important;
+}
+html body.komari-admin-shell .komari-node-table th,
+html body.komari-admin-shell .komari-node-table td {
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+/* Actual table has 9 columns. Keep operation column visible; compact secondary metadata. */
+html body.komari-admin-shell .komari-node-table th:nth-child(1),
+html body.komari-admin-shell .komari-node-table td:nth-child(1) { width: 13% !important; }
+html body.komari-admin-shell .komari-node-table th:nth-child(2),
+html body.komari-admin-shell .komari-node-table td:nth-child(2) { width: 9% !important; }
+html body.komari-admin-shell .komari-node-table th:nth-child(3),
+html body.komari-admin-shell .komari-node-table td:nth-child(3) { width: 14% !important; }
+html body.komari-admin-shell .komari-node-table th:nth-child(4),
+html body.komari-admin-shell .komari-node-table td:nth-child(4) { width: 13% !important; }
+html body.komari-admin-shell .komari-node-table th:nth-child(5),
+html body.komari-admin-shell .komari-node-table td:nth-child(5) { width: 12% !important; }
+html body.komari-admin-shell .komari-node-table th:nth-child(6),
+html body.komari-admin-shell .komari-node-table td:nth-child(6) { width: 6% !important; }
+html body.komari-admin-shell .komari-node-table th:nth-child(7),
+html body.komari-admin-shell .komari-node-table td:nth-child(7) { width: 10% !important; }
+html body.komari-admin-shell .komari-node-table th:nth-child(8),
+html body.komari-admin-shell .komari-node-table td:nth-child(8) { width: 6% !important; }
+html body.komari-admin-shell .komari-node-table th:nth-child(9),
+html body.komari-admin-shell .komari-node-table td:nth-child(9) {
+  width: 17% !important;
+  min-width: 144px !important;
+  position: static !important;
+  right: auto !important;
+  box-shadow: none !important;
+}
+html body.komari-admin-shell .komari-node-table td:nth-child(9) {
+  display: table-cell !important;
+  text-align: right !important;
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+  white-space: nowrap !important;
+}
+html body.komari-admin-shell .komari-node-table td:nth-child(9) button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 26px !important;
+  min-width: 26px !important;
+  height: 28px !important;
+  margin-left: 3px !important;
+  padding: 0 !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+  vertical-align: middle !important;
+}

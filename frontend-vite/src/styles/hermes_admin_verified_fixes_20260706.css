@@ -1,0 +1,125 @@
+/* HERMES-ADMIN-VERIFIED-FIXES-20260706
+   Fixes found by real logged-in visual verification. */
+
+/* Server table: prevent action buttons being clipped on the right. */
+body.komari-admin-shell .komari-table-wrap {
+  padding-right: 12px !important;
+  overflow-x: auto !important;
+}
+body.komari-admin-shell .komari-node-table {
+  width: 100% !important;
+  min-width: 980px !important;
+  table-layout: auto !important;
+}
+body.komari-admin-shell .komari-node-table th:last-child,
+body.komari-admin-shell .komari-node-table td:last-child {
+  min-width: 150px !important;
+  width: 150px !important;
+  padding-right: 18px !important;
+  white-space: nowrap !important;
+}
+body.komari-admin-shell .komari-node-table td:last-child {
+  display: flex !important;
+  gap: 6px !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+}
+body.komari-admin-shell .komari-node-table td:last-child button {
+  flex: 0 0 28px !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+}
+
+/* Sidebar: avoid bottom clipping on shorter screens. */
+body.komari-admin-shell .admin-sidebar,
+body.komari-admin-shell .admin-nav,
+body.komari-admin-shell [aria-label="设置子菜单"] {
+  min-height: 0 !important;
+}
+body.komari-admin-shell .admin-sidebar {
+  overflow-y: auto !important;
+  padding-bottom: 28px !important;
+}
+body.komari-admin-shell .admin-nav {
+  padding-bottom: 18px !important;
+}
+body.komari-admin-shell.admin-day-mode .admin-tab:not(.active),
+body.komari-admin-shell.admin-day-mode .admin-subtab:not(.active) {
+  color: #14364a !important;
+}
+
+/* Logs: day-mode diagnostic text must be dark; fold heartbeat noise. */
+body.komari-admin-shell .ops-heartbeat-summary {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(98,245,238,.16);
+  background: linear-gradient(135deg, rgba(98,245,238,.10), rgba(98,245,238,.04));
+}
+body.komari-admin-shell .ops-heartbeat-summary strong {
+  display: block;
+  color: #eaf6ff;
+  font-size: 15px;
+}
+body.komari-admin-shell .ops-heartbeat-summary small {
+  display: block;
+  margin-top: 4px;
+  color: #9fbad0;
+  line-height: 1.5;
+}
+body.komari-admin-shell .ops-heartbeat-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+body.komari-admin-shell .ops-heartbeat-meta span {
+  border-radius: 999px;
+  padding: 5px 9px;
+  border: 1px solid rgba(98,245,238,.18);
+  background: rgba(98,245,238,.08);
+  color: #d8f4ff;
+  font-size: 12px;
+}
+body.komari-admin-shell.admin-day-mode .ops-diag-title-row strong,
+body.komari-admin-shell.admin-day-mode .ops-diag-title-row code,
+body.komari-admin-shell.admin-day-mode .ops-diag-title,
+body.komari-admin-shell.admin-day-mode .ops-level,
+body.komari-admin-shell.admin-day-mode .ops-heartbeat-summary strong,
+body.komari-admin-shell.admin-day-mode .ops-heartbeat-summary small,
+body.komari-admin-shell.admin-day-mode .ops-heartbeat-meta span {
+  color: #071827 !important;
+}
+body.komari-admin-shell.admin-day-mode .ops-heartbeat-summary {
+  background: linear-gradient(180deg, #dff3ff, #f2fbff) !important;
+  border-color: #a9d9ef !important;
+  box-shadow: 0 12px 28px rgba(22,100,150,.08) !important;
+}
+body.komari-admin-shell.admin-day-mode .ops-heartbeat-meta span {
+  background: #eef9ff !important;
+  border-color: #b7ddf3 !important;
+}
+
+/* Account current login environment: clearer labels and long text handling. */
+body.komari-admin-shell .acct-session-row small {
+  max-width: min(760px, 100%) !important;
+  line-height: 1.45 !important;
+}
+body.komari-admin-shell .acct-session-row .komari-danger:disabled {
+  opacity: .68 !important;
+  cursor: not-allowed !important;
+  filter: grayscale(.2) !important;
+}
+body.komari-admin-shell.admin-day-mode .komari-panel-title small,
+body.komari-admin-shell.admin-day-mode .acct-session-row small,
+body.komari-admin-shell.admin-day-mode .acct-session-row em {
+  color: #244960 !important;
+}
+
+/* Slightly stronger light hierarchy after visual inspection. */
+body.komari-admin-shell.admin-day-mode .admin-card,
+body.komari-admin-shell.admin-day-mode .komari-panel,
+body.komari-admin-shell.admin-day-mode .komari-flat-section {
+  box-shadow: 0 14px 32px rgba(22,100,150,.10) !important;
+}

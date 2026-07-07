@@ -1,0 +1,33 @@
+/* HERMES-ADMIN-NODE-CHECKBOX-SQUARE-20260706
+   Force node-table checkboxes to be true square controls, not tall rectangles. */
+
+html body.komari-admin-shell .komari-node-table th:nth-child(2),
+html body.komari-admin-shell .komari-node-table td:nth-child(2) {
+  line-height: 1 !important;
+  vertical-align: middle !important;
+}
+html body.komari-admin-shell .komari-node-table input[type="checkbox"],
+html body.komari-admin-shell .komari-node-table input[type="checkbox"]:checked,
+html body.komari-admin-shell .komari-node-table input[type="checkbox"]:focus,
+html body.komari-admin-shell .komari-node-table input[type="checkbox"]:focus-visible {
+  display: inline-block !important;
+  box-sizing: border-box !important;
+  width: 16px !important;
+  min-width: 16px !important;
+  max-width: 16px !important;
+  height: 16px !important;
+  min-height: 16px !important;
+  max-height: 16px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  line-height: 16px !important;
+  border-radius: 5px !important;
+  outline: 0 !important;
+  transform: none !important;
+}
+html body.komari-admin-shell .komari-node-table input[type="checkbox"]:checked::after {
+  box-sizing: border-box !important;
+  width: 8px !important;
+  height: 5px !important;
+  margin: 3px 0 0 3px !important;
+}

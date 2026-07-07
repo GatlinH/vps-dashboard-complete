@@ -1,0 +1,110 @@
+/* HERMES-ADMIN-SITE-SETTINGS-REDESIGN-20260707
+   Site settings IA/layout cleanup: grouped sections, compact width, unified save. */
+
+html body.komari-admin-shell .site-settings-panel {
+  max-width: 920px !important;
+  width: min(920px, 100%) !important;
+  overflow: visible !important;
+}
+
+html body.komari-admin-shell .site-settings-stack {
+  display: grid !important;
+  gap: 16px !important;
+}
+
+html body.komari-admin-shell .site-settings-group {
+  border: 1px solid rgba(73, 160, 205, .22) !important;
+  border-radius: 18px !important;
+  background: rgba(255,255,255,.34) !important;
+  padding: 18px !important;
+  box-sizing: border-box !important;
+}
+
+html body.komari-admin-shell.admin-bridge-mode .site-settings-group {
+  background: rgba(7, 16, 31, .62) !important;
+  border-color: rgba(98,245,238,.16) !important;
+}
+
+html body.komari-admin-shell .site-settings-group .komari-panel-title,
+html body.komari-admin-shell .site-settings-group .komari-panel-title.sub {
+  margin: 0 0 14px !important;
+  padding: 0 !important;
+}
+
+html body.komari-admin-shell .site-settings-group .komari-form-grid.one {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 14px !important;
+}
+
+html body.komari-admin-shell .site-connection-grid {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.35fr) minmax(180px, .65fr) !important;
+  gap: 14px !important;
+  align-items: end !important;
+}
+
+html body.komari-admin-shell .site-settings-group label > span {
+  display: block !important;
+  margin: 0 0 7px !important;
+  color: var(--admin-text, #0f172a) !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+}
+
+html body.komari-admin-shell .site-settings-group .komari-toggle-row {
+  margin: 10px 0 0 !important;
+  width: 100% !important;
+}
+
+html body.komari-admin-shell .site-settings-group .site-share-card,
+html body.komari-admin-shell .site-settings-group .favicon-card {
+  margin-top: 14px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+html body.komari-admin-shell .site-save-sticky {
+  position: sticky !important;
+  bottom: 14px !important;
+  z-index: 8 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+  justify-content: flex-start !important;
+  padding: 14px !important;
+  border: 1px solid rgba(73,160,205,.24) !important;
+  border-radius: 16px !important;
+  background: rgba(239,248,255,.88) !important;
+  backdrop-filter: blur(14px) saturate(1.2) !important;
+}
+
+html body.komari-admin-shell.admin-bridge-mode .site-save-sticky {
+  background: rgba(3, 12, 24, .82) !important;
+  border-color: rgba(98,245,238,.18) !important;
+}
+
+html body.komari-admin-shell .site-save-sticky #site-save {
+  min-width: 150px !important;
+  height: 40px !important;
+}
+
+html body.komari-admin-shell .site-save-sticky #site-msg {
+  min-height: 20px !important;
+  margin: 0 !important;
+}
+
+html body.komari-admin-shell .custom-html-grid textarea.custom-html-input {
+  min-height: 154px !important;
+}
+
+@media (max-width: 860px) {
+  html body.komari-admin-shell .site-connection-grid {
+    grid-template-columns: 1fr !important;
+  }
+  html body.komari-admin-shell .site-save-sticky {
+    position: static !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+}

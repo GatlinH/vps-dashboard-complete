@@ -1,0 +1,85 @@
+/* HERMES-ADMIN-THEME-FOLLOWUPS-20260707
+   Fix user-reported theme mismatches:
+   1) Cloudflare tunnel card/groups must follow day/night background switching.
+   2) Account profile card in day mode must use the sky-blue admin card palette, not white/gray. */
+
+/* Cloudflare reverse proxy: dark mode should not stay light. */
+html body.komari-admin-shell:not(.admin-day-mode) .komari-section-panel.cf-proxy-panel {
+  background: linear-gradient(180deg, rgba(5, 14, 28, .86), rgba(2, 9, 20, .78)) !important;
+  border-color: rgba(98, 245, 238, .18) !important;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .34) !important;
+}
+
+html body.komari-admin-shell:not(.admin-day-mode) .cf-proxy-group,
+html body.komari-admin-shell:not(.admin-day-mode) .cf-status-item {
+  background: linear-gradient(180deg, rgba(7, 22, 40, .82), rgba(3, 12, 26, .72)) !important;
+  border-color: rgba(98, 245, 238, .20) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 12px 30px rgba(0,0,0,.22) !important;
+}
+
+html body.komari-admin-shell:not(.admin-day-mode) .cf-proxy-group-head strong,
+html body.komari-admin-shell:not(.admin-day-mode) .cf-status-item b {
+  color: #e8fbff !important;
+  text-shadow: 0 0 12px rgba(98,245,238,.18) !important;
+}
+
+html body.komari-admin-shell:not(.admin-day-mode) .cf-proxy-group-head small,
+html body.komari-admin-shell:not(.admin-day-mode) .cf-status-item span,
+html body.komari-admin-shell:not(.admin-day-mode) .cf-proxy-group label span {
+  color: #93bfd0 !important;
+}
+
+/* Cloudflare reverse proxy: day mode sky-blue, not neutral white. */
+html body.komari-admin-shell.admin-day-mode .komari-section-panel.cf-proxy-panel {
+  background: linear-gradient(180deg, #dff3ff, #f2fbff) !important;
+  border-color: #a9d9ef !important;
+  box-shadow: 0 14px 32px rgba(22,100,150,.10) !important;
+}
+
+html body.komari-admin-shell.admin-day-mode .cf-proxy-group,
+html body.komari-admin-shell.admin-day-mode .cf-status-item {
+  background: linear-gradient(180deg, #e7f7ff, #f6fcff) !important;
+  border-color: #b7ddf3 !important;
+  box-shadow: 0 10px 24px rgba(22,100,150,.08) !important;
+}
+
+html body.komari-admin-shell.admin-day-mode .cf-proxy-group-head strong,
+html body.komari-admin-shell.admin-day-mode .cf-status-item b {
+  color: #071827 !important;
+  text-shadow: none !important;
+}
+
+html body.komari-admin-shell.admin-day-mode .cf-proxy-group-head small,
+html body.komari-admin-shell.admin-day-mode .cf-status-item span,
+html body.komari-admin-shell.admin-day-mode .cf-proxy-group label span {
+  color: #244960 !important;
+  text-shadow: none !important;
+}
+
+/* Account profile: day mode sky-blue card and inner fields. */
+html body.komari-admin-shell.admin-day-mode .komari-account-page .komari-account-advanced {
+  background: linear-gradient(180deg, #dff3ff, #f2fbff) !important;
+  border-color: #a9d9ef !important;
+  box-shadow: 0 14px 32px rgba(22,100,150,.10) !important;
+}
+
+html body.komari-admin-shell.admin-day-mode .komari-account-page .komari-account-advanced .komari-kv-box,
+html body.komari-admin-shell.admin-day-mode .komari-account-page .komari-account-advanced .komari-kv-box > div {
+  background: linear-gradient(180deg, #e7f7ff, #f6fcff) !important;
+  border-color: #b7ddf3 !important;
+  color: #071827 !important;
+  box-shadow: 0 8px 20px rgba(22,100,150,.07) !important;
+}
+
+html body.komari-admin-shell.admin-day-mode .komari-account-page .komari-account-advanced .komari-panel-title span,
+html body.komari-admin-shell.admin-day-mode .komari-account-page .komari-account-advanced .komari-kv-box b {
+  color: #071827 !important;
+  text-shadow: none !important;
+}
+
+html body.komari-admin-shell.admin-day-mode .komari-account-page .komari-account-advanced .komari-panel-title small,
+html body.komari-admin-shell.admin-day-mode .komari-account-page .komari-account-advanced .komari-kv-box span,
+html body.komari-admin-shell.admin-day-mode .komari-account-page .acct-session-handoff {
+  color: #244960 !important;
+  text-shadow: none !important;
+}

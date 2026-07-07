@@ -1,0 +1,149 @@
+/* HERMES-ADMIN-SPACING-SESSIONS-20260706
+   Fix remaining theme gaps: SSO card, settings spacing, session cards, ops chip overlap. */
+
+body.komari-admin-shell {
+  --admin-panel-gap-tight: 10px;
+  --admin-panel-pad-tight: 14px;
+}
+
+/* Account SSO card must follow theme. */
+body.komari-admin-shell .komari-bind-card,
+body.komari-admin-shell .komari-external-title {
+  border-radius: 13px !important;
+}
+body.komari-admin-shell .komari-bind-card {
+  display: grid !important;
+  grid-template-columns: minmax(120px,.45fr) 1fr !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(98,245,238,.16) !important;
+  background: rgba(7,18,34,.56) !important;
+}
+body.komari-admin-shell .komari-bind-card span {
+  padding: 11px 13px !important;
+  border-bottom: 1px solid rgba(255,255,255,.06) !important;
+  color: #eaf6ff !important;
+}
+body.komari-admin-shell .komari-bind-card span:nth-child(odd) {
+  font-weight: 800 !important;
+  color: #8ad9ff !important;
+  background: rgba(98,245,238,.06) !important;
+}
+body.komari-admin-shell.admin-day-mode .komari-bind-card,
+body.komari-admin-shell.admin-day-mode .komari-external-title {
+  background: linear-gradient(180deg, var(--admin-sky-1), var(--admin-sky-0)) !important;
+  border-color: var(--admin-sky-line) !important;
+  color: var(--admin-ink) !important;
+  box-shadow: 0 10px 26px rgba(22,100,150,.08) !important;
+}
+body.komari-admin-shell.admin-day-mode .komari-bind-card span {
+  color: var(--admin-ink) !important;
+  border-color: #b7ddf3 !important;
+}
+body.komari-admin-shell.admin-day-mode .komari-bind-card span:nth-child(odd) {
+  color: var(--admin-accent) !important;
+  background: #d9f3ff !important;
+}
+
+/* Settings sections: compress excessive vertical gaps across login / notify / general / proxy. */
+body.komari-admin-shell .komari-settings-page,
+body.komari-admin-shell .komari-account-page {
+  display: grid !important;
+  gap: 12px !important;
+}
+body.komari-admin-shell .komari-settings-grid,
+body.komari-admin-shell .komari-settings-grid.two,
+body.komari-admin-shell .komari-form-grid,
+body.komari-admin-shell .login-param-fields,
+body.komari-admin-shell .komari-backup-list {
+  gap: var(--admin-panel-gap-tight) !important;
+}
+body.komari-admin-shell .komari-settings-grid.two {
+  margin-top: 10px !important;
+}
+body.komari-admin-shell .komari-panel,
+body.komari-admin-shell .komari-flat-section,
+body.komari-admin-shell .komari-setting-card,
+body.komari-admin-shell .login-param-card,
+body.komari-admin-shell .login-api-card,
+body.komari-admin-shell .komari-notify-master-card,
+body.komari-admin-shell .komari-notify-template-card,
+body.komari-admin-shell .komari-notify-settings-card,
+body.komari-admin-shell .komari-notify-card,
+body.komari-admin-shell .komari-backup-row {
+  padding: var(--admin-panel-pad-tight) !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+body.komari-admin-shell .login-section-heading,
+body.komari-admin-shell .komari-settings-heading,
+body.komari-admin-shell .komari-panel-title {
+  margin-top: 6px !important;
+  margin-bottom: 8px !important;
+}
+body.komari-admin-shell .login-section-heading.first { margin-top: 0 !important; }
+body.komari-admin-shell .login-setting-row,
+body.komari-admin-shell .komari-action-row,
+body.komari-admin-shell .notify-save-row,
+body.komari-admin-shell .login-save-row,
+body.komari-admin-shell .login-api-actions {
+  margin-top: 8px !important;
+  gap: 8px !important;
+}
+body.komari-admin-shell .komari-section-tabs { margin-bottom: 8px !important; }
+
+/* Day sessions: current-device/account session status and login-session table are sky-blue. */
+body.komari-admin-shell.admin-day-mode .komari-account-advanced,
+body.komari-admin-shell.admin-day-mode .acct-session-section,
+body.komari-admin-shell.admin-day-mode .acct-session-list,
+body.komari-admin-shell.admin-day-mode .acct-session-row,
+body.komari-admin-shell.admin-day-mode .session-admin-card,
+body.komari-admin-shell.admin-day-mode .session-table-wrap,
+body.komari-admin-shell.admin-day-mode .sessions-table,
+body.komari-admin-shell.admin-day-mode .sessions-table tr,
+body.komari-admin-shell.admin-day-mode .users-table.sessions-table {
+  background: linear-gradient(180deg, var(--admin-sky-1), var(--admin-sky-0)) !important;
+  border-color: var(--admin-sky-line) !important;
+  color: var(--admin-ink) !important;
+}
+body.komari-admin-shell.admin-day-mode .komari-kv-box,
+body.komari-admin-shell.admin-day-mode .komari-kv-box > div {
+  background: #eef9ff !important;
+  border-color: #b7ddf3 !important;
+  color: var(--admin-ink) !important;
+}
+
+/* Ops chips: prevent level/event overlap in diagnostic cards and legacy rows. */
+body.komari-admin-shell #tab-ops .ops-diag-title-row {
+  display: grid !important;
+  grid-template-columns: minmax(160px,1fr) auto minmax(170px,.9fr) !important;
+  gap: 8px !important;
+  align-items: center !important;
+}
+body.komari-admin-shell #tab-ops .ops-diag-title-row .ops-level,
+body.komari-admin-shell #tab-ops .ops-diag-title-row code,
+body.komari-admin-shell #tab-ops .ops-level,
+body.komari-admin-shell #tab-ops .ops-event-row code {
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+body.komari-admin-shell #tab-ops .ops-diag-title-row .ops-level {
+  justify-self: start !important;
+}
+body.komari-admin-shell #tab-ops .ops-diag-title-row code {
+  justify-self: stretch !important;
+  text-align: center !important;
+}
+body.komari-admin-shell #tab-ops .ops-table-head,
+body.komari-admin-shell #tab-ops .ops-event-row {
+  grid-template-columns: 150px 92px minmax(220px,1.25fr) 80px minmax(260px,1.6fr) !important;
+}
+
+@media (max-width: 900px) {
+  body.komari-admin-shell #tab-ops .ops-diag-title-row { grid-template-columns: 1fr !important; }
+  body.komari-admin-shell #tab-ops .ops-diag-title-row code { text-align: left !important; }
+  body.komari-admin-shell .komari-bind-card { grid-template-columns: 1fr !important; }
+}

@@ -1,0 +1,127 @@
+/* HERMES-ADMIN-USER-REPORTED-FIXES-20260706
+   Direct fixes for user-reported admin UI issues. */
+
+/* Node list: no horizontal overflow. Compress columns and keep all actions visible. */
+html body.komari-admin-shell .komari-table-wrap {
+  overflow-x: hidden !important;
+  width: 100% !important;
+}
+html body.komari-admin-shell .komari-node-table {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  table-layout: fixed !important;
+}
+html body.komari-admin-shell .komari-node-table th,
+html body.komari-admin-shell .komari-node-table td {
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+html body.komari-admin-shell .komari-node-table th:nth-child(1),
+html body.komari-admin-shell .komari-node-table td:nth-child(1) { width: 24% !important; }
+html body.komari-admin-shell .komari-node-table th:nth-child(2),
+html body.komari-admin-shell .komari-node-table td:nth-child(2) { width: 11% !important; }
+html body.komari-admin-shell .komari-node-table th:nth-child(3),
+html body.komari-admin-shell .komari-node-table td:nth-child(3) { width: 11% !important; }
+html body.komari-admin-shell .komari-node-table th:nth-child(4),
+html body.komari-admin-shell .komari-node-table td:nth-child(4) { width: 10% !important; }
+html body.komari-admin-shell .komari-node-table th:nth-child(5),
+html body.komari-admin-shell .komari-node-table td:nth-child(5) { width: 10% !important; }
+html body.komari-admin-shell .komari-node-table th:nth-child(6),
+html body.komari-admin-shell .komari-node-table td:nth-child(6) { width: 9% !important; }
+html body.komari-admin-shell .komari-node-table th:last-child,
+html body.komari-admin-shell .komari-node-table td:last-child {
+  position: static !important;
+  right: auto !important;
+  width: 25% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  box-shadow: none !important;
+}
+html body.komari-admin-shell .komari-node-table td:last-child {
+  display: flex !important;
+  gap: 5px !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+}
+html body.komari-admin-shell .komari-node-table td:last-child button {
+  flex: 0 0 26px !important;
+  width: 26px !important;
+  min-width: 26px !important;
+  height: 28px !important;
+  padding: 0 !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+}
+html body.komari-admin-shell .komari-node-name,
+html body.komari-admin-shell .komari-node-name-main,
+html body.komari-admin-shell .komari-node-name-sub {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+/* Settings: custom HTML areas. */
+html body.komari-admin-shell .custom-html-grid {
+  gap: 14px !important;
+}
+html body.komari-admin-shell .custom-html-input {
+  min-height: 128px !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  line-height: 1.45 !important;
+  resize: vertical !important;
+}
+html body.komari-admin-shell .geoip-update-row .komari-secondary[disabled] {
+  opacity: .65 !important;
+  cursor: wait !important;
+}
+
+/* Ops logs: level and event type must not stick together. */
+html body.komari-admin-shell #tab-ops .ops-diag-title-row {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 8px 12px !important;
+}
+html body.komari-admin-shell #tab-ops .ops-diag-title-row strong {
+  flex: 1 1 180px !important;
+  min-width: 150px !important;
+}
+html body.komari-admin-shell #tab-ops .ops-diag-title-row .ops-level,
+html body.komari-admin-shell #tab-ops .ops-diag-title-row code {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 26px !important;
+  margin: 0 !important;
+  white-space: nowrap !important;
+  vertical-align: middle !important;
+}
+html body.komari-admin-shell #tab-ops .ops-diag-title-row code {
+  max-width: min(360px, 100%) !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  text-align: left !important;
+}
+
+@media (max-width: 980px) {
+  html body.komari-admin-shell .komari-node-table th,
+  html body.komari-admin-shell .komari-node-table td {
+    font-size: 12px !important;
+    padding-left: 5px !important;
+    padding-right: 5px !important;
+  }
+  html body.komari-admin-shell .komari-node-table td:last-child button {
+    flex-basis: 24px !important;
+    width: 24px !important;
+    min-width: 24px !important;
+  }
+}

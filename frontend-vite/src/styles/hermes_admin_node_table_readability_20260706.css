@@ -1,0 +1,173 @@
+/* HERMES-ADMIN-NODE-TABLE-READABILITY-20260706
+   Fix node table readability from screenshot feedback:
+   - restore drag grip icon instead of hamburger
+   - make name column readable
+   - keep action buttons complete
+   - avoid full page horizontal overflow; allow table-only scroll only when viewport is too narrow
+*/
+
+html body.komari-admin-shell .komari-table-wrap {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  scrollbar-gutter: stable !important;
+}
+html body.komari-admin-shell .komari-node-table {
+  width: 100% !important;
+  min-width: 1000px !important;
+  table-layout: fixed !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+}
+html body.komari-admin-shell .komari-node-table col.col-drag { width: 36px !important; }
+html body.komari-admin-shell .komari-node-table col.col-check { width: 38px !important; }
+html body.komari-admin-shell .komari-node-table col.col-name { width: 230px !important; }
+html body.komari-admin-shell .komari-node-table col.col-ip { width: 140px !important; }
+html body.komari-admin-shell .komari-node-table col.col-version { width: 96px !important; }
+html body.komari-admin-shell .komari-node-table col.col-package { width: 108px !important; }
+html body.komari-admin-shell .komari-node-table col.col-note { width: 150px !important; }
+html body.komari-admin-shell .komari-node-table col.col-billing { width: 128px !important; }
+html body.komari-admin-shell .komari-node-table col.col-actions { width: 154px !important; }
+
+html body.komari-admin-shell .komari-node-table th,
+html body.komari-admin-shell .komari-node-table td {
+  box-sizing: border-box !important;
+  padding: 12px 9px !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+html body.komari-admin-shell .komari-node-table th:first-child,
+html body.komari-admin-shell .komari-node-table td:first-child,
+html body.komari-admin-shell .komari-node-table th:nth-child(2),
+html body.komari-admin-shell .komari-node-table td:nth-child(2) {
+  text-align: center !important;
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+}
+
+/* Drag handle: dot-matrix grip, not hamburger. */
+html body.komari-admin-shell .komari-drag {
+  color: #7da1ba !important;
+  cursor: grab !important;
+}
+html body.komari-admin-shell .komari-drag-grip {
+  display: inline-grid !important;
+  grid-template-columns: repeat(2, 4px) !important;
+  grid-auto-rows: 4px !important;
+  gap: 3px !important;
+  width: 11px !important;
+  height: 18px !important;
+  vertical-align: middle !important;
+}
+html body.komari-admin-shell .komari-drag-grip::before,
+html body.komari-admin-shell .komari-drag-grip::after {
+  content: "" !important;
+  display: block !important;
+  width: 4px !important;
+  height: 4px !important;
+  border-radius: 50% !important;
+  background: currentColor !important;
+  box-shadow: 0 7px 0 currentColor, 0 14px 0 currentColor !important;
+}
+html body.komari-admin-shell .komari-drag-grip::after {
+  margin-left: 7px !important;
+  margin-top: -18px !important;
+}
+
+/* Name column: keep TD as table-cell; only the inner wrapper uses grid. */
+html body.komari-admin-shell .komari-node-table td.komari-node-name {
+  display: table-cell !important;
+  min-width: 230px !important;
+  max-width: 230px !important;
+  text-align: left !important;
+}
+html body.komari-admin-shell .komari-node-name-inner {
+  display: grid !important;
+  grid-template-columns: 32px minmax(0, 1fr) !important;
+  column-gap: 10px !important;
+  align-items: center !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+html body.komari-admin-shell .komari-node-name-inner > div {
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+html body.komari-admin-shell .komari-node-name strong,
+html body.komari-admin-shell .komari-node-name small {
+  display: block !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+html body.komari-admin-shell .komari-node-name strong {
+  font-size: 14px !important;
+  line-height: 1.25 !important;
+}
+html body.komari-admin-shell .komari-node-name small {
+  margin-top: 3px !important;
+  font-size: 12px !important;
+  opacity: .72 !important;
+}
+
+/* Billing is two lines; do not make it look broken. */
+html body.komari-admin-shell .komari-node-table td:nth-child(8) {
+  line-height: 1.3 !important;
+}
+html body.komari-admin-shell .komari-node-table td:nth-child(8) small {
+  display: block !important;
+  margin-top: 3px !important;
+  opacity: .72 !important;
+}
+
+/* Action column: complete buttons, enough width, readable contrast. */
+html body.komari-admin-shell .komari-node-table th:nth-child(9),
+html body.komari-admin-shell .komari-node-table td:nth-child(9) {
+  position: static !important;
+  right: auto !important;
+  min-width: 154px !important;
+  width: 154px !important;
+  max-width: 154px !important;
+  text-align: right !important;
+  box-shadow: none !important;
+}
+html body.komari-admin-shell .komari-node-table td.komari-row-actions,
+html body.komari-admin-shell .komari-node-table td:nth-child(9) {
+  display: table-cell !important;
+  white-space: nowrap !important;
+  padding-left: 4px !important;
+  padding-right: 8px !important;
+}
+html body.komari-admin-shell .komari-node-table td.komari-row-actions button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 26px !important;
+  min-width: 26px !important;
+  height: 28px !important;
+  margin-left: 3px !important;
+  padding: 0 !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+  vertical-align: middle !important;
+  color: #0b2b3c !important;
+}
+html body.komari-admin-shell.admin-bridge-mode .komari-node-table td.komari-row-actions button {
+  color: #e7fbff !important;
+}
+html body.komari-admin-shell .komari-node-table td.komari-row-actions button.danger {
+  color: #d93662 !important;
+}
+
+@media (min-width: 1380px) {
+  html body.komari-admin-shell .komari-node-table { min-width: 0 !important; }
+  html body.komari-admin-shell .komari-node-table col.col-name { width: 25% !important; }
+  html body.komari-admin-shell .komari-node-table col.col-note { width: 17% !important; }
+}

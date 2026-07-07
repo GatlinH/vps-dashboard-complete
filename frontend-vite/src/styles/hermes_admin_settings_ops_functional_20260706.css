@@ -1,0 +1,143 @@
+/* HERMES-ADMIN-SETTINGS-OPS-FUNCTIONAL-FIXES-20260706
+   Fix: ops compact/comfy mode effect, editable custom head/body, notification channel list/delete UX. */
+
+/* Ops density modes: default compact; .ops-comfy is visibly roomier. */
+html body.komari-admin-shell #tab-ops .ops-diagnostic-list,
+html body.komari-admin-shell #tab-ops #ops-events-list {
+  gap: 8px !important;
+}
+html body.komari-admin-shell #tab-ops .ops-diag-card {
+  padding: 10px 12px !important;
+  margin: 0 0 8px !important;
+}
+html body.komari-admin-shell #tab-ops .ops-diag-main {
+  gap: 10px !important;
+}
+html body.komari-admin-shell #tab-ops .ops-diag-icon {
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  font-size: 16px !important;
+}
+html body.komari-admin-shell #tab-ops .ops-diag-grid,
+html body.komari-admin-shell #tab-ops .ops-diag-explain,
+html body.komari-admin-shell #tab-ops .ops-diag-action,
+html body.komari-admin-shell #tab-ops .ops-diag-fields,
+html body.komari-admin-shell #tab-ops .ops-diag-raw {
+  margin-top: 6px !important;
+}
+html body.komari-admin-shell #tab-ops.ops-comfy .ops-diagnostic-list,
+html body.komari-admin-shell #tab-ops.ops-comfy #ops-events-list {
+  gap: 16px !important;
+}
+html body.komari-admin-shell #tab-ops.ops-comfy .ops-diag-card {
+  padding: 18px 20px !important;
+  margin: 0 0 16px !important;
+}
+html body.komari-admin-shell #tab-ops.ops-comfy .ops-diag-main {
+  gap: 16px !important;
+}
+html body.komari-admin-shell #tab-ops.ops-comfy .ops-diag-icon {
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  font-size: 22px !important;
+}
+html body.komari-admin-shell #tab-ops.ops-comfy .ops-diag-grid,
+html body.komari-admin-shell #tab-ops.ops-comfy .ops-diag-explain,
+html body.komari-admin-shell #tab-ops.ops-comfy .ops-diag-action,
+html body.komari-admin-shell #tab-ops.ops-comfy .ops-diag-fields,
+html body.komari-admin-shell #tab-ops.ops-comfy .ops-diag-raw {
+  margin-top: 12px !important;
+}
+html body.komari-admin-shell #tab-ops .ops-density.is-comfy {
+  background: linear-gradient(135deg, #2dd4bf, #0ea5e9) !important;
+  color: #fff !important;
+}
+
+/* Site custom HTML editors must be normal editable textareas. */
+html body.komari-admin-shell .custom-html-grid {
+  gap: 14px !important;
+}
+html body.komari-admin-shell textarea.custom-html-input,
+html body.komari-admin-shell #site-custom-head,
+html body.komari-admin-shell #site-custom-body {
+  display: block !important;
+  width: 100% !important;
+  min-height: 150px !important;
+  height: auto !important;
+  resize: vertical !important;
+  white-space: pre-wrap !important;
+  overflow: auto !important;
+  pointer-events: auto !important;
+  user-select: text !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
+  line-height: 1.5 !important;
+  padding: 12px 14px !important;
+  z-index: 1 !important;
+}
+
+/* Notification channel list: visible like notification-rule cards, with delete per configured channel. */
+html body.komari-admin-shell .notify-channel-list {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 10px !important;
+  margin: 12px 0 14px !important;
+}
+html body.komari-admin-shell .notify-channel-empty {
+  border: 1px dashed rgba(73, 160, 205, .35) !important;
+  border-radius: 14px !important;
+  padding: 14px 16px !important;
+  color: var(--admin-muted, #64748b) !important;
+  background: rgba(255,255,255,.35) !important;
+  font-size: 13px !important;
+}
+html body.komari-admin-shell .notify-channel-chip {
+  display: grid !important;
+  grid-template-columns: 1fr auto !important;
+  align-items: center !important;
+  gap: 8px !important;
+  border: 1px solid rgba(73, 160, 205, .25) !important;
+  border-radius: 14px !important;
+  padding: 10px !important;
+  background: rgba(255,255,255,.5) !important;
+}
+html body.komari-admin-shell.admin-bridge-mode .notify-channel-chip {
+  background: rgba(7, 16, 31, .72) !important;
+  border-color: rgba(98,245,238,.18) !important;
+}
+html body.komari-admin-shell .notify-channel-chip.active {
+  border-color: rgba(14, 165, 233, .65) !important;
+  box-shadow: 0 0 0 2px rgba(14,165,233,.12) !important;
+}
+html body.komari-admin-shell .notify-channel-chip > button:first-child {
+  appearance: none !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: inherit !important;
+  text-align: left !important;
+  padding: 0 !important;
+  cursor: pointer !important;
+  min-width: 0 !important;
+}
+html body.komari-admin-shell .notify-channel-chip strong,
+html body.komari-admin-shell .notify-channel-chip small {
+  display: block !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+html body.komari-admin-shell .notify-channel-chip small {
+  margin-top: 4px !important;
+  opacity: .72 !important;
+  font-size: 12px !important;
+}
+html body.komari-admin-shell .notify-channel-delete {
+  height: 32px !important;
+  padding: 0 12px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(239,68,68,.35) !important;
+  background: rgba(239,68,68,.08) !important;
+  color: #dc2626 !important;
+  cursor: pointer !important;
+}

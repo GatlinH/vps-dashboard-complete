@@ -1,0 +1,18 @@
+/* HERMES-ADMIN-PROXY-SPACING-FIX-20260707
+   Tighten proxy page vertical whitespace caused by the split settings grids. */
+
+html body.komari-admin-shell .komari-settings-page:has(.cf-proxy-panel.is-visible) .komari-settings-grid.two:not(:has(.cf-proxy-panel)) {
+  display: none !important;
+}
+
+html body.komari-admin-shell .komari-settings-page:has(.cf-proxy-panel.is-visible) .komari-settings-grid.two:has(.cf-proxy-panel) {
+  margin-top: 0 !important;
+}
+
+html body.komari-admin-shell .komari-settings-page:has(.cf-proxy-panel.is-visible) .cf-proxy-panel {
+  margin-top: 0 !important;
+}
+
+html body.komari-admin-shell .komari-settings-page:has(.cf-proxy-panel.is-visible) #settings-banner:empty {
+  display: none !important;
+}

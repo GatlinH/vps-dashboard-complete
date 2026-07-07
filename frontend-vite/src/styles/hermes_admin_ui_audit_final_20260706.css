@@ -1,0 +1,35 @@
+/* HERMES-ADMIN-UI-AUDIT-FINAL-20260706
+   Final hard overrides after DOM measurement. */
+
+html body.komari-admin-shell .admin-toolbar {
+  position: sticky !important;
+  top: 18px !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  transform: none !important;
+  margin: 0 0 18px 0 !important;
+  box-sizing: border-box !important;
+}
+html body.komari-admin-shell .admin-body {
+  overflow-x: hidden !important;
+}
+html body.komari-admin-shell .komari-current-pass {
+  display: none !important;
+}
+html body.komari-admin-shell .komari-current-pass * {
+  display: none !important;
+}
+
+/* Account buttons should also match the 38px rhythm. */
+html body.komari-admin-shell #acct-session-refresh,
+html body.komari-admin-shell #acct-session-clear {
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0 14px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+}

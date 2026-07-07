@@ -50,17 +50,28 @@ export class ServerManager {
         </div>
         <div class="komari-table-wrap">
           <table class="komari-node-table">
+            <colgroup>
+              <col class="col-drag">
+              <col class="col-check">
+              <col class="col-name">
+              <col class="col-ip">
+              <col class="col-version">
+              <col class="col-package">
+              <col class="col-note">
+              <col class="col-billing">
+              <col class="col-actions">
+            </colgroup>
             <thead>
               <tr>
-                <th style="width:34px"></th>
-                <th style="width:36px"><input id="sm-check-all" type="checkbox"></th>
+                <th></th>
+                <th><input id="sm-check-all" type="checkbox"></th>
                 <th>名称</th>
                 <th>IP地址</th>
                 <th>客户端版本</th>
                 <th>包</th>
                 <th>外形备注</th>
                 <th>账单</th>
-                <th style="width:150px;text-align:right">操作</th>
+                <th>操作</th>
               </tr>
             </thead>
             <tbody id="sm-existing"></tbody>
@@ -123,11 +134,13 @@ export class ServerManager {
       const pkg = s.group || s.provider || '—';
       return /* html */`
         <tr>
-          <td class="komari-drag">☰</td>
+          <td class="komari-drag" title="拖拽排序" aria-label="拖拽排序"><span class="komari-drag-grip" aria-hidden="true"></span></td>
           <td><input type="checkbox" data-row-check="${id}" ${this._selectedIds.has(id) ? 'checked' : ''}></td>
           <td class="komari-node-name">
-            <span class="komari-node-badge">${this._escape((s.flag || 'V').slice(0, 2))}</span>
-            <div><strong>${this._escape(s.name || s.ip || '未命名节点')}</strong><small>${this._escape(s.status || 'unknown')}</small></div>
+            <div class="komari-node-name-inner">
+              <span class="komari-node-badge">${this._escape((s.flag || 'V').slice(0, 2))}</span>
+              <div><strong>${this._escape(s.name || s.ip || '未命名节点')}</strong><small>${this._escape(s.status || 'unknown')}</small></div>
+            </div>
           </td>
           <td>${this._escape(s.ip || '—')}</td>
           <td>${this._escape(clientVersion)}</td>

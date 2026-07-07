@@ -1,0 +1,56 @@
+/* HERMES-ADMIN-NOTIFY-MANAGEMENT-BOTTOM-20260707
+   Move destructive channel deletion to bottom management area and make configured channels identifiable. */
+
+html body.komari-admin-shell .notify-channel-management {
+  margin-top: 18px !important;
+  padding: 16px !important;
+  border: 1px solid rgba(73, 160, 205, .24) !important;
+  border-radius: 18px !important;
+  background: rgba(255,255,255,.36) !important;
+}
+
+html body.komari-admin-shell.admin-bridge-mode .notify-channel-management {
+  background: rgba(7, 16, 31, .62) !important;
+  border-color: rgba(98,245,238,.16) !important;
+}
+
+html body.komari-admin-shell .notify-channel-management-head {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  margin-bottom: 12px !important;
+}
+
+html body.komari-admin-shell .notify-channel-management-head strong {
+  font-size: 15px !important;
+  color: var(--admin-text, #0f172a) !important;
+}
+
+html body.komari-admin-shell .notify-channel-management-head small {
+  color: var(--admin-muted, #64748b) !important;
+  line-height: 1.5 !important;
+}
+
+html body.komari-admin-shell .notify-channel-management .notify-channel-list {
+  margin: 0 !important;
+}
+
+html body.komari-admin-shell .notify-channel-management .notify-channel-chip {
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  min-height: 58px !important;
+  padding: 12px 14px !important;
+}
+
+html body.komari-admin-shell .notify-channel-management .notify-channel-chip strong {
+  font-size: 14px !important;
+}
+
+html body.komari-admin-shell .notify-channel-management .notify-channel-chip small {
+  max-width: 100% !important;
+  white-space: nowrap !important;
+}
+
+html body.komari-admin-shell .notify-channel-management .notify-channel-delete {
+  align-self: center !important;
+  min-width: 74px !important;
+}
