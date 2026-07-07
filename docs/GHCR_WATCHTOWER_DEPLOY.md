@@ -1,6 +1,6 @@
-# GHCR + Watchtower 自动部署
+# GHCR + 后台手动更新部署
 
-该方案让 GitHub Actions 只负责测试、构建镜像、推送到 GitHub Container Registry (GHCR)，不再通过 SSH 登录 VPS。
+该方案让 GitHub Actions 只负责测试、构建镜像、推送到 GitHub Container Registry (GHCR)，不再通过 SSH 登录 VPS。VPS 侧不自动更新；管理员在后台面板点击“检查更新 / 应用更新”后才更新。
 
 ## 流程
 
@@ -10,13 +10,13 @@ git push main
   -> 构建并推送两个镜像
      - ghcr.io/gatlinh/vps-dashboard-complete-backend:latest
      - ghcr.io/gatlinh/vps-dashboard-complete-frontend:latest
-  -> VPS 上的 watchtower 每 300 秒检查镜像
-  -> 自动 pull + rolling restart
+  -> 后台面板“检查更新”只读查看镜像清单
+  -> 管理员点击“应用更新”后，Watchtower HTTP API 才 pull + rolling restart
 ```
 
 ## GitHub Actions
 
-`.github/workflows/deploy.yml` 已改为 `Publish Docker Image`：
+`.github/workflows/deploy.yml` 为 `Publish Docker Image`：
 
 - 复用 `ci.yml` 作为测试 gate；
 - 使用 `GITHUB_TOKEN` 登录 GHCR；
@@ -25,7 +25,13 @@ git push main
 
 ## VPS 首次启用
 
-在 VPS 项目目录执行：
+在 `/etc/vps-dashboard/secrets.env` 增加一个随机 token：
+
+```env
+WATCHTOWER_HTTP_API_TOKEN=换成一串随机长字符串
+```
+
+然后在 VPS 项目目录执行：
 
 ```bash
 cd /opt/vps-dashboard
@@ -47,6 +53,14 @@ docker compose \
 
 > `--no-build` 很重要：确保使用 GHCR 镜像，而不是在 VPS 本机重新构建。
 
+## 后台按钮
+
+后台“诊断 / 日志”页会显示“版本更新”卡片：
+
+- **刷新状态**：显示当前手动更新模式；
+- **检查更新**：只读查询 GHCR 镜像 manifest，不重启服务；
+- **应用更新**：管理员确认后调用 `http://watchtower:8080/v1/update`，由 Watchtower 拉取新镜像并滚动重启。
+
 ## 端口/反代
 
 `frontend` 容器监听宿主机：
@@ -63,13 +77,14 @@ reverse_proxy 127.0.0.1:9119
 
 前端 Nginx 会把 `/api/*` 反代到 Docker 网络里的 `api:5000`。
 
-## Watchtower
+## Watchtower（手动触发模式）
 
 `docker-compose.ghcr.yml` 增加：
 
 - `watchtower` 服务；
 - 只更新带 `com.centurylinklabs.watchtower.enable=true` 的容器；
-- 每 300 秒检查；
+- 启用内部 HTTP API `http://watchtower:8080/v1/update`；
+- 不做定时自动轮询，只有后台按钮触发时才更新；
 - 自动清理旧镜像；
 - rolling restart。
 
@@ -79,20 +94,11 @@ reverse_proxy 127.0.0.1:9119
 docker logs -f vps_watchtower
 ```
 
-手动触发更新：
+命令行也可手动触发更新：
 
 ```bash
-docker compose \
-  --env-file /etc/vps-dashboard/secrets.env \
-  -f docker-compose.yml \
-  -f docker-compose.ghcr.yml \
-  pull frontend api agent_consumer
-
-docker compose \
-  --env-file /etc/vps-dashboard/secrets.env \
-  -f docker-compose.yml \
-  -f docker-compose.ghcr.yml \
-  up -d --no-build frontend api agent_consumer
+curl -H "Authorization: Bearer $WATCHTOWER_HTTP_API_TOKEN" \
+  -X POST http://127.0.0.1:8080/v1/update
 ```
 
 ## 私有镜像访问

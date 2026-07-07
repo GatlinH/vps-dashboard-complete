@@ -8,6 +8,9 @@
 services:
   api:
     image: ghcr.io/gatlinh/vps-dashboard-complete-backend:latest
+    environment:
+      WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_HTTP_API_TOKEN:-}
+      WATCHTOWER_HTTP_API_URL: http://watchtower:8080/v1/update
     labels:
       com.centurylinklabs.watchtower.enable: "true"
 
@@ -28,9 +31,10 @@ services:
     command:
       - --label-enable
       - --cleanup
-      - --interval
-      - "300"
       - --rolling-restart
+      - --http-api-update
+    environment:
+      WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_HTTP_API_TOKEN:?set WATCHTOWER_HTTP_API_TOKEN}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:

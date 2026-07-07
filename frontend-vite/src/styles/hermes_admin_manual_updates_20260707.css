@@ -1,0 +1,46 @@
+.ops-update-shell {
+  border: 1px solid rgba(98, 245, 238, 0.24);
+  background: linear-gradient(135deg, rgba(2, 14, 28, 0.86), rgba(4, 25, 42, 0.68));
+}
+
+.ops-update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.ops-update-output {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  min-height: 72px;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  border: 1px solid rgba(98, 245, 238, 0.18);
+  border-radius: 12px;
+  background: rgba(1, 6, 14, 0.68);
+  color: #d8fffb;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+html[data-theme="light"] .ops-update-shell {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: rgba(21, 122, 130, 0.18);
+}
+
+html[data-theme="light"] .ops-update-output {
+  background: rgba(238, 244, 251, 0.86);
+  color: #0a1622;
+  border-color: rgba(10, 22, 34, 0.12);
+}
+
+@media (max-width: 760px) {
+  .ops-update-actions {
+    justify-content: stretch;
+  }
+  .ops-update-actions > button {
+    flex: 1 1 100%;
+  }
+}

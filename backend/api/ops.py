@@ -9,6 +9,7 @@ import subprocess
 import base64
 import json
 import re
+import urllib.request
 from urllib.parse import urlparse
 from io import BytesIO
 from zipfile import ZipFile, ZIP_DEFLATED
@@ -38,6 +39,87 @@ def _audit_ops_high_risk(action, title, section=None):
 
 
 ops_bp = Blueprint("ops", __name__)
+
+_UPDATE_IMAGES = (
+    {"name": "backend", "image": "ghcr.io/gatlinh/vps-dashboard-complete-backend", "tag": "latest"},
+    {"name": "frontend", "image": "ghcr.io/gatlinh/vps-dashboard-complete-frontend", "tag": "latest"},
+)
+_UPDATE_SERVICES = ("frontend", "api", "agent_consumer")
+
+
+def _audit_manual_update(action, ok, message, payload=None):
+    try:
+        record_ops_event(
+            f"manual_update_{action}",
+            "手动更新检查" if action == "check" else "手动应用更新",
+            message=(message or "")[:1000],
+            level="info" if ok else "error",
+            payload={"action": action, **(payload or {})},
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
+def _ghcr_manifest_digest(image, tag="latest"):
+    owner, package = image.removeprefix("ghcr.io/").split("/", 1)
+    url = f"https://ghcr.io/v2/{owner}/{package}/manifests/{tag}"
+    headers = {"Accept": "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json"}
+    token = os.environ.get("GHCR_READ_TOKEN", "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        digest = resp.headers.get("Docker-Content-Digest") or ""
+        return {"image": image, "tag": tag, "digest": digest, "status": getattr(resp, "status", 200)}
+
+
+@ops_bp.get("/updates/status")
+@viewer_or_admin_required
+def updates_status():
+    return jsonify(
+        ok=True,
+        mode="manual",
+        auto_update=False,
+        services=list(_UPDATE_SERVICES),
+        images=_UPDATE_IMAGES,
+        msg="当前为手动更新模式：检查更新不会重启服务；应用更新需要管理员确认。",
+    ), 200
+
+
+@ops_bp.post("/updates/check")
+@admin_required
+def updates_check():
+    images = []
+    errors = []
+    for item in _UPDATE_IMAGES:
+        try:
+            images.append({**item, **_ghcr_manifest_digest(item["image"], item["tag"])})
+        except Exception as exc:
+            errors.append({"image": item["image"], "error": str(exc)[:300]})
+    ok = not errors
+    msg = "镜像清单检查完成" if ok else "部分镜像检查失败"
+    _audit_manual_update("check", ok, msg, {"images": images, "errors": errors})
+    return jsonify(ok=ok, action="check", update_available=None, images=images, errors=errors, msg=msg), 200 if ok else 502
+
+
+@ops_bp.post("/updates/apply")
+@admin_required
+def updates_apply():
+    token = os.environ.get("WATCHTOWER_HTTP_API_TOKEN", "").strip()
+    if not token:
+        return jsonify(ok=False, action="apply", msg="WATCHTOWER_HTTP_API_TOKEN 未配置，无法触发手动更新"), 503
+    url = os.environ.get("WATCHTOWER_HTTP_API_URL", "http://watchtower:8080/v1/update").strip()
+    req = urllib.request.Request(url, data=b"", method="POST", headers={"Authorization": f"Bearer {token}"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            body = resp.read().decode("utf-8", "replace")[:1000]
+            ok = 200 <= getattr(resp, "status", 200) < 300
+    except Exception as exc:
+        _audit_manual_update("apply", False, str(exc), {"services": list(_UPDATE_SERVICES)})
+        return jsonify(ok=False, action="apply", msg=f"触发 Watchtower 更新失败：{exc}"), 502
+    _audit_manual_update("apply", ok, body or "已触发 Watchtower 手动更新", {"services": list(_UPDATE_SERVICES)})
+    return jsonify(ok=ok, action="apply", msg="已触发 Watchtower 手动更新", output=body, services=list(_UPDATE_SERVICES)), 202 if ok else 502
 
 
 @ops_bp.get("/events")

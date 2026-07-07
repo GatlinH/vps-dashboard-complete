@@ -12,3 +12,15 @@ export async function fetchOpsEvents(params = {}) {
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return request(`/ops/events${suffix}`);
 }
+
+export async function fetchUpdateStatus() {
+  return request('/ops/updates/status');
+}
+
+export async function checkForUpdates() {
+  return request('/ops/updates/check', { method: 'POST' });
+}
+
+export async function applyUpdates() {
+  return request('/ops/updates/apply', { method: 'POST' });
+}

@@ -24,6 +24,7 @@ import './styles/hermes_admin_site_settings_redesign_20260707.css';
 import './styles/hermes_admin_site_settings_layout_fix_20260707.css';
 import './styles/hermes_admin_notify_management_bottom_20260707.css';
 import './styles/hermes_admin_proxy_redesign_20260707.css';
+import './styles/hermes_admin_manual_updates_20260707.css';
 import './styles/hermes_admin_proxy_spacing_fix_20260707.css';
 import './styles/hermes_admin_proxy_lift_20260707.css';
 import './styles/hermes_admin_theme_followups_20260707.css';

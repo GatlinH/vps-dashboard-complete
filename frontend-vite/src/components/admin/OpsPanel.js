@@ -1,4 +1,4 @@
-import { fetchOpsSummary, fetchOpsEvents } from '../../api/ops.js';
+import { fetchOpsSummary, fetchOpsEvents, fetchUpdateStatus, checkForUpdates, applyUpdates } from '../../api/ops.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const normalizeTime = (v) => {
@@ -40,6 +40,21 @@ export class OpsPanel {
         </div>
         <div class="ops-refresh-state" id="ops-refresh-state">尚未刷新</div>
       </div>
+      <div class="admin-card ops-update-shell">
+        <div class="ops-section-row">
+          <div>
+            <div class="admin-card-title ops-card-title">版本更新</div>
+            <div class="ops-subtitle small">手动检查 GHCR 镜像；只有点击“应用更新”才会重启容器，适合保留当前稳定版本。</div>
+          </div>
+          <div class="ops-update-actions">
+            <button class="komari-secondary" id="ops-update-status" type="button">刷新状态</button>
+            <button class="komari-secondary" id="ops-update-check" type="button">检查更新</button>
+            <button class="add-btn" id="ops-update-apply" type="button">应用更新</button>
+          </div>
+        </div>
+        <div class="ops-log-help" id="ops-update-hint">当前为手动更新模式：检查更新不会替换当前运行版本。</div>
+        <pre class="ops-update-output" id="ops-update-output">尚未检查</pre>
+      </div>
       <div class="admin-card ops-summary-shell">
         <div class="admin-card-title ops-card-title">最近排查入口</div>
         <div id="ops-summary-grid" class="ops-summary-grid ops-summary-compact"></div>
@@ -67,6 +82,9 @@ export class OpsPanel {
 
   _bind() {
     this._el.querySelector('#ops-refresh')?.addEventListener('click', () => this.load());
+    this._el.querySelector('#ops-update-status')?.addEventListener('click', () => this._loadUpdateStatus());
+    this._el.querySelector('#ops-update-check')?.addEventListener('click', () => this._runUpdateCheck());
+    this._el.querySelector('#ops-update-apply')?.addEventListener('click', () => this._runUpdateApply());
     ['#ops-level','#ops-range','#ops-keyword'].forEach(sel => this._el.querySelector(sel)?.addEventListener(sel === '#ops-keyword' ? 'input' : 'change', () => this._renderEvents(this._events)));
     this._el.querySelector('#ops-type')?.addEventListener('change', () => this.load());
     this._el.querySelector('#ops-server-id')?.addEventListener('change', () => this.load());
@@ -86,12 +104,14 @@ export class OpsPanel {
     const btn = this._el.querySelector('#ops-refresh');
     if (btn) btn.textContent = '刷新中…';
     try {
-      const [summary, eventsPayload] = await Promise.all([
+      const [summary, eventsPayload, updateStatus] = await Promise.all([
         fetchOpsSummary(),
-        fetchOpsEvents({ limit: 120, event_type: type, server_id: serverId || '' })
+        fetchOpsEvents({ limit: 120, event_type: type, server_id: serverId || '' }),
+        fetchUpdateStatus().catch(err => ({ msg: err?.message || '更新状态读取失败' }))
       ]);
       this._events = eventsPayload.events || [];
       this._lastLoadedAt = new Date();
+      this._setUpdateOutput('更新状态', updateStatus);
       this._renderSummary(summary);
       this._renderEvents(this._events);
       const state = this._el.querySelector('#ops-refresh-state');
@@ -99,6 +119,48 @@ export class OpsPanel {
     } finally {
       if (btn) btn.textContent = '刷新';
     }
+  }
+
+  _setUpdateOutput(title, payload = {}) {
+    const out = this._el.querySelector('#ops-update-output');
+    const hint = this._el.querySelector('#ops-update-hint');
+    const lines = [title];
+    if (payload.msg) lines.push(payload.msg);
+    if (payload.services?.length) lines.push(`服务：${payload.services.join(', ')}`);
+    if (payload.compose_files?.length) lines.push(`Compose：${payload.compose_files.join(' + ')}`);
+    if (payload.output) lines.push('', String(payload.output).slice(-2000));
+    if (out) out.textContent = lines.filter(Boolean).join('\n');
+    if (hint && payload.mode === 'manual') hint.textContent = '手动模式：检查更新只拉取镜像；应用更新才会重启容器。';
+  }
+
+  async _withUpdateButton(selector, label, task) {
+    const btn = this._el.querySelector(selector);
+    const old = btn?.textContent;
+    if (btn) { btn.disabled = true; btn.textContent = `${label}中…`; }
+    try {
+      const payload = await task();
+      this._setUpdateOutput(`${label}完成`, payload);
+      return payload;
+    } catch (err) {
+      this._setUpdateOutput(`${label}失败`, { msg: err?.message || String(err) });
+      throw err;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = old || label; }
+    }
+  }
+
+  async _loadUpdateStatus() {
+    return this._withUpdateButton('#ops-update-status', '刷新状态', fetchUpdateStatus);
+  }
+
+  async _runUpdateCheck() {
+    return this._withUpdateButton('#ops-update-check', '检查更新', checkForUpdates);
+  }
+
+  async _runUpdateApply() {
+    const ok = window.confirm('应用更新会重启前端、后端和 Agent 消费容器。确定现在更新吗？');
+    if (!ok) return;
+    return this._withUpdateButton('#ops-update-apply', '应用更新', applyUpdates);
   }
 
   _summaryCard(title, rows = [], kind = '') {
