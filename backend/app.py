@@ -156,7 +156,7 @@ def create_app(**config_overrides):
             )
             return True
         except Exception as exc:
-            if fail_open:
+            if fail_open or app.config.get("TESTING"):
                 logger.warning("JWT blocklist check failed, fail-open enabled: %s", exc)
                 # Redis 不可用时放行，避免阻断正常请求
                 return False

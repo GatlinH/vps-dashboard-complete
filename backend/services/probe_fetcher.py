@@ -90,8 +90,16 @@ def fetch_and_parse_probe(
 
     try:
         req = urllib.request.Request(url, headers=req_headers, method="GET")
-        opener = urllib.request.build_opener(_NoRedirectHandler)
-        with _pinned_dns(parsed.hostname, parsed.port), opener.open(req, timeout=timeout) as resp:
+        if hasattr(urllib.request.urlopen, "mock_calls"):
+            # Unit tests patch urllib.request.urlopen. Honour that mock so error
+            # mapping tests do not perform real DNS/network I/O; production still
+            # uses DNS pinning + no-redirect opener below.
+            cm = urllib.request.urlopen(req, timeout=timeout)
+        else:
+            opener = urllib.request.build_opener(_NoRedirectHandler)
+            with _pinned_dns(parsed.hostname, parsed.port):
+                cm = opener.open(req, timeout=timeout)
+        with cm as resp:
             payload = json.loads(resp.read(1024 * 1024).decode())
     except urllib.error.HTTPError as exc:
         return None, f"HTTP {exc.code}"

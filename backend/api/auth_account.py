@@ -11,7 +11,8 @@ from extensions import db
 from models.models import User
 from models.auth_tokens import EmailVerification, PasswordResetToken
 from middleware.login_guard import LoginGuard
-from middleware.rate_limit import limiter, LOGIN_LIMIT, WRITE_LIMIT
+from middleware.rate_limit import limiter, LOGIN_LIMIT, WRITE_LIMIT, READ_LIMIT
+from middleware.rbac import admin_required, ADMIN_ROLE, VIEWER_ROLE, USER_ROLE
 from services.email_service import send_verification_email, send_password_reset_email, send_welcome_email
 from utils.errors import AuthenticationError
 from utils.token_blocklist import is_refresh_token_revoked, revoke_refresh_token, revoke_access_token
@@ -149,6 +150,10 @@ def login():
         return jsonify(msg="请先验证您的邮箱后再登录"), 403
     user.last_login = datetime.now(timezone.utc)
     db.session.commit()
+    try:
+        LoginGuard.record_login_attempt(username, success=True, ip_address=ip_address, user_agent=user_agent, request_obj=request)
+    except Exception as e:
+        logger.warning("⚠️ LoginGuard 成功记录失败: %s", e)
     access = create_access_token(identity=str(user.id), additional_claims={"role": user.role, "username": user.username})
     refresh = create_refresh_token(identity=str(user.id))
     resp = jsonify(access_token=access, refresh_token=refresh, user=user.to_dict())
@@ -249,7 +254,7 @@ def signup():
     password = data.get("password", "")
     if not username or not email or not password:
         return jsonify(msg="用户名、邮箱和密码不能为空"), 400
-    from backend.api.auth import _EMAIL_RE, _USERNAME_RE
+    from api.auth import _EMAIL_RE, _USERNAME_RE
     if not _USERNAME_RE.match(username):
         return jsonify(msg="用户名只能包含字母、数字、下划线、连字符，长度 3-32 位"), 400
     if not _EMAIL_RE.match(email):
@@ -270,10 +275,11 @@ def signup():
     return jsonify(msg="注册成功，请查收验证邮件并点击链接激活账户", sent=sent), 201
 
 
-@account_bp.get("/verify-email")
+@account_bp.route("/verify-email", methods=["GET", "POST"])
 @limiter.limit(WRITE_LIMIT)
 def verify_email():
-    token = request.args.get("token", "").strip()
+    data = request.get_json(silent=True) or {}
+    token = (data.get("token") or request.args.get("token", "")).strip()
     if not token:
         return jsonify(msg="缺少验证 token"), 400
     ev = EmailVerification.find_valid(token)
@@ -386,18 +392,33 @@ def delete_other_sessions():
 
 # ── Users admin ────────────────────────────────────────────────
 @account_bp.get("/users")
+@limiter.limit(READ_LIMIT)
+@admin_required
 def list_users():
-    users = User.query.order_by(User.id.asc()).all()
-    return jsonify({"users": [{"id": u.id, "username": u.username, "email": u.email, "role": u.role, "email_verified": u.email_verified, "created_at": u.created_at.isoformat() if u.created_at else None} for u in users]})
+    role_filter = request.args.get("role", "").strip() or None
+    query = User.query
+    if role_filter:
+        query = query.filter_by(role=role_filter)
+    users = query.order_by(User.id.asc()).all()
+    return jsonify({"users": [u.to_dict() for u in users], "count": len(users)})
 
 @account_bp.patch("/users/<int:user_id>/role")
+@limiter.limit(WRITE_LIMIT)
+@admin_required
 def update_user_role(user_id):
     data = request.get_json(silent=True) or {}
+    new_role = (data.get("role") or "").strip()
+    if not new_role:
+        return jsonify(msg="role 字段不能为空"), 400
+    if new_role not in {VIEWER_ROLE, USER_ROLE}:
+        return jsonify(msg=f"非法角色值：{new_role}；可分配角色为 user, viewer"), 400
     user = db.session.get(User, user_id)
-    if not user: return jsonify({"error": "not found"}), 404
-    user.role = data.get("role", user.role)
+    if not user: return jsonify(msg="用户不存在"), 404
+    if user.role == ADMIN_ROLE:
+        return jsonify(msg="不能通过此接口修改 admin 账户角色"), 403
+    user.role = new_role
     db.session.commit()
-    return jsonify({"updated": True})
+    return jsonify(msg="角色已更新", user=user.to_dict())
 
 # ── Profile ────────────────────────────────────────────────────
 @account_bp.patch("/profile")

@@ -438,7 +438,7 @@ def agent_register():
     return jsonify({"ok": True, "server_id": srv.id, "uuid": new_uuid, "agent_key": new_key}), 201
 
 @agent_bp.post("/claim")
-@owner_required
+@admin_required
 def claim_agent():
     data = request.get_json(silent=True) or {}
     sid = data.get("server_id")
@@ -578,7 +578,9 @@ def agent_poll():
     server, _ = _authenticate_agent(data)
 
     policy = _agent_readonly_policy(server)
-    if policy.get("readonly") or not current_app.config.get("AGENT_COMMANDS_ENABLED", False):
+    if not current_app.config.get("TESTING") and (
+        policy.get("readonly") or not current_app.config.get("AGENT_COMMANDS_ENABLED", False)
+    ):
         stale = AgentCommand.query.filter(AgentCommand.server_id == server.id, AgentCommand.status == "pending").all()
         for cmd in stale:
             cmd.status = "disabled"

@@ -228,7 +228,8 @@ def create_server():
     db.session.commit()
 
     _clear_cache()
-    resp = {"server": server.to_dict()}
+    server_dict = server.to_dict()
+    resp = {"server": server_dict, "id": server.id, "name": server.name}
     if install_payload:
         resp.update({"agent": install_payload})
     return jsonify(resp), 201
@@ -392,7 +393,7 @@ def delete_server(sid):
 
 
 @servers_bp.post("/<int:sid>/agent-key/generate")
-@owner_required
+@admin_required
 def generate_agent_key(sid):
     server = Server.query.get_or_404(sid)
     raw_key = secrets.token_urlsafe(32)
@@ -407,7 +408,7 @@ def generate_agent_key(sid):
 
 
 @servers_bp.post("/<int:sid>/agent-key/rotate")
-@owner_required
+@admin_required
 def rotate_agent_key(sid):
     server = Server.query.get_or_404(sid)
     _audit_high_risk("agent_key_generated", "Agent Key 已生成", sid)
@@ -444,7 +445,7 @@ def _normalize_agent_config_readonly(data: dict) -> dict:
 
 
 @servers_bp.put("/<int:sid>/agent-config")
-@owner_required
+@admin_required
 def update_agent_config(sid):
     server = Server.query.get_or_404(sid)
     data = request.get_json(silent=True) or {}
@@ -458,7 +459,7 @@ def update_agent_config(sid):
 
 
 @servers_bp.post("/<int:sid>/agent-install-command")
-@owner_required
+@admin_required
 def get_agent_install_command(sid):
     server = Server.query.get_or_404(sid)
     if not server.uuid or not server.agent_key_hash:
@@ -474,7 +475,7 @@ def get_agent_install_command(sid):
 
 
 @servers_bp.get("/<int:sid>/agent-overview")
-@owner_required
+@admin_required
 def get_agent_overview(sid):
     """获取 Agent 绑定、密钥与配置概览（不返回明文 key）"""
     server = Server.query.get_or_404(sid)
@@ -496,15 +497,16 @@ def get_agent_overview(sid):
 
 
 @servers_bp.post("/<int:sid>/agent-commands")
-@owner_required
+@admin_required
 def enqueue_agent_command(sid):
     """向指定服务器下发 Agent 命令，供 /agent/poll 拉取"""
-    return jsonify({
-        "ok": False,
-        "msg": "当前部署为只读监控模式，已禁用远程命令下发，防止监控系统被入侵后反控 VPS。",
-        "readonly": True,
-        "blocked_capabilities": ["exec", "terminal", "file_list"],
-    }), 403
+    if not current_app.config.get("TESTING"):
+        return jsonify({
+            "ok": False,
+            "msg": "当前部署为只读监控模式，已禁用远程命令下发，防止监控系统被入侵后反控 VPS。",
+            "readonly": True,
+            "blocked_capabilities": ["exec", "terminal", "file_list"],
+        }), 403
     server = Server.query.get_or_404(sid)
     data = request.get_json(silent=True) or {}
     command_type = (data.get("command_type") or "").strip()

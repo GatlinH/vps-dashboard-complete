@@ -505,7 +505,7 @@ class TelegramConfig(db.Model):
             prefix=self.prefix,
             enabled=self.enabled,
             has_token=bool(self.bot_token),
-            bot_token="",
+            bot_token=token_masked,
             bot_token_masked=token_masked,
         )
 

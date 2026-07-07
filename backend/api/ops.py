@@ -546,7 +546,7 @@ def get_login_settings():
 
 
 @ops_bp.put("/settings/login")
-@owner_required
+@admin_required
 def put_login_settings():
     payload = request.get_json(silent=True) or {}
     _audit_ops_high_risk("login_settings_updated", "登录安全配置已修改", "login")
