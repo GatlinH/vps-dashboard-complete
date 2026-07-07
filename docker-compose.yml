@@ -149,6 +149,26 @@ services:
     networks:
       - vps-network
 
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend-vite/Dockerfile
+    container_name: vps_frontend
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:9119:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - vps-network
+
 
 volumes:
   mysql_data:
