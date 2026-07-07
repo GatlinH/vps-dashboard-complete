@@ -35,6 +35,8 @@ services:
       - --http-api-update
     environment:
       WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_HTTP_API_TOKEN:?set WATCHTOWER_HTTP_API_TOKEN}
+      # Docker 29+ rejects old API clients unless the Docker API version is pinned high enough.
+      DOCKER_API_VERSION: "1.44"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
