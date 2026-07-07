@@ -9,6 +9,7 @@ import subprocess
 import base64
 import json
 import re
+import urllib.parse
 import urllib.request
 from urllib.parse import urlparse
 from io import BytesIO
@@ -61,11 +62,25 @@ def _audit_manual_update(action, ok, message, payload=None):
         db.session.rollback()
 
 
+def _registry_token_for(scope):
+    url = f"https://ghcr.io/token?service=ghcr.io&scope={urllib.parse.quote(scope, safe=':')}"
+    headers = {}
+    read_token = os.environ.get("GHCR_READ_TOKEN", "").strip()
+    if read_token:
+        headers["Authorization"] = f"Bearer {read_token}"
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    return data.get("token") or data.get("access_token") or ""
+
+
 def _ghcr_manifest_digest(image, tag="latest"):
     owner, package = image.removeprefix("ghcr.io/").split("/", 1)
-    url = f"https://ghcr.io/v2/{owner}/{package}/manifests/{tag}"
-    headers = {"Accept": "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json"}
-    token = os.environ.get("GHCR_READ_TOKEN", "").strip()
+    repo = f"{owner}/{package}"
+    url = f"https://ghcr.io/v2/{repo}/manifests/{tag}"
+    accept = "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json"
+    headers = {"Accept": accept}
+    token = os.environ.get("GHCR_REGISTRY_TOKEN", "").strip() or _registry_token_for(f"repository:{repo}:pull")
     if token:
         headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(url, headers=headers)
