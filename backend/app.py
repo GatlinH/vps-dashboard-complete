@@ -204,7 +204,10 @@ def create_app(**config_overrides):
             db.create_all()
 
     # ===== 后台任务调度 =====
-    create_scheduler(app)
+    # 测试环境默认不启动后台 scheduler，避免 APScheduler 与 pytest 的
+    # sqlite:///:memory: fixture 并发写库/重建 schema 互相干扰。
+    if not app.config.get("TESTING") or app.config.get("ENABLE_SCHEDULER_IN_TESTS"):
+        create_scheduler(app)
 
     # ===== 健康检查 =====
     @app.route('/health')
