@@ -33,7 +33,6 @@ import { logout, checkSession } from './api/auth.js';
 import { ServerManager } from './components/admin/ServerManager.js';
 import { PingTool } from './components/admin/PingTool.js';
 import { TelegramPanel } from './components/admin/TelegramPanel.js';
-import { LoginPanel } from './components/admin/LoginPanel.js';
 import { OpsPanel } from './components/admin/OpsPanel.js';
 import { AccountPanel } from './components/admin/AccountPanel.js';
 import { UserAdminPanel } from './components/admin/UserAdminPanel.js';
@@ -279,10 +278,14 @@ async function showAdminPanel() {
  * 显示登录界面
  */
 function showLogin() {
+  // Keep one canonical auth flow: the public starmap login owns OAuth/provider
+  // discovery and password login. Direct /admin.html visits without a valid
+  // httpOnly session should not render the legacy inline admin login because it
+  // can leave stale admin DOM behind the form and gives inconsistent feedback.
   document.body.classList.remove('admin-preboot');
-  new LoginPanel('login-mount', {
-    onSuccess: () => showAdminPanel()
-  });
+  document.getElementById('admin-panel')?.style.setProperty('display', 'none');
+  const next = encodeURIComponent('admin');
+  window.location.replace(`/?login=1&next=${next}`);
 }
 
 // ─── 初始化启动 ─────────────────────────────────────────────────────────
