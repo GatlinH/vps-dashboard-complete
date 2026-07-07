@@ -14,7 +14,6 @@ services:
       - "127.0.0.1:3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./backend/init_db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     command: >
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
@@ -26,6 +25,37 @@ services:
       interval: 30s
       timeout: 5s
       retries: 10
+    networks:
+      - vps-network
+
+  schema_init:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vps_schema_init
+    restart: "no"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - /etc/vps-dashboard/secrets.env
+    environment:
+      FLASK_ENV: production
+      FLASK_DEBUG: "0"
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: "0"
+      FORCE_HTTPS: ${FORCE_HTTPS:-0}
+      JWT_COOKIE_SECURE: ${JWT_COOKIE_SECURE:-0}
+      DISABLE_SCHEDULER: "1"
+    command:
+      - sh
+      - -lc
+      - python -c "from app import create_app; from extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); db.create_all(); ctx.pop(); print('schema_init_ok')"
     networks:
       - vps-network
 
@@ -64,6 +94,8 @@ services:
     container_name: vps_api
     restart: unless-stopped
     depends_on:
+      schema_init:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
       redis:

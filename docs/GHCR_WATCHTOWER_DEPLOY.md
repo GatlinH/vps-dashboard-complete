@@ -31,6 +31,8 @@ git push main
 WATCHTOWER_HTTP_API_TOKEN=换成一串随机长字符串
 ```
 
+首次启动会运行一次 `schema_init` 容器，用当前 backend 镜像的 SQLAlchemy 模型创建数据库表；不再使用旧的 `backend/init_db.sql` 初始化业务表，避免新装缺字段。
+
 然后在 VPS 项目目录执行：
 
 ```bash
