@@ -51,9 +51,23 @@ docker compose \
   -f docker-compose.yml \
   -f docker-compose.ghcr.yml \
   up -d --no-build
+
+# 首次部署/迁移后，把宿主机注册为“主控节点”并安装只读 Agent
+sudo ./scripts/install-master-agent.sh
 ```
 
 > `--no-build` 很重要：确保使用 GHCR 镜像，而不是在 VPS 本机重新构建。
+>
+> `install-master-agent.sh` 会在宿主机创建/更新 `/opt/vps-agent` 和 `vps-agent.service`，并在数据库中创建/复用一个 `agent_config.install_role=master` 的主控节点。它是幂等的，重跑会复用已有有效 key；如果 key 已失效才会轮换。
+
+验证主控 Agent：
+
+```bash
+systemctl is-active vps-agent.service
+curl -sS http://127.0.0.1:5000/api/v1/servers/ | python3 -m json.tool | sed -n '1,80p'
+```
+
+预期至少有一个 `status: online` 的主控节点，首页可点击进入详情页并看到 CPU/内存/网络图表。
 
 ## 后台按钮
 
