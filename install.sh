@@ -630,7 +630,7 @@ print(len(bad))
   echo -e "${BOLD}${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
   echo ""
   echo -e "  ${BOLD}公开展示页：${RESET} http://${server_ip}/"
-  echo -e "  ${BOLD}管理后台：  ${RESET} http://${server_ip}/admin"
+  echo -e "  ${BOLD}管理后台：  ${RESET} http://${server_ip}/admin.html"
   echo ""
   echo -e "  ${BOLD}常用命令：${RESET}"
   echo -e "    查看状态：  docker compose --env-file ${SECRETS_FILE} --profile production ps"

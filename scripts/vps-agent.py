@@ -5,6 +5,7 @@ from datetime import datetime
 API_ROOT = os.environ["API_ROOT"].rstrip("/")
 AGENT_UUID = os.environ["AGENT_UUID"]
 AGENT_KEY = os.environ["AGENT_KEY"]
+SERVER_ID = os.environ.get("SERVER_ID", "")
 INTERVAL = max(2, int(os.environ.get("INTERVAL", "20")))
 PROBE_INTERVAL = max(10, int(os.environ.get("PROBE_INTERVAL", "60")))
 STATE_PATH = "/opt/vps-agent/state.json"
@@ -20,6 +21,29 @@ def read_os_name():
         return data.get("PRETTY_NAME") or data.get("NAME") or platform.platform()
     except Exception:
         return platform.platform()
+
+def read_kernel_version():
+    try:
+        return platform.release() or platform.uname().release or ""
+    except Exception:
+        return ""
+
+
+def read_cpu_model():
+    try:
+        with open("/proc/cpuinfo", "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                if line.lower().startswith("model name") and ":" in line:
+                    return line.split(":", 1)[1].strip()
+                if line.lower().startswith("hardware") and ":" in line:
+                    return line.split(":", 1)[1].strip()
+    except Exception:
+        pass
+    try:
+        return platform.processor() or platform.machine() or ""
+    except Exception:
+        return ""
+
 
 def get_ip():
     try:
@@ -112,7 +136,8 @@ def payload():
     net_up, net_down = net_rates()
     return {
         "uuid": AGENT_UUID, "status": "online", "hostname": socket.gethostname(),
-        "os": read_os_name(), "arch": platform.machine(), "cpu_cores": cores,
+        "os": read_os_name(), "kernel_version": read_kernel_version(),
+        "arch": platform.machine(), "cpu_model": read_cpu_model(), "cpu_cores": cores,
         "ram_gb": ram_gb, "disk_gb": disk_gb, "bandwidth": "N/A",
         "ip": get_ip(), "cpu_use": cpu_use(cores), "ram_use": ram_use,
         "disk_use": disk_use, "net_up": net_up, "net_down": net_down,
@@ -160,7 +185,10 @@ def tcp_probe(host, port, timeout=5):
 
 def probe_targets():
     try:
-        targets_resp = http_get(f"/api/v1/probe/public/ping-targets/12?count=2&source=agent")
+        sid = SERVER_ID or ""
+        if not sid:
+            return
+        targets_resp = http_get(f"/api/v1/probe/public/ping-targets/{sid}?count=2&source=agent")
     except Exception:
         return
     targets = targets_resp.get("targets", [])
