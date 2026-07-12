@@ -8,6 +8,7 @@ AGENT_KEY = os.environ["AGENT_KEY"]
 SERVER_ID = os.environ.get("SERVER_ID", "")
 INTERVAL = max(2, int(os.environ.get("INTERVAL", "20")))
 PROBE_INTERVAL = max(10, int(os.environ.get("PROBE_INTERVAL", "60")))
+AGENT_VERSION = os.environ.get("AGENT_VERSION", "readonly-agent/1.0.0")
 STATE_PATH = "/opt/vps-agent/state.json"
 
 def read_os_name():
@@ -136,6 +137,7 @@ def payload():
     net_up, net_down = net_rates()
     return {
         "uuid": AGENT_UUID, "status": "online", "hostname": socket.gethostname(),
+        "agent_version": AGENT_VERSION,
         "os": read_os_name(), "kernel_version": read_kernel_version(),
         "arch": platform.machine(), "cpu_model": read_cpu_model(), "cpu_cores": cores,
         "ram_gb": ram_gb, "disk_gb": disk_gb, "bandwidth": "N/A",

@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 import extensions
 from flask import Blueprint, current_app, jsonify, request
+from sqlalchemy.orm.attributes import flag_modified
 from werkzeug.security import check_password_hash
 
 from extensions import db
@@ -259,7 +260,7 @@ def _apply_agent_inventory(server: Server, data: dict):
         if isinstance(val, dict):
             inv.update(val)
     inv.update({k: v for k, v in data.items() if k in {
-        'hostname', 'os', 'os_name', 'kernel', 'kernel_version', 'arch', 'architecture',
+        'hostname', 'agent_version', 'os', 'os_name', 'kernel', 'kernel_version', 'arch', 'architecture',
         'cpu_model', 'cpu_name', 'processor', 'cpu_cores', 'cpu',
         'ram_gb', 'memory_gb', 'disk_gb', 'storage_gb', 'bandwidth', 'ip'
     }})
@@ -270,6 +271,7 @@ def _apply_agent_inventory(server: Server, data: dict):
     disk = _num(inv.get('disk_gb', inv.get('storage_gb')), int)
     bw = inv.get('bandwidth')
     hostname = inv.get('hostname')
+    agent_version = inv.get('agent_version')
     os_name = inv.get('os') or inv.get('os_name')
     kernel_version = inv.get('kernel_version') or inv.get('kernel')
     arch = inv.get('arch') or inv.get('architecture')
@@ -298,6 +300,8 @@ def _apply_agent_inventory(server: Server, data: dict):
 
     if hostname:
         extra['hostname'] = str(hostname).strip()
+    if agent_version:
+        extra['agent_version'] = str(agent_version).strip()[:80]
     if os_name:
         extra['os'] = str(os_name).strip()[:160]
     if kernel_version:
@@ -354,6 +358,7 @@ def _apply_agent_inventory(server: Server, data: dict):
     cfg['inventory_meta'] = extra
     if server.agent_config != cfg:
         server.agent_config = cfg
+        flag_modified(server, 'agent_config')
         changed = True
     return changed
 
