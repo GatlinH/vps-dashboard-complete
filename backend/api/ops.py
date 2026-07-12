@@ -167,7 +167,7 @@ def updates_check():
     # update availability unknown, while still surfacing a definite host-Agent
     # mismatch as actionable.
     update_available = True if agent.get("update_available") is True else None
-    return jsonify(ok=ok, action="check", update_available=update_available, images=images, agent=agent, errors=errors, msg=msg), 200 if ok else 502
+    return jsonify(ok=ok, action="check", mode="ghcr", update_available=update_available, images=images, agent=agent, errors=errors, msg=msg), 200 if ok else 502
 
 
 @ops_bp.post("/updates/apply")
@@ -191,6 +191,7 @@ def updates_apply():
     return jsonify(
         ok=ok,
         action="apply",
+        mode="ghcr",
         msg="已触发 Watchtower 镜像更新；宿主机 Agent 由 sudo ./scripts/install-master-agent.sh 或 sudo ./update.sh 同步。",
         output=body,
         services=list(_UPDATE_SERVICES),
