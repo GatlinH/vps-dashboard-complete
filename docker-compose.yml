@@ -130,11 +130,13 @@ services:
       AGENT_REQUIRE_TLS: ${AGENT_REQUIRE_TLS:-1}
       AGENT_PUSH_RATE_LIMIT: ${AGENT_PUSH_RATE_LIMIT:-60 per minute}
       AGENT_POLL_RATE_LIMIT: ${AGENT_POLL_RATE_LIMIT:-120 per minute}
+      UPDATE_RUNNER_SOCKET: ${UPDATE_RUNNER_SOCKET:-/run/vps-dashboard-updater/updater.sock}
     ports:
       - "127.0.0.1:5000:5000"
     volumes:
       - /var/log/vps-dashboard:/var/log/vps-dashboard
       - /var/lib/vps-dashboard:/var/lib/vps-dashboard
+      - /run/vps-dashboard-updater:/run/vps-dashboard-updater
     healthcheck:
       test: ["CMD", "python3", "-c", "import requests,sys; r=requests.get('http://localhost:5000/health',timeout=5,allow_redirects=False); sys.exit(0 if r.status_code in (200,302,503) else 1)"]
       interval: 30s

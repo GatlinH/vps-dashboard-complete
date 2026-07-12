@@ -44,15 +44,15 @@ export class OpsPanel {
         <div class="ops-section-row">
           <div>
             <div class="admin-card-title ops-card-title">版本更新</div>
-            <div class="ops-subtitle small">手动检查 GHCR 镜像和宿主机 Agent 版本；应用更新会触发容器更新，Agent 由宿主机 update.sh 同步。</div>
+            <div class="ops-subtitle small">检查 GitHub 源码更新；应用后由宿主机执行 update.sh，完成 git pull、前端构建、容器重建和 Agent 同步。</div>
           </div>
           <div class="ops-update-actions">
             <button class="komari-secondary" id="ops-update-status" type="button">刷新状态</button>
             <button class="komari-secondary" id="ops-update-check" type="button">检查更新</button>
-            <button class="add-btn" id="ops-update-apply" type="button">应用更新</button>
+            <button class="add-btn" id="ops-update-apply" type="button">执行全面更新</button>
           </div>
         </div>
-        <div class="ops-log-help" id="ops-update-hint">当前为手动更新模式：检查更新不会替换当前运行版本。</div>
+        <div class="ops-log-help" id="ops-update-hint">当前为 GitHub 源码更新模式：检查只 fetch 远端状态；执行全面更新会在宿主机运行 sudo ./update.sh。</div>
         <pre class="ops-update-output" id="ops-update-output">尚未检查</pre>
       </div>
       <div class="admin-card ops-summary-shell">
@@ -128,9 +128,25 @@ export class OpsPanel {
     if (payload.msg) lines.push(payload.msg);
     if (payload.services?.length) lines.push(`服务：${payload.services.join(', ')}`);
     if (payload.compose_files?.length) lines.push(`Compose：${payload.compose_files.join(' + ')}`);
-    if (payload.images?.length) {
-      lines.push('', '容器镜像：');
-      payload.images.forEach(img => lines.push(`- ${img.name || img.image}: ${img.digest ? String(img.digest).slice(0, 24) + '…' : '未获取 digest'}`));
+    if (payload.runner?.git) {
+      const g = payload.runner.git;
+      const state = g.update_available ? '发现新提交' : '已是最新';
+      lines.push('', `GitHub 源码：${state}`);
+      lines.push(`- 分支：${g.branch || '—'}`);
+      lines.push(`- 本地：${g.local_short || '—'}`);
+      lines.push(`- 远端：${g.remote_short || '—'}`);
+      if (g.error) lines.push(`- 错误：${g.error}`);
+    }
+    if (payload.runner?.runner) {
+      const r = payload.runner.runner;
+      lines.push('', `更新任务：${r.running ? '执行中' : '空闲'}`);
+      if (r.message) lines.push(`- 状态：${r.message}`);
+      if (r.started_at) lines.push(`- 开始：${r.started_at}`);
+      if (r.finished_at) lines.push(`- 结束：${r.finished_at}`);
+      if (r.exit_code !== null && r.exit_code !== undefined) lines.push(`- 退出码：${r.exit_code}`);
+    }
+    if (payload.runner?.log_tail) {
+      lines.push('', '最近更新日志：', String(payload.runner.log_tail).slice(-2000));
     }
     if (payload.agent) {
       const a = payload.agent;
@@ -143,7 +159,7 @@ export class OpsPanel {
     }
     if (payload.output) lines.push('', String(payload.output).slice(-2000));
     if (out) out.textContent = lines.filter(Boolean).join('\n');
-    if (hint && payload.mode === 'manual') hint.textContent = '手动模式：检查更新只读取镜像和 Agent 状态；应用更新才会重启容器，宿主机 Agent 由 update.sh 同步。';
+    if (hint && payload.mode === 'github-source') hint.textContent = 'GitHub 源码模式：检查只 fetch 远端；执行全面更新会运行 update.sh。';
   }
 
   async _withUpdateButton(selector, label, task) {
@@ -171,9 +187,9 @@ export class OpsPanel {
   }
 
   async _runUpdateApply() {
-    const ok = window.confirm('应用更新会重启前端、后端和 Agent 消费容器；宿主机 vps-agent 需要由 sudo ./update.sh 同步。确定现在更新吗？');
+    const ok = window.confirm('执行全面更新会在宿主机运行 sudo ./update.sh：拉取 GitHub、构建前端、重建容器并同步 Agent。确定现在更新吗？');
     if (!ok) return;
-    return this._withUpdateButton('#ops-update-apply', '应用更新', applyUpdates);
+    return this._withUpdateButton('#ops-update-apply', '执行全面更新', applyUpdates);
   }
 
   _summaryCard(title, rows = [], kind = '') {

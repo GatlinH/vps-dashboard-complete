@@ -524,6 +524,11 @@ install_master_agent() {
     "${REPO_DIR}/scripts/install-master-agent.sh"
 }
 
+install_update_runner() {
+  log_section "安装后台全面更新服务"
+  REPO_DIR="${REPO_DIR}" "${REPO_DIR}/scripts/install-update-runner.sh"
+}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 准备公网入口（Caddy → 本机前端端口）
 # ─────────────────────────────────────────────────────────────────────────────
@@ -677,6 +682,7 @@ main() {
   start_services
   configure_public_proxy
   install_master_agent
+  install_update_runner
   show_status
 }
 

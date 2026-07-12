@@ -182,6 +182,20 @@ sync_host_agent() {
   log_ok "宿主机 Agent 已同步并重启。"
 }
 
+sync_update_runner() {
+  log_section "同步后台全面更新服务"
+  if [[ "${SKIP_UPDATE_RUNNER_SYNC:-0}" == "1" ]]; then
+    log_warn "当前由 updater 自身触发，跳过重启 updater 服务。"
+    return
+  fi
+  if [[ ! -x "${REPO_DIR}/scripts/install-update-runner.sh" ]]; then
+    log_warn "缺少 scripts/install-update-runner.sh，跳过 updater 同步。"
+    return
+  fi
+  REPO_DIR="${REPO_DIR}" "${REPO_DIR}/scripts/install-update-runner.sh"
+  log_ok "后台全面更新服务已同步。"
+}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 展示状态
 # ─────────────────────────────────────────────────────────────────────────────
@@ -242,6 +256,7 @@ main() {
   build_frontend
   restart_services
   sync_host_agent
+  sync_update_runner
   show_status
 }
 
