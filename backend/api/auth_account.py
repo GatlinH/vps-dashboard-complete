@@ -115,7 +115,20 @@ def _generate_random_password(length: int = 20) -> str:
 def _get_or_create_default_admin():
     u = User.query.filter_by(username="admin").first()
     if not u:
-        default_password = current_app.config.get("ADMIN_DEFAULT_PASSWORD", "") or _generate_random_password()
+        configured_password = current_app.config.get("ADMIN_DEFAULT_PASSWORD", "")
+        default_password = configured_password or _generate_random_password()
+        if not configured_password:
+            print(
+                "\n" + "=" * 60 + "\n"
+                "⚠️  ADMIN_DEFAULT_PASSWORD 未设置，已自动生成随机密码。\n"
+                f"   admin 初始密码: {default_password}\n"
+                "   请登录后立即修改密码！\n"
+                + "=" * 60 + "\n",
+                flush=True,
+            )
+            current_app.logger.warning(
+                "ADMIN_DEFAULT_PASSWORD 未设置，已自动生成随机 admin 初始密码；请登录后立即修改。"
+            )
         u = User(username="admin", password_hash=generate_password_hash(default_password), role="admin", email_verified=True)
         db.session.add(u)
         db.session.commit()
