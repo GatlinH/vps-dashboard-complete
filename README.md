@@ -71,7 +71,7 @@ cd vps-dashboard-complete
 sudo ./install.sh
 ```
 
-安装脚本会检查 Docker、准备 `/etc/vps-dashboard/secrets.env`、启动 Docker Compose 服务，并在需要时生成初始配置模板。
+安装脚本会检查 Docker、准备 `/etc/vps-dashboard/secrets.env`、构建前端、启动 Docker Compose 服务，并在可用时自动配置 Caddy：公网 `:80` → 本机 `127.0.0.1:9119`。
 
 ### 手动 Docker Compose
 

@@ -525,6 +525,51 @@ install_master_agent() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 准备公网入口（Caddy → 本机前端端口）
+# ─────────────────────────────────────────────────────────────────────────────
+configure_public_proxy() {
+  log_section "配置公网入口"
+
+  if ! command -v caddy &>/dev/null; then
+    log_info "未检测到 Caddy，尝试通过系统包管理器安装..."
+    if [[ "${PKG_FAMILY}" == "debian" ]]; then
+      apt-get update -y
+      apt-get install -y caddy
+    else
+      local pm
+      pm="$(command -v dnf &>/dev/null && echo dnf || echo yum)"
+      ${pm} install -y caddy
+    fi
+  fi
+
+  if ! command -v caddy &>/dev/null; then
+    log_warn "Caddy 自动安装失败；前端容器仅监听 127.0.0.1:9119。"
+    log_warn "请自行配置 Caddy/Nginx 反代到 127.0.0.1:9119。"
+    return
+  fi
+
+  mkdir -p /etc/caddy
+  if [[ -f /etc/caddy/Caddyfile ]]; then
+    cp /etc/caddy/Caddyfile "/etc/caddy/Caddyfile.vps-dashboard.$(date +%Y%m%d%H%M%S).bak"
+  fi
+
+  cat > /etc/caddy/Caddyfile <<'EOF'
+:80 {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:9119
+}
+EOF
+
+  if command -v systemctl &>/dev/null; then
+    systemctl enable --now caddy
+    systemctl reload caddy 2>/dev/null || systemctl restart caddy
+    log_ok "Caddy 已配置：:80 → 127.0.0.1:9119"
+  else
+    log_warn "未找到 systemctl，请手动启动 Caddy。"
+  fi
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 等待并展示状态
 # ─────────────────────────────────────────────────────────────────────────────
 show_status() {
@@ -630,6 +675,7 @@ main() {
   build_frontend
   setup_env_symlink
   start_services
+  configure_public_proxy
   install_master_agent
   show_status
 }
