@@ -44,7 +44,7 @@ export class OpsPanel {
         <div class="ops-section-row">
           <div>
             <div class="admin-card-title ops-card-title">版本更新</div>
-            <div class="ops-subtitle small">手动检查 GHCR 镜像；只有点击“应用更新”才会重启容器，适合保留当前稳定版本。</div>
+            <div class="ops-subtitle small">手动检查 GHCR 镜像和宿主机 Agent 版本；应用更新会触发容器更新，Agent 由宿主机 update.sh 同步。</div>
           </div>
           <div class="ops-update-actions">
             <button class="komari-secondary" id="ops-update-status" type="button">刷新状态</button>
@@ -128,9 +128,22 @@ export class OpsPanel {
     if (payload.msg) lines.push(payload.msg);
     if (payload.services?.length) lines.push(`服务：${payload.services.join(', ')}`);
     if (payload.compose_files?.length) lines.push(`Compose：${payload.compose_files.join(' + ')}`);
+    if (payload.images?.length) {
+      lines.push('', '容器镜像：');
+      payload.images.forEach(img => lines.push(`- ${img.name || img.image}: ${img.digest ? String(img.digest).slice(0, 24) + '…' : '未获取 digest'}`));
+    }
+    if (payload.agent) {
+      const a = payload.agent;
+      const state = a.update_available === true ? '需同步' : (a.installed ? '已同步' : '未上报');
+      lines.push('', `宿主机 Agent：${state}`);
+      lines.push(`- 当前：${a.current_version || '—'}`);
+      lines.push(`- 期望：${a.expected_version || '—'}`);
+      if (a.apply_hint) lines.push(`- 更新方式：${a.apply_hint}`);
+      if (a.error) lines.push(`- 错误：${a.error}`);
+    }
     if (payload.output) lines.push('', String(payload.output).slice(-2000));
     if (out) out.textContent = lines.filter(Boolean).join('\n');
-    if (hint && payload.mode === 'manual') hint.textContent = '手动模式：检查更新只拉取镜像；应用更新才会重启容器。';
+    if (hint && payload.mode === 'manual') hint.textContent = '手动模式：检查更新只读取镜像和 Agent 状态；应用更新才会重启容器，宿主机 Agent 由 update.sh 同步。';
   }
 
   async _withUpdateButton(selector, label, task) {
@@ -158,7 +171,7 @@ export class OpsPanel {
   }
 
   async _runUpdateApply() {
-    const ok = window.confirm('应用更新会重启前端、后端和 Agent 消费容器。确定现在更新吗？');
+    const ok = window.confirm('应用更新会重启前端、后端和 Agent 消费容器；宿主机 vps-agent 需要由 sudo ./update.sh 同步。确定现在更新吗？');
     if (!ok) return;
     return this._withUpdateButton('#ops-update-apply', '应用更新', applyUpdates);
   }

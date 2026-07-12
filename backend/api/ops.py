@@ -46,6 +46,48 @@ _UPDATE_IMAGES = (
     {"name": "frontend", "image": "ghcr.io/gatlinh/vps-dashboard-complete-frontend", "tag": "latest"},
 )
 _UPDATE_SERVICES = ("frontend", "api", "agent_consumer")
+_EXPECTED_AGENT_VERSION = os.environ.get("EXPECTED_AGENT_VERSION", "readonly-agent/1.0.0").strip() or "readonly-agent/1.0.0"
+
+
+def _agent_update_state():
+    """Return host Agent version state for the admin update panel.
+
+    The API container intentionally cannot write /opt/vps-agent on the host.
+    It reports status here; host-side sync is performed by sudo ./update.sh or
+    scripts/install-master-agent.sh.
+    """
+    try:
+        server = (
+            Server.query
+            .filter(Server.agent_config.isnot(None))
+            .order_by(Server.id.asc())
+            .first()
+        )
+        current = ""
+        if server:
+            cfg = server.agent_config if isinstance(server.agent_config, dict) else {}
+            raw_meta = cfg.get("inventory_meta")
+            meta = raw_meta if isinstance(raw_meta, dict) else {}
+            current = str(meta.get("agent_version") or "").strip()
+        return {
+            "name": "host-agent",
+            "current_version": current,
+            "expected_version": _EXPECTED_AGENT_VERSION,
+            "update_available": bool(current and current != _EXPECTED_AGENT_VERSION),
+            "installed": bool(current),
+            "apply_supported": False,
+            "apply_hint": "宿主机 Agent 不在 Docker 容器内；请运行 sudo ./update.sh 或 sudo ./scripts/install-master-agent.sh 同步。",
+        }
+    except Exception as exc:
+        return {
+            "name": "host-agent",
+            "current_version": "",
+            "expected_version": _EXPECTED_AGENT_VERSION,
+            "update_available": None,
+            "installed": False,
+            "apply_supported": False,
+            "error": str(exc)[:200],
+        }
 
 
 def _audit_manual_update(action, ok, message, payload=None):
@@ -98,6 +140,7 @@ def updates_status():
         auto_update=False,
         services=list(_UPDATE_SERVICES),
         images=_UPDATE_IMAGES,
+        agent=_agent_update_state(),
         msg="当前为手动更新模式：检查更新不会重启服务；应用更新需要管理员确认。",
     ), 200
 
@@ -112,10 +155,13 @@ def updates_check():
             images.append({**item, **_ghcr_manifest_digest(item["image"], item["tag"])})
         except Exception as exc:
             errors.append({"image": item["image"], "error": str(exc)[:300]})
+    agent = _agent_update_state()
     ok = not errors
     msg = "镜像清单检查完成" if ok else "部分镜像检查失败"
-    _audit_manual_update("check", ok, msg, {"images": images, "errors": errors})
-    return jsonify(ok=ok, action="check", update_available=None, images=images, errors=errors, msg=msg), 200 if ok else 502
+    if agent.get("update_available") is True:
+        msg += "；宿主机 Agent 有可同步版本"
+    _audit_manual_update("check", ok, msg, {"images": images, "errors": errors, "agent": agent})
+    return jsonify(ok=ok, action="check", update_available=agent.get("update_available"), images=images, agent=agent, errors=errors, msg=msg), 200 if ok else 502
 
 
 @ops_bp.post("/updates/apply")
@@ -133,8 +179,16 @@ def updates_apply():
     except Exception as exc:
         _audit_manual_update("apply", False, str(exc), {"services": list(_UPDATE_SERVICES)})
         return jsonify(ok=False, action="apply", msg=f"触发 Watchtower 更新失败：{exc}"), 502
-    _audit_manual_update("apply", ok, body or "已触发 Watchtower 手动更新", {"services": list(_UPDATE_SERVICES)})
-    return jsonify(ok=ok, action="apply", msg="已触发 Watchtower 手动更新", output=body, services=list(_UPDATE_SERVICES)), 202 if ok else 502
+    agent = _agent_update_state()
+    _audit_manual_update("apply", ok, body or "已触发 Watchtower 手动更新", {"services": list(_UPDATE_SERVICES), "agent": agent})
+    return jsonify(
+        ok=ok,
+        action="apply",
+        msg="已触发 Watchtower 手动更新；宿主机 Agent 请通过 sudo ./update.sh 同步。",
+        output=body,
+        services=list(_UPDATE_SERVICES),
+        agent=agent,
+    ), 202 if ok else 502
 
 
 @ops_bp.get("/events")

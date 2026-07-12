@@ -167,6 +167,22 @@ restart_services() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 同步宿主机 Agent
+# ─────────────────────────────────────────────────────────────────────────────
+sync_host_agent() {
+  log_section "同步宿主机 Agent"
+
+  if [[ ! -x "${REPO_DIR}/scripts/install-master-agent.sh" ]]; then
+    log_warn "缺少 scripts/install-master-agent.sh，跳过宿主机 Agent 同步。"
+    return
+  fi
+
+  REPO_DIR="${REPO_DIR}" SECRETS_FILE="${SECRETS_FILE}" COMPOSE_FILES="docker-compose.yml" \
+    "${REPO_DIR}/scripts/install-master-agent.sh"
+  log_ok "宿主机 Agent 已同步并重启。"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 展示状态
 # ─────────────────────────────────────────────────────────────────────────────
 show_status() {
@@ -225,6 +241,7 @@ main() {
   git_pull
   build_frontend
   restart_services
+  sync_host_agent
   show_status
 }
 
