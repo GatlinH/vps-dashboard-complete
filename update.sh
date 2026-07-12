@@ -2,7 +2,7 @@
 # update.sh — 更新 VPS Dashboard（生产环境）
 # 用法：sudo ./update.sh
 # 环境变量：
-#   SKIP_FRONTEND_BUILD=1  跳过前端构建（默认：0）
+#   VPS Dashboard 默认使用 GHCR 镜像部署；本脚本只拉取源码中的 compose/脚本更新和最新镜像。
 # shellcheck disable=SC1091
 
 set -Eeuo pipefail
@@ -112,58 +112,26 @@ git_pull() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 构建前端
-# ─────────────────────────────────────────────────────────────────────────────
-build_frontend() {
-  log_section "构建前端"
-
-  local dist_dir="${REPO_DIR}/frontend-dist"
-  local src_dir="${REPO_DIR}/frontend-vite"
-
-  if [[ "${SKIP_FRONTEND_BUILD:-0}" == "1" ]]; then
-    log_warn "SKIP_FRONTEND_BUILD=1，跳过前端构建。"
-    if [[ ! -d "${dist_dir}" || -z "$(ls -A "${dist_dir}" 2>/dev/null)" ]]; then
-      die "SKIP_FRONTEND_BUILD=1 但 frontend-dist/ 不存在或为空，无法继续。"
-    fi
-    log_ok "使用已有构建产物：${dist_dir}"
-    return
-  fi
-
-  if ! command -v node &>/dev/null || ! command -v npm &>/dev/null; then
-    die "未找到 node/npm，请先运行 sudo ./install.sh 或手动安装 Node.js 22 LTS"
-  fi
-
-  log_info "安装前端依赖..."
-  if ! (cd "${src_dir}" && npm ci --prefer-offline 2>/dev/null); then
-    log_warn "离线缓存未命中，切换到在线安装..."
-    (cd "${src_dir}" && npm ci)
-  fi
-
-  log_info "构建前端..."
-  (cd "${src_dir}" && npm run build)
-
-  if [[ ! -d "${dist_dir}" || -z "$(ls -A "${dist_dir}" 2>/dev/null)" ]]; then
-    die "前端构建失败：frontend-dist/ 目录不存在或为空。"
-  fi
-
-  log_ok "前端构建完成：${dist_dir}"
-}
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 重建并拉起服务
+# 拉取镜像并拉起服务
 # ─────────────────────────────────────────────────────────────────────────────
 restart_services() {
-  log_section "重建并拉起服务"
+  log_section "拉取 GHCR 镜像并拉起服务"
 
   cd "${REPO_DIR}"
 
-  log_info "重建并启动（production profile）..."
+  log_info "拉取最新 GHCR 镜像..."
   docker compose \
     --env-file "${SECRETS_FILE}" \
     --profile production \
-    up -d --build
+    pull
 
-  log_ok "服务重建完成。"
+  log_info "使用镜像启动服务（不在本机构建）..."
+  docker compose \
+    --env-file "${SECRETS_FILE}" \
+    --profile production \
+    up -d --no-build
+
+  log_ok "镜像更新完成。"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -182,19 +150,6 @@ sync_host_agent() {
   log_ok "宿主机 Agent 已同步并重启。"
 }
 
-sync_update_runner() {
-  log_section "同步后台全面更新服务"
-  if [[ "${SKIP_UPDATE_RUNNER_SYNC:-0}" == "1" ]]; then
-    log_warn "当前由 updater 自身触发，跳过重启 updater 服务。"
-    return
-  fi
-  if [[ ! -x "${REPO_DIR}/scripts/install-update-runner.sh" ]]; then
-    log_warn "缺少 scripts/install-update-runner.sh，跳过 updater 同步。"
-    return
-  fi
-  REPO_DIR="${REPO_DIR}" "${REPO_DIR}/scripts/install-update-runner.sh"
-  log_ok "后台全面更新服务已同步。"
-}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 展示状态
@@ -253,10 +208,8 @@ main() {
   preflight
   record_current_version
   git_pull
-  build_frontend
   restart_services
   sync_host_agent
-  sync_update_runner
   show_status
 }
 

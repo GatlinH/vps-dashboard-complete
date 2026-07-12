@@ -65,7 +65,8 @@ def test_update_apply_triggers_watchtower_http_api_only_after_admin_action(clien
     data = resp.get_json()
     assert data['ok'] is True
     assert data['action'] == 'apply'
-    assert data['msg'] == '已触发 Watchtower 手动更新'
+    assert data['msg'].startswith('已触发 Watchtower 镜像更新')
+    assert '宿主机 Agent' in data['msg']
     assert requests[0].full_url.endswith('/v1/update')
     assert requests[0].get_method() == 'POST'
     assert requests[0].headers['Authorization'] == 'Bearer test-token'

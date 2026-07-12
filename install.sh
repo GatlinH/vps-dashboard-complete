@@ -25,6 +25,7 @@ REQUIRED_VARS=(
   MASTER_ENCRYPTION_KEY
   CORS_ORIGINS
   FRONTEND_URL        # ← 新增
+  WATCHTOWER_HTTP_API_TOKEN
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -340,6 +341,7 @@ TRUST_PROXY=1
 AGENT_REQUIRE_TLS=1
 AGENT_PUSH_RATE_LIMIT=60 per minute
 AGENT_POLL_RATE_LIMIT=120 per minute
+WATCHTOWER_HTTP_API_TOKEN=$(openssl rand -hex 32)
 EOF
     chmod 600 "${SECRETS_FILE}"
     log_ok "已自动生成安全 Secrets 文件（权限 600）：${SECRETS_FILE}"
@@ -506,11 +508,17 @@ start_services() {
 
   cd "${REPO_DIR}"
 
-  log_info "拉取/构建镜像并启动（production profile）..."
+  log_info "拉取 GHCR 镜像..."
   docker compose \
     --env-file "${SECRETS_FILE}" \
     --profile production \
-    up -d --build
+    pull
+
+  log_info "启动 GHCR 镜像服务（不在本机构建）..."
+  docker compose \
+    --env-file "${SECRETS_FILE}" \
+    --profile production \
+    up -d --no-build
 
   log_ok "服务启动命令已执行。"
 }
@@ -524,10 +532,6 @@ install_master_agent() {
     "${REPO_DIR}/scripts/install-master-agent.sh"
 }
 
-install_update_runner() {
-  log_section "安装后台全面更新服务"
-  REPO_DIR="${REPO_DIR}" "${REPO_DIR}/scripts/install-update-runner.sh"
-}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 准备公网入口（Caddy → 本机前端端口）
@@ -677,12 +681,10 @@ main() {
   validate_secrets
   prepare_allowlist
   prepare_log_dir
-  build_frontend
   setup_env_symlink
   start_services
   configure_public_proxy
   install_master_agent
-  install_update_runner
   show_status
 }
 

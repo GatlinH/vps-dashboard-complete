@@ -29,9 +29,7 @@ services:
       - vps-network
 
   schema_init:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: ghcr.io/gatlinh/vps-dashboard-complete-backend:latest
     container_name: vps_schema_init
     restart: "no"
     depends_on:
@@ -88,11 +86,11 @@ services:
       - vps-network
 
   api:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: ghcr.io/gatlinh/vps-dashboard-complete-backend:latest
     container_name: vps_api
     restart: unless-stopped
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
     depends_on:
       schema_init:
         condition: service_completed_successfully
@@ -130,13 +128,13 @@ services:
       AGENT_REQUIRE_TLS: ${AGENT_REQUIRE_TLS:-1}
       AGENT_PUSH_RATE_LIMIT: ${AGENT_PUSH_RATE_LIMIT:-60 per minute}
       AGENT_POLL_RATE_LIMIT: ${AGENT_POLL_RATE_LIMIT:-120 per minute}
-      UPDATE_RUNNER_SOCKET: ${UPDATE_RUNNER_SOCKET:-/run/vps-dashboard-updater/updater.sock}
+      WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_HTTP_API_TOKEN:-}
+      WATCHTOWER_HTTP_API_URL: http://watchtower:8080/v1/update
     ports:
       - "127.0.0.1:5000:5000"
     volumes:
       - /var/log/vps-dashboard:/var/log/vps-dashboard
       - /var/lib/vps-dashboard:/var/lib/vps-dashboard
-      - /run/vps-dashboard-updater:/run/vps-dashboard-updater
     healthcheck:
       test: ["CMD", "python3", "-c", "import requests,sys; r=requests.get('http://localhost:5000/health',timeout=5,allow_redirects=False); sys.exit(0 if r.status_code in (200,302,503) else 1)"]
       interval: 30s
@@ -147,11 +145,11 @@ services:
       - vps-network
 
   agent_consumer:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: ghcr.io/gatlinh/vps-dashboard-complete-backend:latest
     container_name: vps_agent_consumer
     restart: unless-stopped
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
     healthcheck:
       test: ["CMD", "python3", "-c", "import os,sys; sys.exit(0 if os.path.exists('/proc/1') else 1)"]
       interval: 30s
@@ -185,11 +183,11 @@ services:
       - vps-network
 
   frontend:
-    build:
-      context: .
-      dockerfile: frontend-vite/Dockerfile
+    image: ghcr.io/gatlinh/vps-dashboard-complete-frontend:latest
     container_name: vps_frontend
     restart: unless-stopped
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
     depends_on:
       api:
         condition: service_healthy
@@ -201,6 +199,23 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    networks:
+      - vps-network
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: vps_watchtower
+    restart: unless-stopped
+    command:
+      - --label-enable
+      - --cleanup
+      - --rolling-restart
+      - --http-api-update
+    environment:
+      WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_HTTP_API_TOKEN:?set WATCHTOWER_HTTP_API_TOKEN}
+      DOCKER_API_VERSION: "1.44"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - vps-network
 

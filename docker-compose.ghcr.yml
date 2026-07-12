@@ -1,46 +1,7 @@
-# Docker image deployment override for VPS.
-# Usage on the VPS:
-#   docker compose -f docker-compose.yml -f docker-compose.ghcr.yml pull
-#   docker compose -f docker-compose.yml -f docker-compose.ghcr.yml up -d --no-build
+# Backward-compatible no-op override.
 #
-# Watchtower will keep frontend/api/agent_consumer updated from GHCR without GitHub Actions SSH.
+# GHCR image deployment is now the default in docker-compose.yml. Older docs used:
+#   docker compose -f docker-compose.yml -f docker-compose.ghcr.yml up -d --no-build
+# Keeping this file avoids breaking that command; it intentionally does not override services.
 
-services:
-  api:
-    image: ghcr.io/gatlinh/vps-dashboard-complete-backend:latest
-    environment:
-      WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_HTTP_API_TOKEN:-}
-      WATCHTOWER_HTTP_API_URL: http://watchtower:8080/v1/update
-    labels:
-      com.centurylinklabs.watchtower.enable: "true"
-
-  schema_init:
-    image: ghcr.io/gatlinh/vps-dashboard-complete-backend:latest
-
-  agent_consumer:
-    image: ghcr.io/gatlinh/vps-dashboard-complete-backend:latest
-    labels:
-      com.centurylinklabs.watchtower.enable: "true"
-
-  frontend:
-    image: ghcr.io/gatlinh/vps-dashboard-complete-frontend:latest
-    labels:
-      com.centurylinklabs.watchtower.enable: "true"
-
-  watchtower:
-    image: containrrr/watchtower:latest
-    container_name: vps_watchtower
-    restart: unless-stopped
-    command:
-      - --label-enable
-      - --cleanup
-      - --rolling-restart
-      - --http-api-update
-    environment:
-      WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_HTTP_API_TOKEN:?set WATCHTOWER_HTTP_API_TOKEN}
-      # Docker 29+ rejects old API clients unless the Docker API version is pinned high enough.
-      DOCKER_API_VERSION: "1.44"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - vps-network
+services: {}

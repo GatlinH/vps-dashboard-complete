@@ -9,7 +9,6 @@ import subprocess
 import base64
 import json
 import re
-import socket
 import urllib.parse
 import urllib.request
 from urllib.parse import urlparse
@@ -48,40 +47,6 @@ _UPDATE_IMAGES = (
 )
 _UPDATE_SERVICES = ("frontend", "api", "agent_consumer")
 _EXPECTED_AGENT_VERSION = os.environ.get("EXPECTED_AGENT_VERSION", "readonly-agent/1.0.0").strip() or "readonly-agent/1.0.0"
-_UPDATE_RUNNER_SOCKET = os.environ.get("UPDATE_RUNNER_SOCKET", "/run/vps-dashboard-updater/updater.sock")
-
-
-def _runner_request(method="GET", path="/status", timeout=5):
-    if not os.path.exists(_UPDATE_RUNNER_SOCKET):
-        return {
-            "ok": False,
-            "mode": "github-source",
-            "msg": "宿主机 updater 未安装或未运行",
-            "socket": _UPDATE_RUNNER_SOCKET,
-        }, 503
-    req = f"{method} {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Length: 0\r\n\r\n".encode("utf-8")
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
-        sock.settimeout(timeout)
-        sock.connect(_UPDATE_RUNNER_SOCKET)
-        sock.sendall(req)
-        chunks = []
-        while True:
-            data = sock.recv(65536)
-            if not data:
-                break
-            chunks.append(data)
-    raw = b"".join(chunks)
-    head, _, body = raw.partition(b"\r\n\r\n")
-    status = 502
-    try:
-        status = int(head.split(b" ", 2)[1])
-    except Exception:
-        pass
-    try:
-        payload = json.loads(body.decode("utf-8", "replace") or "{}")
-    except Exception:
-        payload = {"ok": False, "msg": body.decode("utf-8", "replace")[:1000]}
-    return payload, status
 
 
 def _agent_update_state():
@@ -169,52 +134,68 @@ def _ghcr_manifest_digest(image, tag="latest"):
 @ops_bp.get("/updates/status")
 @viewer_or_admin_required
 def updates_status():
-    runner, status = _runner_request("GET", "/status")
     agent = _agent_update_state()
-    ok = bool(runner.get("ok"))
     return jsonify(
-        ok=ok,
-        mode="github-source",
+        ok=True,
+        mode="ghcr",
         auto_update=False,
         services=list(_UPDATE_SERVICES),
+        images=_UPDATE_IMAGES,
         agent=agent,
-        runner=runner,
-        msg="GitHub 源码全面更新：检查会 fetch 远端提交；应用会在宿主机执行 sudo ./update.sh。" if ok else runner.get("msg", "updater 状态读取失败"),
-    ), 200 if ok else status
+        msg="GHCR 镜像部署模式：检查更新读取镜像清单；应用更新会触发 Watchtower 拉取镜像并滚动重启容器。",
+    ), 200
 
 
 @ops_bp.post("/updates/check")
 @admin_required
 def updates_check():
-    runner, status = _runner_request("GET", "/check", timeout=20)
+    images = []
+    errors = []
+    for item in _UPDATE_IMAGES:
+        try:
+            images.append({**item, **_ghcr_manifest_digest(item["image"], item["tag"])})
+        except Exception as exc:
+            errors.append({"image": item["image"], "error": str(exc)[:300]})
     agent = _agent_update_state()
-    ok = bool(runner.get("ok"))
-    raw_git = runner.get("git")
-    git = raw_git if isinstance(raw_git, dict) else {}
-    update_available = bool(git.get("update_available")) or agent.get("update_available") is True
-    msg = "GitHub 源码检查完成" if ok else runner.get("msg", "GitHub 源码检查失败")
-    if update_available:
-        msg += "；发现可更新内容"
-    _audit_manual_update("check", ok, msg, {"runner": runner, "agent": agent})
-    return jsonify(ok=ok, action="check", update_available=update_available, runner=runner, agent=agent, msg=msg), 200 if ok else status
+    ok = not errors
+    msg = "GHCR 镜像清单检查完成" if ok else "部分 GHCR 镜像检查失败"
+    if agent.get("update_available") is True:
+        msg += "；宿主机 Agent 有可同步版本"
+    _audit_manual_update("check", ok, msg, {"images": images, "errors": errors, "agent": agent})
+    # GHCR manifest checks are read-only and do not know whether the currently
+    # running container digest differs from the remote digest. Keep container
+    # update availability unknown, while still surfacing a definite host-Agent
+    # mismatch as actionable.
+    update_available = True if agent.get("update_available") is True else None
+    return jsonify(ok=ok, action="check", update_available=update_available, images=images, agent=agent, errors=errors, msg=msg), 200 if ok else 502
 
 
 @ops_bp.post("/updates/apply")
 @admin_required
 def updates_apply():
-    runner, status = _runner_request("POST", "/update", timeout=10)
+    token = os.environ.get("WATCHTOWER_HTTP_API_TOKEN", "").strip()
+    if not token:
+        return jsonify(ok=False, action="apply", msg="WATCHTOWER_HTTP_API_TOKEN 未配置，无法触发镜像更新"), 503
+    url = os.environ.get("WATCHTOWER_HTTP_API_URL", "http://watchtower:8080/v1/update").strip()
+    req = urllib.request.Request(url, data=b"", method="POST", headers={"Authorization": f"Bearer {token}"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            body = resp.read().decode("utf-8", "replace")[:1000]
+            ok = 200 <= getattr(resp, "status", 200) < 300
+    except Exception as exc:
+        _audit_manual_update("apply", False, str(exc), {"services": list(_UPDATE_SERVICES)})
+        return jsonify(ok=False, action="apply", msg=f"触发 Watchtower 镜像更新失败：{exc}"), 502
     agent = _agent_update_state()
-    ok = bool(runner.get("ok"))
-    msg = runner.get("msg") or ("已开始 GitHub 源码全面更新" if ok else "GitHub 源码全面更新触发失败")
-    _audit_manual_update("apply", ok, msg, {"services": list(_UPDATE_SERVICES), "agent": agent, "runner": runner})
+    msg = "已触发 Watchtower 镜像更新"
+    _audit_manual_update("apply", ok, body or msg, {"services": list(_UPDATE_SERVICES), "agent": agent})
     return jsonify(
         ok=ok,
         action="apply",
-        msg=msg,
+        msg="已触发 Watchtower 镜像更新；宿主机 Agent 由 sudo ./scripts/install-master-agent.sh 或 sudo ./update.sh 同步。",
+        output=body,
         services=list(_UPDATE_SERVICES),
         agent=agent,
-        runner=runner,
-    ), 202 if ok else status
+    ), 202 if ok else 502
 
 
 @ops_bp.get("/events")
