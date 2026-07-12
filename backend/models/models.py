@@ -222,6 +222,10 @@ class Server(db.Model):
         region = str(inventory_meta.get('region') or cfg.get('region') or '').strip()
         country = str(inventory_meta.get('country') or cfg.get('country') or '').strip()
         provider_guess = str(inventory_meta.get('provider_guess') or cfg.get('provider_guess') or inventory_meta.get('org') or inventory_meta.get('isp') or '').strip()
+        runtime_os = str(inventory_meta.get('os') or cfg.get('os') or '').strip()
+        runtime_kernel = str(inventory_meta.get('kernel_version') or inventory_meta.get('kernel') or cfg.get('kernel_version') or cfg.get('kernel') or '').strip()
+        runtime_arch = str(inventory_meta.get('arch') or cfg.get('arch') or '').strip()
+        runtime_cpu_model = str(inventory_meta.get('cpu_model') or inventory_meta.get('cpu_name') or cfg.get('cpu_model') or cfg.get('cpu_name') or '').strip()
         effective_location = str(self.location or '').strip() or format_server_location(city, region, country)
 
         merged_agent_config = dict(cfg or {})
@@ -242,6 +246,10 @@ class Server(db.Model):
             bw=self.bandwidth,
             provider=self.provider or '',
             provider_guess=provider_guess,
+            os=runtime_os[:160],
+            kernel_version=runtime_kernel[:160],
+            arch=runtime_arch[:80],
+            cpu_model=runtime_cpu_model[:240],
             tags=self.tags or [],
             probe=self.probe_url,
             note=self.note,
@@ -309,6 +317,31 @@ class Server(db.Model):
             d["ip"] = _mask_ip(d.get("ip"))
             for key in ("city", "region", "country"):
                 d[key] = str(d.get(key) or "")[:64]
+
+            # Coarsen runtime inventory for anonymous/public APIs. Exact kernel
+            # patch strings and CPU model SKUs are useful for target
+            # fingerprinting; keep precise values only in internal/admin data.
+            raw_os = str(d.get("os") or "").strip()
+            if raw_os:
+                d["os"] = raw_os.split("(", 1)[0].strip()[:80]
+            raw_kernel = str(d.get("kernel_version") or "").strip()
+            if raw_kernel:
+                kernel_family = raw_kernel.split("-", 1)[0]
+                parts = kernel_family.split(".")
+                d["kernel_version"] = ".".join(parts[:2]) if len(parts) >= 2 else kernel_family[:16]
+            raw_cpu = str(d.get("cpu_model") or "").strip()
+            if raw_cpu:
+                lower = raw_cpu.lower()
+                if "xeon" in lower:
+                    d["cpu_model"] = "Intel Xeon"
+                elif "epyc" in lower:
+                    d["cpu_model"] = "AMD EPYC"
+                elif "intel" in lower:
+                    d["cpu_model"] = "Intel CPU"
+                elif "amd" in lower:
+                    d["cpu_model"] = "AMD CPU"
+                else:
+                    d["cpu_model"] = "CPU"
         
         return d
 

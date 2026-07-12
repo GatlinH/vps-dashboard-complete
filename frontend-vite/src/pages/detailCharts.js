@@ -82,6 +82,28 @@ function networkEqualStepSeries(points = []) {
   });
 }
 
+function percentile(values = [], p = 0.95) {
+  const clean = values.map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+  if (!clean.length) return 0;
+  const index = Math.min(clean.length - 1, Math.max(0, Math.floor((clean.length - 1) * p)));
+  return clean[index];
+}
+
+function smoothMobileNetworkSeries(points = []) {
+  const clean = (Array.isArray(points) ? points : []).filter(p => Number.isFinite(Number(p?.x)) && Number.isFinite(Number(p?.y))).sort((a, b) => Number(a.x) - Number(b.x));
+  const rawValues = clean.map(p => Math.max(0, Number(p.y) || 0));
+  const p95 = percentile(rawValues, 0.95);
+  const cap = Math.max(25, p95 * 1.35, percentile(rawValues, 0.80) * 1.8);
+  return clean.map((p, i) => {
+    const lo = Math.max(0, i - 2);
+    const hi = Math.min(clean.length - 1, i + 2);
+    const slice = clean.slice(lo, hi + 1).map(v => Math.max(0, Number(v.y) || 0));
+    const avg = slice.reduce((a, b) => a + b, 0) / Math.max(1, slice.length);
+    const rawY = Math.max(0, Number(p.y) || 0);
+    return { ...p, rawY, rawMaxY: Number.isFinite(Number(p.maxY)) ? Number(p.maxY) : null, y: Math.min(cap, avg) };
+  });
+}
+
 function isDetailMobileChart() {
   return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
 }
@@ -349,23 +371,56 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   }).filter(r => Number.isFinite(r.x) && r.x >= networkStart && r.x <= networkNow + 60 * 1000).sort((a, b) => a.x - b.x);
   const networkRows = probeNetworkRows.length ? probeNetworkRows : historyNetworkRows;
   const networkBuckets = aggregateRateRowsForDisplay(networkRows, detailBucketMs);
-  const networkAxisBounds = accumulatingAxisBoundsFromTimes(networkBuckets.map(r => r.x), networkHours);
-  const networkUpDisplay = fitSeriesToRollingAxis(networkBuckets.map(r => ({ x: r.rawX || r.x, rawX: r.rawX || r.x, y: r.up, maxY: r.upMax, samples: r.samples })), networkAxisBounds, 288);
-  const networkDownDisplay = fitSeriesToRollingAxis(networkBuckets.map(r => ({ x: r.rawX || r.x, rawX: r.rawX || r.x, y: r.down, maxY: r.downMax, samples: r.samples })), networkAxisBounds, 288);
+  const networkMobile = isDetailMobileChart();
+  const networkBaseAxisBounds = accumulatingAxisBoundsFromTimes(networkBuckets.map(r => r.x), networkHours);
+  const networkPointTimes = networkBuckets.map(r => Number(r.rawX || r.x)).filter(Number.isFinite).sort((a, b) => a - b);
+  let networkAxisBounds = networkBaseAxisBounds;
+  if (networkMobile && networkPointTimes.length >= 2) {
+    const first = networkPointTimes[0];
+    const last = networkPointTimes[networkPointTimes.length - 1];
+    const span = Math.max(0, last - first);
+    const minSpan = 30 * 60 * 1000;
+    const pad = Math.max(5 * 60 * 1000, span * 0.18);
+    if (span < minSpan) {
+      const mid = (first + last) / 2;
+      networkAxisBounds = { min: mid - minSpan / 2, max: mid + minSpan / 2, step: 10 * 60 * 1000 };
+    } else {
+      networkAxisBounds = { min: first - pad, max: last + pad, step: Math.max(5 * 60 * 1000, Math.round((span + pad * 2) / 3)) };
+    }
+  }
+  const networkUpDisplay = fitSeriesToRollingAxis(networkBuckets.map(r => ({ x: r.rawX || r.x, rawX: r.rawX || r.x, y: r.up, maxY: r.upMax, samples: r.samples })), networkAxisBounds, networkMobile ? 160 : 288);
+  const networkDownDisplay = fitSeriesToRollingAxis(networkBuckets.map(r => ({ x: r.rawX || r.x, rawX: r.rawX || r.x, y: r.down, maxY: r.downMax, samples: r.samples })), networkAxisBounds, networkMobile ? 160 : 288);
   const networkUpEqualDisplay = expandSinglePointSeries(networkEqualStepSeries(networkUpDisplay));
   const networkDownEqualDisplay = expandSinglePointSeries(networkEqualStepSeries(networkDownDisplay));
+  const networkUpMobileDisplay = expandSinglePointSeries(smoothMobileNetworkSeries(networkUpDisplay));
+  const networkDownMobileDisplay = expandSinglePointSeries(smoothMobileNetworkSeries(networkDownDisplay));
+  const prependNetworkZeroOrigin = (points = []) => {
+    if (!Array.isArray(points) || !points.length) return points;
+    const first = points[0] || {};
+    if (Number(first.x) <= Number(networkAxisBounds.min) && Number(first.y) === 0) return points;
+    return [{ x: networkAxisBounds.min, rawX: networkAxisBounds.min, y: 0, rawY: 0, rawMaxY: 0, samples: 0, syntheticOrigin: true }, ...points];
+  };
+  const networkUpChartDisplay = prependNetworkZeroOrigin(networkMobile ? networkUpMobileDisplay : networkUpEqualDisplay);
+  const networkDownChartDisplay = prependNetworkZeroOrigin(networkMobile ? networkDownMobileDisplay : networkDownEqualDisplay);
   const networkStepTicks = NETWORK_EQUAL_STEP_AXIS.map((_, index) => index);
+  const mobileVisualValues = [...networkUpChartDisplay, ...networkDownChartDisplay].map(p => Number(p?.y) || 0).filter(Number.isFinite);
+  const mobileRawValues = [...networkUpDisplay, ...networkDownDisplay].map(p => Number(p?.y) || 0).filter(Number.isFinite);
+  const networkMobileMax = Math.max(10, percentile(mobileVisualValues, 0.96) * 1.35, percentile(mobileRawValues, 0.80) * 1.15, 25);
+
   if (networkCtx) {
     const baseOptions = makeHudChartOptions(5, '');
+    const networkYScale = networkMobile
+      ? { ...baseOptions.scales.y, min: 0, max: networkMobileMax, ticks: { color: '#6fa4ad', callback: (v) => fmtRate(Number(v) || 0), font: { size: 8, weight: '800' }, padding: 4, maxTicksLimit: 4 }, afterFit(axis){ axis.width = Math.max(axis.width, 52); } }
+      : { ...baseOptions.scales.y, min: 0, max: NETWORK_EQUAL_STEP_AXIS.length - 1, afterBuildTicks: (axis) => { axis.ticks = networkStepTicks.map(value => ({ value })); }, ticks: { color: '#6fa4ad', callback: (v) => networkEqualStepLabel(v), font: { size: 11, weight: '800' }, padding: 8, maxTicksLimit: NETWORK_EQUAL_STEP_AXIS.length } };
     detailCharts._register('detailNetworkChart', new Chart(networkCtx, {
       type: 'line',
       data: {
         datasets: [
-          { label: '上行', parsing: false, data: networkUpEqualDisplay, borderColor: '#68f6ff', backgroundColor: 'transparent', fill: false, tension: 0.18, pointRadius: visiblePointRadius(networkUpEqualDisplay, 4), pointHoverRadius: 6, borderWidth: 3.2 },
-          { label: '下行', parsing: false, data: networkDownEqualDisplay, borderColor: '#ffd66b', backgroundColor: 'transparent', fill: false, tension: 0.18, pointRadius: visiblePointRadius(networkDownEqualDisplay, 4), pointHoverRadius: 6, borderWidth: 3.2 },
+          { label: '上行', parsing: false, data: networkUpChartDisplay, borderColor: '#68f6ff', backgroundColor: 'transparent', fill: false, tension: networkMobile ? 0.28 : 0.18, pointRadius: networkMobile ? 0 : visiblePointRadius(networkUpChartDisplay, 4), pointHoverRadius: 5, borderWidth: networkMobile ? 2.2 : 3.2, showLine: true, stepped: false },
+          { label: '下行', parsing: false, data: networkDownChartDisplay, borderColor: '#ffd66b', backgroundColor: 'transparent', fill: false, tension: networkMobile ? 0.28 : 0.18, pointRadius: networkMobile ? 0 : visiblePointRadius(networkDownChartDisplay, 4), pointHoverRadius: 5, borderWidth: networkMobile ? 2.2 : 3.2, showLine: true, stepped: false },
         ]
       },
-      options: { ...baseOptions, plugins: { ...baseOptions.plugins, legend: { display: false, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `${item.dataset.label}: ${fmtRate(Number(item.raw.rawY ?? item.raw.y ?? 0))}${Number.isFinite(Number(item.raw.rawMaxY)) ? ` · 峰值 ${fmtRate(Number(item.raw.rawMaxY))}` : ''}${Number(item.raw.samples) > 1 ? ` · ${Number(item.raw.samples)}个采样点聚合` : ''}` } } }, scales: { x: { type: 'linear', min: networkAxisBounds.min, max: networkAxisBounds.max, ticks: { color: '#45676c', stepSize: Math.max(60 * 1000, Math.round((networkAxisBounds.max - networkAxisBounds.min) / (isDetailMobileChart() ? 3 : 4))), callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: isDetailMobileChart(), maxTicksLimit: isDetailMobileChart() ? 4 : undefined, font: { size: isDetailMobileChart() ? 7 : 9, weight: '700' } }, grid: { color: 'rgba(55,95,101,0.20)' }, border: { color: 'rgba(55,95,101,.30)' } }, y: { ...baseOptions.scales.y, min: 0, max: NETWORK_EQUAL_STEP_AXIS.length - 1, afterBuildTicks: (axis) => { axis.ticks = networkStepTicks.map(value => ({ value })); }, ticks: { color: '#6fa4ad', callback: (v) => networkEqualStepLabel(v), font: { size: isDetailMobileChart() ? 8 : 11, weight: '800' }, padding: isDetailMobileChart() ? 4 : 8, maxTicksLimit: isDetailMobileChart() ? 5 : NETWORK_EQUAL_STEP_AXIS.length }, afterFit(axis){ if (isDetailMobileChart()) axis.width = Math.max(axis.width, 48); } } } }
+      options: { ...baseOptions, elements: { line: { borderCapStyle: 'round', borderJoinStyle: 'round' }, point: { radius: networkMobile ? 0 : undefined } }, plugins: { ...baseOptions.plugins, legend: { display: false, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `${item.dataset.label}: ${fmtRate(Number(item.raw.rawY ?? item.raw.y ?? 0))}${Number.isFinite(Number(item.raw.rawMaxY)) ? ` · 峰值 ${fmtRate(Number(item.raw.rawMaxY))}` : ''}${Number(item.raw.samples) > 1 ? ` · ${Number(item.raw.samples)}个采样点聚合` : ''}` } } }, scales: { x: { type: 'linear', min: networkAxisBounds.min, max: networkAxisBounds.max, ticks: { color: '#45676c', stepSize: Math.max(60 * 1000, Math.round((networkAxisBounds.max - networkAxisBounds.min) / (networkMobile ? 3 : 4))), callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: networkMobile, maxTicksLimit: networkMobile ? 4 : undefined, font: { size: networkMobile ? 7 : 9, weight: '700' } }, grid: { color: networkMobile ? 'rgba(55,95,101,0.12)' : 'rgba(55,95,101,0.20)' }, border: { color: 'rgba(55,95,101,.30)' } }, y: networkYScale } }
     }));
   }
   if (cpuCtx) {
@@ -458,7 +513,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
       cpuPoints: cpu12hSeries.length,
       ramPoints: ram12hSeries.length,
       freshPoints: fresh12hSeries.length,
-      networkSeries: { raw: networkRows.length, source: networkRows[0]?.source || null, latestRaw: networkRows[networkRows.length - 1] || null, buckets: networkBuckets.length, up: networkUpEqualDisplay.length, down: networkDownEqualDisplay.length, upFirst: networkUpEqualDisplay[0] || null, upLast: networkUpEqualDisplay[networkUpEqualDisplay.length - 1] || null, downFirst: networkDownEqualDisplay[0] || null, downLast: networkDownEqualDisplay[networkDownEqualDisplay.length - 1] || null, axis: networkAxisBounds, yAxis: NETWORK_EQUAL_STEP_AXIS },
+      networkSeries: { raw: networkRows.length, source: networkRows[0]?.source || null, latestRaw: networkRows[networkRows.length - 1] || null, buckets: networkBuckets.length, up: networkUpChartDisplay.length, down: networkDownChartDisplay.length, upFirst: networkUpChartDisplay[0] || null, upSecond: networkUpChartDisplay[1] || null, upLast: networkUpChartDisplay[networkUpChartDisplay.length - 1] || null, downFirst: networkDownChartDisplay[0] || null, downSecond: networkDownChartDisplay[1] || null, downLast: networkDownChartDisplay[networkDownChartDisplay.length - 1] || null, axis: networkAxisBounds, yAxis: NETWORK_EQUAL_STEP_AXIS },
       pingSeries: ping24hDatasets.map(ds => ({ label: ds.label, points: ds.data.length, first: ds.data[0] || null, last: ds.data[ds.data.length - 1] || null, fill: ds.fill, pointRadius: ds.pointRadius, borderWidth: ds.borderWidth })),
       pingSampleCache: Object.fromEntries(Object.entries(getDetailPingSampleCache ? getDetailPingSampleCache() : {}).map(([k,v]) => [k, v.length])),
       probeRows: probeRows.length,

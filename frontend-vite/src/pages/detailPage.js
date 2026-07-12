@@ -5,6 +5,44 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>\"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[ch]));
 }
 
+function firstText(...values) {
+  for (const value of values) {
+    const text = String(value ?? '').trim();
+    if (text) return text;
+  }
+  return '—';
+}
+
+function normalizeOsLabel(value) {
+  const text = firstText(value);
+  if (text === '—') return text;
+  return text
+    .replace(/^Debian GNU\/Linux\s+/i, 'debian ')
+    .replace(/^Ubuntu\s+/i, 'ubuntu ')
+    .replace(/\s*\([^)]*\)\s*$/g, '')
+    .trim();
+}
+
+function renderRuntimeEnvironmentCard(server) {
+  const cfg = server?.agent_config || {};
+  const meta = cfg?.inventory_meta || {};
+  const fields = [
+    ['操作系统', normalizeOsLabel(server?.os || meta.os || cfg.os)],
+    ['内核版本', firstText(server?.kernel_version, server?.kernel, meta.kernel_version, meta.kernel, cfg.kernel_version, cfg.kernel)],
+    ['硬件架构', firstText(server?.arch, meta.arch, cfg.arch)],
+    ['CPU 型号', firstText(server?.cpu_model, server?.cpu_name, meta.cpu_model, meta.cpu_name, cfg.cpu_model, cfg.cpu_name)],
+  ];
+  return `<div class="runtime-env-card" aria-label="运行环境">
+    <div class="runtime-env-head">
+      <h2>运行环境</h2>
+      <p>来自最近一次探针上报的硬件与系统信息</p>
+    </div>
+    <div class="runtime-env-grid">
+      ${fields.map(([label, value]) => `<div class="runtime-env-field"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}
+    </div>
+  </div>`;
+}
+
 
 export function detailLoadingShell() {
   return `
@@ -62,6 +100,8 @@ export function renderDetailConsole(ctx) {
   const displayPingTargetsData = ((pingTargetsData?.targets || []).length ? pingTargetsData : ctx.detailCachedPingTargets) || pingTargetsData || ctx.detailCachedPingTargets;
   const displayPeerPingTargetsData = ((peerPingTargetsData?.targets || []).length ? peerPingTargetsData : ctx.detailCachedPeerPingTargets) || peerPingTargetsData || ctx.detailCachedPeerPingTargets;
   const targetCount = (displayPingTargetsData?.targets || []).filter(t => t.type !== 'peer' && !String(t.key || '').startsWith('vps-')).length || 0;
+  const historyLabel = detailDays === 0 ? '今天' : `${detailDays}天`;
+  const sampleLabel = detailBucketMinutes === 0 ? '实时' : `${detailBucketMinutes}分钟采样`;
   return `
     <section class="fleet-detail-console">
       <header class="fleet-console-header">
@@ -85,25 +125,18 @@ export function renderDetailConsole(ctx) {
       ${h.renderHealthSummary(resolvedServer, probeRows, displayPingTargetsData, displayCpuSeries, displayRamSeries)}
 
       <aside class="fleet-left-rail">
-        <div class="fleet-panel node-card">
-          <div class="fleet-title" data-i18n="nodeTelemetry">${t('nodeTelemetry')}</div>
-          <div class="fleet-info-list">
-            <div><span data-i18n="ip">${t('ip')}</span><strong>${escapeHtml(h.maskIpForPublicDisplay(resolvedServer.ip || resolvedServer.name))}</strong><em>${escapeHtml(resolvedServer.city || resolvedServer.location || '—')}</em></div>
-            <div><span data-i18n="arch">${t('arch')}</span><strong>${escapeHtml(resolvedServer.arch || 'Arch')}</strong></div>
-            <div><span data-i18n="memory">${t('memory')}</span><strong>${resolvedServer.ram || '—'} GB · ${h.pctFmt(resolvedServer.ram_use)}%</strong></div>
-            <div><span data-i18n="disk">${t('disk')}</span><strong>${resolvedServer.disk || '—'} GB · ${h.pctFmt(resolvedServer.disk_use)}%</strong></div>
-            ${h.renderCompactNodeFacts(resolvedServer)}
-          </div>
+        <div class="fleet-panel node-card runtime-env-panel">
+          ${renderRuntimeEnvironmentCard(resolvedServer)}
         </div>
       </aside>
 
       ${h.renderRealtimeResourcePanels(resolvedServer, trafficData, upSeries, downSeries, displayCpuSeries, displayRamSeries)}
       <main class="fleet-chart-matrix">
-        <div class="fleet-chart-card compact-metric-card network-throughput-card"><div class="fleet-chart-head"><span>网络吞吐量 · ${detailDays}天 · ${detailBucketMinutes === 0 ? '1秒' : detailBucketMinutes + '分钟'}桶 · 自动量程</span><strong>↑ ${h.detailRateValue(displayUpSeries, resolvedServer.net_up)} · ↓ ${h.detailRateValue(displayDownSeries, resolvedServer.net_down)}</strong></div><div class="network-legend"><i class="up"></i>上行 <i class="down"></i>下行</div><canvas id="detailNetworkChart"></canvas></div>
-        <div class="fleet-chart-card compact-metric-card ping-multi-card"><div class="fleet-chart-head"><span>PING · ${detailDays}天 · ${detailBucketMinutes === 0 ? '1秒' : detailBucketMinutes + '分钟'}桶 · 失败不画 0</span><strong>${targetCount} 目标</strong></div><canvas id="detailPingChart"></canvas></div>
-        <div class="fleet-chart-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>CPU 使用率 · ${detailDays}天 · ${detailBucketMinutes === 0 ? '1秒' : detailBucketMinutes + '分钟'}桶</span><strong>${h.detailMetricValue(displayCpuSeries, resolvedServer.cpu_use, '%')}</strong></div><canvas id="detailCpuChart"></canvas></div>
-        <div class="fleet-chart-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>内存使用率 · ${detailDays}天 · ${detailBucketMinutes === 0 ? '1秒' : detailBucketMinutes + '分钟'}桶</span><strong>${h.detailMetricValue(displayRamSeries, resolvedServer.ram_use, '%')}</strong></div><canvas id="detailMemoryChart"></canvas></div>
-        <div class="fleet-chart-card pseudo data-freshness-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>${t('dataFreshness')} · ${detailDays}天窗口</span><strong>${freshMeta.ageText}</strong></div><div class="freshness-meta"><span>${t('sampleInterval')}: ${freshMeta.sampleSec ? `${freshMeta.sampleSec}s` : '—'}</span><span class="freshness-latest">${t('latestSample')}: ${freshMeta.ageText}</span></div><canvas id="detailFreshnessChart"></canvas></div>
+        <div class="fleet-chart-card compact-metric-card network-throughput-card"><div class="fleet-chart-head"><span>网络吞吐量 · ${historyLabel} · ${sampleLabel}</span><strong>↑ ${h.detailRateValue(displayUpSeries, resolvedServer.net_up)} · ↓ ${h.detailRateValue(displayDownSeries, resolvedServer.net_down)}</strong></div><div class="network-legend"><i class="up"></i>上行 <i class="down"></i>下行</div><canvas id="detailNetworkChart"></canvas></div>
+        <div class="fleet-chart-card compact-metric-card ping-multi-card"><div class="fleet-chart-head"><span>PING 延迟 · ${historyLabel} · 掉线留空</span><strong>${targetCount} 目标</strong></div><canvas id="detailPingChart"></canvas></div>
+        <div class="fleet-chart-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>CPU 使用率 · ${historyLabel} · ${sampleLabel}</span><strong>${h.detailMetricValue(displayCpuSeries, resolvedServer.cpu_use, '%')}</strong></div><canvas id="detailCpuChart"></canvas></div>
+        <div class="fleet-chart-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>内存使用率 · ${historyLabel} · ${sampleLabel}</span><strong>${h.detailMetricValue(displayRamSeries, resolvedServer.ram_use, '%')}</strong></div><canvas id="detailMemoryChart"></canvas></div>
+        <div class="fleet-chart-card pseudo data-freshness-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>${t('dataFreshness')} · ${historyLabel}</span><strong>${freshMeta.ageText}</strong></div><div class="freshness-meta"><span>${t('sampleInterval')}: ${freshMeta.sampleSec ? `${freshMeta.sampleSec}s` : '—'}</span><span class="freshness-latest">${t('latestSample')}: ${freshMeta.ageText}</span></div><canvas id="detailFreshnessChart"></canvas></div>
       </main>
 
       <section class="fleet-right-zone">
@@ -112,7 +145,7 @@ export function renderDetailConsole(ctx) {
             <div class="fleet-title fleet-starmap-title">VPS·星图</div>
             <div id="detailGlobeStarmapMount" class="detail-globe-starmap-mount"></div>
           </div>
-          <div class="history-range-bar"><span class="history-range-label">${detailDays || '今天'} · ${detailBucketMinutes === 0 ? '1秒' : detailBucketMinutes + '分钟'}桶</span><div class="detail-history-range" role="group" aria-label="历史图表范围"><button type="button" class="detail-history-btn ${Number(detailDays) === 0 ? 'active' : ''}" data-detail-history-days="0">今天实时图表数据</button>${[1,2,3,4,5,6,7].map((d) => `<button type="button" class="detail-history-btn ${Number(detailDays) === d ? 'active' : ''}" data-detail-history-days="${d}">${d}天</button>`).join('')}</div></div>
+          <div class="history-range-bar"><span class="history-range-label">${historyLabel} · ${sampleLabel}</span><div class="detail-history-range" role="group" aria-label="历史图表范围"><button type="button" class="detail-history-btn ${Number(detailDays) === 0 ? 'active' : ''}" data-detail-history-days="0">今天</button>${[1,2,3,4,5,6,7].map((d) => `<button type="button" class="detail-history-btn ${Number(detailDays) === d ? 'active' : ''}" data-detail-history-days="${d}">${d}天</button>`).join('')}</div></div>
           <div class="fleet-panel fleet-probe-table-panel">
             <div class="fleet-title">全球探针延迟</div>
             <table class="fleet-table compact"><thead><tr><th data-i18n="probe">${t('probe')}</th><th>ms</th><th data-i18n="loss">${t('loss')} %</th><th>链路</th></tr></thead><tbody>${h.renderProbeRows(displayPeerPingTargetsData, pingData)}</tbody></table>

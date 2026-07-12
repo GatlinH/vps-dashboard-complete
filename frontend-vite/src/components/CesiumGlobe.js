@@ -346,8 +346,9 @@ export class CesiumGlobe {
 
   _setHomeView() {
     const target = this._getInitialTarget();
+    const mobileHomeHeight = (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 640px)').matches) ? 10_800_000 : HOME_HEIGHT;
     this.viewer.camera.setView({
-      destination: Cesium.Cartesian3.fromDegrees(target.lon, target.lat, HOME_HEIGHT),
+      destination: Cesium.Cartesian3.fromDegrees(target.lon, target.lat, mobileHomeHeight),
     });
   }
 

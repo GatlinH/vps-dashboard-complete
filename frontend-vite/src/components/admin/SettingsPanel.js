@@ -80,10 +80,10 @@ export class SettingsPanel {
   <div class="login-setting-row"><div><strong>禁止密码登录</strong></div><label class="komari-switch"><input id="login-disable-password" type="checkbox"><span></span></label></div>
   <h3 class="login-section-heading">单点登录</h3>
   <div class="login-setting-row"><div><strong>启用单点登录</strong><small>允许用户通过第三方账户（如 GitHub）登录</small></div><label class="komari-switch"><input id="login-sso-enabled" type="checkbox"><span></span></label></div>
-  <div class="login-setting-row"><div><strong>单点登录提供商</strong><small>选择用于单点登录的身份验证提供商</small></div><select id="login-sso-provider" class="login-provider-select"><option value="CloudflareAccess">CloudflareAccess</option><option value="generic">generic</option><option value="qq">qq</option><option value="github">github</option></select></div>
-  <div class="login-param-card" id="login-param-card"><div class="login-param-head"><div><strong>登录参数</strong><small>设置您选择登录方式的详细信息</small></div><button class="login-collapse" type="button">⌃</button></div><div id="login-param-fields" class="login-param-fields"></div><div class="login-callback">回调地址: <span id="login-callback-url"></span></div><div class="login-save-row"><button class="komari-primary" id="login-save" type="button">保存</button></div></div>
+  <div class="login-setting-row"><div><strong>单点登录提供商</strong><small>选择用于单点登录的身份验证提供商</small></div><select id="login-sso-provider" class="login-provider-select"><option value="CloudflareAccess">Cloudflare Access</option><option value="generic">generic</option><option value="qq">qq</option><option value="github">github</option></select></div>
+  <div class="login-param-card" id="login-param-card"><div class="login-param-head"><div><strong>登录参数</strong><small>配置当前登录方式的详细参数</small></div><button class="login-collapse" type="button">收起</button></div><div id="login-param-fields" class="login-param-fields"></div><div class="login-callback">回调地址: <span id="login-callback-url"></span></div><div class="login-save-row"><button class="komari-primary" id="login-save" type="button">保存</button></div></div>
   <h3 class="login-section-heading">API</h3>
-  <div class="login-api-card"><strong>API密钥</strong><small>使用API密钥可以访问并操作后台资源，包括修改设置和账号密码等，请谨慎保管。留空表示取消API密钥功能。</small><input id="login-api-key" class="form-input" type="text"><div class="login-api-actions"><button class="login-generate" id="login-api-generate" type="button">生成</button><button class="komari-primary" id="login-api-save" type="button">保存</button></div></div>
+  <div class="login-api-card"><strong>API 密钥</strong><small>API 密钥可访问并操作后台资源，包括修改设置和账号密码等；请谨慎保管。留空表示关闭 API 密钥功能。</small><input id="login-api-key" class="form-input" type="text"><div class="login-api-actions"><button class="login-generate" id="login-api-generate" type="button">生成</button><button class="komari-primary" id="login-api-save" type="button">保存</button></div></div>
   <input id="login-github-id" type="hidden"><input id="login-github-secret" type="hidden"><input id="login-allowed-emails" type="hidden"><input id="login-api-key-enabled" type="hidden"><input id="login-breakglass-enabled" type="hidden"><div id="login-runtime" hidden></div><div id="login-msg" class="komari-msg"></div>
 </section></section></div><div class="komari-settings-grid two" style="margin-top:18px"><section class="komari-panel komari-section-panel" data-settings-section="notify">
   <div class="komari-notify-master-card"><div><strong>开启通知</strong><small>开启后可在需要时接收通知消息。</small></div><label class="komari-switch"><input id="notify-enabled" type="checkbox"><span></span></label></div>
@@ -113,7 +113,7 @@ export class SettingsPanel {
     this._el.querySelector('#login-api-save')?.addEventListener('click', () => this._saveLogin());
     this._el.querySelector('#login-api-generate')?.addEventListener('click', () => this._generateApiKey());
     this._el.querySelector('#login-sso-provider')?.addEventListener('change', () => this._renderLoginProviderFields());
-    this._el.querySelector('.login-collapse')?.addEventListener('click', (ev) => { const card=this._el.querySelector('#login-param-card'); const collapsed=card.classList.toggle('is-collapsed'); ev.currentTarget.textContent=collapsed?'⌄':'⌃'; });
+    this._el.querySelector('.login-collapse')?.addEventListener('click', (ev) => { const card=this._el.querySelector('#login-param-card'); const collapsed=card.classList.toggle('is-collapsed'); ev.currentTarget.textContent=collapsed?'展开':'收起'; });
     this._el.querySelector('#notify-save').addEventListener('click', () => this._saveNotify());
     this._el.querySelector('#notify-template-save').addEventListener('click', () => this._saveNotify());
     this._el.querySelector('#notify-channel').addEventListener('change', () => this._renderNotifyChannelFields());
@@ -157,7 +157,7 @@ export class SettingsPanel {
   _showSection() {
     if (!this._el) return;
     const active = this._activeSection || 'site';
-    const titles = {site:['站点','设置站点名称、描述和展示行为。'], login:['登录','登录、OAuth 和回退策略。'], notify:['通知','告警和消息渠道设置。'], general:['通用','GeoIP、历史记录和兼容接口。'], proxy:['反向代理','Cloudflare 隧道与反向代理运行状态。']};
+    const titles = {site:['站点','设置站点名称、描述和展示行为。'], login:['登录','管理密码登录、单点登录和 API 密钥。'], notify:['通知','配置告警渠道和消息模板。'], general:['通用','设置 GeoIP、历史记录和兼容接口。'], proxy:['反向代理','查看 Cloudflare 隧道与反向代理状态。']};
     const title = this._el.querySelector('#settings-title'); const sub = this._el.querySelector('#settings-subtitle');
     if (title && titles[active]) { title.textContent = titles[active][0]; sub.textContent = titles[active][1]; }
     this._renderBanner();
@@ -260,7 +260,7 @@ export class SettingsPanel {
     const e = esc;
     const input = (key, label, type='text') => `<label class="login-param-field"><span>${label}</span><input id="login-sso-${key}" class="form-input" type="${type}" value="${e(cfg[key] || '')}"></label>`;
     let html = '';
-    if (provider === 'CloudflareAccess') html = input('team_domain','team_domain *') + input('policy_aud','policy_aud *');
+    if (provider === 'CloudflareAccess') html = input('team_domain','团队域名 team_domain *') + input('policy_aud','策略 AUD policy_aud *');
     else if (provider === 'qq') html = input('aggregation_url','aggregation_url *') + input('app_id','app_id *') + input('app_key','app_key *','password') + input('login_type','login_type *');
     else if (provider === 'generic') html = input('client_id','客户端 ID *') + input('client_secret','客户端密钥 *','password') + input('authorization_url','授权 URL *') + input('token_url','令牌 URL *') + input('userinfo_url','用户信息 URL *') + input('scope','作用域') + input('user_id_field','用户 ID 字段 *');
     else html = input('client_id','客户端 ID *') + input('client_secret','客户端密钥 *','password');

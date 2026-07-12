@@ -316,13 +316,23 @@ def _resolve_ping_targets_for_server(server: Server):
     return [{**dt, "type": "external"} for dt in _load_ping_targets()]
 
 def _load_ping_targets():
+    """Load global external latency targets.
+
+    Empty/missing config intentionally means no targets.  Older builds used
+    DEFAULT_PING_TARGET_PRESETS here, which made fresh installs display PING
+    data even when the admin had never configured latency monitoring.
+    """
     raw = os.getenv("PING_TARGETS_JSON", "").strip()
     if not raw:
-        return DEFAULT_PING_TARGET_PRESETS
+        return []
     try:
         data = json.loads(raw)
         if not isinstance(data, list):
-            return DEFAULT_PING_TARGET_PRESETS
+            return []
+        legacy_default_hosts = {str(t.get("host")) for t in DEFAULT_PING_TARGET_PRESETS}
+        incoming_hosts = {str(t.get("host")) for t in data if isinstance(t, dict)}
+        if incoming_hosts == legacy_default_hosts:
+            return []
         cleaned = []
         for idx, item in enumerate(data):
             if not isinstance(item, dict):
@@ -337,9 +347,9 @@ def _load_ping_targets():
             if not host:
                 continue
             cleaned.append({"key": key, "label": label, "host": host, "port": port, "protocol": _normalize_probe_protocol(item.get("protocol")), "type": "external"})
-        return cleaned or DEFAULT_PING_TARGET_PRESETS
+        return cleaned
     except Exception:
-        return DEFAULT_PING_TARGET_PRESETS
+        return []
 
 
 
@@ -637,9 +647,14 @@ def _backend_fallback_probe_peer_targets(server_id, targets):
     return bool(results)
 @probe_bp.get("/public/ping-targets/<int:sid>/history")
 def public_ping_targets_history(sid):
-    server = Server.query.get_or_404(sid)
+    server = Server.query.get(sid)
     hours = max(1, min(int(request.args.get("hours", 12)), 168))
     limit = max(1, min(int(request.args.get("limit", 2000)), 10000))
+    if not server:
+        resp = jsonify({"server_id": sid, "hours": hours, "targets": [], "derived_from": "server not found", "configured": False, "not_configured": True})
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
+
     configured = _resolve_ping_targets_for_server(server)
     if _ping_targets_are_peer_targets(server, configured):
         # Peer latency history must come from agent reports only; never synthesize
@@ -661,7 +676,7 @@ def public_ping_targets_history(sid):
             if alias:
                 targets_meta.setdefault(str(alias), t)
     if not configured:
-        payload = {"server_id": sid, "hours": hours, "targets": [], "derived_from": "current peer targets unavailable"}
+        payload = {"server_id": sid, "hours": hours, "targets": [], "derived_from": "not configured", "configured": False, "not_configured": True}
         resp = jsonify(payload)
         resp.headers["Cache-Control"] = "no-store"
         return resp
@@ -705,10 +720,16 @@ def public_ping_targets_history(sid):
 
 @probe_bp.get("/public/ping-targets/<int:sid>")
 def public_ping_targets(sid):
-    server = Server.query.get_or_404(sid)
+    server = Server.query.get(sid)
     count = min(max(int(request.args.get("count", 1)), 1), 4)
     timeout = min(float(current_app.config.get("PROBE_TIMEOUT_S", 5)), 5.0)
     source = str(request.args.get("source") or "public").strip().lower()
+    if not server:
+        payload = {"server_id": sid, "targets": [], "derived_from": "server not found", "configured": False, "not_configured": True, "cache_ttl": PING_TARGETS_CACHE_TTL}
+        resp = jsonify(payload)
+        resp.headers["Cache-Control"] = "no-store"
+        resp.headers["X-Ping-Targets-Cache"] = "bypass"
+        return resp
     cache_key = f"vps:public:ping-targets:{sid}:{count}:{source}"
     cached = _cache_get_json(cache_key)
     if cached:
@@ -781,7 +802,7 @@ def public_ping_targets(sid):
     # (agent_config.ping_targets or global default presets). No VPS peers.
     resolved_targets = [t for t in _resolve_ping_targets_for_server(server) if t.get("type") != "peer" and not str(t.get("key", "")).startswith("vps-")]
     if not resolved_targets:
-        payload = {"server_id": sid, "targets": [], "derived_from": "configured ping targets", "cache_ttl": PING_TARGETS_CACHE_TTL}
+        payload = {"server_id": sid, "targets": [], "derived_from": "not configured", "configured": False, "not_configured": True, "cache_ttl": PING_TARGETS_CACHE_TTL}
         _cache_set_json(cache_key, payload, PING_TARGETS_CACHE_TTL)
         resp = jsonify(payload)
         resp.headers["Cache-Control"] = f"public, max-age={PING_TARGETS_CACHE_TTL}"

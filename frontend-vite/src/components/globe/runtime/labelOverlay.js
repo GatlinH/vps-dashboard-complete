@@ -222,6 +222,10 @@ export function updateHtmlNodeLabels(globe, cityMode) {
   };
   globe._nodeEntities.forEach((entity) => placeLabel(entity, globe._htmlLabels.get(entity.id), 30));
   const visitorPoint = (globe._visitorEntities || []).find((entity) => String(entity.id) === 'visitor-beacon-point');
-  if (visitorPoint && globe._visitorLabel) placeLabel(visitorPoint, globe._visitorLabel, 30);
+  if (visitorPoint && globe._visitorLabel) {
+    // Visitor and VPS are often both in US West Coast on phones. Stagger the
+    // visitor badge upward so labels stay readable instead of stacking.
+    placeLabel(visitorPoint, globe._visitorLabel, width <= 520 ? 82 : 46);
+  }
 }
 

@@ -171,3 +171,104 @@ html body.komari-admin-shell .komari-node-table td.komari-row-actions button.dan
   html body.komari-admin-shell .komari-node-table col.col-name { width: 25% !important; }
   html body.komari-admin-shell .komari-node-table col.col-note { width: 17% !important; }
 }
+
+/* HERMES-ADMIN-MOBILE-NODE-CARDS-20260708
+   Phone widths should not expose the dense desktop table. Render rows as cards
+   with label/value pairs and a full-width action bar. */
+@media (max-width: 640px) {
+  html body.komari-admin-shell .admin-shell,
+  html body.komari-admin-shell .admin-main,
+  html body.komari-admin-shell .admin-content,
+  html body.komari-admin-shell .komari-page,
+  html body.komari-admin-shell .komari-panel {
+    min-width: 0 !important;
+    max-width: 100vw !important;
+  }
+  html body.komari-admin-shell .komari-table-wrap {
+    overflow-x: visible !important;
+    padding-right: 0 !important;
+  }
+  html body.komari-admin-shell .komari-node-table,
+  html body.komari-admin-shell .komari-node-table colgroup,
+  html body.komari-admin-shell .komari-node-table thead,
+  html body.komari-admin-shell .komari-node-table tbody,
+  html body.komari-admin-shell .komari-node-table tr,
+  html body.komari-admin-shell .komari-node-table th,
+  html body.komari-admin-shell .komari-node-table td {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    box-sizing: border-box !important;
+  }
+  html body.komari-admin-shell .komari-node-table {
+    min-width: 0 !important;
+    border-spacing: 0 !important;
+  }
+  html body.komari-admin-shell .komari-node-table thead { display: none !important; }
+  html body.komari-admin-shell .komari-node-table tbody { display: grid !important; gap: 12px !important; }
+  html body.komari-admin-shell .komari-node-table tr {
+    padding: 12px !important;
+    border: 1px solid rgba(98,245,238,.18) !important;
+    border-radius: 16px !important;
+    background: linear-gradient(180deg, rgba(4,18,31,.88), rgba(3,12,24,.82)) !important;
+    box-shadow: 0 12px 30px rgba(0,0,0,.22) !important;
+  }
+  html body.komari-admin-shell.admin-day-mode .komari-node-table tr {
+    background: #f7fbff !important;
+    border-color: #bfdced !important;
+  }
+  html body.komari-admin-shell .komari-node-table td {
+    display: grid !important;
+    grid-template-columns: 82px minmax(0, 1fr) !important;
+    gap: 8px !important;
+    align-items: start !important;
+    padding: 8px 0 !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    text-align: left !important;
+    border-bottom: 1px solid rgba(98,245,238,.08) !important;
+  }
+  html body.komari-admin-shell .komari-node-table td::before {
+    content: attr(data-label);
+    color: #8fcbd2;
+    font-size: 12px;
+  }
+  html body.komari-admin-shell .komari-node-table td:nth-child(1)::before { content: '排序'; }
+  html body.komari-admin-shell .komari-node-table td:nth-child(2)::before { content: '选择'; }
+  html body.komari-admin-shell .komari-node-table td:nth-child(3)::before { content: '名称'; }
+  html body.komari-admin-shell .komari-node-table td:nth-child(4)::before { content: 'IP'; }
+  html body.komari-admin-shell .komari-node-table td:nth-child(5)::before { content: '版本'; }
+  html body.komari-admin-shell .komari-node-table td:nth-child(6)::before { content: '包'; }
+  html body.komari-admin-shell .komari-node-table td:nth-child(7)::before { content: '备注'; }
+  html body.komari-admin-shell .komari-node-table td:nth-child(8)::before { content: '账单'; }
+  html body.komari-admin-shell .komari-node-table td:nth-child(9)::before { content: '操作'; }
+  html body.komari-admin-shell .komari-node-table td.komari-node-name,
+  html body.komari-admin-shell .komari-node-table td.komari-row-actions,
+  html body.komari-admin-shell .komari-node-table td:nth-child(9) {
+    display: grid !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+  html body.komari-admin-shell .komari-node-name-inner {
+    grid-template-columns: 34px minmax(0, 1fr) !important;
+    overflow: visible !important;
+  }
+  html body.komari-admin-shell .komari-node-name strong,
+  html body.komari-admin-shell .komari-node-name small {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+  html body.komari-admin-shell .komari-node-table td.komari-row-actions {
+    grid-template-columns: 82px minmax(0, 1fr) !important;
+  }
+  html body.komari-admin-shell .komari-node-table td.komari-row-actions button {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    margin: 0 4px 4px 0 !important;
+  }
+}

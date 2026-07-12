@@ -259,7 +259,9 @@ def _apply_agent_inventory(server: Server, data: dict):
         if isinstance(val, dict):
             inv.update(val)
     inv.update({k: v for k, v in data.items() if k in {
-        'hostname', 'os', 'os_name', 'arch', 'architecture', 'cpu_cores', 'cpu', 'ram_gb', 'memory_gb', 'disk_gb', 'storage_gb', 'bandwidth', 'ip'
+        'hostname', 'os', 'os_name', 'kernel', 'kernel_version', 'arch', 'architecture',
+        'cpu_model', 'cpu_name', 'processor', 'cpu_cores', 'cpu',
+        'ram_gb', 'memory_gb', 'disk_gb', 'storage_gb', 'bandwidth', 'ip'
     }})
 
     changed = False
@@ -269,7 +271,9 @@ def _apply_agent_inventory(server: Server, data: dict):
     bw = inv.get('bandwidth')
     hostname = inv.get('hostname')
     os_name = inv.get('os') or inv.get('os_name')
+    kernel_version = inv.get('kernel_version') or inv.get('kernel')
     arch = inv.get('arch') or inv.get('architecture')
+    cpu_model = inv.get('cpu_model') or inv.get('cpu_name') or inv.get('processor')
     network_report = data.get('network') if isinstance(data.get('network'), dict) else {}
     public_ipv4 = str(network_report.get('public_ipv4') or data.get('public_ipv4') or '').strip()
     public_ipv6 = str(network_report.get('public_ipv6') or data.get('public_ipv6') or '').strip()
@@ -295,9 +299,13 @@ def _apply_agent_inventory(server: Server, data: dict):
     if hostname:
         extra['hostname'] = str(hostname).strip()
     if os_name:
-        extra['os'] = str(os_name).strip()
+        extra['os'] = str(os_name).strip()[:160]
+    if kernel_version:
+        extra['kernel_version'] = str(kernel_version).strip()[:160]
     if arch:
-        extra['arch'] = str(arch).strip()
+        extra['arch'] = str(arch).strip()[:80]
+    if cpu_model:
+        extra['cpu_model'] = str(cpu_model).strip()[:240]
 
     if network_report:
         network = dict(cfg.get('network') or {})
@@ -732,6 +740,17 @@ umask 077
 } > "$INSTALL_DIR/agent.env"
 
 cat > "$INSTALL_DIR/agent.py" <<'PY2'
+import hashlib
+import hmac
+import json
+import os
+import platform
+import shutil
+import socket
+import time
+import urllib.request
+
+
 def read_os_name():
     try:
         data = {}
@@ -743,6 +762,29 @@ def read_os_name():
         return data.get("PRETTY_NAME") or data.get("NAME") or platform.platform()
     except Exception:
         return platform.platform()
+
+def read_kernel_version():
+    try:
+        return platform.release() or platform.uname().release or ""
+    except Exception:
+        return ""
+
+
+def read_cpu_model():
+    try:
+        with open("/proc/cpuinfo", "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                if line.lower().startswith("model name") and ":" in line:
+                    return line.split(":", 1)[1].strip()
+                if line.lower().startswith("hardware") and ":" in line:
+                    return line.split(":", 1)[1].strip()
+    except Exception:
+        pass
+    try:
+        return platform.processor() or platform.machine() or ""
+    except Exception:
+        return ""
+
 
 def get_ip():
     try:
@@ -835,7 +877,8 @@ def payload():
     net_up, net_down = net_rates()
     return {
         "uuid": AGENT_UUID, "status": "online", "hostname": socket.gethostname(),
-        "os": read_os_name(), "arch": platform.machine(), "cpu_cores": cores,
+        "os": read_os_name(), "kernel_version": read_kernel_version(),
+        "arch": platform.machine(), "cpu_model": read_cpu_model(), "cpu_cores": cores,
         "ram_gb": ram_gb, "disk_gb": disk_gb, "bandwidth": "N/A",
         "ip": get_ip(), "cpu_use": cpu_use(cores), "ram_use": ram_use,
         "disk_use": disk_use, "net_up": net_up, "net_down": net_down,

@@ -1,0 +1,384 @@
+/* HERMES-ADMIN-MOBILE-HOTFIX-20260708
+   Loaded last from admin-main.js so it wins over older table/readability patches. */
+@media (max-width: 640px) {
+  html body.komari-admin-shell,
+  html body.komari-admin-shell * {
+    box-sizing: border-box !important;
+  }
+
+  html body.komari-admin-shell {
+    overflow-x: hidden !important;
+  }
+
+  html body.komari-admin-shell .admin-layout,
+  html body.komari-admin-shell .admin-shell,
+  html body.komari-admin-shell .admin-main,
+  html body.komari-admin-shell .admin-content,
+  html body.komari-admin-shell main,
+  html body.komari-admin-shell .content,
+  html body.komari-admin-shell .komari-page,
+  html body.komari-admin-shell .komari-panel,
+  html body.komari-admin-shell .komari-card,
+  html body.komari-admin-shell .admin-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+  }
+
+  html body.komari-admin-shell .admin-main,
+  html body.komari-admin-shell .admin-content {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+
+  html body.komari-admin-shell .komari-table-wrap {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow-x: visible !important;
+    padding: 0 !important;
+  }
+
+  html body.komari-admin-shell table.komari-node-table,
+  html body.komari-admin-shell table.komari-node-table colgroup,
+  html body.komari-admin-shell table.komari-node-table thead,
+  html body.komari-admin-shell table.komari-node-table tbody,
+  html body.komari-admin-shell table.komari-node-table tr,
+  html body.komari-admin-shell table.komari-node-table th,
+  html body.komari-admin-shell table.komari-node-table td {
+    display: block !important;
+    position: static !important;
+    float: none !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  html body.komari-admin-shell table.komari-node-table {
+    table-layout: auto !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+  }
+
+  html body.komari-admin-shell table.komari-node-table colgroup,
+  html body.komari-admin-shell table.komari-node-table thead {
+    display: none !important;
+  }
+
+  html body.komari-admin-shell table.komari-node-table tbody {
+    display: grid !important;
+    gap: 12px !important;
+  }
+
+  html body.komari-admin-shell table.komari-node-table tbody tr {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 0 !important;
+    margin: 0 !important;
+    padding: 12px !important;
+    border: 1px solid rgba(98, 245, 238, .22) !important;
+    border-radius: 16px !important;
+    background: linear-gradient(180deg, rgba(4, 18, 31, .9), rgba(3, 12, 24, .86)) !important;
+    box-shadow: 0 12px 28px rgba(0,0,0,.24) !important;
+    transform: none !important;
+  }
+
+  html body.komari-admin-shell.admin-day-mode table.komari-node-table tbody tr,
+  html body.komari-admin-shell[data-theme="light"] table.komari-node-table tbody tr {
+    background: #f7fbff !important;
+    border-color: #bfdced !important;
+  }
+
+  html body.komari-admin-shell table.komari-node-table tbody td {
+    display: block !important;
+    padding: 9px 0 !important;
+    border: 0 !important;
+    border-bottom: 1px solid rgba(98,245,238,.09) !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    text-align: left !important;
+    word-break: normal !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  html body.komari-admin-shell table.komari-node-table tbody td::before {
+    display: block !important;
+    margin-bottom: 4px !important;
+    color: #8fcbd2 !important;
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+    opacity: .86 !important;
+  }
+  html body.komari-admin-shell table.komari-node-table tbody td:nth-child(1)::before { content: '排序'; }
+  html body.komari-admin-shell table.komari-node-table tbody td:nth-child(2)::before { content: '选择'; }
+  html body.komari-admin-shell table.komari-node-table tbody td:nth-child(3)::before { content: '名称'; }
+  html body.komari-admin-shell table.komari-node-table tbody td:nth-child(4)::before { content: 'IP'; }
+  html body.komari-admin-shell table.komari-node-table tbody td:nth-child(5)::before { content: '版本'; }
+  html body.komari-admin-shell table.komari-node-table tbody td:nth-child(6)::before { content: '包'; }
+  html body.komari-admin-shell table.komari-node-table tbody td:nth-child(7)::before { content: '备注'; }
+  html body.komari-admin-shell table.komari-node-table tbody td:nth-child(8)::before { content: '账单'; }
+  html body.komari-admin-shell table.komari-node-table tbody td:nth-child(9)::before { content: '操作'; }
+
+  html body.komari-admin-shell table.komari-node-table tbody tr > td,
+  html body.komari-admin-shell table.komari-node-table tbody tr > td:nth-child(n),
+  html body.komari-admin-shell table.komari-node-table td.komari-node-name,
+  html body.komari-admin-shell table.komari-node-table td.komari-row-actions,
+  html body.komari-admin-shell table.komari-node-table td:nth-child(9) {
+    display: block !important;
+    justify-self: stretch !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    inline-size: auto !important;
+    min-inline-size: 0 !important;
+    max-inline-size: 100% !important;
+  }
+
+  html body.komari-admin-shell .komari-node-name-inner {
+    display: grid !important;
+    grid-template-columns: 34px minmax(0, 1fr) !important;
+    gap: 8px !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+  }
+  html body.komari-admin-shell .komari-node-name strong,
+  html body.komari-admin-shell .komari-node-name small {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+
+  html body.komari-admin-shell table.komari-node-table td.komari-row-actions > :not(:first-child),
+  html body.komari-admin-shell table.komari-node-table td.komari-row-actions button {
+    justify-self: start !important;
+  }
+  html body.komari-admin-shell table.komari-node-table td.komari-row-actions button {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    margin: 0 4px 4px 0 !important;
+  }
+
+  /* HERMES-ADMIN-MOBILE-SPACING-20260708: remove inflated title/action gap. */
+  html body.komari-admin-shell .admin-nav {
+    margin-bottom: 6px !important;
+    padding: 8px !important;
+    min-height: 0 !important;
+  }
+  html body.komari-admin-shell .admin-tabs {
+    gap: 6px !important;
+    padding-bottom: 4px !important;
+  }
+  html body.komari-admin-shell .admin-tab,
+  html body.komari-admin-shell .admin-subtab,
+  html body.komari-admin-shell .btn-return,
+  html body.komari-admin-shell .btn-logout {
+    min-height: 32px !important;
+    padding: 6px 9px !important;
+    border-radius: 10px !important;
+    font-size: 12px !important;
+    line-height: 1.1 !important;
+  }
+  html body.komari-admin-shell .nav-actions {
+    margin-top: 8px !important;
+    gap: 6px !important;
+  }
+  html body.komari-admin-shell .admin-body {
+    padding-top: 6px !important;
+  }
+  html body.komari-admin-shell .admin-toolbar {
+    margin-bottom: 6px !important;
+    padding: 6px 8px !important;
+    min-height: 0 !important;
+  }
+  html body.komari-admin-shell .admin-page.active {
+    padding: 8px !important;
+    gap: 6px !important;
+    align-content: start !important;
+  }
+  html body.komari-admin-shell .komari-node-page {
+    padding: 8px !important;
+    gap: 8px !important;
+  }
+  html body.komari-admin-shell .komari-node-toolbar {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: 8px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 10px 12px !important;
+    margin: 0 0 8px !important;
+  }
+  html body.komari-admin-shell .komari-node-toolbar h1,
+  html body.komari-admin-shell .komari-node-toolbar h2,
+  html body.komari-admin-shell .admin-page.active > h1,
+  html body.komari-admin-shell .admin-page.active > h2 {
+    margin: 0 !important;
+    line-height: 1.2 !important;
+  }
+  html body.komari-admin-shell .komari-node-actions {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 6px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  html body.komari-admin-shell .komari-node-actions .add-btn {
+    width: auto !important;
+    min-width: 86px !important;
+    max-width: 128px !important;
+    height: 34px !important;
+    padding: 0 12px !important;
+    border-radius: 999px !important;
+    white-space: nowrap !important;
+  }
+  html body.komari-admin-shell .komari-table-wrap {
+    margin-top: 0 !important;
+  }
+
+  /* Settings/login mobile header: neutralize old 420px flex-basis that created a huge blank gap. */
+  html body.komari-admin-shell .komari-settings-page {
+    gap: 8px !important;
+  }
+  html body.komari-admin-shell .komari-page-head {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 3px !important;
+    justify-content: start !important;
+    align-items: start !important;
+    margin: 0 0 8px !important;
+    min-height: 0 !important;
+    height: auto !important;
+  }
+  html body.komari-admin-shell .komari-page-head > div:first-child,
+  html body.komari-admin-shell .komari-page-head > div {
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+  html body.komari-admin-shell .komari-page-head h1,
+  html body.komari-admin-shell .komari-page-head h2,
+  html body.komari-admin-shell .komari-page-head p {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  html body.komari-admin-shell .komari-page-head p {
+    margin-top: 3px !important;
+    line-height: 1.35 !important;
+  }
+  html body.komari-admin-shell .komari-settings-grid.two {
+    margin-top: 0 !important;
+    gap: 10px !important;
+  }
+  html body.komari-admin-shell .komari-section-panel.is-visible {
+    margin-top: 0 !important;
+  }
+  html body.komari-admin-shell .login-section-heading {
+    margin: 10px 0 7px !important;
+    font-size: 15px !important;
+    line-height: 1.2 !important;
+  }
+  html body.komari-admin-shell .login-section-heading.first {
+    margin-top: 2px !important;
+  }
+  html body.komari-admin-shell .login-setting-row,
+  html body.komari-admin-shell .login-param-card,
+  html body.komari-admin-shell .login-api-card {
+    padding: 11px 12px !important;
+    margin-bottom: 9px !important;
+    border-radius: 12px !important;
+  }
+  html body.komari-admin-shell .login-setting-row {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    align-items: start !important;
+  }
+  html body.komari-admin-shell .login-setting-row > label,
+  html body.komari-admin-shell .login-setting-row > div {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+  html body.komari-admin-shell .login-setting-row select,
+  html body.komari-admin-shell .login-setting-row .form-input {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+  html body.komari-admin-shell .login-param-head {
+    gap: 8px !important;
+    align-items: center !important;
+  }
+  html body.komari-admin-shell .login-param-fields {
+    gap: 9px !important;
+    margin-top: 9px !important;
+  }
+  html body.komari-admin-shell .login-callback {
+    margin-top: 8px !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+    line-height: 1.35 !important;
+  }
+  html body.komari-admin-shell .login-save-row,
+  html body.komari-admin-shell .login-api-card .komari-action-row {
+    margin-top: 9px !important;
+    gap: 8px !important;
+  }
+  html body.komari-admin-shell .theme-setting-row:has(#theme-marketplace-pos) {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  html body.komari-admin-shell #theme-marketplace-pos {
+    width: 100% !important;
+  }
+
+  /* Redesigned expand/collapse controls: text pill instead of lone glyph. */
+  html body.komari-admin-shell .login-collapse,
+  html body.komari-admin-shell .notify-collapse {
+    width: auto !important;
+    min-width: 64px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 0 12px !important;
+    border-radius: 999px !important;
+    border: 1px solid rgba(98,245,238,.34) !important;
+    background: rgba(98,245,238,.10) !important;
+    color: #7ffff8 !important;
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    letter-spacing: .04em !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 14px rgba(98,245,238,.10) !important;
+  }
+  html body.komari-admin-shell.admin-day-mode .login-collapse,
+  html body.komari-admin-shell.admin-day-mode .notify-collapse {
+    color: #0b5e6a !important;
+    background: #e8f8fb !important;
+    border-color: #b7dce5 !important;
+    box-shadow: none !important;
+  }
+  html body.komari-admin-shell .settings-caret {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 42px !important;
+    height: 24px !important;
+    padding: 0 8px !important;
+    border-radius: 999px !important;
+    margin-left: auto !important;
+    font-size: 11px !important;
+    line-height: 1 !important;
+    background: rgba(98,245,238,.10) !important;
+    border: 1px solid rgba(98,245,238,.24) !important;
+    color: #7ffff8 !important;
+  }
+}

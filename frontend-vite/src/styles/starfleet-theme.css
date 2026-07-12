@@ -1595,3 +1595,54 @@ body.starship-grabbing .starship-gltf-canvas { cursor: grabbing !important; }
 #globe-container .google-earth-node-label-layer {
   z-index: 38 !important; opacity: 1 !important; visibility: visible !important; display: block !important;
 }
+
+/* mobile-globe-readability-20260708: phone view prioritizes Cesium Earth and VPS nodes over decorative starship. */
+@media (max-width: 640px) {
+  .globe-only-page #globe-container,
+  .globe-only-page #cesium-globe-container,
+  .globe-only-page #cesium-globe-container .cesium-viewer,
+  .globe-only-page #cesium-globe-container .cesium-widget,
+  .globe-only-page #cesium-globe-container canvas {
+    opacity: 1 !important;
+    visibility: visible !important;
+    filter: brightness(1.18) saturate(1.18) contrast(1.08) !important;
+  }
+
+  .globe-only-page .star-effects-canvas,
+  .globe-only-page .earth-sync-stars,
+  .globe-only-page .photo-nebula-field,
+  .globe-only-page .photo-nebula-field::before,
+  .globe-only-page .photo-sun-star {
+    opacity: .10 !important;
+    filter: brightness(.72) saturate(.7) !important;
+  }
+
+  .globe-only-page #globe-container .photo-space-showcase.is-globe-background-layer,
+  #globe-container .photo-space-showcase.is-globe-background-layer,
+  .globe-only-page .photo-space-showcase,
+  .globe-only-page .starship-gltf-stage,
+  .globe-only-page .starship-gltf-canvas,
+  #globe-container .photo-space-showcase.is-globe-background-layer .starship-gltf-stage,
+  #globe-container .photo-space-showcase.is-globe-background-layer .starship-gltf-canvas {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    display: none !important;
+    pointer-events: none !important;
+  }
+
+  .globe-only-page .google-earth-node-label-layer,
+  #globe-container .google-earth-node-label-layer,
+  .globe-only-page .google-earth-node-html-label,
+  .globe-only-page .visitor-beacon-label {
+    z-index: 60 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    filter: brightness(1.18) saturate(1.15) !important;
+  }
+
+  .globe-only-page .google-earth-node-html-label.is-vps-node {
+    background: rgba(1, 12, 22, .86) !important;
+    border-color: rgba(127, 255, 248, .72) !important;
+    box-shadow: 0 0 26px rgba(98,245,238,.34), inset 0 0 0 1px rgba(127,255,248,.24) !important;
+  }
+}

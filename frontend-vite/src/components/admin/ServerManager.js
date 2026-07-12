@@ -44,7 +44,6 @@ export class ServerManager {
         <div class="komari-node-toolbar">
           <h2>节点列表</h2>
           <div class="komari-node-actions">
-            <input id="sm-search" class="form-input komari-search" placeholder="找到服务器">
             <button id="sm-add-node" class="add-btn">＋ 添加节点</button>
           </div>
         </div>
@@ -84,7 +83,7 @@ export class ServerManager {
 
   _bind() {
     this._el.querySelector('#sm-add-node').addEventListener('click', () => this._openAddModal());
-    this._el.querySelector('#sm-search').addEventListener('input', e => { this._query = e.target.value.trim().toLowerCase(); this._renderTable(); });
+    this._el.querySelector('#sm-search')?.addEventListener('input', e => { this._query = e.target.value.trim().toLowerCase(); this._renderTable(); });
     this._el.querySelector('#sm-check-all').addEventListener('change', e => {
       const rows = this._filteredServers();
       this._selectedIds = e.target.checked ? new Set(rows.map(s => String(s.id))) : new Set();

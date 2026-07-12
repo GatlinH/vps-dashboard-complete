@@ -28,6 +28,7 @@ import './styles/hermes_admin_manual_updates_20260707.css';
 import './styles/hermes_admin_proxy_spacing_fix_20260707.css';
 import './styles/hermes_admin_proxy_lift_20260707.css';
 import './styles/hermes_admin_theme_followups_20260707.css';
+import './styles/hermes_admin_mobile_hotfix_20260708.css';
 import { applyAdminTextLanguage, initAdminTextI18nObserver } from './admin-i18n-runtime.js';
 import { logout, checkSession } from './api/auth.js';
 import { ServerManager } from './components/admin/ServerManager.js';
@@ -102,8 +103,8 @@ function switchTab(tab, section = null) {
 
 
 const ADMIN_I18N = {
-  zh:{help:'帮助',bridge:'舰桥',day:'日间',return_starmap:'返回星图',logout:'退出登录',servers:'服务器',settings:'设置',site:'站点',login:'登录',notify:'通知',general:'通用',proxy:'反向代理',alert_rules:'通知规则',latency_monitor:'延迟监测',sessions:'登录会话',account:'账户',logs:'日志',theme_management:'站点外观'},
-  en:{help:'Help',bridge:'Bridge',day:'Day',return_starmap:'Return to Starmap',logout:'Logout',servers:'Servers',settings:'Settings',site:'Site',login:'Login',notify:'Notifications',general:'General',proxy:'Reverse Proxy',alert_rules:'Notification Rules',latency_monitor:'Latency Monitor',sessions:'Sessions',account:'Account',logs:'Logs',theme_management:'Default Theme'},
+  zh:{help:'帮助',bridge:'舰桥模式',day:'日间模式',expand:'展开',collapse:'收起',return_starmap:'返回星图',logout:'退出登录',servers:'服务器',settings:'设置',site:'站点',login:'登录',notify:'通知',general:'通用',proxy:'反向代理',alert_rules:'通知规则',latency_monitor:'延迟监测',sessions:'登录会话',account:'账户',logs:'日志',theme_management:'站点外观'},
+  en:{help:'Help',bridge:'Bridge Mode',day:'Day Mode',expand:'Expand',collapse:'Collapse',return_starmap:'Return to Starmap',logout:'Logout',servers:'Servers',settings:'Settings',site:'Site',login:'Login',notify:'Notifications',general:'General',proxy:'Reverse Proxy',alert_rules:'Notification Rules',latency_monitor:'Latency Monitor',sessions:'Sessions',account:'Account',logs:'Logs',theme_management:'Site Appearance'},
   ja:{help:'ヘルプ',bridge:'ブリッジ',day:'昼間',return_starmap:'星図へ戻る',logout:'ログアウト',servers:'サーバー',settings:'設定',site:'サイト',login:'ログイン',notify:'通知',general:'一般',proxy:'リバースプロキシ',alert_rules:'通知ルール',latency_monitor:'遅延監視',sessions:'セッション',account:'アカウント',logs:'ログ',theme_management:'デフォルトテーマ'},
   ko:{help:'도움말',bridge:'브리지',day:'주간',return_starmap:'별 지도 반환',logout:'로그아웃',servers:'서버',settings:'설정',site:'사이트',login:'로그인',notify:'알림',general:'일반',proxy:'리버스 프록시',alert_rules:'알림 규칙',latency_monitor:'지연 모니터',sessions:'세션',account:'계정',logs:'로그',theme_management:'기본 테마'},
   fr:{help:'Aide',bridge:'Passerelle',day:'Jour',return_starmap:'Retour à la carte',logout:'Déconnexion',servers:'Serveurs',settings:'Paramètres',site:'Site',login:'Connexion',notify:'Notifications',general:'Général',proxy:'Proxy inverse',alert_rules:'Règles de notification',latency_monitor:'Latence',sessions:'Sessions',account:'Compte',logs:'Journaux',theme_management:'Thème par défaut'},
@@ -111,6 +112,22 @@ const ADMIN_I18N = {
   es:{help:'Ayuda',bridge:'Puente',day:'Día',return_starmap:'Volver al mapa',logout:'Cerrar sesión',servers:'Servidores',settings:'Ajustes',site:'Sitio',login:'Inicio',notify:'Notificaciones',general:'General',proxy:'Proxy inverso',alert_rules:'Reglas de notificación',latency_monitor:'Monitor de latencia',sessions:'Sesiones',account:'Cuenta',logs:'Registros',theme_management:'Tema predeterminado'},
   ru:{help:'Помощь',bridge:'Мостик',day:'День',return_starmap:'К звёздной карте',logout:'Выйти',servers:'Серверы',settings:'Настройки',site:'Сайт',login:'Вход',notify:'Уведомления',general:'Общие',proxy:'Обратный прокси',alert_rules:'Правила уведомлений',latency_monitor:'Монитор задержки',sessions:'Сеансы',account:'Аккаунт',logs:'Журналы',theme_management:'Тема по умолчанию'},
 };
+function adminDict(lang = localStorage.getItem('admin_lang') || 'zh') {
+  return ADMIN_I18N[lang] || ADMIN_I18N.zh;
+}
+function adminToggleLabel(collapsed, lang = localStorage.getItem('admin_lang') || 'zh') {
+  const dict = adminDict(lang);
+  return collapsed ? (dict.expand || ADMIN_I18N.en.expand) : (dict.collapse || ADMIN_I18N.en.collapse);
+}
+function updateAdminToggleLabels(lang = localStorage.getItem('admin_lang') || 'zh') {
+  const settingsSubtabs = document.getElementById('admin-settings-subtabs');
+  const settingsCaret = document.querySelector('.settings-caret');
+  if (settingsCaret) settingsCaret.textContent = adminToggleLabel(settingsSubtabs?.classList.contains('is-collapsed'), lang);
+  document.querySelectorAll('.login-collapse,.notify-collapse').forEach((btn) => {
+    const card = btn.closest('#login-param-card,#notify-settings-card,.komari-notify-settings-card');
+    btn.textContent = adminToggleLabel(card?.classList.contains('is-collapsed'), lang);
+  });
+}
 function applyAdminLanguage(lang) {
   const dict = ADMIN_I18N[lang] || ADMIN_I18N.zh;
   document.documentElement.lang = lang || 'zh';
@@ -121,6 +138,7 @@ function applyAdminLanguage(lang) {
   const btn = document.getElementById('admin-theme-toggle');
   if (btn) btn.textContent = document.body.classList.contains('admin-day-mode') ? dict.day : dict.bridge;
   applyAdminTextLanguage(lang || 'zh');
+  updateAdminToggleLabels(lang || 'zh');
 }
 function initAdminToolbar() {
   const btn = document.getElementById('admin-theme-toggle');
@@ -152,7 +170,7 @@ function initAdminToolbar() {
       const settingsSubtabs = document.getElementById('admin-settings-subtabs') || settingsToggle.nextElementSibling;
       const collapsed = settingsSubtabs?.classList.toggle('is-collapsed');
       const caret = settingsToggle.querySelector('.settings-caret') || settingsToggle.querySelector('b');
-      if (caret) caret.textContent = collapsed ? '⌃' : '⌄';
+      if (caret) caret.textContent = adminToggleLabel(collapsed);
       settingsToggle.setAttribute('aria-expanded', String(!collapsed));
       if (!collapsed) switchTab('settings','site');
     }, true);
@@ -185,7 +203,7 @@ function initAdminToolbar() {
       if (!card) return;
       ev.preventDefault();
       const collapsed = card.classList.toggle('is-collapsed');
-      collapseBtn.textContent = collapsed ? '⌄' : '⌃';
+      collapseBtn.textContent = adminToggleLabel(collapsed);
       collapseBtn.setAttribute('aria-expanded', String(!collapsed));
     });
   }

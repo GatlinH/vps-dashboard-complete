@@ -1600,19 +1600,36 @@ async function renderDetailPage(serverId) {
     return;
   }
 
-  // Do not render the legacy/empty detail shell before async data arrives.
-  // It caused a visible flash of a blank Starfleet/LCARS background on route change.
-  window.__DBG__.DETAIL_TRACE.push('skip-pre-fetch-shell');
+  // Show a real mobile-safe shell immediately. Heavy history endpoints can take
+  // several seconds on small VPS installs; without this, direct ?server= routes
+  // look like a blank starfield until every request completes.
+  app.innerHTML = detailLoadingShell(resolvedServer);
+  bindTopbarEvents(app);
+  updateRateDisplay();
+  const loadingGrid = document.getElementById('detailPageGrid');
+  if (loadingGrid) {
+    loadingGrid.innerHTML = `<div class="detail-loading-card"><strong>${escText(resolvedServer.name)}</strong><span>正在加载详情图表…</span></div>`;
+  }
 
+  const isMobileDetail = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
+  const liveLimit = detailDays === 0 ? (isMobileDetail ? 900 : 14400) : (isMobileDetail ? 720 : 2000);
+  const historyDays = detailDays === 0 ? 1 : detailDays;
+  const historyLimit = liveLimit;
+  const targetHistoryHours = detailDays === 0 ? (isMobileDetail ? 2 : 12) : detailDays * 24;
+  const settleWithin = (promise, timeoutMs, label) => Promise.race([
+    promise.then((value) => ({ status: 'fulfilled', value }), (reason) => ({ status: 'rejected', reason })),
+    new Promise((resolve) => setTimeout(() => resolve({ status: 'rejected', reason: new Error(`${label || 'detail'} timeout`) }), timeoutMs)),
+  ]);
+  const fetchBudgetMs = isMobileDetail ? 3600 : 12000;
   window.__DBG__.DETAIL_TRACE.push('before-fetches');
-  const [traffic, history, ping, probeHistory, pingTargets, pingTargetHistory, peerPingTargets] = await Promise.allSettled([
-    fetchJson(`${API_ROOT}/api/v1/traffic/public/${resolvedServer.id}`, { timeoutMs: 1200 }),
-    fetchJson(`${API_ROOT}/api/v1/traffic/public/${resolvedServer.id}/history?days=${detailDays}&bucket_minutes=${detailBucketMinutes}&limit=${detailDays === 0 ? 14400 : 2000}`, { timeoutMs: 1200 }),
-    fetchPing(resolvedServer),
-    fetchServerHistory(resolvedServer.id, detailDays === 0 ? 1 : detailDays, detailDays === 0 ? 14400 : 2000, detailBucketMinutes),
-    fetchPingTargets(resolvedServer.id, 3),
-    fetchPingTargetHistory(resolvedServer.id, detailDays === 0 ? 12 : detailDays * 24, detailDays === 0 ? 14400 : 2000),
-    fetchPingTargets(resolvedServer.id, 3, 'agent'),
+  const [traffic, history, ping, probeHistory, pingTargets, pingTargetHistory, peerPingTargets] = await Promise.all([
+    settleWithin(fetchJson(`${API_ROOT}/api/v1/traffic/public/${resolvedServer.id}`, { timeoutMs: 1200 }), fetchBudgetMs, 'traffic'),
+    settleWithin(fetchJson(`${API_ROOT}/api/v1/traffic/public/${resolvedServer.id}/history?days=${detailDays}&bucket_minutes=${detailBucketMinutes}&limit=${liveLimit}`, { timeoutMs: isMobileDetail ? 2200 : 1200 }), fetchBudgetMs, 'traffic-history'),
+    settleWithin(fetchPing(resolvedServer), fetchBudgetMs, 'ping'),
+    settleWithin(fetchServerHistory(resolvedServer.id, historyDays, historyLimit, detailBucketMinutes), fetchBudgetMs, 'server-history'),
+    settleWithin(fetchPingTargets(resolvedServer.id, 3), fetchBudgetMs, 'ping-targets'),
+    settleWithin(fetchPingTargetHistory(resolvedServer.id, targetHistoryHours, historyLimit), fetchBudgetMs, 'ping-history'),
+    settleWithin(fetchPingTargets(resolvedServer.id, 3, 'agent'), fetchBudgetMs, 'peer-ping-targets'),
   ]);
 
   const trafficData = traffic.status === 'fulfilled' ? traffic.value : null;
