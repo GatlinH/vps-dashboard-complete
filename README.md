@@ -89,6 +89,19 @@ read:packages
 
 也可以把 GHCR package visibility 改成 public，避免 VPS 持有 GitHub token。
 
+## Compose 运维命令
+
+请使用包装脚本，它会安全加载 `/etc/vps-dashboard/secrets.env`，避免遗漏 Watchtower API token：
+
+```bash
+./scripts/compose.sh config -q
+./scripts/compose.sh ps
+./scripts/compose.sh pull
+./scripts/compose.sh up -d --no-build
+```
+
+可用 `VPS_DASHBOARD_SECRETS_FILE=/path/to/secrets.env` 覆盖 secrets 文件路径；脚本不会输出 secret 值。
+
 ## 手动启动/更新
 
 ### 启动

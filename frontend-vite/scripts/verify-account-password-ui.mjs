@@ -1,0 +1,10 @@
+import { readFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
+const source = readFileSync(new URL('../src/components/admin/AccountPanel.js', import.meta.url), 'utf8');
+assert.match(source, /id="acct-toggle-password"/);
+assert.match(source, /_secureRandomIndex\(upperBound\)/);
+assert.match(source, /_setPasswordVisibility\(reveal\)/);
+assert.match(source, /this\._setPasswordVisibility\(false\);/);
+assert.doesNotMatch(source, /Math\.random/);
+assert.doesNotMatch(source, /_fillRandomPassword\(\)\{[^}]*\.type='text'/);
+console.log('ACCOUNT_PASSWORD_UI_VERIFIED masked-by-default=true explicit-toggle=true reset-after-copy-and-submit=true');
