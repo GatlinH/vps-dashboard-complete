@@ -15,7 +15,7 @@ from middleware.rate_limit import limiter, LOGIN_LIMIT, WRITE_LIMIT, READ_LIMIT
 from middleware.rbac import admin_required, ADMIN_ROLE, VIEWER_ROLE, USER_ROLE
 from services.email_service import send_verification_email, send_password_reset_email, send_welcome_email
 from utils.errors import AuthenticationError
-from utils.token_blocklist import is_refresh_token_revoked, revoke_refresh_token, revoke_access_token
+from utils.token_blocklist import is_refresh_token_revoked, revoke_refresh_token, revoke_access_token, revoke_all_user_tokens
 import extensions
 from utils.validators import validate_password_strength
 
@@ -44,7 +44,7 @@ def _store_session(user, access_token: str) -> None:
         now = int(time.time())
         ip = request.remote_addr or ""
         payload = {"id": jti, "user_id": str(user.id), "username": user.username, "ua": _fmt_ua(request.user_agent), "user_agent": request.user_agent.string or "", "ip": ip, "latest_ip": ip, "created_at": now, "last_login": now, "last_seen": now, "expires_at": exp}
-        extensions.redis_client.setex(_session_key(jti), max(1, exp - now), json.dumps(payload, ensure_ascii=False))
+        extensions.redis_client.set(_session_key(jti), json.dumps(payload, ensure_ascii=False), ex=max(1, exp - now))
     except Exception as exc:
         logger.warning("记录登录会话失败: %s", exc)
 
@@ -66,7 +66,7 @@ def _ensure_current_session():
             item = {"id": jti, "user_id": str(uid), "username": getattr(user, "username", None) or str(uid), "ua": _fmt_ua(request.user_agent), "user_agent": request.user_agent.string or "", "ip": request.remote_addr or "", "created_at": now, "last_login": now, "expires_at": exp, "backfilled": True}
         item["latest_ip"] = request.remote_addr or item.get("latest_ip") or item.get("ip") or ""
         item["last_seen"] = now
-        extensions.redis_client.setex(key, max(1, exp - now), json.dumps(item, ensure_ascii=False))
+        extensions.redis_client.set(key, json.dumps(item, ensure_ascii=False), ex=max(1, exp - now))
     except Exception as exc:
         logger.warning("补登记当前会话失败: %s", exc)
 
@@ -231,11 +231,10 @@ def change_password():
         return jsonify(msg=err_msg), 400
     user.password_hash = generate_password_hash(new)
     db.session.commit()
-    try:
-        revoke_access_token(get_jwt().get("jti"), 60, user_id=uid)
-    except Exception:
-        pass
-    return jsonify(msg="密码已更新")
+    if not revoke_all_user_tokens(int(uid)):
+        logger.error("密码更新后未能吊销既有会话: user_id=%s", uid)
+        return jsonify(msg="密码已更新，但会话吊销失败；请联系管理员"), 503
+    return jsonify(msg="密码已更新，其他登录会话已失效")
 
 
 @account_bp.post("/logout")
@@ -363,7 +362,10 @@ def reset_password():
     user.password_hash = generate_password_hash(new_password)
     prt.consume()
     db.session.commit()
-    return jsonify(msg="密码重置成功，请使用新密码登录")
+    if not revoke_all_user_tokens(user.id):
+        logger.error("密码重置后未能吊销既有会话: user_id=%s", user.id)
+        return jsonify(msg="密码重置成功，但会话吊销失败；请联系管理员"), 503
+    return jsonify(msg="密码重置成功，请使用新密码重新登录")
 
 
 # ── Sessions ───────────────────────────────────────────────────
@@ -435,41 +437,70 @@ def update_user_role(user_id):
 
 # ── Profile ────────────────────────────────────────────────────
 @account_bp.patch("/profile")
+@limiter.limit(WRITE_LIMIT)
+@jwt_required()
 def update_profile():
     data = request.get_json(silent=True) or {}
     uid = int(get_jwt_identity())
     user = db.session.get(User, uid)
-    if not user: return jsonify({"error": "not found"}), 404
-    if data.get("username"): user.username = data["username"]
-    if data.get("email"): user.email = data["email"]
+    if not user:
+        return jsonify(error="not found"), 404
+    username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    if not username and not email:
+        return jsonify(msg="至少提供 username 或 email"), 400
+    from api.auth import _EMAIL_RE, _USERNAME_RE
+    if username:
+        if not _USERNAME_RE.match(username):
+            return jsonify(msg="用户名只能包含字母、数字、下划线、连字符，长度 3-32 位"), 400
+        if User.query.filter(User.username == username, User.id != user.id).first():
+            return jsonify(msg="用户名已被占用"), 409
+        user.username = username
+    if email:
+        if not _EMAIL_RE.match(email):
+            return jsonify(msg="邮箱格式不正确"), 400
+        if User.query.filter(User.email == email, User.id != user.id).first():
+            return jsonify(msg="该邮箱已注册"), 409
+        user.email = email
+        user.email_verified = False
     db.session.commit()
-    return jsonify({"updated": True})
+    return jsonify(updated=True, user=user.to_dict())
 
-# ── 2FA stubs ──────────────────────────────────────────────────
+
+def _feature_not_implemented():
+    return jsonify(msg="该账户安全功能尚未实现，已禁用"), 501
+
+
+# ── Reserved account-security endpoints: authenticated and explicitly disabled ──
 @account_bp.get("/2fa/status")
+@jwt_required()
 def twofa_status():
-    return jsonify({"enabled": False})
+    return _feature_not_implemented()
 
 @account_bp.post("/2fa/setup")
+@jwt_required()
 def twofa_setup():
-    return jsonify({"secret": "", "otpauth_url": ""})
+    return _feature_not_implemented()
 
 @account_bp.post("/2fa/enable")
+@jwt_required()
 def twofa_enable():
-    return jsonify({"enabled": True})
+    return _feature_not_implemented()
 
 @account_bp.post("/2fa/disable")
+@jwt_required()
 def twofa_disable():
-    return jsonify({"disabled": True})
+    return _feature_not_implemented()
 
-# ── External accounts stub ─────────────────────────────────────
 @account_bp.get("/external-accounts")
+@jwt_required()
 def external_accounts():
-    return jsonify({"accounts": {}, "oauth_providers": {"google": False, "github": False}})
+    return _feature_not_implemented()
 
 @account_bp.delete("/external-accounts/<provider>")
+@jwt_required()
 def unlink_external_account(provider):
-    return jsonify({"unlinked": True})
+    return _feature_not_implemented()
 
 # ── OAuth providers stub ───────────────────────────────────────
 @account_bp.get("/oauth/providers")

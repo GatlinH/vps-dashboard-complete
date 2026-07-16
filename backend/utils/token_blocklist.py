@@ -93,7 +93,7 @@ def revoke_token(
     else:
         key = _build_v1_key(prefix, jti)
 
-    extensions.redis_client.setex(key, expires_delta, "1")
+    extensions.redis_client.set(key, "1", ex=expires_delta)
     logger.debug(
         "Token 已吊销: type=%s jti=%s user_id=%s ttl=%ds",
         token_type, jti, user_id, expires_delta,
@@ -178,7 +178,7 @@ def revoke_all_user_tokens(user_id: int) -> int:
     # 取下一整秒边界：确保当前秒内的所有 token 都被覆盖，新登录（iat >= forced_at）则有效
     forced_at = int(time.time()) + 1
     try:
-        extensions.redis_client.setex(key, _FORCE_LOGOUT_TTL, str(forced_at))
+        extensions.redis_client.set(key, str(forced_at), ex=_FORCE_LOGOUT_TTL)
         logger.info("用户强制下线已设置: user_id=%s, forced_at=%s", user_id, forced_at)
         return 1
     except Exception as e:
