@@ -11,7 +11,7 @@
     "test:account-password-ui": "node scripts/verify-account-password-ui.mjs"
   },
   "dependencies": {
-    "@deck.gl/core": "^8.9.32",
+    "@deck.gl/core": "^9.3.6",
     "@deck.gl/geo-layers": "^8.9.32",
     "@deck.gl/layers": "^8.9.32",
     "@luma.gl/core": "^8.5.21",
