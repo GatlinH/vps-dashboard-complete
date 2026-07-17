@@ -125,14 +125,14 @@ def test_health_checks_dependencies(client):
 
 def test_agent_ack_marks_commands_executed(client, auth_headers, test_server):
     """agent ack 成功后，指定命令状态应变为 executed。"""
-    # 下发一条命令
+    # 下发一条合法的声明式任务
     enqueue = client.post(
         f"/api/v1/servers/{test_server}/agent-commands",
         headers=auth_headers,
-        json={"command_type": "sync", "payload": {}, "ttl_seconds": 300},
+        json={"kind": "collect_inventory", "params": {}, "ttl_seconds": 300},
     )
     assert enqueue.status_code == 201
-    cmd_id = enqueue.get_json()["command"]["id"]
+    cmd_id = enqueue.get_json()["task"]["id"]
 
     agent_key, agent_uuid = _provision_agent(client, auth_headers, test_server)
 
@@ -141,8 +141,8 @@ def test_agent_ack_marks_commands_executed(client, auth_headers, test_server):
     poll_headers = _agent_headers(agent_key, poll_raw, agent_uuid, nonce="ack-poll")
     poll_resp = client.get("/api/v1/agent/poll", headers=poll_headers)
     assert poll_resp.status_code == 200
-    commands = poll_resp.get_json().get("commands", [])
-    assert any(c["id"] == cmd_id for c in commands), "命令应出现在 poll 列表中"
+    tasks = poll_resp.get_json().get("tasks", [])
+    assert any(task["id"] == cmd_id for task in tasks), "命令应出现在 poll 列表中"
 
     # agent ack
     ack_body = json.dumps(
@@ -162,8 +162,8 @@ def test_agent_ack_marks_commands_executed(client, auth_headers, test_server):
     poll_raw2 = b""
     poll_headers2 = _agent_headers(agent_key, poll_raw2, agent_uuid, nonce="ack-poll2")
     poll_resp2 = client.get("/api/v1/agent/poll", headers=poll_headers2)
-    commands2 = poll_resp2.get_json().get("commands", [])
-    assert not any(c["id"] == cmd_id for c in commands2), "已 ack 的命令不应再出现在 poll 列表"
+    tasks2 = poll_resp2.get_json().get("tasks", [])
+    assert not any(task["id"] == cmd_id for task in tasks2), "已 ack 的命令不应再出现在 poll 列表"
 
 
 def test_agent_ack_requires_valid_auth(client, auth_headers, test_server):

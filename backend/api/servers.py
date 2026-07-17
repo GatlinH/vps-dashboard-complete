@@ -508,40 +508,23 @@ def enqueue_agent_command(sid):
             "blocked_capabilities": ["exec", "terminal", "file_list"],
         }), 403
     server = Server.query.get_or_404(sid)
+    from services.agent_tasks import TASK_SCHEMA_VERSION, normalize_task_request
+
     data = request.get_json(silent=True) or {}
-    command_type = (data.get("command_type") or "").strip()
-    if not command_type:
-        raise ValidationError("command_type 必填", field="command_type")
-    if len(command_type) > 32:
-        raise ValidationError("command_type 不能超过 32 个字符", field="command_type")
-
-    payload = data.get("payload", {})
-    if payload is None:
-        payload = {}
-    if not isinstance(payload, dict):
-        raise ValidationError("payload 必须是 JSON 对象", field="payload")
-
-    ttl_seconds = data.get("ttl_seconds")
-    expires_at = None
-    if ttl_seconds is not None:
-        try:
-            ttl_seconds = int(ttl_seconds)
-        except (TypeError, ValueError):
-            raise ValidationError("ttl_seconds 必须是整数", field="ttl_seconds")
-        if ttl_seconds <= 0 or ttl_seconds > 86400:
-            raise ValidationError("ttl_seconds 取值范围为 1-86400", field="ttl_seconds")
-        expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)
-
+    kind, params, ttl_seconds = normalize_task_request(data)
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)
+    task_payload = {"schema_version": TASK_SCHEMA_VERSION, "kind": kind, "params": params}
     cmd = AgentCommand(
         server_id=server.id,
-        command_type=command_type,
-        payload=payload,
+        command_type=kind,
+        payload=task_payload,
         status="pending",
         expires_at=expires_at,
     )
     db.session.add(cmd)
+    _audit_high_risk("agent_task_enqueued", "声明式 Agent 任务已下发", sid, {"kind": kind, "ttl_seconds": ttl_seconds})
     db.session.commit()
-    return jsonify({"ok": True, "server_id": server.id, "command": cmd.to_dict()}), 201
+    return jsonify({"ok": True, "server_id": server.id, "task": {**task_payload, "id": cmd.id, "expires_at": cmd.expires_at.isoformat()}}), 201
 
 
 # ── 指标推送 ──────────────────────────────────────────────────────────────────

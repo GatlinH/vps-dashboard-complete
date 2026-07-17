@@ -605,7 +605,7 @@ def agent_poll():
             logger.debug("Failed to record agent poll metric: %s", exc)
         return jsonify({
             "config": server.agent_config or {},
-            "commands": [],
+            "tasks": [],
             "readonly": True,
             "policy": policy,
         })
@@ -633,7 +633,14 @@ def agent_poll():
 
     return jsonify({
         "config": server.agent_config or {},
-        "commands": [c.to_dict() for c in commands],
+        "tasks": [
+            {
+                **(c.payload or {}),
+                "id": c.id,
+                "expires_at": c.expires_at.isoformat() if c.expires_at else None,
+            }
+            for c in commands
+        ],
     })
 
 

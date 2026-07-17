@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+import importlib.util
 from datetime import datetime
 from pathlib import Path
 
@@ -174,10 +175,11 @@ def sign(body, timestamp, nonce):
 
 def _request(path, body=None):
     timestamp, nonce = str(int(time.time())), str(int(time.time() * 1000))
+    raw = body or b""
     request = urllib.request.Request(API_ROOT + path, data=body, method="POST" if body is not None else "GET")
     request.add_header("X-Agent-UUID", AGENT_UUID); request.add_header("X-Agent-Key", AGENT_KEY)
-    if body is not None:
-        request.add_header("Content-Type", "application/json"); request.add_header("X-Agent-Timestamp", timestamp); request.add_header("X-Agent-Nonce", nonce); request.add_header("X-Agent-Signature", sign(body, timestamp, nonce))
+    request.add_header("X-Agent-Timestamp", timestamp); request.add_header("X-Agent-Nonce", nonce); request.add_header("X-Agent-Signature", sign(raw, timestamp, nonce))
+    if body is not None: request.add_header("Content-Type", "application/json")
     return urllib.request.urlopen(request, timeout=15).read()
 
 
@@ -192,7 +194,7 @@ def tcp_probe(host, port, timeout=5):
         return None
 
 
-def probe_targets():
+def probe_targets(allowed_keys=None):
     if not SERVER_ID: return
     try:
         request = urllib.request.Request(f"{API_ROOT}/api/v1/probe/public/ping-targets/{SERVER_ID}?count=2&source=agent")
@@ -202,9 +204,51 @@ def probe_targets():
         return
     results = []
     for target in targets:
+        if allowed_keys is not None and target.get("key") not in allowed_keys:
+            continue
         host, port = target.get("host") or target.get("label"), target.get("port") or 80; latency = tcp_probe(host, port)
         results.append({"key": target.get("key", str(host)), "host": host, "port": port, "protocol": target.get("protocol", "tcp"), "latency_ms": latency, "success": latency is not None, "loss_pct": 0 if latency is not None else 100})
     if results: _request("/api/v1/agent/probe-results", json.dumps({"results": results, "agent_uuid": AGENT_UUID}, ensure_ascii=False).encode())
+
+
+def _load_task_validator():
+    path = Path(__file__).with_name("agent_tasks.py")
+    spec = importlib.util.spec_from_file_location("agent_tasks", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.validate_task
+
+
+def poll_tasks():
+    try:
+        return json.loads(_request("/api/v1/agent/poll")).get("tasks", [])
+    except Exception:
+        return []
+
+
+def ack_tasks(task_ids):
+    if task_ids:
+        _request("/api/v1/agent/ack", json.dumps({"command_ids": task_ids}, separators=(",", ":")).encode())
+
+
+def execute_tasks(tasks):
+    validate_task = _load_task_validator()
+    completed = []
+    for task in tasks:
+        task = validate_task(task)
+        if not task:
+            continue
+        try:
+            if task["kind"] == "collect_inventory":
+                push_once()
+            elif task["kind"] == "run_peer_probe":
+                probe_targets(set(task["params"]["target_keys"]))
+            elif task["kind"] != "reload_agent_config":
+                continue
+            completed.append(task["id"])
+        except Exception as error:
+            print(f"[{datetime.now().isoformat()}] task {task['id']} failed: {error}", flush=True)
+    return completed
 
 
 def run_forever(stop_event=None):
@@ -212,6 +256,9 @@ def run_forever(stop_event=None):
     while not (stop_event and stop_event.is_set()):
         try: push_once()
         except Exception as error: print(f"[{datetime.now().isoformat()}] push failed: {error}", flush=True)
+        try:
+            ack_tasks(execute_tasks(poll_tasks()))
+        except Exception as error: print(f"[{datetime.now().isoformat()}] task poll failed: {error}", flush=True)
         if time.time() - last_probe >= PROBE_INTERVAL:
             try: probe_targets()
             except Exception as error: print(f"[{datetime.now().isoformat()}] probe failed: {error}", flush=True)
