@@ -26,7 +26,8 @@ export class StarEffectsLayer {
   }
 
   async init() {
-    this.app = new PIXI.Application({
+    this.app = new PIXI.Application();
+    await this.app.init({
       resizeTo: this.container,
       backgroundAlpha: 0,
       antialias: true,
@@ -34,9 +35,9 @@ export class StarEffectsLayer {
       resolution: Math.min(window.devicePixelRatio || 1, 1.5),
       powerPreference: 'high-performance',
     });
-    this.app.view.className = 'star-effects-canvas';
-    this.app.view.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:20;';
-    this.container.appendChild(this.app.view);
+    this.app.canvas.className = 'star-effects-canvas';
+    this.app.canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:20;';
+    this.container.appendChild(this.app.canvas);
 
     this.stage = new PIXI.Container();
     this.starLayer = new PIXI.Container();
@@ -67,7 +68,7 @@ export class StarEffectsLayer {
       g.beginFill(color, lerp(.25, .78, this.rand()));
       g.drawCircle(0, 0, radius);
       g.endFill();
-      g.blendMode = PIXI.BLEND_MODES.ADD;
+      g.blendMode = 'add';
       g._base = { x, y, radius, alpha: g.alpha || 1, phase: this.rand() * Math.PI * 2, speed: lerp(.012, .045, this.rand()), color };
       this.starLayer.addChild(g);
       this.stars.push(g);
@@ -87,14 +88,14 @@ export class StarEffectsLayer {
         ray.beginFill(0xc8e0ff, lerp(.20, .38, this.rand()));
         ray.drawRoundedRect(-len / 2, -0.7, len, 1.4, .8);
         ray.endFill();
-        ray.blendMode = PIXI.BLEND_MODES.ADD;
+        ray.blendMode = 'add';
         ray._base = { x:b.x, y:b.y, rot:b.rot + i * Math.PI / 3, phase:this.rand()*Math.PI*2, alpha:ray.alpha || 1 };
         this.rayLayer.addChild(ray);
       }
     }
     // Soft fake godrays from upper-right cluster toward lower-left; cheaper than a full filter.
     this.godrays = new PIXI.Graphics();
-    this.godrays.blendMode = PIXI.BLEND_MODES.ADD;
+    this.godrays.blendMode = 'add';
     this.rayLayer.addChildAt(this.godrays, 0);
   }
 
@@ -134,11 +135,11 @@ export class StarEffectsLayer {
 
   handlePointerDown(e) {
     if (e.target && e.target.closest && e.target.closest('#cesium-globe-container')) return;
-    const rect = this.app.view.getBoundingClientRect();
+    const rect = this.app.canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     const ring = new PIXI.Graphics();
-    ring.blendMode = PIXI.BLEND_MODES.ADD;
+    ring.blendMode = 'add';
     ring._life = 0; ring._x = x; ring._y = y;
     this.rippleLayer.addChild(ring);
     this.ripples.push(ring);
@@ -146,7 +147,7 @@ export class StarEffectsLayer {
       const a = (i / 20) * Math.PI * 2;
       const p = new PIXI.Graphics();
       p.beginFill(0x9fd4ff, .62); p.drawCircle(0, 0, 1.6); p.endFill();
-      p.blendMode = PIXI.BLEND_MODES.ADD;
+      p.blendMode = 'add';
       p.x = x; p.y = y; p._life = 0; p._vx = Math.cos(a) * lerp(1.6, 4.2, this.rand()); p._vy = Math.sin(a) * lerp(1.6, 4.2, this.rand());
       this.rippleLayer.addChild(p); this.particles.push(p);
     }
