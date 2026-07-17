@@ -761,6 +761,13 @@ import shutil
 import socket
 import time
 import urllib.request
+from datetime import datetime
+
+API_ROOT = os.environ["API_ROOT"].rstrip("/")
+AGENT_UUID = os.environ["AGENT_UUID"]
+AGENT_KEY = os.environ["AGENT_KEY"]
+SERVER_ID = os.environ.get("SERVER_ID", "")
+INTERVAL = max(2, int(os.environ.get("INTERVAL", "20")))
 
 
 def read_os_name():
