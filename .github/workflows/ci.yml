@@ -112,3 +112,28 @@ jobs:
           path: frontend-dist/
           retention-days: 7
           overwrite: true
+
+
+  windows-agent:
+    name: Windows Agent Compatibility
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Install Windows agent dependencies
+        run: python -m pip install -r scripts/windows/requirements-agent-windows.txt
+      - name: Validate PowerShell entrypoints and agent metrics contract
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          [void][scriptblock]::Create((Get-Content -Raw scripts/windows/Install-VpsDashboard.ps1))
+          [void][scriptblock]::Create((Get-Content -Raw scripts/windows/Update-VpsDashboard.ps1))
+          $env:API_ROOT = 'http://127.0.0.1:5000'
+          $env:AGENT_UUID = 'ci-agent'
+          $env:AGENT_KEY = 'ci-agent-key'
+          $env:AGENT_STATE_PATH = Join-Path $env:RUNNER_TEMP 'agent-state.json'
+          python -c "import sys;sys.path.insert(0,'scripts');import importlib.util;p='scripts/vps-agent.py';s=importlib.util.spec_from_file_location('vps_agent',p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);x=m.payload();assert x['os'].startswith('Windows');assert x['cpu_cores'] >= 1;assert x['disk_gb'] >= 0;print('WINDOWS_AGENT_METRICS_VERIFIED')"

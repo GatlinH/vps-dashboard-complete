@@ -1,0 +1,27 @@
+services:
+  mysql:
+    env_file:
+      - ${VPS_DASHBOARD_SECRETS_FILE:?set VPS_DASHBOARD_SECRETS_FILE to an absolute .env path}
+  schema_init:
+    env_file:
+      - ${VPS_DASHBOARD_SECRETS_FILE:?set VPS_DASHBOARD_SECRETS_FILE to an absolute .env path}
+  redis:
+    env_file:
+      - ${VPS_DASHBOARD_SECRETS_FILE:?set VPS_DASHBOARD_SECRETS_FILE to an absolute .env path}
+  api:
+    env_file:
+      - ${VPS_DASHBOARD_SECRETS_FILE:?set VPS_DASHBOARD_SECRETS_FILE to an absolute .env path}
+    volumes:
+      - dashboard_logs:/var/log/vps-dashboard
+      - dashboard_data:/var/lib/vps-dashboard
+  agent_consumer:
+    env_file:
+      - ${VPS_DASHBOARD_SECRETS_FILE:?set VPS_DASHBOARD_SECRETS_FILE to an absolute .env path}
+    volumes:
+      - dashboard_logs:/var/log/vps-dashboard
+  watchtower:
+    profiles: ["watchtower"]
+
+volumes:
+  dashboard_logs:
+  dashboard_data:
