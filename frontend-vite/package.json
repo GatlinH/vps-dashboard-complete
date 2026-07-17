@@ -15,7 +15,7 @@
     "@deck.gl/geo-layers": "^9.3.6",
     "@deck.gl/layers": "^9.3.6",
     "@luma.gl/core": "^9.3.6",
-    "cesium": "1.142",
+    "cesium": "1.143",
     "chart.js": "^4.4.1",
     "pixi.js": "^8.19.0",
     "react": "^19.2.7",
