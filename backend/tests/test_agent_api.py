@@ -1,3 +1,4 @@
+import ast
 import hashlib
 import hmac
 import json
@@ -33,6 +34,29 @@ def test_agent_key_and_config_endpoints(client, auth_headers, test_server):
     )
     assert cfg.status_code == 200
     assert cfg.get_json()["agent_config"]["disable_nat"] is True
+
+
+def test_install_script_embeds_defined_startup_constants(client):
+    response = client.get("/api/v1/agent/install.sh")
+
+    assert response.status_code == 200
+    embedded_agent = response.get_data(as_text=True).split("<<'PY2'\n", 1)[1].split("\nPY2", 1)[0]
+    module = ast.parse(embedded_agent)
+    assignments = {
+        target.id
+        for node in module.body
+        if isinstance(node, ast.Assign)
+        for target in node.targets
+        if isinstance(target, ast.Name)
+    }
+    references = {
+        node.id
+        for node in ast.walk(module)
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+    }
+    startup_constants = {"API_ROOT", "AGENT_UUID", "AGENT_KEY", "SERVER_ID", "INTERVAL", "PROBE_INTERVAL", "STATE_PATH"}
+
+    assert references & startup_constants <= assignments
 
 
 def test_agent_claim_push_poll(client, auth_headers, test_server):

@@ -768,6 +768,8 @@ AGENT_UUID = os.environ["AGENT_UUID"]
 AGENT_KEY = os.environ["AGENT_KEY"]
 SERVER_ID = os.environ.get("SERVER_ID", "")
 INTERVAL = max(2, int(os.environ.get("INTERVAL", "20")))
+PROBE_INTERVAL = max(10, int(os.environ.get("PROBE_INTERVAL", "60")))
+STATE_PATH = os.environ.get("AGENT_STATE_PATH", "/opt/vps-agent/state.json")
 
 
 def read_os_name():
