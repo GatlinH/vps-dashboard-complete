@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  buildClusterFanout,
+  buildClusterScreenFanout,
   aggregateClusterStatus,
   buildClusterBeaconAppearance,
   clusterMemberAppearance,
@@ -21,14 +21,13 @@ const members = [
   { id: 3, name: 'Alpha', group: '生产', public_note: 'Web' },
   { id: 7, name: 'Beta', publicRemark: '边缘' },
 ];
-const fanout = buildClusterFanout({ lat: 31.2304, lon: 121.4737, members });
+const fanout = buildClusterScreenFanout({ viewportWidth: 1280, viewportHeight: 720, members });
 assert.equal(fanout.length, 3, 'a proximity cluster must fan out every member');
 assert.deepEqual(fanout.map(({ member }) => member.id), [3, 7, 20], 'fanout positions must use stable member ordering');
-assert.ok(fanout.every(({ visualOnly, lat, lon }) => visualOnly && Number.isFinite(lat) && Number.isFinite(lon)), 'fanout coordinates must be explicit visual-only offsets');
-assert.equal(new Set(fanout.map(({ lat, lon }) => `${lat},${lon}`)).size, 3, 'each fanned member needs a unique position');
-assert.ok(fanout.every(({ radiusKm }) => radiusKm >= 12), 'fanout radius must be plainly visible at city-view scale');
+assert.ok(fanout.every(({ radiusPx }) => radiusPx >= 90 && radiusPx <= 105), 'fanout must retain a stable screen-space radius');
+assert.ok(fanout.every(({ angleDeg }) => angleDeg >= 210 && angleDeg <= 250), 'fanout must avoid the upper label arc');
 assert.ok(fanout.every(({ appearance }) => appearance?.color && appearance?.shape), 'fanout members need stable role-derived color and shape');
-assert.ok(fanout.every(({ visualOnly }) => visualOnly), 'fanout offsets must never become persisted node coordinates');
+assert.ok(fanout.every(({ lat, lon }) => lat === undefined && lon === undefined), 'fanout members must never have derived geographic coordinates');
 
 assert.equal(aggregateClusterStatus([{ status: 'healthy' }, { status: 'warning' }]), 'warn', 'warning aliases must aggregate as amber');
 assert.equal(aggregateClusterStatus([{ status: 'online' }, { status: 'unknown' }]), 'warn', 'mixed healthy and unavailable members must aggregate as amber');
@@ -78,24 +77,20 @@ assert.match(cesiumSource, /this\.onNodeClick\(serverData,\s*clusterMembers/, 'C
 assert.match(cesiumSource, /item\.appearance\.color/, 'fanout connectors must use member role color');
 assert.match(cesiumSource, /_hideCollapsedClusterForFanout\(clusterKey, fanout\)/, 'fanout expansion must hide the matching collapsed cluster before rendering members');
 assert.match(cesiumSource, /_hiddenClusterFanoutVisuals/, 'fanout must retain the collapsed visual state needed for exact restoration');
-assert.match(cesiumSource, /entity\.show = false/, 'collapsed cluster ring and sectors must be hidden while fanout is active');
+assert.match(cesiumSource, /for \(const \{ entity \} of entities\) entity\.show = false/, 'collapsed cluster ring and sectors must be hidden while fanout is active');
 assert.match(cesiumSource, /label\.style\.display = 'none'/, 'collapsed cluster HTML label must be hidden while fanout is active');
 assert.match(cesiumSource, /entity\.show = previousShow/, 'clearing fanout must restore each collapsed entity\'s original show value');
 assert.match(cesiumSource, /label\.style\.display = previousDisplay/, 'clearing fanout must restore the collapsed HTML label\'s original display value');
-assert.match(cesiumSource, /width: 38, height: 38/, 'fanout members must use prominent role-shaped billboards');
-assert.match(cesiumSource, /pixelSize: 18/, 'fanout members must include a distinct glow point below each billboard');
-assert.match(cesiumSource, /showBackground: true/, 'fanout member labels must have a readable background');
-assert.match(cesiumSource, /labelOffsetX/, 'fanout member labels must use staggered offsets');
-assert.match(cesiumSource, /width: 4/, 'fanout connectors must be visually strong');
+assert.match(cesiumSource, /cluster-screen-fanout-member/, 'fanout members must be role-shaped HUD buttons');
+assert.match(cesiumSource, /cluster-screen-fanout-leader/, 'fanout members must include visible leaders');
 assert.match(entitiesSource, /clusterKey: cluster\.key/, 'collapsed cluster entities must retain their cluster key for fanout hiding');
 assert.match(entitiesSource, /labelEl\.dataset\.clusterKey = cluster\.key/, 'collapsed cluster HTML labels must retain their cluster key for fanout hiding');
 assert.match(labelOverlaySource, /if \(!Number\.isFinite\(win\?\.x\) \|\| !Number\.isFinite\(win\?\.y\)\) \{[\s\S]*?hideLabel\(labelEl\);[\s\S]*?return;/, 'failed world projections must hide HTML labels instead of falling back to a viewport position');
 assert.doesNotMatch(labelOverlaySource, /win\?\.x\s*:\s*width\s*\/\s*2|win\?\.y\s*:\s*height\s*\/\s*2/, 'HTML labels must never use viewport-center fallbacks after a failed projection');
-assert.match(cesiumSource, /expandClusterFanout\(\{ clusterKey, lat, lon, fanout, onMemberClick \}\)/, 'Cesium must expose a safe city-flight fanout API');
-assert.match(cesiumSource, /this\.flyToCity\(lon, lat, 600_000, \{ complete:/, 'multi-cluster expansion must fly to the canonical centroid before rendering');
-assert.match(cesiumSource, /if \(expansionId !== this\._clusterFanoutExpansionId \|\| this\._destroyed\) return;/, 'stale city-flight completions must not render fanout');
-assert.match(cesiumSource, /clearClusterFanout\([^)]*\) \{[\s\S]*this\._clusterFanoutExpansionId \+= 1;/, 'clearing fanout must cancel queued expansion');
-assert.match(cesiumSource, /this\.viewer\?\.camera\?\.cancelFlight\(\);/, 'clearing fanout must cancel an in-flight city expansion');
+assert.match(cesiumSource, /expandClusterFanout\(\{ clusterKey, lat, lon, fanout, onMemberClick \}\)/, 'Cesium must expose a no-flight screen fanout API');
+assert.doesNotMatch(cesiumSource, /flyToCity\(lon, lat, 600_000/, 'expanding a cluster must not fly or zoom the camera');
+assert.match(cesiumSource, /worldToWindowCoordinates/, 'the HUD must project its one cluster anchor after rendering');
+assert.match(cesiumSource, /frontFacing/, 'the HUD must hide for anchors behind the globe');
 assert.match(cesiumSource, /updateServers\(servers\) \{[\s\S]*this\.clearClusterFanout\(\);[\s\S]*this\._buildEntities\(\);/, 'server refresh must clear fanout before rebuilding collapsed cluster visuals');
 assert.match(cesiumSource, /onBlankClick/, 'Cesium blank-globe clicks must be observable for closing fanout');
 assert.match(threeSource, /onBlankClick/, 'Three fallback blank clicks must close its picker');
@@ -103,12 +98,11 @@ assert.match(mainSource, /function handleGlobeNodeSelection/, 'all renderers mus
 assert.match(mainSource, /function closeClusterInteraction/, 'cluster interaction must have an explicit close path');
 assert.match(mainSource, /showClusterMemberPicker/, 'Three fallback must present a grouped picker');
 assert.match(mainSource, /const canonicalCluster = clusterServersByCoordinate\(state\.servers\)/, 'fanout must resolve the canonical live cluster before using label metadata');
-assert.match(mainSource, /const fanoutCluster = canonicalCluster \|\| cluster/, 'Cesium clusters must render visual-only radial fanout from a canonical centroid');
-assert.match(mainSource, /const hasFanoutCentroid = Number\.isFinite\(Number\(fanoutCluster\?\.lat\)\) && Number\.isFinite\(Number\(fanoutCluster\?\.lon\)\)/, 'a finite canonical centroid must be sufficient for globe fanout even when a cluster validity flag is absent');
+assert.match(mainSource, /const fanoutCluster = canonicalCluster \|\| cluster/, 'Cesium clusters must use a canonical centroid for the one anchor');
+assert.match(mainSource, /buildClusterScreenFanout/, 'multi-cluster handler must build screen-space HUD members');
+assert.doesNotMatch(mainSource, /buildClusterFanout/, 'main must not create geographic fanout positions');
 assert.doesNotMatch(mainSource, /fanoutCluster\?\.valid/, 'globe fanout must not be blocked by an unrelated cluster validity flag when its centroid is finite');
-assert.match(mainSource, /globe\?\.expandClusterFanout\?\.\(\{ clusterKey: cluster\.key, lat: cluster\.lat, lon: cluster\.lon, fanout, onMemberClick: navigateToServer \}\)/, 'multi-cluster handler must request Cesium fly-then-expand rather than immediate fanout');
-assert.doesNotMatch(mainSource, /showClusterFanout\(fanout, navigateToServer\)/, 'main must not bypass the city-flight expansion API');
-assert.doesNotMatch(mainSource, /(?:localStorage|sessionStorage|fetch\([^\n]*latitude|fetch\([^\n]*longitude)/, 'cluster fanout must not persist visual offsets');
+assert.doesNotMatch(mainSource, /(?:localStorage|sessionStorage|fetch\([^\n]*(?:latitude|longitude))/, 'cluster fanout must not persist visual offsets');
 assert.match(indexSource, /document\.documentElement\.classList\.add\('detail-pending'\)/, 'detail routes need a preboot pending marker');
 assert.match(indexSource, /\.detail-pending #starfield/, 'preboot guard must hide legacy starfield');
 assert.match(indexSource, /\.detail-pending \.display-shell/, 'preboot guard must hide legacy display shell');

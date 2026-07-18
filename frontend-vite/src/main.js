@@ -23,7 +23,7 @@ import { getDetailHeavyRefreshAt, getDetailPingTargetsFetchedAt, setDetailHeavyR
 import { detailCache } from './detail/detailCache.js';
 import { createDetailPingSampleCache, createDetailTelemetrySampleCache } from './detail/sampleCache.js';
 import { getGlobeRuntimeDebug } from './utils/debugState.js';
-import { buildClusterFanout, resolveClusterSelection } from './components/globe/vpsClusterInteraction.js';
+import { buildClusterScreenFanout, resolveClusterSelection } from './components/globe/vpsClusterInteraction.js';
 import { groupClusterMembers } from './services/serverGroups.js';
 import { clusterServersByCoordinate } from './components/globe/vpsClusters.js';
 
@@ -343,8 +343,11 @@ function showClusterMemberPicker(members) {
 }
 
 function showClusterFanout(cluster, members) {
-  const fanout = buildClusterFanout({ lat: cluster.lat, lon: cluster.lon, members })
-    .map((item) => ({ ...item, centerLat: cluster.lat, centerLon: cluster.lon }));
+  const fanout = buildClusterScreenFanout({
+    members,
+    viewportWidth: globe?.container?.clientWidth,
+    viewportHeight: globe?.container?.clientHeight,
+  });
   globe?.expandClusterFanout?.({ clusterKey: cluster.key, lat: cluster.lat, lon: cluster.lon, fanout, onMemberClick: navigateToServer });
 }
 

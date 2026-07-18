@@ -1,6 +1,3 @@
-const EARTH_RADIUS_KM = 6371;
-const MIN_FANOUT_RADIUS_KM = 12;
-
 const ROLE_COLORS = ['#38bdf8', '#a78bfa', '#f97316', '#14b8a6', '#ec4899', '#84cc16'];
 const ROLE_SHAPES = ['circle', 'diamond', 'square', 'triangle', 'pin', 'star'];
 const STATUS_ALIASES = {
@@ -108,23 +105,19 @@ export function groupClusterMembers(members = []) {
     }));
 }
 
-export function buildClusterFanout({ lat, lon, members = [] }) {
-  const centerLat = Number(lat);
-  const centerLon = Number(lon);
-  if (!Number.isFinite(centerLat) || !Number.isFinite(centerLon)) return [];
+export function buildClusterScreenFanout({ members = [], viewportWidth = 0, viewportHeight = 0 }) {
+  const shortestEdge = Math.min(Number(viewportWidth) || 0, Number(viewportHeight) || 0);
+  const radiusPx = Math.max(90, Math.min(105, Math.round(shortestEdge * 0.15)));
   return sortClusterMembers(members).map((member, index, sorted) => {
-    const radiusKm = Math.max(MIN_FANOUT_RADIUS_KM, 8 + (sorted.length * 2));
-    const angle = sorted.length === 1 ? 0 : (-Math.PI / 2) + ((Math.PI * index) / (sorted.length - 1));
-    const latOffset = (radiusKm / EARTH_RADIUS_KM) * (180 / Math.PI);
-    const lonOffset = latOffset / Math.max(Math.cos(centerLat * Math.PI / 180), 0.2);
+    const angleDeg = sorted.length === 1 ? 230 : 210 + ((40 * index) / (sorted.length - 1));
+    const angleRad = angleDeg * Math.PI / 180;
     return {
       member,
       appearance: clusterMemberAppearance(member),
-      lat: centerLat + latOffset * Math.sin(angle),
-      lon: centerLon + lonOffset * Math.cos(angle),
-      angleRad: angle,
-      radiusKm,
-      visualOnly: true,
+      angleDeg,
+      radiusPx,
+      offsetX: Math.cos(angleRad) * radiusPx,
+      offsetY: Math.sin(angleRad) * radiusPx,
     };
   });
 }

@@ -1853,3 +1853,35 @@ html[data-theme="light"]:has(.public-overview-page) .public-overview-page.starsh
 .globe-focus-badge {
   display: none !important;
 }
+
+.cluster-screen-fanout {
+  position: absolute;
+  inset: 0;
+  z-index: 37;
+  pointer-events: none;
+  overflow: hidden;
+}
+.cluster-screen-fanout[hidden] { display: none; }
+.cluster-screen-fanout-member {
+  position: absolute;
+  left: var(--cluster-anchor-x);
+  top: var(--cluster-anchor-y);
+  transform: translate(-50%, -50%) translate(var(--member-x), var(--member-y));
+  display: grid;
+  grid-template-columns: 24px max-content;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+  color: #fff;
+  background: transparent;
+  font: 700 12px/1.2 system-ui, sans-serif;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.cluster-screen-fanout-leader { position: absolute; width: var(--member-radius); height: 2px; left: 10px; top: 10px; transform-origin: left center; transform: rotate(calc(var(--member-angle) + 180deg)); background: var(--member-color); opacity: .85; z-index: -1; }
+.cluster-screen-fanout-marker { width: 20px; height: 20px; background: var(--member-color); border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 12px var(--member-color); }
+.cluster-screen-fanout-member[data-shape="diamond"] .cluster-screen-fanout-marker { border-radius: 2px; transform: rotate(45deg); }
+.cluster-screen-fanout-member[data-shape="square"] .cluster-screen-fanout-marker { border-radius: 2px; }
+.cluster-screen-fanout-member[data-shape="triangle"] .cluster-screen-fanout-marker { clip-path: polygon(50% 0, 100% 100%, 0 100%); border: 0; }
+.cluster-screen-fanout-name { padding: 4px 7px; border: 1px solid color-mix(in srgb, var(--member-color), white 30%); border-radius: 5px; background: rgba(1, 10, 20, .88); white-space: nowrap; }

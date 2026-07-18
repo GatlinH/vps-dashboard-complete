@@ -146,6 +146,10 @@ export class CesiumGlobe {
     this._labelLayer = document.createElement('div');
     this._labelLayer.className = 'google-earth-node-label-layer';
     this.container.appendChild(this._labelLayer);
+    this._clusterFanoutLayer = document.createElement('div');
+    this._clusterFanoutLayer.className = 'cluster-screen-fanout';
+    this._clusterFanoutLayer.setAttribute('aria-hidden', 'true');
+    this.container.appendChild(this._clusterFanoutLayer);
     this._placeLabelLayer = document.createElement('div');
     this._placeLabelLayer.className = 'google-earth-place-label-layer';
     this.container.appendChild(this._placeLabelLayer);
@@ -360,16 +364,6 @@ export class CesiumGlobe {
     this.viewer.scene.requestRender();
   }
 
-  _clusterFanoutPosition(item) {
-    const heading = this.viewer.camera.heading;
-    const angle = Number.isFinite(item.angleRad) ? item.angleRad + heading : null;
-    if (!Number.isFinite(angle) || !Number.isFinite(item.radiusKm)) return Cesium.Cartesian3.fromDegrees(item.lon, item.lat, 220);
-    const radiusDegrees = (item.radiusKm / 6371) * (180 / Math.PI);
-    const lat = item.centerLat + (radiusDegrees * Math.sin(angle));
-    const lon = item.centerLon + ((radiusDegrees * Math.cos(angle)) / Math.max(Math.cos(item.centerLat * Math.PI / 180), 0.2));
-    return Cesium.Cartesian3.fromDegrees(lon, lat, 220);
-  }
-
   // ── 自转 ─────────────────────────────────────────────
   _installAutoRotate() {
     const canvas = this.viewer.scene.canvas;
@@ -401,7 +395,8 @@ export class CesiumGlobe {
       camera.setView({ destination, orientation: { direction, up } });
     };
     this._googleEarthDragProfile = () => {
-      const height = this.viewer.camera.positionCartographic?.height || HOME_HEIGHT;
+      this._updateClusterFanoutOverlay();
+    const height = this.viewer.camera.positionCartographic?.height || HOME_HEIGHT;
       const zoomT = clamp01((height - MIN_ZOOM) / Math.max(1, MAX_ZOOM - MIN_ZOOM));
       // Google-Maps-style 6-tier curve: each zoom band has its own drag sensitivity.
       //   <500m        → GE_MAP_SPIN_SPEED   (street-level, barely moves)
@@ -606,11 +601,30 @@ export class CesiumGlobe {
 
   _updateOverlays() {
     if (this._destroyed || !this.viewer) return;
+    this._updateClusterFanoutOverlay();
     const height = this.viewer.camera.positionCartographic?.height || HOME_HEIGHT;
     const cityMode = height < 400_000;
     getDashboardDebug().overlaySyncTick = (getDashboardDebug().overlaySyncTick || 0) + 1;
     try { updatePlaceLabels(this, height); } catch (_) {}
     try { updateHtmlNodeLabels(this, cityMode); } catch (_) {}
+  }
+
+  _updateClusterFanoutOverlay() {
+    const overlay = this._clusterFanoutOverlay;
+    if (!overlay || !this._clusterFanoutLayer) return;
+    const { scene, camera } = this.viewer;
+    const surfaceNormal = Cesium.Ellipsoid.WGS84.geodeticSurfaceNormal(overlay.anchor, new Cesium.Cartesian3());
+    const cameraNormal = Cesium.Cartesian3.normalize(camera.positionWC, new Cesium.Cartesian3());
+    const frontFacing = Cesium.Cartesian3.dot(surfaceNormal, cameraNormal) >= -0.35;
+    const windowPosition = Cesium.SceneTransforms.worldToWindowCoordinates(scene, overlay.anchor);
+    const width = scene.canvas.clientWidth || scene.canvas.width;
+    const height = scene.canvas.clientHeight || scene.canvas.height;
+    const visible = frontFacing && Number.isFinite(windowPosition?.x) && Number.isFinite(windowPosition?.y)
+      && windowPosition.x >= -40 && windowPosition.x <= width + 40 && windowPosition.y >= -40 && windowPosition.y <= height + 40;
+    this._clusterFanoutLayer.hidden = !visible;
+    if (!visible) return;
+    this._clusterFanoutLayer.style.setProperty('--cluster-anchor-x', `${windowPosition.x}px`);
+    this._clusterFanoutLayer.style.setProperty('--cluster-anchor-y', `${windowPosition.y}px`);
   }
 
   _onClick(movement) {
@@ -632,18 +646,11 @@ export class CesiumGlobe {
         return;
       }
       if (serverData && typeof this.onNodeClick === 'function') {
-        if (props?.vpsClusterFanout && this._clusterFanoutMemberClick) this._clusterFanoutMemberClick(serverData);
-        else this.onNodeClick(serverData, clusterMembers, null);
+        this.onNodeClick(serverData, clusterMembers, null);
         return;
       }
     }
     this.onBlankClick?.();
-  }
-
-  _clusterFanoutShapeDataUrl(shape, color) {
-    const points = { diamond: '50,4 96,50 50,96 4,50', square: '12,12 88,12 88,88 12,88', triangle: '50,5 95,90 5,90', pin: '50,4 86,40 50,96 14,40', star: '50,4 61,37 96,37 68,58 79,92 50,71 21,92 32,58 4,37 39,37' };
-    const content = points[shape] ? `<polygon points="${points[shape]}"/>` : '<circle cx="50" cy="50" r="42"/>';
-    return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g fill="${color}" stroke="white" stroke-width="7">${content}</g></svg>`)}`;
   }
 
   _hideCollapsedClusterForFanout(clusterKey, fanout) {
@@ -675,49 +682,43 @@ export class CesiumGlobe {
     this._hiddenClusterFanoutVisuals = null;
   }
 
-  showClusterFanout(clusterKey, fanout, onMemberClick) {
+  showClusterFanout(clusterKey, lat, lon, fanout, onMemberClick) {
     this.clearClusterFanout({ cancelExpansion: false });
     this._hideCollapsedClusterForFanout(clusterKey, fanout);
-    this._clusterFanoutEntities = [];
-    for (const [index, item] of fanout.entries()) {
-      const center = Cesium.Cartesian3.fromDegrees(item.centerLon, item.centerLat, 150);
-      const position = this._clusterFanoutPosition(item);
-      const labelOffsetX = Math.round(Math.cos(item.angleRad || 0) * 28);
-      const labelOffsetY = -46 - ((index % 2) * 10);
-      const entity = this.viewer.entities.add({
-        position,
-        point: { pixelSize: 18, color: Cesium.Color.fromCssColorString(item.appearance.color).withAlpha(0.6), outlineColor: Cesium.Color.WHITE, outlineWidth: 3, disableDepthTestDistance: Number.POSITIVE_INFINITY },
-        billboard: { image: this._clusterFanoutShapeDataUrl(item.appearance.shape, item.appearance.color), width: 38, height: 38, verticalOrigin: Cesium.VerticalOrigin.BOTTOM, pixelOffset: new Cesium.Cartesian2(0, 5), disableDepthTestDistance: Number.POSITIVE_INFINITY },
-        label: { text: String(item.member?.name || `VPS-${item.member?.id || ''}`), font: '700 15px system-ui', fillColor: Cesium.Color.WHITE, outlineColor: Cesium.Color.BLACK, outlineWidth: 2, style: Cesium.LabelStyle.FILL_AND_OUTLINE, showBackground: true, backgroundColor: Cesium.Color.BLACK.withAlpha(0.82), backgroundPadding: new Cesium.Cartesian2(8, 5), pixelOffset: new Cesium.Cartesian2(labelOffsetX, labelOffsetY), horizontalOrigin: Cesium.HorizontalOrigin.CENTER, verticalOrigin: Cesium.VerticalOrigin.BOTTOM, disableDepthTestDistance: Number.POSITIVE_INFINITY },
-        polyline: { positions: [center, position], width: 4, material: Cesium.Color.fromCssColorString(item.appearance.color).withAlpha(0.95), arcType: Cesium.ArcType.NONE, clampToGround: false },
-        properties: { serverId: item.member?.id, serverData: item.member, clusterMembers: [item.member], vpsClusterFanout: true },
-      });
-      this._clusterFanoutEntities.push(entity);
+    this._clusterFanoutLayer.replaceChildren();
+    for (const item of fanout) {
+      const member = document.createElement('button');
+      member.type = 'button'; member.className = 'cluster-screen-fanout-member';
+      member.style.setProperty('--member-x', `${item.offsetX}px`);
+      member.style.setProperty('--member-y', `${item.offsetY}px`);
+      member.style.setProperty('--member-color', item.appearance.color);
+      member.style.setProperty('--member-radius', `${item.radiusPx}px`);
+      member.style.setProperty('--member-angle', `${item.angleDeg}deg`);
+      member.dataset.shape = item.appearance.shape;
+      member.setAttribute('aria-label', `查看 ${String(item.member?.name || `VPS-${item.member?.id || ''}`)}`);
+      const leader = document.createElement('span'); leader.className = 'cluster-screen-fanout-leader';
+      const marker = document.createElement('span'); marker.className = 'cluster-screen-fanout-marker';
+      const name = document.createElement('span'); name.className = 'cluster-screen-fanout-name'; name.textContent = String(item.member?.name || `VPS-${item.member?.id || ''}`);
+      member.append(leader, marker, name);
+      member.addEventListener('click', () => onMemberClick?.(item.member));
+      this._clusterFanoutLayer.appendChild(member);
     }
-    this._clusterFanoutMemberClick = onMemberClick;
+    this._clusterFanoutOverlay = { anchor: Cesium.Cartesian3.fromDegrees(lon, lat, 180) };
+    this._updateClusterFanoutOverlay();
     this.viewer.scene.requestRender();
   }
 
   expandClusterFanout({ clusterKey, lat, lon, fanout, onMemberClick }) {
-    const centerLat = Number(lat);
-    const centerLon = Number(lon);
+    const centerLat = Number(lat); const centerLon = Number(lon);
     if (this._destroyed || !Number.isFinite(centerLat) || !Number.isFinite(centerLon) || !Array.isArray(fanout) || !fanout.length) return;
-    const expansionId = ++this._clusterFanoutExpansionId;
-    this.clearClusterFanout({ cancelExpansion: false });
-    this.flyToCity(lon, lat, 600_000, { complete: () => {
-      if (expansionId !== this._clusterFanoutExpansionId || this._destroyed) return;
-      this.showClusterFanout(clusterKey, fanout, onMemberClick);
-    } });
+    this.showClusterFanout(clusterKey, centerLat, centerLon, fanout, onMemberClick);
   }
 
   clearClusterFanout({ cancelExpansion = true } = {}) {
-    if (cancelExpansion) {
-      this._clusterFanoutExpansionId += 1;
-      this.viewer?.camera?.cancelFlight();
-    }
-    for (const entity of this._clusterFanoutEntities || []) this.viewer.entities.remove(entity);
-    this._clusterFanoutEntities = [];
-    this._clusterFanoutMemberClick = null;
+    if (cancelExpansion) this._clusterFanoutExpansionId += 1;
+    this._clusterFanoutLayer?.replaceChildren();
+    if (this._clusterFanoutLayer) this._clusterFanoutLayer.hidden = true;
+    this._clusterFanoutOverlay = null;
     this._restoreCollapsedClusterAfterFanout();
     this.viewer?.scene?.requestRender();
   }
