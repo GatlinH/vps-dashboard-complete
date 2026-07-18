@@ -3242,6 +3242,18 @@ body.admin-bridge-mode {
 [data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .runtime-env-field span {
   color: #526978 !important;
 }
+@media (min-width: 1201px) {
+  .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail:has(.runtime-env-card) {
+    align-self: stretch !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .runtime-env-panel,
+  .detail-page-shell:has(.fleet-detail-console) .runtime-env-card {
+    height: 100% !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .runtime-env-card {
+    align-content: start !important;
+  }
+}
 @media (max-width: 640px) {
   .detail-page-shell:has(.fleet-detail-console) .runtime-env-grid {
     grid-template-columns: 1fr 1fr !important;
