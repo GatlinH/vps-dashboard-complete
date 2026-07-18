@@ -95,6 +95,7 @@ export class CesiumGlobe {
     this.onBlankClick = options.onBlankClick || null;
     this._destroyed = false;
     this._clusterFanoutExpansionId = 0;
+    this._hiddenClusterFanoutVisuals = null;
 
     // VPS / 访客 / 标签状态
     this._nodeEntities = [];
@@ -645,18 +646,50 @@ export class CesiumGlobe {
     return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g fill="${color}" stroke="white" stroke-width="7">${content}</g></svg>`)}`;
   }
 
-  showClusterFanout(fanout, onMemberClick) {
-    this.clearClusterFanout();
+  _hideCollapsedClusterForFanout(clusterKey, fanout) {
+    this._restoreCollapsedClusterAfterFanout();
+    const memberIds = new Set((fanout || []).map((item) => String(item.member?.id)).filter(Boolean));
+    const matchesCluster = (entity) => {
+      const properties = entity?.properties;
+      const entityClusterKey = properties?.clusterKey?.getValue ? properties.clusterKey.getValue() : properties?.clusterKey;
+      const clusterMembers = properties?.clusterMembers?.getValue ? properties.clusterMembers.getValue() : properties?.clusterMembers;
+      return (clusterKey && entityClusterKey === clusterKey)
+        || (!clusterKey && Array.isArray(clusterMembers) && clusterMembers.length > 1
+          && clusterMembers.every((member) => memberIds.has(String(member?.id))));
+    };
+    const entities = (this._arcEntities || []).filter(matchesCluster).map((entity) => ({ entity, previousShow: entity.show }));
+    const labels = [...(this._htmlLabels?.values() || [])]
+      .filter((label) => (clusterKey && label.dataset.clusterKey === clusterKey)
+        || (!clusterKey && memberIds.has(String(label.dataset.nodeId))))
+      .map((label) => ({ label, previousDisplay: label.style.display }));
+    for (const { entity } of entities) entity.show = false;
+    for (const { label } of labels) label.style.display = 'none';
+    this._hiddenClusterFanoutVisuals = { entities, labels };
+  }
+
+  _restoreCollapsedClusterAfterFanout() {
+    const hidden = this._hiddenClusterFanoutVisuals;
+    if (!hidden) return;
+    for (const { entity, previousShow } of hidden.entities) entity.show = previousShow;
+    for (const { label, previousDisplay } of hidden.labels) label.style.display = previousDisplay;
+    this._hiddenClusterFanoutVisuals = null;
+  }
+
+  showClusterFanout(clusterKey, fanout, onMemberClick) {
+    this.clearClusterFanout({ cancelExpansion: false });
+    this._hideCollapsedClusterForFanout(clusterKey, fanout);
     this._clusterFanoutEntities = [];
-    for (const item of fanout) {
+    for (const [index, item] of fanout.entries()) {
       const center = Cesium.Cartesian3.fromDegrees(item.centerLon, item.centerLat, 150);
       const position = this._clusterFanoutPosition(item);
+      const labelOffsetX = Math.round(Math.cos(item.angleRad || 0) * 28);
+      const labelOffsetY = -46 - ((index % 2) * 10);
       const entity = this.viewer.entities.add({
         position,
-        point: { pixelSize: 13, color: Cesium.Color.fromCssColorString(item.appearance.color), outlineColor: Cesium.Color.WHITE, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
-        billboard: { image: this._clusterFanoutShapeDataUrl(item.appearance.shape, item.appearance.color), width: 22, height: 22, disableDepthTestDistance: Number.POSITIVE_INFINITY },
-        label: { text: String(item.member?.name || `VPS-${item.member?.id || ''}`), font: '700 14px system-ui', fillColor: Cesium.Color.WHITE, outlineColor: Cesium.Color.BLACK, outlineWidth: 2, style: Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset: new Cesium.Cartesian2(0, -26), disableDepthTestDistance: Number.POSITIVE_INFINITY },
-        polyline: { positions: [center, position], width: 2, material: Cesium.Color.fromCssColorString(item.appearance.color).withAlpha(0.8), arcType: Cesium.ArcType.NONE },
+        point: { pixelSize: 18, color: Cesium.Color.fromCssColorString(item.appearance.color).withAlpha(0.6), outlineColor: Cesium.Color.WHITE, outlineWidth: 3, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+        billboard: { image: this._clusterFanoutShapeDataUrl(item.appearance.shape, item.appearance.color), width: 38, height: 38, verticalOrigin: Cesium.VerticalOrigin.BOTTOM, pixelOffset: new Cesium.Cartesian2(0, 5), disableDepthTestDistance: Number.POSITIVE_INFINITY },
+        label: { text: String(item.member?.name || `VPS-${item.member?.id || ''}`), font: '700 15px system-ui', fillColor: Cesium.Color.WHITE, outlineColor: Cesium.Color.BLACK, outlineWidth: 2, style: Cesium.LabelStyle.FILL_AND_OUTLINE, showBackground: true, backgroundColor: Cesium.Color.BLACK.withAlpha(0.82), backgroundPadding: new Cesium.Cartesian2(8, 5), pixelOffset: new Cesium.Cartesian2(labelOffsetX, labelOffsetY), horizontalOrigin: Cesium.HorizontalOrigin.CENTER, verticalOrigin: Cesium.VerticalOrigin.BOTTOM, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+        polyline: { positions: [center, position], width: 4, material: Cesium.Color.fromCssColorString(item.appearance.color).withAlpha(0.95), arcType: Cesium.ArcType.NONE, clampToGround: false },
         properties: { serverId: item.member?.id, serverData: item.member, clusterMembers: [item.member], vpsClusterFanout: true },
       });
       this._clusterFanoutEntities.push(entity);
@@ -665,7 +698,7 @@ export class CesiumGlobe {
     this.viewer.scene.requestRender();
   }
 
-  expandClusterFanout({ lat, lon, fanout, onMemberClick }) {
+  expandClusterFanout({ clusterKey, lat, lon, fanout, onMemberClick }) {
     const centerLat = Number(lat);
     const centerLon = Number(lon);
     if (this._destroyed || !Number.isFinite(centerLat) || !Number.isFinite(centerLon) || !Array.isArray(fanout) || !fanout.length) return;
@@ -673,7 +706,7 @@ export class CesiumGlobe {
     this.clearClusterFanout({ cancelExpansion: false });
     this.flyToCity(lon, lat, 600_000, { complete: () => {
       if (expansionId !== this._clusterFanoutExpansionId || this._destroyed) return;
-      this.showClusterFanout(fanout, onMemberClick);
+      this.showClusterFanout(clusterKey, fanout, onMemberClick);
     } });
   }
 
@@ -685,11 +718,13 @@ export class CesiumGlobe {
     for (const entity of this._clusterFanoutEntities || []) this.viewer.entities.remove(entity);
     this._clusterFanoutEntities = [];
     this._clusterFanoutMemberClick = null;
+    this._restoreCollapsedClusterAfterFanout();
     this.viewer?.scene?.requestRender();
   }
 
   // ── 公共 API (main.js 契约) ──────────────────────────────
   updateServers(servers) {
+    this.clearClusterFanout();
     this.servers = servers || [];
     this._buildEntities();
     installVisitorBeacon(this);

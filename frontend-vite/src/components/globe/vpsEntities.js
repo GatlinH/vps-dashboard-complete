@@ -152,7 +152,7 @@ export function rebuildVpsEntities(globe) {
         heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
         classificationType: Cesium.ClassificationType.TERRAIN,
       },
-      properties: { ...clusterClickProperties, vpsBeaconRing: true },
+      properties: { ...clusterClickProperties, clusterKey: cluster.key, vpsBeaconRing: true },
       show: true,
     });
 
@@ -172,7 +172,7 @@ export function rebuildVpsEntities(globe) {
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
             classificationType: Cesium.ClassificationType.TERRAIN,
           },
-          properties: { ...clusterClickProperties, vpsBeaconSector: true },
+          properties: { ...clusterClickProperties, clusterKey: cluster.key, vpsBeaconSector: true },
         });
         globe._arcEntities.push(sectorEntity);
       });
@@ -190,6 +190,7 @@ export function rebuildVpsEntities(globe) {
       const flagCode = serverFlagCode(server);
       labelEl.innerHTML = `<span class="node-place"><span class="node-flag">${renderFlagImg(flag, flagCode)}</span><span class="node-title" title="${escapeHtml(memberTitle)}">${escapeHtml(displayName)}</span></span><span class="node-name">${escapeHtml(place)}</span>`;
       labelEl.dataset.nodeId = String(server.id);
+      if (isCluster) labelEl.dataset.clusterKey = cluster.key;
       labelEl.title = memberTitle;
       labelEl.style.pointerEvents = 'auto';
       labelEl.style.cursor = 'pointer';

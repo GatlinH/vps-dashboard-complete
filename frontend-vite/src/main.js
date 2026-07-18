@@ -345,7 +345,7 @@ function showClusterMemberPicker(members) {
 function showClusterFanout(cluster, members) {
   const fanout = buildClusterFanout({ lat: cluster.lat, lon: cluster.lon, members })
     .map((item) => ({ ...item, centerLat: cluster.lat, centerLon: cluster.lon }));
-  globe?.expandClusterFanout?.({ lat: cluster.lat, lon: cluster.lon, fanout, onMemberClick: navigateToServer });
+  globe?.expandClusterFanout?.({ clusterKey: cluster.key, lat: cluster.lat, lon: cluster.lon, fanout, onMemberClick: navigateToServer });
 }
 
 function handleGlobeNodeSelection(server, clusterMembers, cluster) {
