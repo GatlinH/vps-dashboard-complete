@@ -97,6 +97,8 @@ assert.match(mainSource, /function closeClusterInteraction/, 'cluster interactio
 assert.match(mainSource, /showClusterMemberPicker/, 'Three fallback must present a grouped picker');
 assert.match(mainSource, /const canonicalCluster = clusterServersByCoordinate\(state\.servers\)/, 'fanout must resolve the canonical live cluster before using label metadata');
 assert.match(mainSource, /const fanoutCluster = canonicalCluster \|\| cluster/, 'Cesium clusters must render visual-only radial fanout from a canonical centroid');
+assert.match(mainSource, /const hasFanoutCentroid = Number\.isFinite\(Number\(fanoutCluster\?\.lat\)\) && Number\.isFinite\(Number\(fanoutCluster\?\.lon\)\)/, 'a finite canonical centroid must be sufficient for globe fanout even when a cluster validity flag is absent');
+assert.doesNotMatch(mainSource, /fanoutCluster\?\.valid/, 'globe fanout must not be blocked by an unrelated cluster validity flag when its centroid is finite');
 assert.match(mainSource, /globe\?\.expandClusterFanout\?\.\(\{ clusterKey: cluster\.key, lat: cluster\.lat, lon: cluster\.lon, fanout, onMemberClick: navigateToServer \}\)/, 'multi-cluster handler must request Cesium fly-then-expand rather than immediate fanout');
 assert.doesNotMatch(mainSource, /showClusterFanout\(fanout, navigateToServer\)/, 'main must not bypass the city-flight expansion API');
 assert.doesNotMatch(mainSource, /(?:localStorage|sessionStorage|fetch\([^\n]*latitude|fetch\([^\n]*longitude)/, 'cluster fanout must not persist visual offsets');

@@ -358,7 +358,8 @@ function handleGlobeNodeSelection(server, clusterMembers, cluster) {
   // Labels and Cesium picks only carry lightweight cluster metadata. Always use the
   // canonical live cluster for a valid centroid before creating visual-only fanout.
   const fanoutCluster = canonicalCluster || cluster;
-  if (typeof globe?.expandClusterFanout === 'function' && fanoutCluster?.valid) showClusterFanout(fanoutCluster, selection.members);
+  const hasFanoutCentroid = Number.isFinite(Number(fanoutCluster?.lat)) && Number.isFinite(Number(fanoutCluster?.lon));
+  if (typeof globe?.expandClusterFanout === 'function' && hasFanoutCentroid) showClusterFanout(fanoutCluster, selection.members);
   showClusterMemberPicker(selection.members);
 }
 
