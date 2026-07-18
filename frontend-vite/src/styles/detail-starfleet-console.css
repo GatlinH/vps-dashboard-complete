@@ -3256,7 +3256,7 @@ body.admin-bridge-mode {
   .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console {
     grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
   }
-  .detail-page-shell:has(.fleet-detail-console) .probe-observability-grid {
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid {
     display: grid !important;
     grid-column: 1 / -1 !important;
     grid-row: 3 !important;

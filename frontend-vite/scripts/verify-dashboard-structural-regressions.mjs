@@ -13,6 +13,7 @@ assert.match(mainSource, /<section class="probe-observability-grid"[^>]*>[\s\S]*
 assert.match(detailStyles, /\.detail-currency-switch\s*\{[\s\S]*?height:\s*38px/, 'currency switch must reserve its complete border height');
 assert.match(detailStyles, /\.detail-currency-switch\s+\.currency-btn\s*\{[\s\S]*?min-height:\s*36px[\s\S]*?height:\s*36px/, 'currency buttons must fit inside the clipped 38px switch');
 assert.doesNotMatch(detailStyles, /\.probe-observability-grid\s*\{\s*display:\s*contents/, 'resource grid must remain a real grid container');
+assert.match(detailStyles, /@media\s*\(min-width:\s*1201px\)\s*\{[\s\S]*?html body \.detail-page-shell\.starship-console-page:has\(\.fleet-detail-console\) \.probe-observability-grid\s*\{[\s\S]*?grid-column:\s*1\s*\/\s*-1\s*!important;[\s\S]*?grid-row:\s*3\s*!important;[\s\S]*?grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)\s*!important;/, 'desktop resource grid must span four columns so NET does not wrap');
 assert.match(visitorBeacon, /function isRenderableVisitorGeo/, 'visitor beacon must centralize geo validity checks');
 assert.match(visitorBeacon, /valid\s*!==\s*false/, 'visitor beacon must reject invalid geo responses');
 assert.match(visitorBeacon, /degraded/, 'visitor beacon must reject degraded geo responses');
