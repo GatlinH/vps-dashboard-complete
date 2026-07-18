@@ -62,7 +62,12 @@ assert.equal(resolveClusterSelection(members).type, 'expand', 'a multi-member cl
 assert.match(entitiesSource, /clusterMembers:\s*cluster\.members/, 'Cesium entities must retain all cluster members');
 assert.match(entitiesSource, /buildClusterBeaconAppearance/, 'collapsed Cesium beacons must render composition sectors');
 assert.match(entitiesSource, /aggregateClusterStatus/, 'collapsed Cesium beacons must use aggregate health status');
+assert.match(entitiesSource, /const clusterClickProperties = isCluster \? \{[\s\S]*serverData: server,[\s\S]*clusterMembers: cluster\.members,[\s\S]*clusterCentroid: \{ lat, lon, clusterKey: cluster\.key \},[\s\S]*vpsClusterClick: true,[\s\S]*\} : null;/, 'collapsed cluster layers must share full-members, representative, canonical-centroid click metadata');
+assert.match(entitiesSource, /if \(!isCluster\) \{[\s\S]*?point: \{[\s\S]*?\}[\s\S]*?\}/, 'only a single node may create the center point entity');
+assert.match(entitiesSource, /properties: \{ \.\.\.clusterClickProperties, vpsBeaconRing: true \}/, 'cluster health ring must carry unified cluster click metadata');
+assert.match(entitiesSource, /properties: \{ \.\.\.clusterClickProperties, vpsBeaconSector: true \}/, 'every cluster pie sector must carry unified cluster click metadata');
 assert.match(entitiesSource, /globe\.onNodeClick\(server,\s*cluster\.members/, 'HTML labels must use the shared cluster callback');
+assert.match(cesiumSource, /if \(vpsClusterClick && typeof this\.onNodeClick === 'function'\) \{[\s\S]*this\.onNodeClick\(serverData, clusterMembers, clusterCentroid\);[\s\S]*return;[\s\S]*\}[\s\S]*if \(serverData && typeof this\.onNodeClick === 'function'\)/, 'Cesium cluster picks must take precedence over generic server navigation');
 assert.match(cesiumSource, /this\.onNodeClick\(serverData,\s*clusterMembers/, 'Cesium picks must forward all cluster members');
 assert.match(cesiumSource, /item\.appearance\.color/, 'fanout connectors must use member role color');
 assert.match(cesiumSource, /onBlankClick/, 'Cesium blank-globe clicks must be observable for closing fanout');

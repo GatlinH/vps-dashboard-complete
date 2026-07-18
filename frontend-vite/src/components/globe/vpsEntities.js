@@ -93,40 +93,51 @@ export function rebuildVpsEntities(globe) {
     const beaconAppearance = isCluster ? buildClusterBeaconAppearance(cluster.members) : null;
     const clusterStatus = isCluster ? aggregateClusterStatus(cluster.members) : server.status;
     const healthColor = statusColor({ status: clusterStatus });
-    const coreColor = Cesium.Color.fromCssColorString('#38e8ff').withAlpha(0.95);
-    const nodeEntity = globe.viewer.entities.add({
-      id: `node-${server.id}`,
-      position: Cesium.Cartesian3.fromDegrees(lon, lat, 180),
-      point: {
-        pixelSize: 10,
-        color: coreColor,
-        outlineColor: Cesium.Color.fromCssColorString('#ffffff').withAlpha(0.9),
-        outlineWidth: 2,
-        scaleByDistance: new Cesium.NearFarScalar(220000, 1.35, 5.0e7, 0.85),
-        translucencyByDistance: new Cesium.NearFarScalar(200000, 1.0, 5.0e7, 0.9),
-        heightReference: Cesium.HeightReference.NONE,
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      },
-      label: {
-        text: isCluster ? beaconAppearance.label : `${serverFlag(server)} ${shortServerLabel(server)}`,
-        font: '700 15px Inter, system-ui, sans-serif',
-        fillColor: Cesium.Color.WHITE.withAlpha(0.96),
-        outlineColor: Cesium.Color.BLACK.withAlpha(0.88),
-        outlineWidth: 1.5,
-        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-        showBackground: true,
-        backgroundColor: Cesium.Color.BLACK.withAlpha(0.78),
-        backgroundPadding: new Cesium.Cartesian2(9, 6),
-        pixelOffset: new Cesium.Cartesian2(0, -40),
-        horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-        scaleByDistance: new Cesium.NearFarScalar(200000, 1.08, 18_000_000, 0.72),
-        translucencyByDistance: new Cesium.NearFarScalar(180000, 1.0, 22_000_000, 0.55),
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        show: false,
-      },
-      properties: { serverId: server.id, serverData: server, clusterMembers: cluster.members },
-    });
+    const clusterClickProperties = isCluster ? {
+      serverId: server.id,
+      serverData: server,
+      clusterMembers: cluster.members,
+      clusterCentroid: { lat, lon, clusterKey: cluster.key },
+      vpsClusterClick: true,
+    } : null;
+    let nodeEntity = null;
+    if (!isCluster) {
+      const coreColor = Cesium.Color.fromCssColorString('#38e8ff').withAlpha(0.95);
+      nodeEntity = globe.viewer.entities.add({
+        id: `node-${server.id}`,
+        position: Cesium.Cartesian3.fromDegrees(lon, lat, 180),
+        point: {
+          pixelSize: 10,
+          color: coreColor,
+          outlineColor: Cesium.Color.fromCssColorString('#ffffff').withAlpha(0.9),
+          outlineWidth: 2,
+          scaleByDistance: new Cesium.NearFarScalar(220000, 1.35, 5.0e7, 0.85),
+          translucencyByDistance: new Cesium.NearFarScalar(200000, 1.0, 5.0e7, 0.9),
+          heightReference: Cesium.HeightReference.NONE,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+        label: {
+          text: `${serverFlag(server)} ${shortServerLabel(server)}`,
+          font: '700 15px Inter, system-ui, sans-serif',
+          fillColor: Cesium.Color.WHITE.withAlpha(0.96),
+          outlineColor: Cesium.Color.BLACK.withAlpha(0.88),
+          outlineWidth: 1.5,
+          style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+          showBackground: true,
+          backgroundColor: Cesium.Color.BLACK.withAlpha(0.78),
+          backgroundPadding: new Cesium.Cartesian2(9, 6),
+          pixelOffset: new Cesium.Cartesian2(0, -40),
+          horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+          verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+          scaleByDistance: new Cesium.NearFarScalar(200000, 1.08, 18_000_000, 0.72),
+          translucencyByDistance: new Cesium.NearFarScalar(180000, 1.0, 22_000_000, 0.55),
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          show: false,
+        },
+        properties: { serverId: server.id, serverData: server, clusterMembers: cluster.members },
+      });
+      globe._nodeEntities.push(nodeEntity);
+    }
 
     const beaconRing = globe.viewer.entities.add({
       id: `node-ring-${server.id}`,
@@ -141,11 +152,10 @@ export function rebuildVpsEntities(globe) {
         heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
         classificationType: Cesium.ClassificationType.TERRAIN,
       },
-      properties: { serverId: server.id, serverData: server, clusterMembers: cluster.members, vpsBeaconRing: true },
+      properties: { ...clusterClickProperties, vpsBeaconRing: true },
       show: true,
     });
 
-    globe._nodeEntities.push(nodeEntity);
     globe._arcEntities.push(beaconRing);
     if (beaconAppearance) {
       const sectorAngle = Cesium.Math.TWO_PI / beaconAppearance.sectors.length;
@@ -162,7 +172,7 @@ export function rebuildVpsEntities(globe) {
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
             classificationType: Cesium.ClassificationType.TERRAIN,
           },
-          properties: { serverId: server.id, serverData: server, clusterMembers: cluster.members, vpsBeaconSector: true },
+          properties: { ...clusterClickProperties, vpsBeaconSector: true },
         });
         globe._arcEntities.push(sectorEntity);
       });
@@ -191,7 +201,7 @@ export function rebuildVpsEntities(globe) {
       };
       labelEl.addEventListener('click', goDetail);
       globe._labelLayer.appendChild(labelEl);
-      globe._htmlLabels.set(nodeEntity.id, labelEl);
+      globe._htmlLabels.set(nodeEntity?.id || `node-${server.id}`, labelEl);
     }
   }
 }

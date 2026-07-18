@@ -612,8 +612,14 @@ export class CesiumGlobe {
       const serverId = props?.serverId?.getValue ? props.serverId.getValue() : props?.serverId;
       if (serverId == null) continue;
       const serverData = props?.serverData?.getValue ? props.serverData.getValue() : props?.serverData;
+      const clusterMembers = props?.clusterMembers?.getValue ? props.clusterMembers.getValue() : props?.clusterMembers;
+      const clusterCentroid = props?.clusterCentroid?.getValue ? props.clusterCentroid.getValue() : props?.clusterCentroid;
+      const vpsClusterClick = props?.vpsClusterClick?.getValue ? props.vpsClusterClick.getValue() : props?.vpsClusterClick;
+      if (vpsClusterClick && typeof this.onNodeClick === 'function') {
+        this.onNodeClick(serverData, clusterMembers, clusterCentroid);
+        return;
+      }
       if (serverData && typeof this.onNodeClick === 'function') {
-        const clusterMembers = props?.clusterMembers?.getValue ? props.clusterMembers.getValue() : props?.clusterMembers;
         if (props?.vpsClusterFanout && this._clusterFanoutMemberClick) this._clusterFanoutMemberClick(serverData);
         else this.onNodeClick(serverData, clusterMembers, null);
         return;
