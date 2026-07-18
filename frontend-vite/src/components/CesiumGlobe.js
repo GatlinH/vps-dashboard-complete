@@ -94,6 +94,7 @@ export class CesiumGlobe {
     this.onNodeClick = options.onNodeClick || null;
     this.onBlankClick = options.onBlankClick || null;
     this._destroyed = false;
+    this._clusterFanoutExpansionId = 0;
 
     // VPS / 访客 / 标签状态
     this._nodeEntities = [];
@@ -356,6 +357,16 @@ export class CesiumGlobe {
   _buildEntities() {
     rebuildVpsEntities(this);
     this.viewer.scene.requestRender();
+  }
+
+  _clusterFanoutPosition(item) {
+    const heading = this.viewer.camera.heading;
+    const angle = Number.isFinite(item.angleRad) ? item.angleRad + heading : null;
+    if (!Number.isFinite(angle) || !Number.isFinite(item.radiusKm)) return Cesium.Cartesian3.fromDegrees(item.lon, item.lat, 220);
+    const radiusDegrees = (item.radiusKm / 6371) * (180 / Math.PI);
+    const lat = item.centerLat + (radiusDegrees * Math.sin(angle));
+    const lon = item.centerLon + ((radiusDegrees * Math.cos(angle)) / Math.max(Math.cos(item.centerLat * Math.PI / 180), 0.2));
+    return Cesium.Cartesian3.fromDegrees(lon, lat, 220);
   }
 
   // ── 自转 ─────────────────────────────────────────────
@@ -639,7 +650,7 @@ export class CesiumGlobe {
     this._clusterFanoutEntities = [];
     for (const item of fanout) {
       const center = Cesium.Cartesian3.fromDegrees(item.centerLon, item.centerLat, 150);
-      const position = Cesium.Cartesian3.fromDegrees(item.lon, item.lat, 220);
+      const position = this._clusterFanoutPosition(item);
       const entity = this.viewer.entities.add({
         position,
         point: { pixelSize: 13, color: Cesium.Color.fromCssColorString(item.appearance.color), outlineColor: Cesium.Color.WHITE, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
@@ -654,7 +665,23 @@ export class CesiumGlobe {
     this.viewer.scene.requestRender();
   }
 
-  clearClusterFanout() {
+  expandClusterFanout({ lat, lon, fanout, onMemberClick }) {
+    const centerLat = Number(lat);
+    const centerLon = Number(lon);
+    if (this._destroyed || !Number.isFinite(centerLat) || !Number.isFinite(centerLon) || !Array.isArray(fanout) || !fanout.length) return;
+    const expansionId = ++this._clusterFanoutExpansionId;
+    this.clearClusterFanout({ cancelExpansion: false });
+    this.flyToCity(lon, lat, 600_000, { complete: () => {
+      if (expansionId !== this._clusterFanoutExpansionId || this._destroyed) return;
+      this.showClusterFanout(fanout, onMemberClick);
+    } });
+  }
+
+  clearClusterFanout({ cancelExpansion = true } = {}) {
+    if (cancelExpansion) {
+      this._clusterFanoutExpansionId += 1;
+      this.viewer?.camera?.cancelFlight();
+    }
     for (const entity of this._clusterFanoutEntities || []) this.viewer.entities.remove(entity);
     this._clusterFanoutEntities = [];
     this._clusterFanoutMemberClick = null;
@@ -681,12 +708,14 @@ export class CesiumGlobe {
     });
   }
 
-  flyToCity(lon, lat, height = 600_000) {
+  flyToCity(lon, lat, height = 600_000, options = {}) {
     this._userInteracting = true;
     if (this._resumeTimer) { clearTimeout(this._resumeTimer); this._resumeTimer = null; }
     this.viewer.camera.flyTo({
       destination: Cesium.Cartesian3.fromDegrees(lon, lat, height),
       duration: 1.6,
+      complete: options.complete,
+      cancel: options.cancel,
     });
   }
 
@@ -704,6 +733,7 @@ export class CesiumGlobe {
 
   destroy() {
     this._destroyed = true;
+    this.clearClusterFanout();
     if (this._raf) { try { cancelAnimationFrame(this._raf); } catch (_) {} this._raf = null; }
     if (this._resumeTimer) { try { clearTimeout(this._resumeTimer); } catch (_) {} this._resumeTimer = null; }
     try {

@@ -25,8 +25,9 @@ assert.equal(fanout.length, 3, 'a proximity cluster must fan out every member');
 assert.deepEqual(fanout.map(({ member }) => member.id), [3, 7, 20], 'fanout positions must use stable member ordering');
 assert.ok(fanout.every(({ visualOnly, lat, lon }) => visualOnly && Number.isFinite(lat) && Number.isFinite(lon)), 'fanout coordinates must be explicit visual-only offsets');
 assert.equal(new Set(fanout.map(({ lat, lon }) => `${lat},${lon}`)).size, 3, 'each fanned member needs a unique position');
-assert.ok(fanout.every(({ radiusKm }) => radiusKm >= 2 && radiusKm <= 6), 'fanout radius must remain city-view scale');
+assert.ok(fanout.every(({ radiusKm }) => radiusKm >= 12), 'fanout radius must be plainly visible at city-view scale');
 assert.ok(fanout.every(({ appearance }) => appearance?.color && appearance?.shape), 'fanout members need stable role-derived color and shape');
+assert.ok(fanout.every(({ visualOnly }) => visualOnly), 'fanout offsets must never become persisted node coordinates');
 
 assert.equal(aggregateClusterStatus([{ status: 'healthy' }, { status: 'warning' }]), 'warn', 'warning aliases must aggregate as amber');
 assert.equal(aggregateClusterStatus([{ status: 'online' }, { status: 'unknown' }]), 'offline', 'unknown status must take error precedence');
@@ -70,6 +71,11 @@ assert.match(entitiesSource, /globe\.onNodeClick\(server,\s*cluster\.members/, '
 assert.match(cesiumSource, /if \(vpsClusterClick && typeof this\.onNodeClick === 'function'\) \{[\s\S]*this\.onNodeClick\(serverData, clusterMembers, clusterCentroid\);[\s\S]*return;[\s\S]*\}[\s\S]*if \(serverData && typeof this\.onNodeClick === 'function'\)/, 'Cesium cluster picks must take precedence over generic server navigation');
 assert.match(cesiumSource, /this\.onNodeClick\(serverData,\s*clusterMembers/, 'Cesium picks must forward all cluster members');
 assert.match(cesiumSource, /item\.appearance\.color/, 'fanout connectors must use member role color');
+assert.match(cesiumSource, /expandClusterFanout\(\{ lat, lon, fanout, onMemberClick \}\)/, 'Cesium must expose a safe city-flight fanout API');
+assert.match(cesiumSource, /this\.flyToCity\(lon, lat, 600_000, \{ complete:/, 'multi-cluster expansion must fly to the canonical centroid before rendering');
+assert.match(cesiumSource, /if \(expansionId !== this\._clusterFanoutExpansionId \|\| this\._destroyed\) return;/, 'stale city-flight completions must not render fanout');
+assert.match(cesiumSource, /clearClusterFanout\([^)]*\) \{[\s\S]*this\._clusterFanoutExpansionId \+= 1;/, 'clearing fanout must cancel queued expansion');
+assert.match(cesiumSource, /this\.viewer\?\.camera\?\.cancelFlight\(\);/, 'clearing fanout must cancel an in-flight city expansion');
 assert.match(cesiumSource, /onBlankClick/, 'Cesium blank-globe clicks must be observable for closing fanout');
 assert.match(threeSource, /onBlankClick/, 'Three fallback blank clicks must close its picker');
 assert.match(mainSource, /function handleGlobeNodeSelection/, 'all renderers must route node selection through one handler');
@@ -77,6 +83,9 @@ assert.match(mainSource, /function closeClusterInteraction/, 'cluster interactio
 assert.match(mainSource, /showClusterMemberPicker/, 'Three fallback must present a grouped picker');
 assert.match(mainSource, /const canonicalCluster = clusterServersByCoordinate\(state\.servers\)/, 'fanout must resolve the canonical live cluster before using label metadata');
 assert.match(mainSource, /const fanoutCluster = canonicalCluster \|\| cluster/, 'Cesium clusters must render visual-only radial fanout from a canonical centroid');
+assert.match(mainSource, /globe\?\.expandClusterFanout\?\.\(\{ lat: cluster\.lat, lon: cluster\.lon, fanout, onMemberClick: navigateToServer \}\)/, 'multi-cluster handler must request Cesium fly-then-expand rather than immediate fanout');
+assert.doesNotMatch(mainSource, /showClusterFanout\(fanout, navigateToServer\)/, 'main must not bypass the city-flight expansion API');
+assert.doesNotMatch(mainSource, /(?:localStorage|sessionStorage|fetch\([^\n]*latitude|fetch\([^\n]*longitude)/, 'cluster fanout must not persist visual offsets');
 assert.match(indexSource, /document\.documentElement\.classList\.add\('detail-pending'\)/, 'detail routes need a preboot pending marker');
 assert.match(indexSource, /\.detail-pending #starfield/, 'preboot guard must hide legacy starfield');
 assert.match(indexSource, /\.detail-pending \.display-shell/, 'preboot guard must hide legacy display shell');

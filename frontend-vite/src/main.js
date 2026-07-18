@@ -345,7 +345,7 @@ function showClusterMemberPicker(members) {
 function showClusterFanout(cluster, members) {
   const fanout = buildClusterFanout({ lat: cluster.lat, lon: cluster.lon, members })
     .map((item) => ({ ...item, centerLat: cluster.lat, centerLon: cluster.lon }));
-  globe?.showClusterFanout?.(fanout, navigateToServer);
+  globe?.expandClusterFanout?.({ lat: cluster.lat, lon: cluster.lon, fanout, onMemberClick: navigateToServer });
 }
 
 function handleGlobeNodeSelection(server, clusterMembers, cluster) {
@@ -358,7 +358,7 @@ function handleGlobeNodeSelection(server, clusterMembers, cluster) {
   // Labels and Cesium picks only carry lightweight cluster metadata. Always use the
   // canonical live cluster for a valid centroid before creating visual-only fanout.
   const fanoutCluster = canonicalCluster || cluster;
-  if (typeof globe?.showClusterFanout === 'function' && fanoutCluster?.valid) showClusterFanout(fanoutCluster, selection.members);
+  if (typeof globe?.expandClusterFanout === 'function' && fanoutCluster?.valid) showClusterFanout(fanoutCluster, selection.members);
   showClusterMemberPicker(selection.members);
 }
 

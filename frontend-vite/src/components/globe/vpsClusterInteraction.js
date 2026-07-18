@@ -1,5 +1,5 @@
 const EARTH_RADIUS_KM = 6371;
-const FANOUT_RADIUS_KM = 4;
+const MIN_FANOUT_RADIUS_KM = 12;
 
 const ROLE_COLORS = ['#38bdf8', '#a78bfa', '#f97316', '#14b8a6', '#ec4899', '#84cc16'];
 const ROLE_SHAPES = ['circle', 'diamond', 'square', 'triangle', 'pin', 'star'];
@@ -109,15 +109,17 @@ export function buildClusterFanout({ lat, lon, members = [] }) {
   const centerLon = Number(lon);
   if (!Number.isFinite(centerLat) || !Number.isFinite(centerLon)) return [];
   return sortClusterMembers(members).map((member, index, sorted) => {
-    const angle = -Math.PI / 2 + (Math.PI * 2 * index) / sorted.length;
-    const latOffset = (FANOUT_RADIUS_KM / EARTH_RADIUS_KM) * (180 / Math.PI);
+    const radiusKm = Math.max(MIN_FANOUT_RADIUS_KM, 8 + (sorted.length * 2));
+    const angle = sorted.length === 1 ? 0 : (-Math.PI / 2) + ((Math.PI * index) / (sorted.length - 1));
+    const latOffset = (radiusKm / EARTH_RADIUS_KM) * (180 / Math.PI);
     const lonOffset = latOffset / Math.max(Math.cos(centerLat * Math.PI / 180), 0.2);
     return {
       member,
       appearance: clusterMemberAppearance(member),
       lat: centerLat + latOffset * Math.sin(angle),
       lon: centerLon + lonOffset * Math.cos(angle),
-      radiusKm: FANOUT_RADIUS_KM,
+      angleRad: angle,
+      radiusKm,
       visualOnly: true,
     };
   });
