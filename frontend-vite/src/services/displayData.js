@@ -1,4 +1,5 @@
 import { getIPInfo } from '../api/public.js';
+import { normalizePublicServer } from './serverGroups.js';
 
 export function hasOwnMetric(source, key) {
   return source && Object.prototype.hasOwnProperty.call(source, key) && source[key] != null && source[key] !== '';
@@ -43,6 +44,7 @@ export function hasExplicitFlag(flag) {
 }
 
 export function normalizeServer(s) {
+  s = normalizePublicServer(s);
   const cfg = s.agent_config && typeof s.agent_config === 'object' ? s.agent_config : {};
   const meta = cfg.inventory_meta && typeof cfg.inventory_meta === 'object' ? cfg.inventory_meta : {};
   const liveMetricFlags = {
@@ -72,7 +74,7 @@ export function normalizeServer(s) {
     ...s,
     agent_config: cfg,
     __liveMetricFlags: liveMetricFlags,
-    group: s.group_name || s.group || '默认分组',
+    group: s.group,
     bw: s.bandwidth || s.bw || '不限',
     cpu: s.cpu_cores || s.cpu || 1,
     ram: s.ram_gb || s.ram || 1,

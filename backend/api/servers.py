@@ -17,6 +17,7 @@ from sqlalchemy import func
 from extensions import db
 import extensions
 from models.models import Server, ProbeResult, AgentCommand, record_ops_event
+from services.server_groups import assign_server_group
 from utils.errors import ValidationError, InternalServerError
 from middleware.rbac import admin_required, viewer_or_admin_required, owner_required
 from utils.validators import validate_server_name, validate_server_ip
@@ -194,7 +195,7 @@ def create_server():
         name=name,
         ip=ip,
         uuid=str(uuid4()) if provision_agent else None,
-        group_name=data.get("group") or data.get("group_name") or "默认分组",
+        group_name="默认分组",
         location=data.get("location", ""),
         flag=data.get("flag", "🌐"),
         cpu_cores=cpu_cores,
@@ -213,6 +214,7 @@ def create_server():
         traffic_reset_day=traffic_reset_day,
         agent_config=_normalize_agent_config_readonly(raw_cfg) if raw_cfg else _normalize_agent_config_readonly({}),
     )
+    assign_server_group(server, data)
     db.session.add(server)
 
     install_payload = None
@@ -290,10 +292,8 @@ def update_server(sid):
                 raise ValidationError(f"{field} 超过最大长度 {max_len} 个字符", field=field)
             setattr(server, field, val)
 
-    if "group" in data:
-        server.group_name = data["group"]
-    if "group_name" in data:
-        server.group_name = data["group_name"]
+    if "group_id" in data or "group" in data or "group_name" in data:
+        assign_server_group(server, data)
     if "tags" in data:
         if data["tags"] is None:
             server.tags = []

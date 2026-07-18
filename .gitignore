@@ -70,6 +70,7 @@ _archive/
 *.tar.gz
 *.tgz
 *.sql
+!backend/scripts/migrations/20260718_add_server_groups.sql
 通知规则
 
 # ── 前端压缩构建副本 ──────────────────────────────────────────

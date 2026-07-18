@@ -13,11 +13,14 @@ import {
   getAgentOverview,
   fetchAgentInstallCommand,
 } from '../../api/servers.js';
+import { createServerGroup, deleteServerGroup, fetchServerGroups, updateServerGroup } from '../../api/serverGroups.js';
 
 export class ServerManager {
   constructor(mountId) {
     this._el = document.getElementById(mountId);
     this._servers = [];
+    this._groups = [];
+    this._editingGroupId = null;
     this._busy = false;
     this._editingId = null;
     this._selectedIds = new Set();
@@ -27,9 +30,21 @@ export class ServerManager {
     this._bind();
   }
 
+  _groupOptions(selectedId) { return this._groups.map(group => `<option value="${group.id}" ${String(group.id) === String(selectedId) ? 'selected' : ''}>${this._escape(group.name)}</option>`).join(''); }
+  _updateGroupPurposeHint() { const group = this._groups.find(item => String(item.id) === this._val('sm-info-group')); const hint = this._el.querySelector('#sm-info-group-purpose'); if (hint) hint.textContent = group?.purpose || ''; }
+  _openGroupsModal() {
+    this._editingGroupId = null;
+    const rows = this._groups.map(group => `<tr><td>${this._escape(group.name)}</td><td>${this._escape(group.purpose || '')}</td><td><button data-group-edit="${group.id}">编辑</button> <button class="danger" data-group-delete="${group.id}">删除</button></td></tr>`).join('');
+    this._modal('管理分组', `<div class="komari-form-grid one"><label>名称<input class="form-input" id="sm-group-name"></label><label>用途<input class="form-input" id="sm-group-purpose"></label><label>颜色<input class="form-input" id="sm-group-color" placeholder="#RRGGBB（可选）"></label><label>排序<input class="form-input" id="sm-group-sort" type="number" value="0"></label><button class="add-btn" id="sm-group-save">添加分组</button></div><div id="sm-modal-msg" class="komari-msg"></div><table class="komari-node-table"><tbody>${rows}</tbody></table>`);
+    this._el.querySelector('#sm-group-save').addEventListener('click', () => this._saveGroup(this._editingGroupId)); this._el.querySelectorAll('[data-group-edit]').forEach(button => button.addEventListener('click', () => this._editGroup(button.dataset.groupEdit))); this._el.querySelectorAll('[data-group-delete]').forEach(button => button.addEventListener('click', () => this._deleteGroup(button.dataset.groupDelete)));
+  }
+  async _saveGroup(id = null) { const payload = { name: this._val('sm-group-name'), purpose: this._val('sm-group-purpose'), color: this._val('sm-group-color'), sort_order: Number(this._val('sm-group-sort') || 0) }; try { id ? await updateServerGroup(id, payload) : await createServerGroup(payload); this._groups = await fetchServerGroups(); this._openGroupsModal(); } catch (error) { this._modalMsg(error.message, 'red'); } }
+  _editGroup(id) { const group = this._groups.find(item => String(item.id) === String(id)); if (!group) return; this._editingGroupId = group.id; this._el.querySelector('#sm-group-name').value = group.name; this._el.querySelector('#sm-group-purpose').value = group.purpose || ''; this._el.querySelector('#sm-group-color').value = group.color || ''; this._el.querySelector('#sm-group-sort').value = group.sort_order || 0; this._el.querySelector('#sm-group-save').textContent = '保存分组'; }
+  async _deleteGroup(id) { try { await deleteServerGroup(id); this._groups = await fetchServerGroups(); this._openGroupsModal(); } catch (error) { this._modalMsg(error.message, 'red'); } }
+
   async reload() {
     try {
-      this._servers = await fetchServers();
+      [this._servers, this._groups] = await Promise.all([fetchServers(), fetchServerGroups()]);
       this._renderTable();
     } catch (e) { this._toast(e.message, 'red'); }
   }
@@ -45,6 +60,7 @@ export class ServerManager {
           <h2>节点列表</h2>
           <div class="komari-node-actions">
             <button id="sm-add-node" class="add-btn">＋ 添加节点</button>
+            <button id="sm-manage-groups" type="button">管理分组</button>
           </div>
         </div>
         <div class="komari-table-wrap">
@@ -83,6 +99,7 @@ export class ServerManager {
 
   _bind() {
     this._el.querySelector('#sm-add-node').addEventListener('click', () => this._openAddModal());
+    this._el.querySelector('#sm-manage-groups').addEventListener('click', () => this._openGroupsModal());
     this._el.querySelector('#sm-search')?.addEventListener('input', e => { this._query = e.target.value.trim().toLowerCase(); this._renderTable(); });
     this._el.querySelector('#sm-check-all').addEventListener('change', e => {
       const rows = this._filteredServers();
@@ -194,7 +211,7 @@ export class ServerManager {
         <label>名称<input class="form-input" id="sm-info-name" value="${this._attr(s.name || '')}"></label>
         <label>IP 地址<input class="form-input" id="sm-info-ip" value="${this._attr(s.ip || '')}"></label>
         <label>标签 <small>多个标签用逗号分隔</small><input class="form-input" id="sm-info-tags" value="${this._attr((s.tags || []).join(', '))}"></label>
-        <label>包<input class="form-input" id="sm-info-group" value="${this._attr(s.group || '')}"></label>
+        <label>分组<select class="form-input" id="sm-info-group">${this._groupOptions(s.group_info?.id)}</select><small id="sm-info-group-purpose"></small></label>
         <label>外形备注<textarea class="form-input" id="sm-info-note" placeholder="请输入内部备注">${this._escape(s.note || '')}</textarea></label>
         <label>公开备注<textarea class="form-input" id="sm-info-location" placeholder="请输入公开备注 / 地理位置">${this._escape(s.location || '')}</textarea></label>
         <div class="komari-form-grid two">
@@ -206,6 +223,8 @@ export class ServerManager {
       <div id="sm-modal-msg" class="komari-msg"></div>
       <div class="komari-modal-actions"><button class="add-btn" id="sm-info-save">保存</button></div>`);
     this._el.querySelector('#sm-info-save').addEventListener('click', () => this._saveInfoModal(id));
+    this._el.querySelector('#sm-info-group').addEventListener('change', () => this._updateGroupPurposeHint());
+    this._updateGroupPurposeHint();
   }
 
   async _saveInfoModal(id) {
@@ -215,7 +234,7 @@ export class ServerManager {
     const finalTags = hidden ? Array.from(new Set([...tags, 'hidden'])) : tags.filter(x => x !== 'hidden');
     const trafficLimitGb = Number(this._val('sm-info-traffic-limit') || 0);
     const trafficResetDay = Number(this._val('sm-info-traffic-reset') || 1);
-    const payload = { name: this._val('sm-info-name'), ip: this._val('sm-info-ip'), group: this._val('sm-info-group'), note: this._val('sm-info-note'), location: this._val('sm-info-location'), tags: finalTags, traffic_limit_gb: trafficLimitGb, traffic_reset_day: trafficResetDay };
+    const payload = { name: this._val('sm-info-name'), ip: this._val('sm-info-ip'), group_id: Number(this._val('sm-info-group')), note: this._val('sm-info-note'), location: this._val('sm-info-location'), tags: finalTags, traffic_limit_gb: trafficLimitGb, traffic_reset_day: trafficResetDay };
     if (!payload.name || !payload.ip) return this._modalMsg('名称和 IP 不能为空', 'red');
     if (!Number.isFinite(trafficLimitGb) || trafficLimitGb < 0) return this._modalMsg('月流量必须是 0 或更大的数字', 'red');
     if (!Number.isInteger(trafficResetDay) || trafficResetDay < 1 || trafficResetDay > 31) return this._modalMsg('流量重置日必须是 1-31 的整数', 'red');

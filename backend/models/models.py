@@ -149,12 +149,29 @@ class User(db.Model):
         )
 
 
+class ServerGroup(db.Model):
+    __tablename__ = "server_groups"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(64), nullable=False, unique=True, index=True)
+    purpose = db.Column(db.String(160), nullable=False, default="")
+    color = db.Column(db.String(7), nullable=False, default="")
+    sort_order = db.Column(db.Integer, nullable=False, default=0, index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+    def to_public_dict(self):
+        return {"id": self.id, "name": self.name, "purpose": self.purpose or "", "color": self.color or "", "sort_order": self.sort_order}
+
+
 class Server(db.Model):
     __tablename__ = "servers"
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(128), nullable=False, index=True)
     group_name = db.Column(db.String(64), default="默认分组", index=True)
+    group_id = db.Column(db.Integer, db.ForeignKey("server_groups.id", ondelete="SET NULL"), nullable=True, index=True)
+    group = db.relationship("ServerGroup", backref=db.backref("servers", passive_deletes=True))
     flag = db.Column(db.String(8), default="🌐")
     location = db.Column(db.String(128), default="")
     ip = db.Column(db.String(45), default="", unique=True, index=True)
@@ -233,7 +250,8 @@ class Server(db.Model):
         d = dict(
             id=self.id,
             name=self.name,
-            group=self.group_name,
+            group=(self.group.name if self.group else self.group_name),
+            group_info=(self.group.to_public_dict() if self.group else None),
             flag=self.flag,
             location=effective_location,
             city=city,

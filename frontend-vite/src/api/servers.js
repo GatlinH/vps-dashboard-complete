@@ -12,7 +12,7 @@ function normalize(s) {
   return {
     ...s,
     agent_config: cfg,
-    group:    s.group_name  || s.group  || '默认分组',
+    group:    s.group_info?.name || s.group_name || s.group || '默认分组',
     bw:       s.bandwidth   || s.bw     || '不限',
     cpu:      s.cpu_cores   || s.cpu    || 1,
     ram:      s.ram_gb      || s.ram    || 1,
@@ -54,7 +54,7 @@ export async function createServer(payload) {
   const body = {
     name: payload.name,
     ip: payload.ip,
-    group: payload.group || '默认分组',
+    ...(payload.group_id != null ? { group_id: payload.group_id } : { group: payload.group || '默认分组' }),
     flag: payload.flag || '🌐',
     location: payload.location || '',
     bandwidth: payload.bw || '待 Agent 回填',
@@ -127,7 +127,7 @@ export async function updateServer(id, payload) {
   const body = {
     name: payload.name,
     ip: payload.ip,
-    group: payload.group || '默认分组',
+    ...(payload.group_id != null ? { group_id: payload.group_id } : { group: payload.group || '默认分组' }),
     flag: payload.flag || '🌐',
     location: payload.location || '',
     bandwidth: payload.bw || '待 Agent 回填',

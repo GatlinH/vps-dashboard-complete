@@ -23,7 +23,8 @@ import { getDetailHeavyRefreshAt, getDetailPingTargetsFetchedAt, setDetailHeavyR
 import { detailCache } from './detail/detailCache.js';
 import { createDetailPingSampleCache, createDetailTelemetrySampleCache } from './detail/sampleCache.js';
 import { getGlobeRuntimeDebug } from './utils/debugState.js';
-import { buildClusterFanout, groupClusterMembers, resolveClusterSelection } from './components/globe/vpsClusterInteraction.js';
+import { buildClusterFanout, resolveClusterSelection } from './components/globe/vpsClusterInteraction.js';
+import { groupClusterMembers } from './services/serverGroups.js';
 import { clusterServersByCoordinate } from './components/globe/vpsClusters.js';
 
 let globe = null;
@@ -324,19 +325,17 @@ function showClusterMemberPicker(members) {
   closeButton.addEventListener('click', closeClusterInteraction);
   panel.appendChild(closeButton);
   for (const group of groupClusterMembers(members)) {
-    const groupHeading = document.createElement('h3'); groupHeading.textContent = group.group; panel.appendChild(groupHeading);
-    for (const purpose of group.purposes) {
-      const purposeHeading = document.createElement('h4'); purposeHeading.textContent = purpose.purpose; panel.appendChild(purposeHeading);
-      const list = document.createElement('ul');
-      for (const member of purpose.members) {
+    const groupHeading = document.createElement('h3'); groupHeading.textContent = group.name; panel.appendChild(groupHeading);
+    if (group.purpose) { const purposeHeading = document.createElement('h4'); purposeHeading.textContent = group.purpose; panel.appendChild(purposeHeading); }
+    const list = document.createElement('ul');
+    for (const member of group.members) {
         const item = document.createElement('li');
         const name = document.createElement('span'); name.textContent = String(member.name || `VPS-${member.id || ''}`);
         const select = document.createElement('button'); select.type = 'button'; select.textContent = '查看详情';
         select.addEventListener('click', () => navigateToServer(member));
         item.append(name, select); list.appendChild(item);
-      }
-      panel.appendChild(list);
     }
+    panel.appendChild(list);
   }
   document.body.appendChild(panel);
   clusterPicker = panel;

@@ -11,6 +11,7 @@ from middleware.rate_limit import RateLimitConfig
 from middleware.error_handler import ErrorHandler
 from middleware.audit import AuditMiddleware
 from api.servers import servers_bp
+from api.server_groups import server_groups_bp
 from api.auth import auth_bp
 from api.auth_account import account_bp
 from api.users import users_bp
@@ -182,6 +183,7 @@ def create_app(**config_overrides):
         (account_bp,  '/api/v1/auth'),
         (users_bp,    '/api/v1/auth'),
         (servers_bp,  '/api/v1/servers'),
+        (server_groups_bp, '/api/v1/server-groups'),
         (probe_bp,    '/api/v1/probe'),
         (telegram_bp, '/api/v1/telegram'),
         (ops_bp,      '/api/v1/ops'),
@@ -202,6 +204,16 @@ def create_app(**config_overrides):
         # 非生产/测试环境保留 create_all 以便快速启动
         if os.getenv("FLASK_ENV") != "production":
             db.create_all()
+        from sqlalchemy.exc import OperationalError
+        from services.server_groups import backfill_server_groups
+        try:
+            backfill_server_groups()
+        except OperationalError:
+            # Production must apply the checked-in migration before reconciliation.
+            if os.getenv("FLASK_ENV") != "production":
+                raise
+            logger.warning("server_groups schema is not migrated; skipping group backfill")
+            db.session.rollback()
 
     # ===== 后台任务调度 =====
     # 测试环境默认不启动后台 scheduler，避免 APScheduler 与 pytest 的
