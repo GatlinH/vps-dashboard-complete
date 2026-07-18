@@ -3243,7 +3243,7 @@ body.admin-bridge-mode {
   color: #526978 !important;
 }
 @media (min-width: 1201px) {
-  .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail:has(.runtime-env-card) {
+  html body .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail:has(.runtime-env-card) {
     align-self: stretch !important;
   }
   .detail-page-shell:has(.fleet-detail-console) .runtime-env-panel,
