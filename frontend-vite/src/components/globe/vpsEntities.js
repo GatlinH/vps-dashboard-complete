@@ -86,7 +86,7 @@ export function rebuildVpsEntities(globe) {
 
   for (const cluster of clusterServersByCoordinate(globe.servers)) {
     const server = cluster.members[0];
-    const [lat, lon] = cluster.valid ? [cluster.lat, cluster.lon] : getServerCoords(server);
+    const { lat, lon } = cluster.valid ? cluster : getServerCoords(server);
     const isCluster = cluster.members.length > 1;
     const memberTitle = cluster.members.map((member) => String(member.name || 'VPS-' + (member.id || ''))).join(' · ');
     const coreColor = Cesium.Color.fromCssColorString('#38e8ff').withAlpha(0.95);

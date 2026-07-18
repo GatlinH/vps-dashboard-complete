@@ -20,14 +20,15 @@ assert.match(visitorBeacon, /degraded/, 'visitor beacon must reject degraded geo
 assert.match(visitorBeacon, /fallback:anonymous/, 'visitor beacon must reject anonymous fallback geo responses');
 
 const clusters = clusterServersByCoordinate([
-  { id: 20, latitude: 31.23041, longitude: 121.47371 },
-  { id: 3, latitude: 31.230409, longitude: 121.473709 },
-  { id: 7, latitude: 35.6762, longitude: 139.6503 },
+  { id: 20, latitude: 34.0544, longitude: -118.244 },
+  { id: 3, latitude: 34.0549, longitude: -118.243 },
+  { id: 7, latitude: 34.0744, longitude: -118.244 },
 ]);
-assert.equal(clusters.length, 2, 'same rounded coordinates must form one cluster');
+assert.equal(clusters.length, 2, 'nearby city-level coordinates must form one proximity cluster');
 assert.deepEqual(clusters[0].members.map(({ id }) => id), [3, 20], 'cluster members must be deterministically ordered by numeric ID');
-assert.equal(clusters[0].key, '31.2304,121.4737');
-assert.equal(clusters[1].members.length, 1, 'distinct coordinates must remain distinct');
+assert.equal(clusters[0].lat, 34.05465, 'cluster latitude must be the deterministic centroid');
+assert.equal(clusters[0].lon, -118.2435, 'cluster longitude must be the deterministic centroid');
+assert.equal(clusters[1].members.length, 1, 'a sufficiently distant coordinate must remain separate');
 const invalidClusters = clusterServersByCoordinate([
   { id: 1, latitude: 0, longitude: 0 },
   { id: 2, latitude: 'invalid', longitude: 121.4737 },
@@ -35,4 +36,4 @@ const invalidClusters = clusterServersByCoordinate([
 assert.equal(invalidClusters.length, 2, 'invalid or null-island coordinates must not form genuine coordinate clusters');
 assert.ok(invalidClusters.every((cluster) => cluster.key.startsWith('invalid:')));
 
-console.log('DASHBOARD_STRUCTURAL_REGRESSIONS_VERIFIED detail-grid currency visitor-geo vps-clustering');
+console.log('DASHBOARD_STRUCTURAL_REGRESSIONS_VERIFIED detail-grid currency visitor-geo vps-proximity-clustering');

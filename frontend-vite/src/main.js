@@ -1974,8 +1974,6 @@ async function boot() {
     return;
   } else if (selectedServerId) {
     window.__DBG__.BOOT_TRACE.push('branch:selectedServerId:' + selectedServerId);
-    mountDisplayPage();
-    window.__DBG__.BOOT_TRACE.push('after-mountDisplayPage');
     await renderDetailPage(selectedServerId);
     window.__DBG__.BOOT_TRACE.push('after-renderDetailPage');
   } else if (loginMode) {
