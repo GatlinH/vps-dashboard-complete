@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   buildClusterFanout,
+  aggregateClusterStatus,
+  buildClusterBeaconAppearance,
+  clusterMemberAppearance,
   groupClusterMembers,
   resolveClusterSelection,
 } from '../src/components/globe/vpsClusterInteraction.js';
@@ -23,6 +26,31 @@ assert.deepEqual(fanout.map(({ member }) => member.id), [3, 7, 20], 'fanout posi
 assert.ok(fanout.every(({ visualOnly, lat, lon }) => visualOnly && Number.isFinite(lat) && Number.isFinite(lon)), 'fanout coordinates must be explicit visual-only offsets');
 assert.equal(new Set(fanout.map(({ lat, lon }) => `${lat},${lon}`)).size, 3, 'each fanned member needs a unique position');
 assert.ok(fanout.every(({ radiusKm }) => radiusKm >= 2 && radiusKm <= 6), 'fanout radius must remain city-view scale');
+assert.ok(fanout.every(({ appearance }) => appearance?.color && appearance?.shape), 'fanout members need stable role-derived color and shape');
+
+assert.equal(aggregateClusterStatus([{ status: 'healthy' }, { status: 'warning' }]), 'warn', 'warning aliases must aggregate as amber');
+assert.equal(aggregateClusterStatus([{ status: 'online' }, { status: 'unknown' }]), 'offline', 'unknown status must take error precedence');
+assert.equal(aggregateClusterStatus([{ status: 'warn' }, { status: 'error' }]), 'offline', 'error status must take error precedence');
+
+const canonicalMember = {
+  id: 30,
+  status: 'online',
+  group: 'ignored legacy group',
+  tags: ['ignored tag'],
+  public_note: 'ignored note',
+  group_info: { name: '主控', purpose: '控制平面', color: '#7c3aed' },
+};
+assert.deepEqual(clusterMemberAppearance(canonicalMember), {
+  group: '主控', purpose: '控制平面', color: '#7c3aed', shape: clusterMemberAppearance(canonicalMember).shape,
+}, 'group_info must override legacy group, tags, and notes for role appearance');
+assert.deepEqual(clusterMemberAppearance({ id: 31, group_info: { name: '默认分组', purpose: '控制平面' } }), clusterMemberAppearance({ id: 99, group_info: { name: '默认分组', purpose: '控制平面' } }), 'role appearance must be stable independently of member id');
+const beacon = buildClusterBeaconAppearance([canonicalMember, { id: 32, status: 'online', group_info: { name: '默认分组', purpose: '边缘', color: '#0ea5e9' } }]);
+assert.equal(beacon.status, 'online', 'healthy collapsed clusters must remain green');
+assert.deepEqual(beacon.sectors.map(({ group, purpose, color, count }) => ({ group, purpose, color, count })), [
+  { group: '默认分组', purpose: '边缘', color: '#0ea5e9', count: 1 },
+  { group: '主控', purpose: '控制平面', color: '#7c3aed', count: 1 },
+], 'collapsed composition must use canonical group_info names, purposes, and colors');
+assert.equal(beacon.label, '2 个节点 · 主控 / 默认分组', 'collapsed clusters need an accessible composition label');
 
 assert.deepEqual(groupClusterMembers(members), [
   { group: '默认分组', purposes: [{ purpose: '边缘', members: [members[2]] }] },
@@ -32,8 +60,11 @@ assert.deepEqual(resolveClusterSelection([{ id: 1 }]), { type: 'navigate', membe
 assert.equal(resolveClusterSelection(members).type, 'expand', 'a multi-member cluster must expand instead of navigating');
 
 assert.match(entitiesSource, /clusterMembers:\s*cluster\.members/, 'Cesium entities must retain all cluster members');
+assert.match(entitiesSource, /buildClusterBeaconAppearance/, 'collapsed Cesium beacons must render composition sectors');
+assert.match(entitiesSource, /aggregateClusterStatus/, 'collapsed Cesium beacons must use aggregate health status');
 assert.match(entitiesSource, /globe\.onNodeClick\(server,\s*cluster\.members/, 'HTML labels must use the shared cluster callback');
 assert.match(cesiumSource, /this\.onNodeClick\(serverData,\s*clusterMembers/, 'Cesium picks must forward all cluster members');
+assert.match(cesiumSource, /item\.appearance\.color/, 'fanout connectors must use member role color');
 assert.match(cesiumSource, /onBlankClick/, 'Cesium blank-globe clicks must be observable for closing fanout');
 assert.match(threeSource, /onBlankClick/, 'Three fallback blank clicks must close its picker');
 assert.match(mainSource, /function handleGlobeNodeSelection/, 'all renderers must route node selection through one handler');

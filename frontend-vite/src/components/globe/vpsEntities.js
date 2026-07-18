@@ -1,6 +1,7 @@
 import * as Cesium from 'cesium';
 import { getServerCoords, STATUS_COLORS } from '../globe-utils.js';
 import { clusterServersByCoordinate } from './vpsClusters.js';
+import { aggregateClusterStatus, buildClusterBeaconAppearance } from './vpsClusterInteraction.js';
 
 function toCesiumColor(rgb, alpha = 1) {
   return new Cesium.Color(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, alpha);
@@ -89,6 +90,9 @@ export function rebuildVpsEntities(globe) {
     const { lat, lon } = cluster.valid ? cluster : getServerCoords(server);
     const isCluster = cluster.members.length > 1;
     const memberTitle = cluster.members.map((member) => String(member.name || 'VPS-' + (member.id || ''))).join(' · ');
+    const beaconAppearance = isCluster ? buildClusterBeaconAppearance(cluster.members) : null;
+    const clusterStatus = isCluster ? aggregateClusterStatus(cluster.members) : server.status;
+    const healthColor = statusColor({ status: clusterStatus });
     const coreColor = Cesium.Color.fromCssColorString('#38e8ff').withAlpha(0.95);
     const nodeEntity = globe.viewer.entities.add({
       id: `node-${server.id}`,
@@ -104,7 +108,7 @@ export function rebuildVpsEntities(globe) {
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
       label: {
-        text: isCluster ? cluster.members.length + ' 个节点' : `${serverFlag(server)} ${shortServerLabel(server)}`,
+        text: isCluster ? beaconAppearance.label : `${serverFlag(server)} ${shortServerLabel(server)}`,
         font: '700 15px Inter, system-ui, sans-serif',
         fillColor: Cesium.Color.WHITE.withAlpha(0.96),
         outlineColor: Cesium.Color.BLACK.withAlpha(0.88),
@@ -130,9 +134,9 @@ export function rebuildVpsEntities(globe) {
       ellipse: {
         semiMajorAxis: 26000,
         semiMinorAxis: 26000,
-        material: Cesium.Color.fromCssColorString('#38e8ff').withAlpha(0.14),
+        material: healthColor.withAlpha(0.16),
         outline: true,
-        outlineColor: Cesium.Color.fromCssColorString('#aef6ff').withAlpha(0.5),
+        outlineColor: healthColor.withAlpha(0.72),
         outlineWidth: 1.5,
         heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
         classificationType: Cesium.ClassificationType.TERRAIN,
@@ -143,6 +147,26 @@ export function rebuildVpsEntities(globe) {
 
     globe._nodeEntities.push(nodeEntity);
     globe._arcEntities.push(beaconRing);
+    if (beaconAppearance) {
+      const sectorAngle = Cesium.Math.TWO_PI / beaconAppearance.sectors.length;
+      beaconAppearance.sectors.forEach((sector, index) => {
+        const sectorEntity = globe.viewer.entities.add({
+          id: `node-sector-${server.id}-${index}`,
+          position: Cesium.Cartesian3.fromDegrees(lon, lat, 122),
+          ellipse: {
+            semiMajorAxis: 17500,
+            semiMinorAxis: 17500,
+            material: Cesium.Color.fromCssColorString(sector.color).withAlpha(0.88),
+            theta: index * sectorAngle,
+            delta: sectorAngle,
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            classificationType: Cesium.ClassificationType.TERRAIN,
+          },
+          properties: { serverId: server.id, serverData: server, clusterMembers: cluster.members, vpsBeaconSector: true },
+        });
+        globe._arcEntities.push(sectorEntity);
+      });
+    }
     // VPS 信标信息框: 与访客信标同款视觉，但不显示 192-VPS-Agen 这类机器名，避免误读。
     if (globe._labelLayer) {
       const labelEl = document.createElement('div');
@@ -151,7 +175,7 @@ export function rebuildVpsEntities(globe) {
       const placeParts = explicitPlace ? [explicitPlace] : [server.city, server.country].filter(Boolean)
         .filter((part, idx, arr) => arr.findIndex(x => String(x).toLowerCase() === String(part).toLowerCase()) === idx);
       const place = placeParts.join(' · ') || '未知地区';
-      const displayName = isCluster ? cluster.members.length + ' 个节点' : (shortServerLabel(server) || String(server?.name || 'VPS-' + (server?.id || '')));
+      const displayName = isCluster ? beaconAppearance.label : (shortServerLabel(server) || String(server?.name || 'VPS-' + (server?.id || '')));
       const flag = serverFlag(server);
       const flagCode = serverFlagCode(server);
       labelEl.innerHTML = `<span class="node-place"><span class="node-flag">${renderFlagImg(flag, flagCode)}</span><span class="node-title" title="${escapeHtml(memberTitle)}">${escapeHtml(displayName)}</span></span><span class="node-name">${escapeHtml(place)}</span>`;

@@ -622,6 +622,12 @@ export class CesiumGlobe {
     this.onBlankClick?.();
   }
 
+  _clusterFanoutShapeDataUrl(shape, color) {
+    const points = { diamond: '50,4 96,50 50,96 4,50', square: '12,12 88,12 88,88 12,88', triangle: '50,5 95,90 5,90', pin: '50,4 86,40 50,96 14,40', star: '50,4 61,37 96,37 68,58 79,92 50,71 21,92 32,58 4,37 39,37' };
+    const content = points[shape] ? `<polygon points="${points[shape]}"/>` : '<circle cx="50" cy="50" r="42"/>';
+    return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g fill="${color}" stroke="white" stroke-width="7">${content}</g></svg>`)}`;
+  }
+
   showClusterFanout(fanout, onMemberClick) {
     this.clearClusterFanout();
     this._clusterFanoutEntities = [];
@@ -630,9 +636,10 @@ export class CesiumGlobe {
       const position = Cesium.Cartesian3.fromDegrees(item.lon, item.lat, 220);
       const entity = this.viewer.entities.add({
         position,
-        point: { pixelSize: 13, color: Cesium.Color.fromCssColorString('#ffd166'), outlineColor: Cesium.Color.WHITE, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+        point: { pixelSize: 13, color: Cesium.Color.fromCssColorString(item.appearance.color), outlineColor: Cesium.Color.WHITE, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+        billboard: { image: this._clusterFanoutShapeDataUrl(item.appearance.shape, item.appearance.color), width: 22, height: 22, disableDepthTestDistance: Number.POSITIVE_INFINITY },
         label: { text: String(item.member?.name || `VPS-${item.member?.id || ''}`), font: '700 14px system-ui', fillColor: Cesium.Color.WHITE, outlineColor: Cesium.Color.BLACK, outlineWidth: 2, style: Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset: new Cesium.Cartesian2(0, -26), disableDepthTestDistance: Number.POSITIVE_INFINITY },
-        polyline: { positions: [center, position], width: 2, material: Cesium.Color.fromCssColorString('#ffd166').withAlpha(0.8), arcType: Cesium.ArcType.NONE },
+        polyline: { positions: [center, position], width: 2, material: Cesium.Color.fromCssColorString(item.appearance.color).withAlpha(0.8), arcType: Cesium.ArcType.NONE },
         properties: { serverId: item.member?.id, serverData: item.member, clusterMembers: [item.member], vpsClusterFanout: true },
       });
       this._clusterFanoutEntities.push(entity);
