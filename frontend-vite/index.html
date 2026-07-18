@@ -6,6 +6,15 @@
   <link id="dynamic-favicon" rel="icon" href="/api/v1/ops/settings/site/favicon">
   <title>VPS 星图展示</title>
   <meta name="color-scheme" content="dark light" />
+  <style>
+    html.detail-pending { background: #090d16; }
+    .detail-pending #starfield, .detail-pending .display-shell { visibility: hidden; }
+  </style>
+  <script>
+    if (new URLSearchParams(window.location.search).has('server')) {
+      document.documentElement.classList.add('detail-pending');
+    }
+  </script>
   <script>
     window.__DBG__ = window.__DBG__ || {};
     if (window.__API_ROOT__ && !window.__DBG__.API_ROOT) {

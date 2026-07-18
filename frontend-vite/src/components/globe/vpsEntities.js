@@ -162,7 +162,7 @@ export function rebuildVpsEntities(globe) {
       const goDetail = (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
-        if (typeof globe.onNodeClick === 'function') globe.onNodeClick(server);
+        if (typeof globe.onNodeClick === 'function') globe.onNodeClick(server, cluster.members, { lat, lon, clusterKey: cluster.key });
         else if (server?.id != null) window.location.href = `/?server=${server.id}`;
       };
       labelEl.addEventListener('click', goDetail);

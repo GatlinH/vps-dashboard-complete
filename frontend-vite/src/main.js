@@ -23,6 +23,8 @@ import { getDetailHeavyRefreshAt, getDetailPingTargetsFetchedAt, setDetailHeavyR
 import { detailCache } from './detail/detailCache.js';
 import { createDetailPingSampleCache, createDetailTelemetrySampleCache } from './detail/sampleCache.js';
 import { getGlobeRuntimeDebug } from './utils/debugState.js';
+import { buildClusterFanout, groupClusterMembers, resolveClusterSelection } from './components/globe/vpsClusterInteraction.js';
+import { clusterServersByCoordinate } from './components/globe/vpsClusters.js';
 
 let globe = null;
 let starshipShowcase = null;
@@ -295,6 +297,70 @@ function initStarshipShowcase() {
   window.__DBG__.starshipShowcase = starshipShowcase;
 }
 
+let clusterPicker = null;
+
+function closeClusterInteraction() {
+  globe?.clearClusterFanout?.();
+  clusterPicker?.remove();
+  clusterPicker = null;
+}
+
+function navigateToServer(server) {
+  if (server?.id != null) window.location.href = `/?server=${server.id}`;
+}
+
+function showClusterMemberPicker(members) {
+  clusterPicker?.remove();
+  const panel = document.createElement('section');
+  panel.className = 'cluster-member-picker';
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-modal', 'false');
+  panel.setAttribute('aria-label', '同一位置的节点');
+  const heading = document.createElement('h2');
+  heading.textContent = `同一位置的 ${members.length} 个节点`;
+  panel.appendChild(heading);
+  const closeButton = document.createElement('button');
+  closeButton.type = 'button'; closeButton.className = 'cluster-picker-close'; closeButton.textContent = '关闭';
+  closeButton.addEventListener('click', closeClusterInteraction);
+  panel.appendChild(closeButton);
+  for (const group of groupClusterMembers(members)) {
+    const groupHeading = document.createElement('h3'); groupHeading.textContent = group.group; panel.appendChild(groupHeading);
+    for (const purpose of group.purposes) {
+      const purposeHeading = document.createElement('h4'); purposeHeading.textContent = purpose.purpose; panel.appendChild(purposeHeading);
+      const list = document.createElement('ul');
+      for (const member of purpose.members) {
+        const item = document.createElement('li');
+        const name = document.createElement('span'); name.textContent = String(member.name || `VPS-${member.id || ''}`);
+        const select = document.createElement('button'); select.type = 'button'; select.textContent = '查看详情';
+        select.addEventListener('click', () => navigateToServer(member));
+        item.append(name, select); list.appendChild(item);
+      }
+      panel.appendChild(list);
+    }
+  }
+  document.body.appendChild(panel);
+  clusterPicker = panel;
+  closeButton.focus();
+}
+
+function showClusterFanout(cluster, members) {
+  const fanout = buildClusterFanout({ lat: cluster.lat, lon: cluster.lon, members })
+    .map((item) => ({ ...item, centerLat: cluster.lat, centerLon: cluster.lon }));
+  globe?.showClusterFanout?.(fanout, navigateToServer);
+}
+
+function handleGlobeNodeSelection(server, clusterMembers, cluster) {
+  const inferredMembers = clusterMembers?.length ? clusterMembers : (clusterServersByCoordinate(state.servers)
+    .find((candidate) => candidate.members.some((member) => String(member.id) === String(server?.id)))?.members || [server]);
+  const selection = resolveClusterSelection(inferredMembers);
+  if (selection.type === 'navigate') { closeClusterInteraction(); navigateToServer(selection.member); return; }
+  if (clusterPicker) { closeClusterInteraction(); return; }
+  const fanoutCluster = cluster || clusterServersByCoordinate(state.servers)
+    .find((candidate) => candidate.members.some((member) => String(member.id) === String(server?.id)));
+  if (typeof globe?.showClusterFanout === 'function' && fanoutCluster?.valid) showClusterFanout(fanoutCluster, selection.members);
+  showClusterMemberPicker(selection.members);
+}
+
 function getGlobe() {
   applySingleRendererPageMode();
   if (globe) return globe;
@@ -305,18 +371,13 @@ function getGlobe() {
       defaultDistance: 2.35,
       minDistance: 1.55,
       maxDistance: 5.8,
+      onNodeClick: handleGlobeNodeSelection,
+      onBlankClick: closeClusterInteraction,
     });
-    globe.onSelect = (server) => {
-      if (server?.id) window.location.href = `/?server=${server.id}`;
-    };
     globe.start();
     getGlobeRuntimeDebug().globeMode = 'three-fallback';
   } else {
-    globe = new CesiumGlobe('#globe-container', state.servers, {
-      onNodeClick: (server) => {
-        if (server?.id) window.location.href = `/?server=${server.id}`;
-      },
-    });
+    globe = new CesiumGlobe('#globe-container', state.servers, { onNodeClick: handleGlobeNodeSelection, onBlankClick: closeClusterInteraction });
     getGlobeRuntimeDebug().globeMode = 'cesium-default-no-ion-terrain';
   }
   renderSunBadge();
@@ -1590,6 +1651,7 @@ async function renderDetailPage(serverId) {
   const app = document.getElementById('pageRoot');
   if (!resolvedServer) {
     app.innerHTML = renderDetailNotFound(serverId, escText);
+    document.documentElement.classList.remove('detail-pending');
     return;
   }
 
@@ -1597,6 +1659,7 @@ async function renderDetailPage(serverId) {
   // several seconds on small VPS installs; without this, direct ?server= routes
   // look like a blank starfield until every request completes.
   app.innerHTML = detailLoadingShell(resolvedServer);
+  document.documentElement.classList.remove('detail-pending');
   bindTopbarEvents(app);
   updateRateDisplay();
   const loadingGrid = document.getElementById('detailPageGrid');

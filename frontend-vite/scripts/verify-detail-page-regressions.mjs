@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+const indexSource = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const detailStyles = readFileSync(new URL('../src/styles/detail-starfleet-console.css', import.meta.url), 'utf8');
 
 const pingTargetSelector = mainSource.match(/function pingTargetsFromRows[\s\S]*?\n}\n\nfunction recordLivePingSamples/);
@@ -33,6 +34,9 @@ assert.doesNotMatch(
   /mountDisplayPage\(\)/,
   'selected detail boot must not mount legacy display DOM before renderDetailPage',
 );
+assert.match(indexSource, /document\.documentElement\.classList\.add\('detail-pending'\)/, 'detail routes must enable the preboot guard');
+assert.match(indexSource, /\.detail-pending #starfield[\s\S]*?\.detail-pending \.display-shell/, 'preboot guard must hide only legacy overview layers');
+assert.match(mainSource, /app\.innerHTML = detailLoadingShell\(resolvedServer\);\n  document\.documentElement\.classList\.remove\('detail-pending'\)/, 'detail renderer must release the preboot guard when it takes ownership');
 assert.match(
   selectedServerBranch[1],
   /await renderDetailPage\(selectedServerId\)/,

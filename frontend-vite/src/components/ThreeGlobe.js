@@ -625,7 +625,8 @@ export class ThreeGlobe {
     };
 
     this.servers = [];
-    this.onSelect = null;
+    this.onSelect = options.onNodeClick || null;
+    this.onBlankClick = options.onBlankClick || null;
     this.onHover = null;
     this.onFocusChange = null;
     this.pointer = new THREE.Vector2();
@@ -1147,7 +1148,7 @@ export class ThreeGlobe {
 
   handleClick(event) {
     const { hit } = this.pick(event.clientX, event.clientY);
-    if (!hit) return;
+    if (!hit) { this.onBlankClick?.(); return; }
     const server = hit.object.userData.server || hit.object.parent?.userData?.server;
     if (!server) return;
     this.focused = server;

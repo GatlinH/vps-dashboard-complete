@@ -92,6 +92,7 @@ export class CesiumGlobe {
     if (!this.container) throw new Error(`Container not found: ${containerSelector}`);
     this.servers = servers || [];
     this.onNodeClick = options.onNodeClick || null;
+    this.onBlankClick = options.onBlankClick || null;
     this._destroyed = false;
 
     // VPS / 访客 / 标签状态
@@ -612,10 +613,39 @@ export class CesiumGlobe {
       if (serverId == null) continue;
       const serverData = props?.serverData?.getValue ? props.serverData.getValue() : props?.serverData;
       if (serverData && typeof this.onNodeClick === 'function') {
-        this.onNodeClick(serverData);
+        const clusterMembers = props?.clusterMembers?.getValue ? props.clusterMembers.getValue() : props?.clusterMembers;
+        if (props?.vpsClusterFanout && this._clusterFanoutMemberClick) this._clusterFanoutMemberClick(serverData);
+        else this.onNodeClick(serverData, clusterMembers, null);
         return;
       }
     }
+    this.onBlankClick?.();
+  }
+
+  showClusterFanout(fanout, onMemberClick) {
+    this.clearClusterFanout();
+    this._clusterFanoutEntities = [];
+    for (const item of fanout) {
+      const center = Cesium.Cartesian3.fromDegrees(item.centerLon, item.centerLat, 150);
+      const position = Cesium.Cartesian3.fromDegrees(item.lon, item.lat, 220);
+      const entity = this.viewer.entities.add({
+        position,
+        point: { pixelSize: 13, color: Cesium.Color.fromCssColorString('#ffd166'), outlineColor: Cesium.Color.WHITE, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+        label: { text: String(item.member?.name || `VPS-${item.member?.id || ''}`), font: '700 14px system-ui', fillColor: Cesium.Color.WHITE, outlineColor: Cesium.Color.BLACK, outlineWidth: 2, style: Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset: new Cesium.Cartesian2(0, -26), disableDepthTestDistance: Number.POSITIVE_INFINITY },
+        polyline: { positions: [center, position], width: 2, material: Cesium.Color.fromCssColorString('#ffd166').withAlpha(0.8), arcType: Cesium.ArcType.NONE },
+        properties: { serverId: item.member?.id, serverData: item.member, clusterMembers: [item.member], vpsClusterFanout: true },
+      });
+      this._clusterFanoutEntities.push(entity);
+    }
+    this._clusterFanoutMemberClick = onMemberClick;
+    this.viewer.scene.requestRender();
+  }
+
+  clearClusterFanout() {
+    for (const entity of this._clusterFanoutEntities || []) this.viewer.entities.remove(entity);
+    this._clusterFanoutEntities = [];
+    this._clusterFanoutMemberClick = null;
+    this.viewer?.scene?.requestRender();
   }
 
   // ── 公共 API (main.js 契约) ──────────────────────────────
