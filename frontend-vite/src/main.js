@@ -577,14 +577,7 @@ function adaptiveRollingBounds(pointGroups = [], hours = 12) {
 
 function pingTargetsFromRows(rows = [], pingTargetsData = null) {
   const names = new Set();
-  // Persisted ProbeResult.latency_ms is the stable backend history. Prefer it so reopening
-  // the detail page does not cold-start from the in-memory live ping cache.
-  const hasStoredLatency = (rows || []).some(row => {
-    const v = row?.latency_ms;
-    return v !== null && v !== '' && Number.isFinite(Number(v));
-  });
   const targetRows = Array.isArray(pingTargetsData?.targets) ? pingTargetsData.targets : [];
-  if (hasStoredLatency && !targetRows.length) names.add('节点延迟');
   for (const t of targetRows) {
     const name = t?.name || t?.label || t?.host || t?.target || t?.domain;
     if (name) names.add(String(name));
@@ -695,7 +688,6 @@ function buildPingDatasets(rows = [], hours = 24, pingTargetsData = null, pingTa
   const palette = ['#68f6ff','#ffd66b','#ff6b8a','#b7ff7a','#d8a8ff','#7ab8ff','#ff9d4d','#7dffc1','#ff5ef1','#a2ff4d','#4dd8ff','#ffdf4d'];
   const aliasOf = (row, key) => {
     if (row == null) return null;
-    if (key === '节点延迟' && row.latency_ms != null) return row.latency_ms;
     if (row[key] != null) return row[key];
     const lk = String(key).toLowerCase();
     for (const [rk, rv] of Object.entries(row)) {

@@ -3267,3 +3267,41 @@ body.admin-bridge-mode {
     line-height: 1.35 !important;
   }
 }
+
+/* Desktop metric row: keep runtime and the three realtime resource cards aligned. */
+@media (min-width: 1201px) {
+  .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail {
+    grid-column: 1 !important;
+    grid-row: 3 !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .probe-observability-grid {
+    display: contents !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .allocation-card {
+    grid-column: 2 !important;
+    grid-row: 3 !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .resources-card {
+    grid-column: 3 !important;
+    grid-row: 3 !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .bandwidth-card {
+    grid-column: 4 !important;
+    grid-row: 3 !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix {
+    grid-column: 1 / -1 !important;
+    grid-row: 4 !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-right-zone {
+    grid-column: 1 / -1 !important;
+    grid-row: 5 !important;
+  }
+  .detail-page-shell:has(.fleet-detail-console) .fleet-console-footer {
+    grid-column: 1 / -1 !important;
+    grid-row: 6 !important;
+  }
+}
