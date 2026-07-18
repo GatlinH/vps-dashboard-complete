@@ -246,7 +246,7 @@ class Config:
     # 超过此上限的请求将直接接受（202）但丢弃数据，避免数据库连接被高并发请求打爆。
     AGENT_FALLBACK_DB_CONCURRENCY = int(os.getenv('AGENT_FALLBACK_DB_CONCURRENCY', '5'))
     TRUST_PROXY = os.getenv('TRUST_PROXY', '0') == '1'
-    PROXY_FIX_X_FOR = int(os.getenv('PROXY_FIX_X_FOR', '1'))
+    PROXY_FIX_X_FOR = int(os.getenv('PROXY_FIX_X_FOR', '2'))
     PROXY_FIX_X_PROTO = int(os.getenv('PROXY_FIX_X_PROTO', '1'))
     PROXY_FIX_X_HOST = int(os.getenv('PROXY_FIX_X_HOST', '1'))
     PROXY_FIX_X_PORT = int(os.getenv('PROXY_FIX_X_PORT', '1'))

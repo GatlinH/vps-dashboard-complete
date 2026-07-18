@@ -3189,11 +3189,6 @@ body.admin-bridge-mode {
 
 
 /* Runtime environment probe card. */
-.detail-page-shell:has(.fleet-detail-console) .runtime-env-panel {
-  overflow: visible !important;
-  height: auto !important;
-  min-height: 0 !important;
-}
 .detail-page-shell:has(.fleet-detail-console) .runtime-env-card {
   display: grid !important;
   gap: 0 !important;
@@ -3242,18 +3237,6 @@ body.admin-bridge-mode {
 [data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .runtime-env-field span {
   color: #526978 !important;
 }
-@media (min-width: 1201px) {
-  html body .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail:has(.runtime-env-card) {
-    align-self: stretch !important;
-  }
-  .detail-page-shell:has(.fleet-detail-console) .runtime-env-panel,
-  .detail-page-shell:has(.fleet-detail-console) .runtime-env-card {
-    height: 100% !important;
-  }
-  .detail-page-shell:has(.fleet-detail-console) .runtime-env-card {
-    align-content: start !important;
-  }
-}
 @media (max-width: 640px) {
   .detail-page-shell:has(.fleet-detail-console) .runtime-env-grid {
     grid-template-columns: 1fr 1fr !important;
@@ -3268,29 +3251,17 @@ body.admin-bridge-mode {
   }
 }
 
-/* Desktop metric row: keep runtime and the three realtime resource cards aligned. */
+/* Desktop metric row: ENV, ALC, RES and NET share one real grid container. */
 @media (min-width: 1201px) {
   .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console {
     grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
   }
-  .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail {
-    grid-column: 1 !important;
-    grid-row: 3 !important;
-  }
   .detail-page-shell:has(.fleet-detail-console) .probe-observability-grid {
-    display: contents !important;
-  }
-  .detail-page-shell:has(.fleet-detail-console) .allocation-card {
-    grid-column: 2 !important;
+    display: grid !important;
+    grid-column: 1 / -1 !important;
     grid-row: 3 !important;
-  }
-  .detail-page-shell:has(.fleet-detail-console) .resources-card {
-    grid-column: 3 !important;
-    grid-row: 3 !important;
-  }
-  .detail-page-shell:has(.fleet-detail-console) .bandwidth-card {
-    grid-column: 4 !important;
-    grid-row: 3 !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    align-items: stretch !important;
   }
   .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix {
     grid-column: 1 / -1 !important;
@@ -3304,4 +3275,14 @@ body.admin-bridge-mode {
     grid-column: 1 / -1 !important;
     grid-row: 6 !important;
   }
+}
+
+.detail-page-shell:has(.fleet-detail-console) .detail-currency-switch {
+  height: 38px !important;
+  min-height: 38px !important;
+  overflow: hidden !important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-currency-switch .currency-btn {
+  height: 36px !important;
+  min-height: 36px !important;
 }

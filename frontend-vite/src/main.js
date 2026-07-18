@@ -1060,7 +1060,7 @@ function stableLatestRate(series = [], fallback = 0) {
   return Number.isFinite(f) && f >= 0 ? f : 0;
 }
 
-function renderRealtimeResourcePanels(server, trafficData, upSeries = [], downSeries = [], cpuSeries = [], ramSeries = []) {
+function renderRealtimeResourcePanels(server, trafficData, upSeries = [], downSeries = [], cpuSeries = [], ramSeries = [], runtimeEnvironmentCard = '') {
   const cpuPct = Number(cpuSeries?.length ? cpuSeries[cpuSeries.length - 1] : server.cpu_use || 0);
   const ramPct = Number(ramSeries?.length ? ramSeries[ramSeries.length - 1] : server.ram_use || 0);
   const diskPct = Number(server.disk_use || 0);
@@ -1078,6 +1078,7 @@ function renderRealtimeResourcePanels(server, trafficData, upSeries = [], downSe
   const trafficPct = limitGb > 0 ? clampPct((usedGb / limitGb) * 100) : 0;
   const loadGuess = Number.isFinite(cpuPct) && cpuCores > 0 ? (cpuPct / 100 * cpuCores).toFixed(2) : '—';
   return `<section class="probe-observability-grid" id="detailRealtimePanels" aria-label="实时资源监控">
+    ${runtimeEnvironmentCard}
     <div class="probe-card allocation-card">
       <div class="probe-card-head"><h2 data-i18n="allocation">${t('allocation')}</h2><span>ALC • 02</span></div>
       <div class="probe-meter-list allocation-meter-list">
@@ -1895,7 +1896,8 @@ async function refreshDetailRealtime(serverId) {
   const chartLabels = historyRows.map((row, idx) => row.ts || row.time || row.timestamp || `T${idx + 1}`);
   const probeLabels = probeRows.map((row, idx) => row.created_at ? new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `P${idx + 1}`);
   const panel = document.getElementById('detailRealtimePanels');
-  if (panel) panel.outerHTML = renderRealtimeResourcePanels(current, detailCache.traffic, upSeries, downSeries, cpuSeries, ramSeries);
+  const runtimeEnvironmentCard = panel?.querySelector('.runtime-env-card')?.outerHTML || '';
+  if (panel) panel.outerHTML = renderRealtimeResourcePanels(current, detailCache.traffic, upSeries, downSeries, cpuSeries, ramSeries, runtimeEnvironmentCard);
   applyLanguage();
   const freshMeta = detailFreshnessMeta(probeRows, current);
   const latestSampleMs = freshMeta.latestMs;

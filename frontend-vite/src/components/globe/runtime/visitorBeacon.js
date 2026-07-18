@@ -56,6 +56,19 @@ function clearVisitorBeacon(globe) {
   }
 }
 
+export function isRenderableVisitorGeo(info = {}) {
+  const lat = Number(info.lat ?? info.latitude);
+  const lon = Number(info.lon ?? info.lng ?? info.longitude);
+  return info?.valid !== false
+    && !info?.degraded
+    && info?.source !== 'fallback:anonymous'
+    && Number.isFinite(lat)
+    && Number.isFinite(lon)
+    && lat >= -90 && lat <= 90
+    && lon >= -180 && lon <= 180
+    && !(lat === 0 && lon === 0);
+}
+
 export async function installVisitorBeacon(globe) {
   if (globe._visitorFetchStarted) {
     if (globe._visitorInfo && (!globe._visitorEntities || globe._visitorEntities.length === 0)) addVisitorBeacon(globe);
@@ -66,9 +79,9 @@ export async function installVisitorBeacon(globe) {
     const resp = await fetch('/api/v1/probe/ip-info', { headers: { Accept: 'application/json' }, cache: 'no-store' });
     if (!resp.ok) throw new Error(`visitor geo HTTP ${resp.status}`);
     const info = await resp.json();
+    if (!isRenderableVisitorGeo(info)) throw new Error('visitor geo is not renderable');
     const lat = Number(info.lat ?? info.latitude);
     const lon = Number(info.lon ?? info.lng ?? info.longitude);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) throw new Error('visitor geo missing lat/lon');
     const flag = inferVisitorFlag(info);
     globe._visitorInfo = { ...info, lat, lon, flag };
     addVisitorBeacon(globe);

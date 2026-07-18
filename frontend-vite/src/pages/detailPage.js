@@ -121,13 +121,7 @@ export function renderDetailConsole(ctx) {
 
       ${h.renderHealthSummary(resolvedServer, probeRows, displayPingTargetsData, displayCpuSeries, displayRamSeries)}
 
-      <aside class="fleet-left-rail">
-        <div class="runtime-env-panel">
-          ${renderRuntimeEnvironmentCard(resolvedServer)}
-        </div>
-      </aside>
-
-      ${h.renderRealtimeResourcePanels(resolvedServer, trafficData, upSeries, downSeries, displayCpuSeries, displayRamSeries)}
+      ${h.renderRealtimeResourcePanels(resolvedServer, trafficData, upSeries, downSeries, displayCpuSeries, displayRamSeries, renderRuntimeEnvironmentCard(resolvedServer))}
       <main class="fleet-chart-matrix">
         <div class="fleet-chart-card compact-metric-card network-throughput-card"><div class="fleet-chart-head"><span>网络吞吐量 · ${historyLabel} · ${sampleLabel}</span><strong>↑ ${h.detailRateValue(displayUpSeries, resolvedServer.net_up)} · ↓ ${h.detailRateValue(displayDownSeries, resolvedServer.net_down)}</strong></div><div class="network-legend"><i class="up"></i>上行 <i class="down"></i>下行</div><canvas id="detailNetworkChart"></canvas></div>
         <div class="fleet-chart-card compact-metric-card ping-multi-card"><div class="fleet-chart-head"><span>PING 延迟 · ${historyLabel} · 掉线留空</span><strong>${targetCount} 目标</strong></div><canvas id="detailPingChart"></canvas></div>

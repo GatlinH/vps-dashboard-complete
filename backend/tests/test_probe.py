@@ -222,3 +222,52 @@ def test_ping_batch_no_ip_server_returns_error_entry(client, auth_headers, app):
     assert 'error' in results[str(sid_no_ip)]
     # tcp_ping 不应为无 IP 的服务器发起调用
     mock_ping.assert_not_called()
+
+
+def test_ip_info_uses_real_client_after_two_trusted_proxies():
+    """Caddy -> nginx -> API resolves the left-most client address."""
+    from flask import request
+    from app import create_app
+
+    app = create_app(
+        TESTING=True,
+        SQLALCHEMY_DATABASE_URI='sqlite:///:memory:',
+        TRUST_PROXY=True,
+        PROXY_FIX_X_FOR=2,
+    )
+    with patch('api.probe.lookup_ip_geo', side_effect=lambda _ip: {'status': 'success', 'lat': 1, 'lon': 1, 'query': request.remote_addr}):
+        response = app.test_client().get(
+            '/api/v1/probe/ip-info',
+            environ_overrides={'REMOTE_ADDR': '10.0.0.20'},
+            headers={'X-Forwarded-For': '8.8.8.8, 10.0.0.10'},
+        )
+    assert response.get_json()['query'] == '8.8.8.8'
+
+
+def test_ip_info_does_not_trust_forwarded_header_without_proxy_gate():
+    """Forwarded headers remain ignored unless TRUST_PROXY enables ProxyFix."""
+    from flask import request
+    from app import create_app
+
+    app = create_app(
+        TESTING=True,
+        SQLALCHEMY_DATABASE_URI='sqlite:///:memory:',
+        TRUST_PROXY=False,
+    )
+    with patch('api.probe.lookup_ip_geo', side_effect=lambda _ip: {'status': 'success', 'lat': 1, 'lon': 1, 'query': request.remote_addr}):
+        response = app.test_client().get(
+            '/api/v1/probe/ip-info',
+            environ_overrides={'REMOTE_ADDR': '9.9.9.9'},
+            headers={'X-Forwarded-For': '8.8.8.8, 10.0.0.10'},
+        )
+    assert response.get_json()['query'] == '9.9.9.9'
+
+
+def test_ip_geo_fallback_is_explicitly_invalid():
+    """An anonymous degraded result cannot be mistaken for mappable geo data."""
+    with patch('api.probe._fetch_json_url', return_value=None):
+        from api.probe import lookup_ip_geo
+        data = lookup_ip_geo('8.8.8.8')
+    assert data['valid'] is False
+    assert data['degraded'] is True
+    assert data['source'] == 'fallback:anonymous'

@@ -1,5 +1,6 @@
 import * as Cesium from 'cesium';
 import { getServerCoords, STATUS_COLORS } from '../globe-utils.js';
+import { clusterServersByCoordinate } from './vpsClusters.js';
 
 function toCesiumColor(rgb, alpha = 1) {
   return new Cesium.Color(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, alpha);
@@ -83,8 +84,11 @@ export function shortServerLabel(server) {
 export function rebuildVpsEntities(globe) {
   resetNodeAndVisitorLayers(globe);
 
-  for (const server of globe.servers) {
-    const [lat, lon] = getServerCoords(server);
+  for (const cluster of clusterServersByCoordinate(globe.servers)) {
+    const server = cluster.members[0];
+    const [lat, lon] = cluster.valid ? [cluster.lat, cluster.lon] : getServerCoords(server);
+    const isCluster = cluster.members.length > 1;
+    const memberTitle = cluster.members.map((member) => String(member.name || 'VPS-' + (member.id || ''))).join(' · ');
     const coreColor = Cesium.Color.fromCssColorString('#38e8ff').withAlpha(0.95);
     const nodeEntity = globe.viewer.entities.add({
       id: `node-${server.id}`,
@@ -100,7 +104,7 @@ export function rebuildVpsEntities(globe) {
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
       label: {
-        text: `${serverFlag(server)} ${shortServerLabel(server)}`,
+        text: isCluster ? cluster.members.length + ' 个节点' : `${serverFlag(server)} ${shortServerLabel(server)}`,
         font: '700 15px Inter, system-ui, sans-serif',
         fillColor: Cesium.Color.WHITE.withAlpha(0.96),
         outlineColor: Cesium.Color.BLACK.withAlpha(0.88),
@@ -117,7 +121,7 @@ export function rebuildVpsEntities(globe) {
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
         show: false,
       },
-      properties: { serverId: server.id, serverData: server },
+      properties: { serverId: server.id, serverData: server, clusterMembers: cluster.members },
     });
 
     const beaconRing = globe.viewer.entities.add({
@@ -133,7 +137,7 @@ export function rebuildVpsEntities(globe) {
         heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
         classificationType: Cesium.ClassificationType.TERRAIN,
       },
-      properties: { serverId: server.id, serverData: server, vpsBeaconRing: true },
+      properties: { serverId: server.id, serverData: server, clusterMembers: cluster.members, vpsBeaconRing: true },
       show: true,
     });
 
@@ -147,11 +151,12 @@ export function rebuildVpsEntities(globe) {
       const placeParts = explicitPlace ? [explicitPlace] : [server.city, server.country].filter(Boolean)
         .filter((part, idx, arr) => arr.findIndex(x => String(x).toLowerCase() === String(part).toLowerCase()) === idx);
       const place = placeParts.join(' · ') || '未知地区';
-      const displayName = shortServerLabel(server) || String(server?.name || `VPS-${server?.id || ''}`);
+      const displayName = isCluster ? cluster.members.length + ' 个节点' : (shortServerLabel(server) || String(server?.name || 'VPS-' + (server?.id || '')));
       const flag = serverFlag(server);
       const flagCode = serverFlagCode(server);
-      labelEl.innerHTML = `<span class="node-place"><span class="node-flag">${renderFlagImg(flag, flagCode)}</span><span class="node-title">${escapeHtml(displayName)}</span></span><span class="node-name">${escapeHtml(place)}</span>`;
+      labelEl.innerHTML = `<span class="node-place"><span class="node-flag">${renderFlagImg(flag, flagCode)}</span><span class="node-title" title="${escapeHtml(memberTitle)}">${escapeHtml(displayName)}</span></span><span class="node-name">${escapeHtml(place)}</span>`;
       labelEl.dataset.nodeId = String(server.id);
+      labelEl.title = memberTitle;
       labelEl.style.pointerEvents = 'auto';
       labelEl.style.cursor = 'pointer';
       const goDetail = (ev) => {

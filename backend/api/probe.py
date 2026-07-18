@@ -122,6 +122,7 @@ def lookup_ip_geo(ip=""):
     # a non-identifying state instead of disappearing.
     return {
         "status": "success",
+        "valid": False,
         "query": target,
         "country": "—",
         "countryCode": "ZZ",
