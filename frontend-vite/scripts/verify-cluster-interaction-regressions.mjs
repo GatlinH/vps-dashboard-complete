@@ -14,6 +14,7 @@ const cesiumSource = readFileSync(new URL('../src/components/CesiumGlobe.js', im
 const threeSource = readFileSync(new URL('../src/components/ThreeGlobe.js', import.meta.url), 'utf8');
 const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
 const indexSource = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const labelOverlaySource = readFileSync(new URL('../src/components/globe/runtime/labelOverlay.js', import.meta.url), 'utf8');
 
 const members = [
   { id: 20, name: 'Zulu', group_name: '生产', tags: ['数据库'] },
@@ -30,8 +31,10 @@ assert.ok(fanout.every(({ appearance }) => appearance?.color && appearance?.shap
 assert.ok(fanout.every(({ visualOnly }) => visualOnly), 'fanout offsets must never become persisted node coordinates');
 
 assert.equal(aggregateClusterStatus([{ status: 'healthy' }, { status: 'warning' }]), 'warn', 'warning aliases must aggregate as amber');
-assert.equal(aggregateClusterStatus([{ status: 'online' }, { status: 'unknown' }]), 'offline', 'unknown status must take error precedence');
-assert.equal(aggregateClusterStatus([{ status: 'warn' }, { status: 'error' }]), 'offline', 'error status must take error precedence');
+assert.equal(aggregateClusterStatus([{ status: 'online' }, { status: 'unknown' }]), 'warn', 'mixed healthy and unavailable members must aggregate as amber');
+assert.equal(aggregateClusterStatus([{ status: 'warn' }, { status: 'error' }]), 'warn', 'a warning prevents an otherwise unavailable group from being all-red');
+assert.equal(aggregateClusterStatus([{ status: 'offline' }, { status: 'unknown' }]), 'offline', 'all unavailable members must aggregate as red');
+assert.equal(aggregateClusterStatus([{ status: 'ok' }, { status: 'up' }]), 'online', 'all healthy aliases must aggregate as green');
 
 const canonicalMember = {
   id: 30,
@@ -64,7 +67,9 @@ assert.match(entitiesSource, /clusterMembers:\s*cluster\.members/, 'Cesium entit
 assert.match(entitiesSource, /buildClusterBeaconAppearance/, 'collapsed Cesium beacons must render composition sectors');
 assert.match(entitiesSource, /aggregateClusterStatus/, 'collapsed Cesium beacons must use aggregate health status');
 assert.match(entitiesSource, /const clusterClickProperties = isCluster \? \{[\s\S]*serverData: server,[\s\S]*clusterMembers: cluster\.members,[\s\S]*clusterCentroid: \{ lat, lon, clusterKey: cluster\.key \},[\s\S]*vpsClusterClick: true,[\s\S]*\} : null;/, 'collapsed cluster layers must share full-members, representative, canonical-centroid click metadata');
-assert.match(entitiesSource, /if \(!isCluster\) \{[\s\S]*?point: \{[\s\S]*?\}[\s\S]*?\}/, 'only a single node may create the center point entity');
+assert.match(entitiesSource, /const anchorEntity = globe\.viewer\.entities\.add\(\{[\s\S]*?id: `node-\$\{server\.id\}`,[\s\S]*?point: \{[\s\S]*?color: healthColor,[\s\S]*?properties: \{ \.\.\.clusterClickProperties, clusterKey: cluster\.key, vpsClusterAnchor: true \}[\s\S]*?\}\);[\s\S]*?globe\._nodeEntities\.push\(anchorEntity\);/, 'every coordinate cluster must create exactly one projected anchor point in _nodeEntities');
+assert.match(entitiesSource, /nodeEntity = anchorEntity;/, 'cluster labels must use the projected cluster anchor entity');
+assert.match(entitiesSource, /globe\._htmlLabels\.set\(nodeEntity\.id, labelEl\);/, 'cluster HTML labels must use their projected anchor entity key without a fallback key');
 assert.match(entitiesSource, /properties: \{ \.\.\.clusterClickProperties, clusterKey: cluster\.key, vpsBeaconRing: true \}/, 'cluster health ring must carry unified cluster click metadata');
 assert.match(entitiesSource, /properties: \{ \.\.\.clusterClickProperties, clusterKey: cluster\.key, vpsBeaconSector: true \}/, 'every cluster pie sector must carry unified cluster click metadata');
 assert.match(entitiesSource, /globe\.onNodeClick\(server,\s*cluster\.members/, 'HTML labels must use the shared cluster callback');
@@ -84,6 +89,8 @@ assert.match(cesiumSource, /labelOffsetX/, 'fanout member labels must use stagge
 assert.match(cesiumSource, /width: 4/, 'fanout connectors must be visually strong');
 assert.match(entitiesSource, /clusterKey: cluster\.key/, 'collapsed cluster entities must retain their cluster key for fanout hiding');
 assert.match(entitiesSource, /labelEl\.dataset\.clusterKey = cluster\.key/, 'collapsed cluster HTML labels must retain their cluster key for fanout hiding');
+assert.match(labelOverlaySource, /if \(!Number\.isFinite\(win\?\.x\) \|\| !Number\.isFinite\(win\?\.y\)\) \{[\s\S]*?hideLabel\(labelEl\);[\s\S]*?return;/, 'failed world projections must hide HTML labels instead of falling back to a viewport position');
+assert.doesNotMatch(labelOverlaySource, /win\?\.x\s*:\s*width\s*\/\s*2|win\?\.y\s*:\s*height\s*\/\s*2/, 'HTML labels must never use viewport-center fallbacks after a failed projection');
 assert.match(cesiumSource, /expandClusterFanout\(\{ clusterKey, lat, lon, fanout, onMemberClick \}\)/, 'Cesium must expose a safe city-flight fanout API');
 assert.match(cesiumSource, /this\.flyToCity\(lon, lat, 600_000, \{ complete:/, 'multi-cluster expansion must fly to the canonical centroid before rendering');
 assert.match(cesiumSource, /if \(expansionId !== this\._clusterFanoutExpansionId \|\| this\._destroyed\) return;/, 'stale city-flight completions must not render fanout');

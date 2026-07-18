@@ -208,8 +208,12 @@ export function updateHtmlNodeLabels(globe, cityMode) {
     const cameraNormal = Cesium.Cartesian3.normalize(globe.viewer.camera.positionWC, new Cesium.Cartesian3());
     const frontFacing = Cesium.Cartesian3.dot(surfaceNormal, cameraNormal) >= -0.35;
     const win = Cesium.SceneTransforms.worldToWindowCoordinates(scene, pos);
-    const rawX = Number.isFinite(win?.x) ? win.x : width / 2;
-    const rawY = Number.isFinite(win?.y) ? win.y : height / 2;
+    if (!Number.isFinite(win?.x) || !Number.isFinite(win?.y)) {
+      hideLabel(labelEl);
+      return;
+    }
+    const rawX = win.x;
+    const rawY = win.y;
     if (!forceBeacon && (!frontFacing || rawX < -40 || rawX > width + 40 || rawY < -40 || rawY > height + 40)) {
       hideLabel(labelEl);
       return;

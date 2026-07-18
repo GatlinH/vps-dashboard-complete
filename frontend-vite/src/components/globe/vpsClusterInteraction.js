@@ -56,13 +56,17 @@ export function clusterMemberAppearance(member) {
 }
 
 export function aggregateClusterStatus(members = []) {
-  let aggregate = 'online';
+  let hasOnline = false;
+  let hasWarn = false;
+  let hasOffline = false;
   for (const member of members) {
     const status = STATUS_ALIASES[String(member?.status || '').trim().toLowerCase()] || 'offline';
-    if (status === 'offline') return 'offline';
-    if (status === 'warn') aggregate = 'warn';
+    if (status === 'online') hasOnline = true;
+    else if (status === 'warn') hasWarn = true;
+    else hasOffline = true;
   }
-  return aggregate;
+  if (!hasOnline && !hasWarn && hasOffline) return 'offline';
+  return hasWarn || hasOffline ? 'warn' : 'online';
 }
 
 export function buildClusterBeaconAppearance(members = []) {

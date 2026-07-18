@@ -101,7 +101,25 @@ export function rebuildVpsEntities(globe) {
       vpsClusterClick: true,
     } : null;
     let nodeEntity = null;
-    if (!isCluster) {
+    if (isCluster) {
+      const anchorEntity = globe.viewer.entities.add({
+        id: `node-${server.id}`,
+        position: Cesium.Cartesian3.fromDegrees(lon, lat, 180),
+        point: {
+          pixelSize: 10,
+          color: healthColor,
+          outlineColor: Cesium.Color.fromCssColorString('#ffffff').withAlpha(0.9),
+          outlineWidth: 2,
+          scaleByDistance: new Cesium.NearFarScalar(220000, 1.35, 5.0e7, 0.85),
+          translucencyByDistance: new Cesium.NearFarScalar(200000, 1.0, 5.0e7, 0.9),
+          heightReference: Cesium.HeightReference.NONE,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+        properties: { ...clusterClickProperties, clusterKey: cluster.key, vpsClusterAnchor: true },
+      });
+      globe._nodeEntities.push(anchorEntity);
+      nodeEntity = anchorEntity;
+    } else {
       const coreColor = Cesium.Color.fromCssColorString('#38e8ff').withAlpha(0.95);
       nodeEntity = globe.viewer.entities.add({
         id: `node-${server.id}`,
@@ -202,7 +220,7 @@ export function rebuildVpsEntities(globe) {
       };
       labelEl.addEventListener('click', goDetail);
       globe._labelLayer.appendChild(labelEl);
-      globe._htmlLabels.set(nodeEntity?.id || `node-${server.id}`, labelEl);
+      globe._htmlLabels.set(nodeEntity.id, labelEl);
     }
   }
 }
