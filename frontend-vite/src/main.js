@@ -21,7 +21,7 @@ import { renderDetailMonitorCharts as renderDetailMonitorChartsModule } from './
 import { getDetailHistoryDays, getDetailHistoryBucketMinutes, setDetailHistoryDays as setDetailHistoryDaysModule, syncDetailHistoryStateFromStorage } from './detail/historyRange.js';
 import { getDetailHeavyRefreshAt, getDetailPingTargetsFetchedAt, setDetailHeavyRefreshAt, setDetailPingTargetsFetchedAt, startDetailRefreshTimer, stopDetailRefreshTimer } from './detail/refreshState.js';
 import { detailCache } from './detail/detailCache.js';
-import { createDetailPingSampleCache, createDetailTelemetrySampleCache } from './detail/sampleCache.js';
+import { createDetailPingSampleCache } from './detail/sampleCache.js';
 import { getGlobeRuntimeDebug } from './utils/debugState.js';
 import { buildClusterScreenFanout, resolveClusterSelection } from './components/globe/vpsClusterInteraction.js';
 import { groupClusterMembers } from './services/serverGroups.js';
@@ -1671,7 +1671,9 @@ async function renderDetailPage(serverId) {
   const isMobileDetail = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
   const liveLimit = detailDays === 0 ? (isMobileDetail ? 900 : 14400) : (isMobileDetail ? 720 : 2000);
   const historyDays = detailDays === 0 ? 1 : detailDays;
-  const historyLimit = liveLimit;
+  // CPU, memory, and freshness are backed by ProbeResult history. Keep the
+  // endpoint's full real-time day response instead of substituting browser samples.
+  const historyLimit = detailDays === 0 ? 14400 : liveLimit;
   const targetHistoryHours = detailDays === 0 ? (isMobileDetail ? 2 : 12) : detailDays * 24;
   const settleWithin = (promise, timeoutMs, label) => Promise.race([
     promise.then((value) => ({ status: 'fulfilled', value }), (reason) => ({ status: 'rejected', reason })),
@@ -1713,9 +1715,8 @@ async function renderDetailPage(serverId) {
   const trafficUpSeries = historyRows.map((row) => Number(row.net_up || 0));
   const trafficDownSeries = historyRows.map((row) => Number(row.net_down || 0));
   const chartLabels = historyRows.map((row, idx) => row.ts || row.time || row.timestamp || `T${idx + 1}`);
-  loadStoredTelemetrySamples(resolvedServer.id);
-  const probeRows = mergeTelemetryRows(normalizeWindowRows(probeHistoryData?.data || [], detailDays === 0 ? 12 : detailDays * 24));
-  detailCache.probeRows = probeRows.length ? probeRows : detailCache.probeRows;
+  const probeRows = normalizeWindowRows(probeHistoryData?.data || [], historyDays * 24);
+  detailCache.probeRows = probeRows;
   const probeLabels = probeRows.map((row, idx) => row.created_at ? new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `P${idx + 1}`);
   const cpuSeries = numericMetricSeries(probeRows, 'cpu_use');
   const ramSeries = numericMetricSeries(probeRows, 'ram_use');
@@ -1799,7 +1800,7 @@ async function renderDetailPage(serverId) {
   });
   window.__DBG__.DETAIL_STARMAP_MOUNTED = !!detailStarmapUnmount;
   window.__DBG__.DETAIL_TRACE.push('before-charts');
-  await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows, pingTargetsData: detailCache.pingTargets || pingTargetsData, pingTargetHistoryData: detailCache.pingTargetHistory || pingTargetHistoryData, latestServer: resolvedServer, detailDays });
+  await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows, pingTargetsData: detailCache.pingTargets || pingTargetsData, pingTargetHistoryData: detailCache.pingTargetHistory || pingTargetHistoryData, detailDays });
   refreshDetailProbeTargetsNow(resolvedServer.id);
   startDetailRealtimeRefresh(resolvedServer.id);
   window.__DBG__.DETAIL_TRACE.push('done');
@@ -1890,22 +1891,6 @@ function stopDetailRealtimeRefresh() {
 let detailRefreshInFlight = false;
 const detailPingSamples = createDetailPingSampleCache({ pingStepValue });
 const DETAIL_PING_SAMPLE_WINDOW_MS = detailPingSamples.windowMs;
-const detailTelemetrySamples = createDetailTelemetrySampleCache();
-function loadStoredTelemetrySamples(serverId) { detailTelemetrySamples.loadStored(serverId); }
-function recordLiveTelemetrySample(server = null, fetchedAt = Date.now()) {
-  detailTelemetrySamples.record(server, fetchedAt);
-}
-function mergeTelemetryRows(rows = []) {
-  const backendRows = Array.isArray(rows) ? rows : [];
-  const sourceRows = backendRows;
-  const bySecond = new Map();
-  for (const row of sourceRows) {
-    const t = Number(row.__timeMs) || rowTimeMs(row, NaN);
-    if (!Number.isFinite(t)) continue;
-    bySecond.set(String(Math.round(t / 1000)), { ...row, __timeMs: t, created_at: row.created_at || new Date(t).toISOString() });
-  }
-  return Array.from(bySecond.values()).sort((a, b) => Number(a.__timeMs) - Number(b.__timeMs));
-}
 function loadStoredPingSamples(serverId) { detailPingSamples.loadStored(serverId); }
 let overviewRefreshTimer = null;
 
@@ -1930,7 +1915,7 @@ async function refreshDetailRealtime(serverId) {
     ]);
     detailCache.traffic = traffic.status === 'fulfilled' ? traffic.value : detailCache.traffic;
     detailCache.historyRows = normalizeHistory24h((history.status === 'fulfilled' ? history.value?.data : detailCache.historyRows) || []);
-    detailCache.probeRows = normalizeWindowRows((probeHistory.status === 'fulfilled' ? probeHistory.value?.data : detailCache.probeRows) || [], getDetailHistoryDays() === 0 ? 12 : Math.max(1, getDetailHistoryDays()) * 24);
+    detailCache.probeRows = normalizeWindowRows((probeHistory.status === 'fulfilled' ? probeHistory.value?.data : detailCache.probeRows) || [], Math.max(1, getDetailHistoryDays()) * 24);
     if (pingTargets.status === 'fulfilled' && (pingTargets.value?.targets?.length || pingTargets.value?.unavailable)) {
       detailCache.pingTargets = pingTargets.value;
       setDetailPingTargetsFetchedAt(now);
@@ -1944,7 +1929,7 @@ async function refreshDetailRealtime(serverId) {
     setDetailHeavyRefreshAt(now);
   }
   const historyRows = detailCache.historyRows;
-  const probeRows = mergeTelemetryRows(detailCache.probeRows);
+  const probeRows = detailCache.probeRows;
   const trafficUpSeries = historyRows.map((row) => Number(row.net_up || 0));
   const trafficDownSeries = historyRows.map((row) => Number(row.net_down || 0));
   const probeUpSeries = numericMetricSeries(probeRows, 'net_up');
@@ -1976,7 +1961,7 @@ async function refreshDetailRealtime(serverId) {
   const networkHeadStrong = document.querySelector(".network-throughput-card .fleet-chart-head strong");
   if (networkHeadStrong) networkHeadStrong.textContent = `↑ ${fmtRate(currentUpKbs)} · ↓ ${fmtRate(currentDownKbs)}`;
   if (doHeavy) {
-    await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData: null, probeLabels, cpuSeries, ramSeries, probeRows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, latestServer: current, detailDays: getDetailHistoryDays() });
+    await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData: null, probeLabels, cpuSeries, ramSeries, probeRows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, detailDays: getDetailHistoryDays() });
     refreshDetailProbeTargetsNow(current.id);
   }
   window.__DBG__.DETAIL_LAST_REFRESH = { at: new Date().toISOString(), serverId, pollMs: 5000, heavy: doHeavy, sourceSampleMs: window.__DBG__.DETAIL_SOURCE_SAMPLE_MS || null, latestSampleAt: Number.isFinite(latestSampleMs) ? new Date(latestSampleMs).toISOString() : null, sourceAge, upKBs: currentUpKbs, downKBs: currentDownKbs, cpu: cpuSeries.slice(-1)[0] ?? current.cpu_use ?? null, ram: ramSeries.slice(-1)[0] ?? current.ram_use ?? null };

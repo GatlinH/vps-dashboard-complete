@@ -108,6 +108,23 @@ function isDetailMobileChart() {
   return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
 }
 
+function telemetryEmptyStatePlugin(hasPoints) {
+  return {
+    id: 'detailTelemetryEmptyState',
+    afterDraw(chart) {
+      if (hasPoints || !chart.chartArea) return;
+      const { ctx, chartArea: area } = chart;
+      ctx.save();
+      ctx.fillStyle = 'rgba(235,252,255,.92)';
+      ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('暂无已持久化的历史采样', (area.left + area.right) / 2, (area.top + area.bottom) / 2);
+      ctx.restore();
+    },
+  };
+}
+
 function makeHudChartOptions(maxTicks = 5, yUnit = '') {
   const mobile = isDetailMobileChart();
   const tickLimit = mobile ? Math.min(4, maxTicks) : maxTicks;
@@ -276,7 +293,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   detailDays = Math.max(0, Math.min(7, Number(detailDays ?? window.__DBG__.DETAIL_HISTORY_DAYS ?? 0) || 0));
   const detailBucketMinutes = detailDays === 0 ? 0 : ({ 1: 5, 2: 10, 3: 15, 4: 20, 5: 30, 6: 30, 7: 60 })[detailDays] || 5;
   const detailBucketMs = detailDays === 0 ? 1000 : detailBucketMinutes * 60 * 1000;
-  const telemetryHours = detailDays === 0 ? 2 : detailDays * 24;
+  const telemetryHours = detailDays === 0 ? 24 : detailDays * 24;
   window.__DBG__.DETAIL_CHART_BUCKET = { days: detailDays, bucketMinutes: detailBucketMinutes, bucketMs: detailBucketMs };
   const cpu12hSeries = seriesWindowFromRows(probeRows, 'cpu_use', telemetryHours, latestServer);
   const ram12hSeries = seriesWindowFromRows(probeRows, 'ram_use', telemetryHours, latestServer);
@@ -293,6 +310,9 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   const cpuDisplaySeries = fitSeriesToRollingAxis(cpuBuckets, axis12hBounds, 300);
   const ramDisplaySeries = fitSeriesToRollingAxis(ramBuckets, axis12hBounds, 300);
   const freshDisplaySeries = fitSeriesToRollingAxis(freshBuckets, axis12hBounds, 300);
+  const cpuEmptyPlugin = telemetryEmptyStatePlugin(cpuDisplaySeries.length > 0);
+  const ramEmptyPlugin = telemetryEmptyStatePlugin(ramDisplaySeries.length > 0);
+  const freshnessEmptyPlugin = telemetryEmptyStatePlugin(freshDisplaySeries.length > 0);
   const label12h = cpuDisplaySeries.map(r => r.x);
   const smallChartXScale = () => ({
     type: 'linear',
@@ -397,6 +417,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
           borderWidth: 3,
         }]
       },
+      plugins: [cpuEmptyPlugin],
       options: { ...makeHudChartOptions(5, '%'), plugins: { ...makeHudChartOptions(5, '%').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `CPU ${Number(item.raw.y || 0).toFixed(1)}%` } } }, scales: { x: smallChartXScale(), y: { ...makeHudChartOptions(5, '%').scales.y, afterFit: fixedSmallY, min: 0, max: 100 } } }
     }));
   }
@@ -419,6 +440,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
           borderWidth: 3,
         }]
       },
+      plugins: [ramEmptyPlugin],
       options: { ...makeHudChartOptions(5, '%'), plugins: { ...makeHudChartOptions(5, '%').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `内存 ${Number(item.raw.y || 0).toFixed(1)}%` } } }, scales: { x: smallChartXScale(), y: { ...makeHudChartOptions(5, '%').scales.y, afterFit: fixedSmallY, min: 0, max: 100 } } }
     }));
   }
@@ -429,6 +451,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     detailCharts._register('detailFreshnessChart', new Chart(ctx, {
       type: 'line',
       data: { datasets: [{ label: 'Freshness s', parsing: false, data: freshDisplaySeries, borderColor: '#8dffd0', backgroundColor: 'rgba(125,255,193,0.20)', fill: true, tension: 0.18, pointRadius: visiblePointRadius(freshDisplaySeries, 3.5), pointHoverRadius: 6, borderWidth: 3 }] },
+      plugins: [freshnessEmptyPlugin],
       options: { ...makeHudChartOptions(5, 's'), plugins: { ...makeHudChartOptions(5, 's').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => telemetryTooltipTime(items[0]), label: (item) => `采样间隔 ${Number(item.raw.y || 0).toFixed(1)}s` } } }, scales: { x: smallChartXScale(), y: { ...makeHudChartOptions(5, 's').scales.y, afterFit: fixedSmallY, min: 0, max: freshnessMax } } }
     }));
   }

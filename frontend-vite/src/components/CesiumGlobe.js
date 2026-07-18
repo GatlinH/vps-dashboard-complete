@@ -79,11 +79,17 @@ const GE_FAR_MAX_STEP   = 68;
 
 // 节点标签可见的高度阈值
 const NODE_LABEL_HEIGHT = 3_500_000;
+const MOBILE_GLOBE_MEDIA = '(max-width: 640px)';
+const MOBILE_IMAGERY_TONE = { brightness: 1.08, contrast: 1.04, saturation: 1.02, gamma: 0.94 };
 
 function clamp01(v) { return Math.max(0, Math.min(1, v)); }
 function smoothstep(edge0, edge1, x) {
   const t = clamp01((x - edge0) / (edge1 - edge0));
   return t * t * (3 - 2 * t);
+}
+
+function isMobileGlobe() {
+  return typeof window !== 'undefined' && window.matchMedia?.(MOBILE_GLOBE_MEDIA).matches;
 }
 
 export class CesiumGlobe {
@@ -565,8 +571,9 @@ export class CesiumGlobe {
     globe.enableLighting = false;
     globe.dynamicAtmosphereLighting = false;
     globe.dynamicAtmosphereLightingFromSun = false;
-    if (this._baseLayer) Object.assign(this._baseLayer, { brightness: 1.48, contrast: 1.03, saturation: 1.16, gamma: 0.70 });
-    if (this._satLayer) Object.assign(this._satLayer, { brightness: 1.42, contrast: 1.03, saturation: 1.14, gamma: 0.72 });
+    const mobile = isMobileGlobe();
+    if (this._baseLayer) Object.assign(this._baseLayer, mobile ? MOBILE_IMAGERY_TONE : { brightness: 1.48, contrast: 1.03, saturation: 1.16, gamma: 0.70 });
+    if (this._satLayer) Object.assign(this._satLayer, mobile ? MOBILE_IMAGERY_TONE : { brightness: 1.42, contrast: 1.03, saturation: 1.14, gamma: 0.72 });
   }
 
   _onCameraChanged() {
