@@ -39,7 +39,8 @@ assert.match(threeSource, /onBlankClick/, 'Three fallback blank clicks must clos
 assert.match(mainSource, /function handleGlobeNodeSelection/, 'all renderers must route node selection through one handler');
 assert.match(mainSource, /function closeClusterInteraction/, 'cluster interaction must have an explicit close path');
 assert.match(mainSource, /showClusterMemberPicker/, 'Three fallback must present a grouped picker');
-assert.match(mainSource, /showClusterFanout/, 'Cesium clusters must render visual-only radial fanout');
+assert.match(mainSource, /const canonicalCluster = clusterServersByCoordinate\(state\.servers\)/, 'fanout must resolve the canonical live cluster before using label metadata');
+assert.match(mainSource, /const fanoutCluster = canonicalCluster \|\| cluster/, 'Cesium clusters must render visual-only radial fanout from a canonical centroid');
 assert.match(indexSource, /document\.documentElement\.classList\.add\('detail-pending'\)/, 'detail routes need a preboot pending marker');
 assert.match(indexSource, /\.detail-pending #starfield/, 'preboot guard must hide legacy starfield');
 assert.match(indexSource, /\.detail-pending \.display-shell/, 'preboot guard must hide legacy display shell');

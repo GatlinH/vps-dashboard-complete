@@ -350,13 +350,15 @@ function showClusterFanout(cluster, members) {
 }
 
 function handleGlobeNodeSelection(server, clusterMembers, cluster) {
-  const inferredMembers = clusterMembers?.length ? clusterMembers : (clusterServersByCoordinate(state.servers)
-    .find((candidate) => candidate.members.some((member) => String(member.id) === String(server?.id)))?.members || [server]);
+  const canonicalCluster = clusterServersByCoordinate(state.servers)
+    .find((candidate) => candidate.members.some((member) => String(member.id) === String(server?.id)));
+  const inferredMembers = canonicalCluster?.members || (clusterMembers?.length ? clusterMembers : [server]);
   const selection = resolveClusterSelection(inferredMembers);
   if (selection.type === 'navigate') { closeClusterInteraction(); navigateToServer(selection.member); return; }
   if (clusterPicker) { closeClusterInteraction(); return; }
-  const fanoutCluster = cluster || clusterServersByCoordinate(state.servers)
-    .find((candidate) => candidate.members.some((member) => String(member.id) === String(server?.id)));
+  // Labels and Cesium picks only carry lightweight cluster metadata. Always use the
+  // canonical live cluster for a valid centroid before creating visual-only fanout.
+  const fanoutCluster = canonicalCluster || cluster;
   if (typeof globe?.showClusterFanout === 'function' && fanoutCluster?.valid) showClusterFanout(fanoutCluster, selection.members);
   showClusterMemberPicker(selection.members);
 }
