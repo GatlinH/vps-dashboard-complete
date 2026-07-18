@@ -3,15 +3,20 @@ import { readFileSync } from 'node:fs';
 
 const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
 const indexSource = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const detailPageSource = readFileSync(new URL('../src/pages/detailPage.js', import.meta.url), 'utf8');
 const detailStyles = readFileSync(new URL('../src/styles/detail-starfleet-console.css', import.meta.url), 'utf8');
 
 const pingTargetSelector = mainSource.match(/function pingTargetsFromRows[\s\S]*?\n}\n\nfunction recordLivePingSamples/);
 const pingDatasetBuilder = mainSource.match(/function buildPingDatasets[\s\S]*?\n}\n\nconst PING_AXIS_STEPS_MS/);
 const bootFunction = mainSource.match(/async function boot\(\) \{[\s\S]*?\n}\n\nboot\(\);/);
+const detailRenderFunction = mainSource.match(/async function renderDetailPage\(serverId\) \{[\s\S]*?\n}\s*function denseFallbackSeries/);
+const loadingShell = detailPageSource.match(/export function detailLoadingShell\([^)]*\) \{[\s\S]*?\n}\s*export function renderDetailNotFound/);
 
 assert.ok(pingTargetSelector, 'PING target selector must exist');
 assert.ok(pingDatasetBuilder, 'PING dataset builder must exist');
 assert.ok(bootFunction, 'boot function must exist');
+assert.ok(detailRenderFunction, 'detail renderer must exist');
+assert.ok(loadingShell, 'detail loading shell must exist');
 assert.doesNotMatch(
   pingTargetSelector[0],
   /names\.add\('节点延迟'\)/,
@@ -42,5 +47,22 @@ assert.match(
   /await renderDetailPage\(selectedServerId\)/,
   'selected detail boot must render the detail page directly',
 );
+assert.match(loadingShell[0], /fleet-detail-console/, 'loading state must use the native fleet detail console');
+assert.match(loadingShell[0], /正在同步实时与历史指标/, 'loading state must expose a detail-native sync status');
+assert.match(loadingShell[0], /class="probe-card detail-loading-metric"/, 'loading state must include metric skeleton cards');
+const loadingMetricLabels = loadingShell[0].match(/const metricLabels = \[([^\]]+)\]/);
+assert.ok(loadingMetricLabels, 'loading state must declare its metric skeleton cards');
+assert.equal(
+  loadingMetricLabels[1].split(',').length,
+  4,
+  'loading state must render exactly four metric skeleton cards',
+);
+assert.doesNotMatch(mainSource, /detail-loading-card/, 'detail render flow must not inject the legacy centered loading card');
+assert.equal(
+  (detailRenderFunction[0].match(/app\.innerHTML = detailLoadingShell\(resolvedServer\);/g) || []).length,
+  1,
+  'normal detail rendering must mount the loading shell only once',
+);
+assert.match(detailStyles, /\.detail-loading-console/, 'detail loading skeleton styles must remain detail scoped');
 
-console.log('DETAIL_PAGE_REGRESSIONS_VERIFIED external-ping-fallback=absent desktop-metric-grid=equal-width direct-detail-boot=yes');
+console.log('DETAIL_PAGE_REGRESSIONS_VERIFIED external-ping-fallback=absent desktop-metric-grid=equal-width direct-detail-boot=yes native-loading-shell=yes single-mount=yes');

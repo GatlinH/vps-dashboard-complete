@@ -41,9 +41,14 @@ function renderRuntimeEnvironmentCard(server) {
 }
 
 
-export function detailLoadingShell() {
+export function detailLoadingShell(resolvedServer = {}) {
+  const serverName = escapeHtml(firstText(resolvedServer.name, 'VPS 节点'));
+  const location = escapeHtml(firstText(resolvedServer.city, resolvedServer.region, resolvedServer.location, '定位信息同步中'));
+  const status = escapeHtml(firstText(resolvedServer.status, '状态同步中'));
+  const metricLabels = ['运行环境', '告警概览', '资源负载', '网络流量'];
+  const chartLabels = ['网络吞吐量', 'PING 延迟', 'CPU 使用率', '内存使用率'];
   return `
-    <section class="detail-page-shell starship-console-page">
+    <section class="detail-page-shell starship-console-page detail-loading-page">
       <div class="detail-page-topbar">
         <a class="detail-back-link" href="/" data-i18n="back">${t('back')}</a>
         <div class="detail-page-tools">
@@ -61,7 +66,35 @@ export function detailLoadingShell() {
           <div class="rate-display" id="rateDisplay"></div>
         </div>
       </div>
-      <div class="detail-page-grid" id="detailPageGrid" aria-busy="true"></div>
+      <div class="detail-page-grid" id="detailPageGrid" aria-busy="true">
+        <section class="fleet-detail-console detail-loading-console" aria-label="VPS 详情加载中">
+          <header class="fleet-console-header detail-loading-header">
+            <div class="fleet-node-identity">
+              <div class="detail-loading-insignia" aria-hidden="true"></div>
+              <div class="fleet-node-caption">
+                <div class="fleet-micro">NODE / 同步中</div>
+                <h1>${serverName}</h1>
+                <p>${location} · ${status}</p>
+                <span class="detail-loading-status" role="status">正在同步实时与历史指标</span>
+              </div>
+            </div>
+            <div class="fleet-status-bank detail-loading-status-bank" aria-label="节点状态占位">
+              ${['区域', '系统', '运行时长', '到期', 'Agent'].map((label) => `<div><span>${label}</span><strong class="detail-loading-line"></strong></div>`).join('')}
+            </div>
+          </header>
+          <section class="detail-health-summary detail-loading-health" aria-label="运行健康摘要加载中">
+            <div><span>运行健康</span><strong class="detail-loading-line"></strong><em>正在汇总节点信号</em></div>
+            <div><span>资源负载</span><strong class="detail-loading-line"></strong><em>等待实时采样</em></div>
+            <div><span>链路质量</span><strong class="detail-loading-line"></strong><em>等待探针回传</em></div>
+          </section>
+          <section class="probe-observability-grid detail-loading-metrics" aria-label="实时资源监控加载中">
+            ${metricLabels.map((label) => `<article class="probe-card detail-loading-metric"><div class="probe-card-head"><h2>${label}</h2><span>SYNC</span></div><div class="detail-loading-lines"><i></i><i></i><i></i></div></article>`).join('')}
+          </section>
+          <main class="fleet-chart-matrix detail-loading-charts" aria-label="历史图表加载中">
+            ${chartLabels.map((label) => `<article class="fleet-chart-card detail-loading-chart"><div class="fleet-chart-head"><span>${label}</span><strong class="detail-loading-line"></strong></div><div class="detail-loading-chart-wave" aria-hidden="true"></div></article>`).join('')}
+          </main>
+        </section>
+      </div>
     </section>`;
 }
 

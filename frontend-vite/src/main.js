@@ -1663,11 +1663,6 @@ async function renderDetailPage(serverId) {
   document.documentElement.classList.remove('detail-pending');
   bindTopbarEvents(app);
   updateRateDisplay();
-  const loadingGrid = document.getElementById('detailPageGrid');
-  if (loadingGrid) {
-    loadingGrid.innerHTML = `<div class="detail-loading-card"><strong>${escText(resolvedServer.name)}</strong><span>正在加载详情图表…</span></div>`;
-  }
-
   const isMobileDetail = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
   const liveLimit = detailDays === 0 ? (isMobileDetail ? 900 : 14400) : (isMobileDetail ? 720 : 2000);
   const historyDays = detailDays === 0 ? 1 : detailDays;
@@ -1743,9 +1738,6 @@ async function renderDetailPage(serverId) {
   const networkLabels = networkUseProbe ? probeLabels : (chartLabels.length ? chartLabels : probeLabels);
 
   window.__DBG__.DETAIL_TRACE.push('before-grid-html');
-  app.innerHTML = detailLoadingShell(resolvedServer);
-  bindTopbarEvents(app);
-  updateRateDisplay();
   const detailGrid = document.getElementById('detailPageGrid');
   detailGrid.setAttribute('aria-busy', 'false');
   detailGrid.innerHTML = renderDetailConsole({
