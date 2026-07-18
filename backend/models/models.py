@@ -249,7 +249,7 @@ class Server(db.Model):
             os=runtime_os[:160],
             kernel_version=runtime_kernel[:160],
             arch=runtime_arch[:80],
-            cpu_model=runtime_cpu_model[:240],
+            cpu_model=runtime_cpu_model,
             tags=self.tags or [],
             probe=self.probe_url,
             note=self.note,
@@ -319,8 +319,8 @@ class Server(db.Model):
                 d[key] = str(d.get(key) or "")[:64]
 
             # Coarsen runtime inventory for anonymous/public APIs. Exact kernel
-            # patch strings and CPU model SKUs are useful for target
-            # fingerprinting; keep precise values only in internal/admin data.
+            # patch strings are useful for target fingerprinting; keep precise
+            # values only in internal/admin data.
             raw_os = str(d.get("os") or "").strip()
             if raw_os:
                 d["os"] = raw_os.split("(", 1)[0].strip()[:80]
@@ -329,19 +329,6 @@ class Server(db.Model):
                 kernel_family = raw_kernel.split("-", 1)[0]
                 parts = kernel_family.split(".")
                 d["kernel_version"] = ".".join(parts[:2]) if len(parts) >= 2 else kernel_family[:16]
-            raw_cpu = str(d.get("cpu_model") or "").strip()
-            if raw_cpu:
-                lower = raw_cpu.lower()
-                if "xeon" in lower:
-                    d["cpu_model"] = "Intel Xeon"
-                elif "epyc" in lower:
-                    d["cpu_model"] = "AMD EPYC"
-                elif "intel" in lower:
-                    d["cpu_model"] = "Intel CPU"
-                elif "amd" in lower:
-                    d["cpu_model"] = "AMD CPU"
-                else:
-                    d["cpu_model"] = "CPU"
         
         return d
 

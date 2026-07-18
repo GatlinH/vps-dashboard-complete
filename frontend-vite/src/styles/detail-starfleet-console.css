@@ -3188,49 +3188,36 @@ body.admin-bridge-mode {
 }
 
 
-/* runtime-environment-card-20260710
-   Replace old node telemetry rail with a clean runtime environment card. */
+/* Runtime environment probe card. */
 .detail-page-shell:has(.fleet-detail-console) .runtime-env-panel {
-  padding: 18px !important;
   overflow: visible !important;
   height: auto !important;
   min-height: 0 !important;
 }
 .detail-page-shell:has(.fleet-detail-console) .runtime-env-card {
   display: grid !important;
-  gap: 18px !important;
+  gap: 0 !important;
   min-width: 0 !important;
-}
-.detail-page-shell:has(.fleet-detail-console) .runtime-env-head h2 {
-  margin: 0 0 8px !important;
-  font: 800 20px/1.18 "Inter", "Roboto Condensed", "JetBrains Mono", sans-serif !important;
-  letter-spacing: .01em !important;
-  color: #eaffff !important;
-  text-transform: none !important;
-  text-shadow: 0 0 12px rgba(98,245,238,.28) !important;
-}
-.detail-page-shell:has(.fleet-detail-console) .runtime-env-head p {
-  margin: 0 !important;
-  color: #8fb7c1 !important;
-  font: 500 12px/1.45 "Inter", "Roboto Condensed", sans-serif !important;
-  letter-spacing: .02em !important;
 }
 .detail-page-shell:has(.fleet-detail-console) .runtime-env-grid {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  gap: 18px 20px !important;
+  gap: 0 20px !important;
   min-width: 0 !important;
 }
 .detail-page-shell:has(.fleet-detail-console) .runtime-env-field {
   min-width: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
+  padding: 10px 0 !important;
+  border-bottom: 1px dotted rgba(98,245,238,.18) !important;
   background: transparent !important;
   box-shadow: none !important;
 }
+.detail-page-shell:has(.fleet-detail-console) .runtime-env-field:nth-last-child(-n + 2) {
+  border-bottom: 0 !important;
+}
 .detail-page-shell:has(.fleet-detail-console) .runtime-env-field span {
   display: block !important;
-  margin-bottom: 6px !important;
+  margin-bottom: 4px !important;
   color: #8fb7c1 !important;
   font: 700 11px/1.2 "Inter", "Roboto Condensed", sans-serif !important;
   letter-spacing: .02em !important;
@@ -3248,19 +3235,14 @@ body.admin-bridge-mode {
   text-overflow: clip !important;
   text-shadow: none !important;
 }
-[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .runtime-env-head h2,
 [data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .runtime-env-field strong {
   color: #17282b !important;
   text-shadow: none !important;
 }
-[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .runtime-env-head p,
 [data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .runtime-env-field span {
   color: #526978 !important;
 }
 @media (max-width: 640px) {
-  .detail-page-shell:has(.fleet-detail-console) .runtime-env-panel {
-    padding: 16px !important;
-  }
   .detail-page-shell:has(.fleet-detail-console) .runtime-env-grid {
     grid-template-columns: 1fr 1fr !important;
     gap: 16px 14px !important;

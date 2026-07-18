@@ -1,5 +1,8 @@
 """服务器 API 测试"""
 
+from extensions import db
+from models.models import Server
+
 
 def test_list_servers_authenticated(client, auth_headers):
     """测试已认证用户可获取服务器列表"""
@@ -54,3 +57,19 @@ def test_create_server_rejects_invalid_name_and_ip(client, auth_headers):
         headers=auth_headers,
     )
     assert resp_ip.status_code == 400
+
+
+def test_public_detail_preserves_exact_agent_reported_cpu_model(app):
+    cpu_model = "Intel(R) Xeon(R) Platinum 8573C CPU @ 2.30GHz (GenuineIntel)"
+    with app.app_context():
+        server = Server(
+            name='public-cpu-model',
+            ip='203.0.113.10',
+            agent_config={'inventory_meta': {'cpu_model': cpu_model}},
+        )
+        db.session.add(server)
+        db.session.commit()
+
+        public_detail = server.to_dict(public_only=True)
+
+    assert public_detail['cpu_model'] == cpu_model

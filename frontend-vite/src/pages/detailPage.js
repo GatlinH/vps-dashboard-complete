@@ -32,15 +32,12 @@ function renderRuntimeEnvironmentCard(server) {
     ['硬件架构', firstText(server?.arch, meta.arch, cfg.arch)],
     ['CPU 型号', firstText(server?.cpu_model, server?.cpu_name, meta.cpu_model, meta.cpu_name, cfg.cpu_model, cfg.cpu_name)],
   ];
-  return `<div class="runtime-env-card" aria-label="运行环境">
-    <div class="runtime-env-head">
-      <h2>运行环境</h2>
-      <p>来自最近一次探针上报的硬件与系统信息</p>
-    </div>
+  return `<section class="probe-card runtime-env-card" aria-label="运行环境">
+    <div class="probe-card-head"><h2>运行环境</h2><span>ENV • 01</span></div>
     <div class="runtime-env-grid">
       ${fields.map(([label, value]) => `<div class="runtime-env-field"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}
     </div>
-  </div>`;
+  </section>`;
 }
 
 
@@ -125,7 +122,7 @@ export function renderDetailConsole(ctx) {
       ${h.renderHealthSummary(resolvedServer, probeRows, displayPingTargetsData, displayCpuSeries, displayRamSeries)}
 
       <aside class="fleet-left-rail">
-        <div class="fleet-panel node-card runtime-env-panel">
+        <div class="runtime-env-panel">
           ${renderRuntimeEnvironmentCard(resolvedServer)}
         </div>
       </aside>
