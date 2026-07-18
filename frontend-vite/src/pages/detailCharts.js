@@ -329,7 +329,9 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   const networkBaseAxisBounds = accumulatingAxisBoundsFromTimes(networkBuckets.map(r => r.x), networkHours);
   const networkPointTimes = networkBuckets.map(r => Number(r.rawX || r.x)).filter(Number.isFinite).sort((a, b) => a - b);
   let networkAxisBounds = networkBaseAxisBounds;
-  if (networkMobile && networkPointTimes.length >= 2) {
+  // Network charts must end at the last real sample, not at wall-clock now: otherwise
+  // a delayed agent leaves a misleading "future" blank region on desktop charts.
+  if (networkPointTimes.length >= 2) {
     const first = networkPointTimes[0];
     const last = networkPointTimes[networkPointTimes.length - 1];
     const span = Math.max(0, last - first);
