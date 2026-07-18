@@ -22,12 +22,13 @@ const members = [
   { id: 7, name: 'Beta', publicRemark: '边缘' },
 ];
 const fanout = buildClusterScreenFanout({ viewportWidth: 1280, viewportHeight: 720, members });
-assert.equal(fanout.length, 3, 'a proximity cluster must fan out every member');
-assert.deepEqual(fanout.map(({ member }) => member.id), [3, 7, 20], 'fanout positions must use stable member ordering');
+assert.equal(fanout.length, 2, 'a proximity cluster must fan out canonical groups');
+assert.deepEqual(fanout.map(({ group }) => group.name), ['默认分组', '生产'], 'fanout positions must use stable group ordering');
+assert.deepEqual(fanout.map(({ group }) => group.members.map(({ id }) => id)), [[7], [3, 20]], 'each fanout group retains its matching members');
 assert.ok(fanout.every(({ radiusPx }) => radiusPx >= 90 && radiusPx <= 105), 'fanout must retain a stable screen-space radius');
 assert.ok(fanout.every(({ angleDeg }) => angleDeg >= 210 && angleDeg <= 250), 'fanout must avoid the upper label arc');
-assert.ok(fanout.every(({ appearance }) => appearance?.color && appearance?.shape), 'fanout members need stable role-derived color and shape');
-assert.ok(fanout.every(({ lat, lon }) => lat === undefined && lon === undefined), 'fanout members must never have derived geographic coordinates');
+assert.ok(fanout.every(({ appearance }) => appearance?.color && appearance?.shape), 'fanout groups need stable role-derived color and shape');
+assert.ok(fanout.every(({ lat, lon }) => lat === undefined && lon === undefined), 'fanout groups must never have derived geographic coordinates');
 
 assert.equal(aggregateClusterStatus([{ status: 'healthy' }, { status: 'warning' }]), 'warn', 'warning aliases must aggregate as amber');
 assert.equal(aggregateClusterStatus([{ status: 'online' }, { status: 'unknown' }]), 'warn', 'mixed healthy and unavailable members must aggregate as amber');

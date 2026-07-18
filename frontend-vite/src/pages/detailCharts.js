@@ -128,52 +128,6 @@ function makeHudChartOptions(maxTicks = 5, yUnit = '') {
 }
 
 
-export function initNetworkTooltip() {
-  const card = document.querySelector('.network-throughput-card');
-  const svg = card?.querySelector('svg.network-dual-chart');
-  if (!card || !svg) return;
-  card.querySelector('.network-tooltip')?.remove();
-  let labels = [], up = [], down = [];
-  try { labels = JSON.parse(card.dataset.labels || '[]'); } catch {}
-  try { up = JSON.parse(card.dataset.up || '[]'); } catch {}
-  try { down = JSON.parse(card.dataset.down || '[]'); } catch {}
-  const n = Math.max(labels.length, up.length, down.length);
-  if (n < 2) return;
-  const tooltip = document.createElement('div');
-  tooltip.className = 'network-tooltip';
-  tooltip.style.display = 'none';
-  card.appendChild(tooltip);
-  const now = Date.now();
-  const fullStartMs = now - 12 * 60 * 60 * 1000;
-  const rows = Array.from({ length: n }).map((_, i) => {
-    const fallback = n > 1 ? fullStartMs + (i / (n - 1)) * (now - fullStartMs) : now;
-    const t = rowTimeMs({ ts: labels[i] }, fallback);
-    return { t, up: Number(up[i] || 0), down: Number(down[i] || 0) };
-  }).filter(r => Number.isFinite(r.t)).sort((a,b)=>a.t-b.t);
-  const axis = accumulatingAxisBoundsFromTimes(rows.map(r => r.t), 12);
-  const startMs = axis.min;
-  const endMs = axis.max;
-  const rectOf = () => svg.getBoundingClientRect();
-  const move = (ev) => {
-    const r = rectOf();
-    const x = Math.max(0, Math.min(r.width, ev.clientX - r.left));
-    const ratio = r.width ? x / r.width : 0;
-    const target = startMs + ratio * (endMs - startMs);
-    let best = rows[0], bestD = Math.abs(rows[0].t - target);
-    for (const row of rows) {
-      const d = Math.abs(row.t - target);
-      if (d < bestD) { best = row; bestD = d; }
-    }
-    replaceChildrenSafe(tooltip, [spanText('strong', formatTooltipClock(best.t)), spanText('span', `↑ ${fmtRate(best.up)}`), spanText('span', `↓ ${fmtRate(best.down)}`)]);
-    tooltip.style.display = 'block';
-    tooltip.style.left = `${Math.max(12, Math.min(r.width - 140, x + 10))}px`;
-    tooltip.style.top = `56px`;
-  };
-  svg.addEventListener('mousemove', move);
-  svg.addEventListener('mouseenter', move);
-  svg.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
-}
-
 function attachPingPointTooltip(canvas, datasets = [], axisBounds = null) {
   if (!canvas || !Array.isArray(datasets)) return;
   const card = canvas.closest('.ping-multi-card') || canvas.parentElement;

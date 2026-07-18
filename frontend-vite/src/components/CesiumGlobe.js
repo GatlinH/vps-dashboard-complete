@@ -655,7 +655,7 @@ export class CesiumGlobe {
 
   _hideCollapsedClusterForFanout(clusterKey, fanout) {
     this._restoreCollapsedClusterAfterFanout();
-    const memberIds = new Set((fanout || []).map((item) => String(item.member?.id)).filter(Boolean));
+    const memberIds = new Set((fanout || []).flatMap((item) => item.group?.members || []).map((member) => String(member?.id)).filter(Boolean));
     const matchesCluster = (entity) => {
       const properties = entity?.properties;
       const entityClusterKey = properties?.clusterKey?.getValue ? properties.clusterKey.getValue() : properties?.clusterKey;
@@ -695,12 +695,12 @@ export class CesiumGlobe {
       member.style.setProperty('--member-radius', `${item.radiusPx}px`);
       member.style.setProperty('--member-angle', `${item.angleDeg}deg`);
       member.dataset.shape = item.appearance.shape;
-      member.setAttribute('aria-label', `查看 ${String(item.member?.name || `VPS-${item.member?.id || ''}`)}`);
+      member.setAttribute('aria-label', `查看 ${String(item.group?.name || '默认分组')}`);
       const leader = document.createElement('span'); leader.className = 'cluster-screen-fanout-leader';
       const marker = document.createElement('span'); marker.className = 'cluster-screen-fanout-marker';
-      const name = document.createElement('span'); name.className = 'cluster-screen-fanout-name'; name.textContent = String(item.member?.name || `VPS-${item.member?.id || ''}`);
+      const name = document.createElement('span'); name.className = 'cluster-screen-fanout-name'; name.textContent = String(item.group?.name || '默认分组');
       member.append(leader, marker, name);
-      member.addEventListener('click', () => onMemberClick?.(item.member));
+      member.addEventListener('click', (event) => { event.stopPropagation(); onMemberClick?.(item.group); });
       this._clusterFanoutLayer.appendChild(member);
     }
     this._clusterFanoutOverlay = { anchor: Cesium.Cartesian3.fromDegrees(lon, lat, 180) };

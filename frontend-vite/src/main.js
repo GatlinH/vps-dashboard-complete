@@ -17,7 +17,7 @@ import { fetchJson, fetchPing, fetchPingTargetHistory, fetchPingTargets, fetchSe
 import { LANGUAGE_PACKS, applyLanguage, configureLanguageSwitcher, currentLanguage, safeStorageGet, safeStorageRemove, safeStorageSet, setLanguage, setTheme, t, toggleTheme } from './core/preferences.js';
 import { renderPublicOverviewPage as renderPublicOverviewPageModule } from './pages/overviewPage.js';
 import { detailLoadingShell, renderDetailConsole, renderDetailNotFound } from './pages/detailPage.js';
-import { initNetworkTooltip, renderDetailMonitorCharts as renderDetailMonitorChartsModule } from './pages/detailCharts.js';
+import { renderDetailMonitorCharts as renderDetailMonitorChartsModule } from './pages/detailCharts.js';
 import { getDetailHistoryDays, getDetailHistoryBucketMinutes, setDetailHistoryDays as setDetailHistoryDaysModule, syncDetailHistoryStateFromStorage } from './detail/historyRange.js';
 import { getDetailHeavyRefreshAt, getDetailPingTargetsFetchedAt, setDetailHeavyRefreshAt, setDetailPingTargetsFetchedAt, startDetailRefreshTimer, stopDetailRefreshTimer } from './detail/refreshState.js';
 import { detailCache } from './detail/detailCache.js';
@@ -310,7 +310,7 @@ function navigateToServer(server) {
   if (server?.id != null) window.location.href = `/?server=${server.id}`;
 }
 
-function showClusterMemberPicker(members) {
+function showClusterMemberPicker(members, selectedGroup = null) {
   clusterPicker?.remove();
   const panel = document.createElement('section');
   panel.className = 'cluster-member-picker';
@@ -318,15 +318,17 @@ function showClusterMemberPicker(members) {
   panel.setAttribute('aria-modal', 'false');
   panel.setAttribute('aria-label', '同一位置的节点');
   const heading = document.createElement('h2');
-  heading.textContent = `同一位置的 ${members.length} 个节点`;
+  heading.textContent = selectedGroup ? `${selectedGroup.name} · ${members.length} 个节点` : `同一位置的 ${members.length} 个节点`;
   panel.appendChild(heading);
   const closeButton = document.createElement('button');
   closeButton.type = 'button'; closeButton.className = 'cluster-picker-close'; closeButton.textContent = '关闭';
   closeButton.addEventListener('click', closeClusterInteraction);
   panel.appendChild(closeButton);
   for (const group of groupClusterMembers(members)) {
-    const groupHeading = document.createElement('h3'); groupHeading.textContent = group.name; panel.appendChild(groupHeading);
-    if (group.purpose) { const purposeHeading = document.createElement('h4'); purposeHeading.textContent = group.purpose; panel.appendChild(purposeHeading); }
+    if (!selectedGroup) {
+      const groupHeading = document.createElement('h3'); groupHeading.textContent = group.name; panel.appendChild(groupHeading);
+      if (group.purpose) { const purposeHeading = document.createElement('h4'); purposeHeading.textContent = group.purpose; panel.appendChild(purposeHeading); }
+    }
     const list = document.createElement('ul');
     for (const member of group.members) {
         const item = document.createElement('li');
@@ -348,7 +350,7 @@ function showClusterFanout(cluster, members) {
     viewportWidth: globe?.container?.clientWidth,
     viewportHeight: globe?.container?.clientHeight,
   });
-  globe?.expandClusterFanout?.({ clusterKey: cluster.key, lat: cluster.lat, lon: cluster.lon, fanout, onMemberClick: navigateToServer });
+  globe?.expandClusterFanout?.({ clusterKey: cluster.key, lat: cluster.lat, lon: cluster.lon, fanout, onMemberClick: (group) => showClusterMemberPicker(group.members, group) });
 }
 
 function handleGlobeNodeSelection(server, clusterMembers, cluster) {
@@ -357,7 +359,6 @@ function handleGlobeNodeSelection(server, clusterMembers, cluster) {
   const inferredMembers = canonicalCluster?.members || (clusterMembers?.length ? clusterMembers : [server]);
   const selection = resolveClusterSelection(inferredMembers);
   if (selection.type === 'navigate') { closeClusterInteraction(); navigateToServer(selection.member); return; }
-  if (clusterPicker) { closeClusterInteraction(); return; }
   // Labels and Cesium picks only carry lightweight cluster metadata. Always use the
   // canonical live cluster for a valid centroid before creating visual-only fanout.
   const fanoutCluster = canonicalCluster || cluster;
@@ -1800,7 +1801,6 @@ async function renderDetailPage(serverId) {
   window.__DBG__.DETAIL_TRACE.push('before-charts');
   await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows, pingTargetsData: detailCache.pingTargets || pingTargetsData, pingTargetHistoryData: detailCache.pingTargetHistory || pingTargetHistoryData, latestServer: resolvedServer, detailDays });
   refreshDetailProbeTargetsNow(resolvedServer.id);
-  initNetworkTooltip();
   startDetailRealtimeRefresh(resolvedServer.id);
   window.__DBG__.DETAIL_TRACE.push('done');
   } catch (error) {
@@ -1979,7 +1979,6 @@ async function refreshDetailRealtime(serverId) {
     await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData: null, probeLabels, cpuSeries, ramSeries, probeRows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, latestServer: current, detailDays: getDetailHistoryDays() });
     refreshDetailProbeTargetsNow(current.id);
   }
-  initNetworkTooltip();
   window.__DBG__.DETAIL_LAST_REFRESH = { at: new Date().toISOString(), serverId, pollMs: 5000, heavy: doHeavy, sourceSampleMs: window.__DBG__.DETAIL_SOURCE_SAMPLE_MS || null, latestSampleAt: Number.isFinite(latestSampleMs) ? new Date(latestSampleMs).toISOString() : null, sourceAge, upKBs: currentUpKbs, downKBs: currentDownKbs, cpu: cpuSeries.slice(-1)[0] ?? current.cpu_use ?? null, ram: ramSeries.slice(-1)[0] ?? current.ram_use ?? null };
   } finally {
     detailRefreshInFlight = false;

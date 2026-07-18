@@ -4224,3 +4224,27 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
 .cluster-member-picker li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.08); }
 .cluster-member-picker button { border: 1px solid rgba(174,246,255,.55); border-radius: 7px; padding: 6px 9px; background: #14263c; color: #fff; cursor: pointer; }
 .cluster-picker-close { position: absolute; top: 14px; right: 14px; }
+
+/* Network throughput uses Chart.js canvas; keep one responsive rendering surface. */
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .network-throughput-card{
+  display:flex!important;
+  flex-direction:column!important;
+}
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .network-throughput-card .network-chart-surface{
+  position:relative;
+  flex:1 1 auto;
+  min-height:0;
+}
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .network-throughput-card .network-chart-surface canvas{
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+  min-height:0!important;
+  max-height:none!important;
+}
+html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.network-throughput-card .network-chart-surface > canvas#detailNetworkChart{
+  width:100%!important;
+  height:100%!important;
+  min-height:0!important;
+  max-height:none!important;
+}

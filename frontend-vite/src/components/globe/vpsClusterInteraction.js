@@ -106,14 +106,25 @@ export function groupClusterMembers(members = []) {
 }
 
 export function buildClusterScreenFanout({ members = [], viewportWidth = 0, viewportHeight = 0 }) {
+  const groups = new Map();
+  for (const member of sortClusterMembers(members)) {
+    const info = canonicalGroupInfo(member);
+    const name = clusterMemberGroup(member);
+    const rawId = info?.id;
+    const key = rawId != null && String(rawId).trim() ? `id:${String(rawId).trim()}` : `name:${name}`;
+    const group = groups.get(key) || { key, name, members: [], appearance: clusterMemberAppearance(member) };
+    group.members.push(member);
+    groups.set(key, group);
+  }
+  const orderedGroups = [...groups.values()].sort((left, right) => left.key.localeCompare(right.key, 'zh-CN', { numeric: true }) || left.name.localeCompare(right.name, 'zh-CN'));
   const shortestEdge = Math.min(Number(viewportWidth) || 0, Number(viewportHeight) || 0);
   const radiusPx = Math.max(90, Math.min(105, Math.round(shortestEdge * 0.15)));
-  return sortClusterMembers(members).map((member, index, sorted) => {
+  return orderedGroups.map((group, index, sorted) => {
     const angleDeg = sorted.length === 1 ? 230 : 210 + ((40 * index) / (sorted.length - 1));
     const angleRad = angleDeg * Math.PI / 180;
     return {
-      member,
-      appearance: clusterMemberAppearance(member),
+      group,
+      appearance: group.appearance,
       angleDeg,
       radiusPx,
       offsetX: Math.cos(angleRad) * radiusPx,

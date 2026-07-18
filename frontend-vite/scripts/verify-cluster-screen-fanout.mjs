@@ -3,20 +3,22 @@ import { readFile } from 'node:fs/promises';
 import { buildClusterScreenFanout } from '../src/components/globe/vpsClusterInteraction.js';
 
 const members = [
-  { id: 30, name: 'Gamma', group: 'core', tags: 'api' },
-  { id: 10, name: 'Alpha', group: 'edge', tags: 'web' },
-  { id: 20, name: 'Beta', group: 'core', tags: 'db' },
+  { id: 30, name: 'Gamma', group: 'core', tags: 'api', group_info: { id: 2, name: '核心', purpose: 'API', color: '#ff6600' } },
+  { id: 10, name: 'Alpha', group: 'edge', tags: 'web', group_info: { id: 1, name: '边缘', purpose: 'Web', color: '#0088ff' } },
+  { id: 20, name: 'Beta', group: 'wrong legacy group', tags: 'wrong tag', group_info: { id: 2, name: '核心', purpose: 'API', color: '#ff6600' } },
 ];
 const layout = buildClusterScreenFanout({ members, viewportWidth: 1280, viewportHeight: 720 });
-assert.equal(layout.length, 3, 'every member receives one HUD layout item');
-assert.deepEqual(layout.map(({ member }) => member.id), [10, 20, 30], 'HUD member order is stable by ID');
+assert.equal(layout.length, 2, 'one HUD symbol represents each canonical backend ServerGroup');
+assert.deepEqual(layout.map(({ group }) => group.key), ['id:1', 'id:2'], 'HUD group order is stable by canonical group id');
+assert.deepEqual(layout.map(({ group }) => group.name), ['边缘', '核心'], 'HUD labels use canonical group names');
+assert.deepEqual(layout.map(({ group }) => group.members.map(({ id }) => id)), [[10], [20, 30]], 'each HUD group retains only its own members');
 for (const item of layout) {
   assert.ok(item.radiusPx >= 90 && item.radiusPx <= 105, 'HUD radius is responsively clamped to 90–105px');
   assert.ok(item.angleDeg >= 210 && item.angleDeg <= 250, 'HUD members stay in the lower/side arc');
   assert.ok(Math.abs(Math.hypot(item.offsetX, item.offsetY) - item.radiusPx) < 0.001, 'HUD offsets retain their screen radius');
-  assert.equal(item.lat, undefined, 'HUD members have no geographic latitude');
-  assert.equal(item.lon, undefined, 'HUD members have no geographic longitude');
-  assert.ok(item.appearance.color && item.appearance.shape, 'HUD member includes role appearance');
+  assert.equal(item.lat, undefined, 'HUD groups have no geographic latitude');
+  assert.equal(item.lon, undefined, 'HUD groups have no geographic longitude');
+  assert.ok(item.appearance.color && item.appearance.shape, 'HUD group includes role appearance');
 }
 
 const [narrow] = buildClusterScreenFanout({ members: members.slice(0, 1), viewportWidth: 320, viewportHeight: 480 });
@@ -46,7 +48,10 @@ assert.match(cssSource, /\.cluster-screen-fanout/, 'HUD styles must be scoped');
 assert.match(cssSource, /\.cluster-screen-fanout\s*\{[\s\S]*?pointer-events:\s*none/, 'HUD container must not block globe interactions');
 assert.match(cssSource, /\.cluster-screen-fanout-member\s*\{[\s\S]*?pointer-events:\s*auto/, 'only member elements accept pointers');
 assert.match(mainSource, /buildClusterScreenFanout/, 'main passes screen-HUD presentation data');
-assert.doesNotMatch(mainSource, /buildClusterFanout/, 'main must not build geographic fanout coordinates');
+
+assert.match(mainSource, /onMemberClick:\s*\(group\) => showClusterMemberPicker\(group\.members, group\)/, 'a HUD group click replaces the picker with that group only');
+assert.doesNotMatch(mainSource, /if (clusterPicker) { closeClusterInteraction(); return; }/, 'repeated cluster selections must not blank-close the interaction');
+assert.match(cesiumSource, /event.stopPropagation()/, 'HUD button events must not bubble into blank-globe closing handlers');
 assert.doesNotMatch(`${interactionSource}\n${cesiumSource}\n${mainSource}`, /localStorage|sessionStorage|fetch\([^\n]*(?:latitude|longitude)/, 'HUD expansion never persists coordinates');
 
 console.log('CLUSTER_SCREEN_FANOUT_REGRESSIONS_VERIFIED screen-radius lower-arc no-fly cleanup navigation');
