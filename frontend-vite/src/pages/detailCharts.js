@@ -293,11 +293,11 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   detailDays = Math.max(0, Math.min(7, Number(detailDays ?? window.__DBG__.DETAIL_HISTORY_DAYS ?? 0) || 0));
   const detailBucketMinutes = detailDays === 0 ? 0 : ({ 1: 5, 2: 10, 3: 15, 4: 20, 5: 30, 6: 30, 7: 60 })[detailDays] || 5;
   const detailBucketMs = detailDays === 0 ? 1000 : detailBucketMinutes * 60 * 1000;
-  const telemetryHours = detailDays === 0 ? 24 : detailDays * 24;
+  const telemetryHours = detailDays === 0 ? 2 : detailDays * 24;
   window.__DBG__.DETAIL_CHART_BUCKET = { days: detailDays, bucketMinutes: detailBucketMinutes, bucketMs: detailBucketMs };
-  const cpu12hSeries = seriesWindowFromRows(probeRows, 'cpu_use', telemetryHours, latestServer);
-  const ram12hSeries = seriesWindowFromRows(probeRows, 'ram_use', telemetryHours, latestServer);
-  const fresh12hSeries = freshnessWindowFromRows(probeRows, telemetryHours, latestServer);
+  const cpu12hSeries = seriesWindowFromRows(probeRows, 'cpu_use', telemetryHours);
+  const ram12hSeries = seriesWindowFromRows(probeRows, 'ram_use', telemetryHours);
+  const fresh12hSeries = freshnessWindowFromRows(probeRows, telemetryHours);
   const freshnessMax = Math.max(6, Math.ceil(Math.max(...fresh12hSeries.map(point => Number(point.y) || 0), 0) + 1));
   const pingHours = detailDays === 0 ? 12 : detailDays * 24;
   const ping24hDatasets = buildPingDatasets(probeRows, pingHours, pingTargetsData, pingTargetHistoryData);

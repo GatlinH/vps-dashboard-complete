@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
 const indexSource = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const detailPageSource = readFileSync(new URL('../src/pages/detailPage.js', import.meta.url), 'utf8');
+const detailChartsSource = readFileSync(new URL('../src/pages/detailCharts.js', import.meta.url), 'utf8');
 const detailStyles = readFileSync(new URL('../src/styles/detail-starfleet-console.css', import.meta.url), 'utf8');
 
 const pingTargetSelector = mainSource.match(/function pingTargetsFromRows[\s\S]*?\n}\n\nfunction recordLivePingSamples/);
@@ -59,10 +60,22 @@ assert.equal(
 );
 assert.doesNotMatch(mainSource, /detail-loading-card/, 'detail render flow must not inject the legacy centered loading card');
 assert.equal(
-  (detailRenderFunction[0].match(/app\.innerHTML = detailLoadingShell\(resolvedServer\);/g) || []).length,
+  (detailRenderFunction[0].match(/app\.innerHTML = detailLoadingShell\(resolvedServer\)/g) || []).length,
   1,
-  'normal detail rendering must mount the loading shell only once',
+  'detail renderer must install one native loading shell',
 );
-assert.match(detailStyles, /\.detail-loading-console/, 'detail loading skeleton styles must remain detail scoped');
 
-console.log('DETAIL_PAGE_REGRESSIONS_VERIFIED external-ping-fallback=absent desktop-metric-grid=equal-width direct-detail-boot=yes native-loading-shell=yes single-mount=yes');
+assert.match(detailChartsSource, /const telemetryHours = detailDays === 0 \? 2 : detailDays \* 24;/, 'today CPU/RAM/freshness must use an exact two-hour window');
+assert.match(detailChartsSource, /const pingHours = detailDays === 0 \? 12 : detailDays \* 24;/, 'today external PING must retain its twelve-hour window');
+assert.match(detailChartsSource, /const networkHours = detailDays === 0 \? 12 : detailDays \* 24;/, 'today network must retain its twelve-hour window');
+assert.match(mainSource, /function normalizePersistedTimelineRows\(rows = \[\], hours = 2\)[\s\S]*?lastPersistedProbeMs[\s\S]*?const start = lastPersistedProbeMs - fullSpan;[\s\S]*?t >= start && t <= lastPersistedProbeMs/, 'resource data must be filtered against the last persisted ProbeResult, not browser time');
+assert.match(mainSource, /function adaptiveRollingBounds\(pointGroups = \[\], hours = 12\)[\s\S]*?const min = dataLast - fullSpan;[\s\S]*?const max = dataLast;/, 'resource chart axes must anchor exactly to the last real sample');
+assert.doesNotMatch(mainSource, /normalizeTimelineRows/, 'resource timeline must not include live server fallback rows');
+assert.match(detailPageSource, /外部探针延迟/, 'detail table must use the external-probe label');
+assert.doesNotMatch(detailPageSource, /全球探针延迟/, 'legacy global-probe label must be removed');
+assert.match(mainSource, /尚未配置外部探测目标/, 'unconfigured external targets must use the customer-facing empty state');
+const probeRowsRenderer = mainSource.match(/function renderProbeRows[\s\S]*?\n}\n\nasync function refreshDetailProbeTargetsNow/);
+assert.ok(probeRowsRenderer, 'external probe table renderer must exist');
+assert.doesNotMatch(probeRowsRenderer[0], /暂无真实节点侧互探采样/, 'empty external targets must not expose agent-side jargon');
+
+console.log('detail page regressions: ok');

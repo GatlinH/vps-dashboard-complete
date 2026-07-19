@@ -4216,7 +4216,7 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
   }
 }
 
-.cluster-member-picker { position: fixed; z-index: 10020; top: 16px; right: 16px; width: min(390px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; padding: 18px; border: 1px solid rgba(174,246,255,.45); border-radius: 14px; background: rgba(7,12,23,.96); color: #f4f8ff; box-shadow: 0 18px 48px rgba(0,0,0,.5); }
+.cluster-member-picker { position: fixed; z-index: 10020; top: 16px; right: 16px; width: min(390px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; padding: 18px; border: 1px solid rgba(174,246,255,.45); border-radius: 14px; background: rgba(3,20,25,.74); backdrop-filter: blur(14px) saturate(1.12); -webkit-backdrop-filter: blur(14px) saturate(1.12); color: #e8ffff; box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 8px 22px rgba(0,0,0,.52), 0 0 26px rgba(103,232,249,.32); }
 .cluster-member-picker h2 { margin: 0 72px 14px 0; font-size: 17px; }
 .cluster-member-picker h3 { margin: 16px 0 6px; color: #aef6ff; font-size: 15px; }
 .cluster-member-picker h4 { margin: 10px 0 4px; color: #d9e5ff; font-size: 13px; }

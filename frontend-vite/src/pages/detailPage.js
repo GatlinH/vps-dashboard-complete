@@ -171,8 +171,8 @@ export function renderDetailConsole(ctx) {
           </div>
           <div class="history-range-bar"><span class="history-range-label">${historyLabel} · ${sampleLabel}</span><div class="detail-history-range" role="group" aria-label="历史图表范围"><button type="button" class="detail-history-btn ${Number(detailDays) === 0 ? 'active' : ''}" data-detail-history-days="0">今天</button>${[1,2,3,4,5,6,7].map((d) => `<button type="button" class="detail-history-btn ${Number(detailDays) === d ? 'active' : ''}" data-detail-history-days="${d}">${d}天</button>`).join('')}</div></div>
           <div class="fleet-panel fleet-probe-table-panel">
-            <div class="fleet-title">全球探针延迟</div>
-            <table class="fleet-table compact"><thead><tr><th data-i18n="probe">${t('probe')}</th><th>ms</th><th data-i18n="loss">${t('loss')} %</th><th>链路</th></tr></thead><tbody>${h.renderProbeRows(displayPeerPingTargetsData, pingData)}</tbody></table>
+            <div class="fleet-title">外部探针延迟</div>
+            <table class="fleet-table compact"><thead><tr><th data-i18n="probe">${t('probe')}</th><th>ms</th><th data-i18n="loss">${t('loss')} %</th><th>链路</th></tr></thead><tbody>${h.renderProbeRows(displayPingTargetsData, pingData)}</tbody></table>
           </div>
         </div>
       </section>

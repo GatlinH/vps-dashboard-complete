@@ -80,7 +80,9 @@ const GE_FAR_MAX_STEP   = 68;
 // 节点标签可见的高度阈值
 const NODE_LABEL_HEIGHT = 3_500_000;
 const MOBILE_GLOBE_MEDIA = '(max-width: 640px)';
-const MOBILE_IMAGERY_TONE = { brightness: 1.08, contrast: 1.04, saturation: 1.02, gamma: 0.94 };
+const MOBILE_IMAGERY_TONE = { brightness: 0.96, contrast: 1.08, saturation: 1.04, gamma: 1.0 };
+const DESKTOP_BASE_IMAGERY_TONE = { brightness: 1.48, contrast: 1.03, saturation: 1.16, gamma: 0.70 };
+const DESKTOP_SAT_IMAGERY_TONE = { brightness: 1.42, contrast: 1.03, saturation: 1.14, gamma: 0.72 };
 
 function clamp01(v) { return Math.max(0, Math.min(1, v)); }
 function smoothstep(edge0, edge1, x) {
@@ -302,7 +304,7 @@ export class CesiumGlobe {
       });
       if (this._destroyed) return;
       const base = layers.addImageryProvider(baseProvider, 0);
-      Object.assign(base, { show: true, alpha: 1.0, brightness: 1.48, contrast: 1.03, saturation: 1.16, gamma: 0.70 });
+      Object.assign(base, { show: true, alpha: 1.0, ...(isMobileGlobe() ? MOBILE_IMAGERY_TONE : DESKTOP_BASE_IMAGERY_TONE) });
       this._baseLayer = base;
 
       // 主图层: ArcGIS World Imagery 真实卫星, 各缩放级别常驻 (Google Earth 观感)
@@ -311,7 +313,7 @@ export class CesiumGlobe {
       });
       if (this._destroyed) return;
       const sat = layers.addImageryProvider(satProvider, 1);
-      Object.assign(sat, { show: true, alpha: 1.0, brightness: 1.42, contrast: 1.03, saturation: 1.14, gamma: 0.72 });
+      Object.assign(sat, { show: true, alpha: 1.0, ...(isMobileGlobe() ? MOBILE_IMAGERY_TONE : DESKTOP_SAT_IMAGERY_TONE) });
       this._satLayer = sat;
 
       // 云层: 半透明全球云图, 远景显示近景淡出
@@ -572,8 +574,8 @@ export class CesiumGlobe {
     globe.dynamicAtmosphereLighting = false;
     globe.dynamicAtmosphereLightingFromSun = false;
     const mobile = isMobileGlobe();
-    if (this._baseLayer) Object.assign(this._baseLayer, mobile ? MOBILE_IMAGERY_TONE : { brightness: 1.48, contrast: 1.03, saturation: 1.16, gamma: 0.70 });
-    if (this._satLayer) Object.assign(this._satLayer, mobile ? MOBILE_IMAGERY_TONE : { brightness: 1.42, contrast: 1.03, saturation: 1.14, gamma: 0.72 });
+    if (this._baseLayer) Object.assign(this._baseLayer, mobile ? MOBILE_IMAGERY_TONE : DESKTOP_BASE_IMAGERY_TONE);
+    if (this._satLayer) Object.assign(this._satLayer, mobile ? MOBILE_IMAGERY_TONE : DESKTOP_SAT_IMAGERY_TONE);
   }
 
   _onCameraChanged() {

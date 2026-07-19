@@ -364,7 +364,6 @@ function handleGlobeNodeSelection(server, clusterMembers, cluster) {
   const fanoutCluster = canonicalCluster || cluster;
   const hasFanoutCentroid = Number.isFinite(Number(fanoutCluster?.lat)) && Number.isFinite(Number(fanoutCluster?.lon));
   if (typeof globe?.expandClusterFanout === 'function' && hasFanoutCentroid) showClusterFanout(fanoutCluster, selection.members);
-  showClusterMemberPicker(selection.members);
 }
 
 function getGlobe() {
@@ -538,45 +537,40 @@ function formatHourTickWithDate(ms) {
   return d.toLocaleString([], { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-function normalizeTimelineRows(rows = [], latestRow = null, hours = 12) {
-  const start = Date.now() - hours * 60 * 60 * 1000;
+function normalizePersistedTimelineRows(rows = [], hours = 2) {
+  const fullSpan = Math.max(1, Number(hours) || 2) * 60 * 60 * 1000;
   const bucket = new Map();
-  const source = Array.isArray(rows) ? rows.slice() : [];
-  if (latestRow) {
-    const liveTime = latestRow.__timeMs || latestRow.last_probe_at || latestRow.last_seen_at || latestRow.updated_at || latestRow.created_at;
-    if (liveTime) source.push({ ...latestRow, created_at: liveTime });
-  }
-  source.forEach((row, idx) => {
+  (Array.isArray(rows) ? rows : []).forEach((row, idx) => {
     const parsed = rowTimeMs(row, NaN);
-    if (!Number.isFinite(parsed) || parsed < start) return;
+    if (!Number.isFinite(parsed)) return;
     const key = String(Math.round(parsed / 1000));
     const prev = bucket.get(key);
     if (!prev || idx > prev.idx) bucket.set(key, { idx, row, t: parsed });
   });
-  return Array.from(bucket.values()).sort((a, b) => a.t - b.t).map(({ row, t }) => ({ row, t }));
+  const timeline = Array.from(bucket.values()).sort((a, b) => a.t - b.t);
+  const lastPersistedProbeMs = timeline.at(-1)?.t;
+  if (!Number.isFinite(lastPersistedProbeMs)) return [];
+  const start = lastPersistedProbeMs - fullSpan;
+  return timeline.filter(({ t }) => t >= start && t <= lastPersistedProbeMs).map(({ row, t }) => ({ row, t }));
 }
 
-function seriesWindowFromRows(rows = [], key, hours = 12, latestRow = null) {
-  const points = normalizeTimelineRows(rows, latestRow, hours)
+function seriesWindowFromRows(rows = [], key, hours = 2) {
+  const points = normalizePersistedTimelineRows(rows, hours)
     .map(({ row, t }) => {
       const raw = row?.[key];
       return { x: t, y: raw == null || raw === '' ? NaN : Number(raw) };
     })
     .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
-  if (!points.length && latestRow && Number.isFinite(Number(latestRow?.[key]))) {
-    const t = rowTimeMs({ ts: latestRow.__timeMs || latestRow.last_probe_at || latestRow.last_seen_at || latestRow.updated_at || latestRow.created_at }, NaN);
-    if (Number.isFinite(t)) return [{ x: t, y: Number(latestRow[key]) }];
-  }
   return points;
 }
 
-function latestTimelineMs(rows = [], latestRow = null) {
-  const points = normalizeTimelineRows(rows, latestRow, 24).map(({ t }) => t).filter(Number.isFinite);
+function latestTimelineMs(rows = []) {
+  const points = normalizePersistedTimelineRows(rows, Number.MAX_SAFE_INTEGER / (60 * 60 * 1000)).map(({ t }) => t).filter(Number.isFinite);
   return points.length ? points[points.length - 1] : NaN;
 }
 
-function freshnessWindowFromRows(rows = [], hours = 12, latestRow = null) {
-  const sorted = normalizeTimelineRows(rows, latestRow, hours).map(({ t }) => t);
+function freshnessWindowFromRows(rows = [], hours = 2) {
+  const sorted = normalizePersistedTimelineRows(rows, hours).map(({ t }) => t);
   const out = [];
   for (let i = 1; i < sorted.length; i += 1) {
     out.push({ x: sorted[i], y: Math.max(0, (sorted[i] - sorted[i - 1]) / 1000) });
@@ -623,16 +617,14 @@ function adaptiveRollingBounds(pointGroups = [], hours = 12) {
   const xs = pointGroups.flat().map((point) => Number(point?.x)).filter(Number.isFinite).sort((a, b) => a - b);
   const dataFirst = xs.length ? xs[0] : 0;
   const dataLast = xs.length ? xs[xs.length - 1] : dataFirst;
-  const coldMax = dataFirst + fullSpan;
-  const rolling = dataLast >= coldMax;
-  const min = rolling ? dataLast - fullSpan : dataFirst;
-  const max = rolling ? dataLast : coldMax;
+  const min = dataLast - fullSpan;
+  const max = dataLast;
   const span = Math.max(1, max - min);
   return {
     min,
     max,
     step: Math.max(60 * 1000, Math.round(span / 4)),
-    mode: rolling ? 'rolling-after-full-window' : 'accumulating-from-first-sample',
+    mode: 'anchored-to-last-persisted-sample',
     dataFirst,
     dataLast,
     dataSpanMs: xs.length ? Math.max(0, dataLast - dataFirst) : 0,
@@ -1591,24 +1583,24 @@ function probeLinkBar(ms, loss = null) {
 }
 
 function renderProbeRows(pingTargetsData, pingData) {
-  if (pingTargetsData?.unavailable) return '<tr class="probe-empty-row"><td colspan="4">暂无真实节点侧互探采样；已停止主控代测，等待 agent 上报。</td></tr>';
-  const targets = (pingTargetsData?.targets || []).filter(t => t.type === 'peer').slice(0, 6);
+  if (pingTargetsData?.unavailable) return '<tr class="probe-empty-row"><td colspan="4">尚未配置外部探测目标</td></tr>';
+  const targets = (pingTargetsData?.targets || []).filter(t => t.type !== 'peer').slice(0, 6);
   if (targets.length) return targets.map((target) => {
     const ms = target.stats?.avg_ms != null ? Number(target.stats.avg_ms) : null;
     const loss = target.stats?.loss_pct != null ? Math.max(0, Number(target.stats.loss_pct)) : null;
     return `<tr><td>${target.label || 'probe'}</td><td>${ms != null ? ms.toFixed(0) : '—'}</td><td>${loss != null ? loss.toFixed(0) + '%' : '—'}</td><td>${probeLinkBar(ms, loss)}</td></tr>`;
   }).join('');
-  return '<tr class="probe-empty-row"><td colspan="4">未读取到延迟监控目标；后台「延迟监测」保存后自动生成。</td></tr>';
+  return '<tr class="probe-empty-row"><td colspan="4">尚未配置外部探测目标</td></tr>';
 }
 
 async function refreshDetailProbeTargetsNow(serverId) {
   if (!serverId) return null;
   try {
-    const data = await fetchPingTargets(serverId, 3, 'agent');
+    const data = await fetchPingTargets(serverId, 3);
     if (!data?.targets?.length) return data;
-    detailCache.peerPingTargets = data;
+    detailCache.pingTargets = data;
     setDetailPingTargetsFetchedAt(Date.now());
-    window.__DBG__.DETAIL_PEER_PING_TARGETS = data;
+    window.__DBG__.DETAIL_PING_TARGETS = data;
     const tbody = document.querySelector('.fleet-probe-table-panel tbody');
     if (tbody) tbody.innerHTML = renderProbeRows(data, null);
     return data;
