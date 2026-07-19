@@ -147,9 +147,10 @@ export async function fetchPingTargets(serverId, count = 1, source = '') {
   return fetchJson(`${root}/api/v1/probe/public/ping-targets/${serverId}?count=${count}${sourceParam}`, { timeoutMs: 9000 });
 }
 
-export async function fetchPingTargetHistory(serverId, hours = 12, limit = 2000) {
+export async function fetchPingTargetHistory(serverId, hours = 12, limit = 2000, source = '') {
   const root = window.__DBG__.API_ROOT || (location.port === 5000 ? `${location.protocol}//${location.hostname}:5000` : location.origin);
-  return fetchJson(`${root}/api/v1/probe/public/ping-targets/${serverId}/history?hours=${hours}&limit=${limit}`, { timeoutMs: 9000 });
+  const sourceParam = source ? `&source=${encodeURIComponent(source)}` : '';
+  return fetchJson(`${root}/api/v1/probe/public/ping-targets/${serverId}/history?hours=${hours}&limit=${limit}${sourceParam}`, { timeoutMs: 9000 });
 }
 
 export async function fetchPing(resolvedServer) {
@@ -209,4 +210,3 @@ export async function enrichServersWithIpGeo(servers) {
   }));
   return rows;
 }
-

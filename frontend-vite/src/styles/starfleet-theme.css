@@ -168,6 +168,7 @@ body::after {
 
 /* Node labels as ship console telemetry tags. */
 .google-earth-node-html-label.is-vps-node { border:1px solid rgba(255,159,53,.42)!important; border-radius:18px 6px 18px 6px!important; background:linear-gradient(135deg,rgba(14,22,38,.94),rgba(29,51,75,.78))!important; box-shadow:0 0 26px rgba(255,159,53,.16), inset 7px 0 0 rgba(255,159,53,.82)!important; }
+.google-earth-node-html-label.is-vps-node.is-vps-beacon-node { background:rgba(8,18,31,.6)!important; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
 .google-earth-node-html-label .node-place,.google-earth-node-html-label .node-name{ padding-left:8px; font-family:var(--mono); }
 
 /* LCARS / starship operation console pages: overview and detail. */

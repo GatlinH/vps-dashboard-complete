@@ -13,7 +13,7 @@ assert.match(styleSource, /\.network-chart-surface\{[\s\S]*?flex:1[\s\S]*?min-he
 assert.match(styleSource, /\.network-chart-surface canvas\{[\s\S]*?width:100%[\s\S]*?height:100%/, 'network canvas CSS must fill its chart surface');
 assert.match(chartSource, /responsive:\s*true,[\s\S]*?maintainAspectRatio:\s*false/, 'Chart.js must render into its live container dimensions');
 assert.match(chartSource, /const networkCtx = networkCanvas\?\.getContext\('2d'\)/, 'network renderer must use the canvas context');
-assert.match(chartSource, /if \(networkPointTimes\.length >= 2\) \{[\s\S]*?max: last \+ pad/, 'desktop and mobile network axes must end near the last real sample, never wall-clock future time');
+assert.match(chartSource, /const networkHours = detailDays === 0 \? 12 : detailDays \* 24;[\s\S]*?const networkLast = networkPointTimes\.at\(-1\) \|\| networkNow;[\s\S]*?networkAxisBounds = \{ min: networkLast - networkHours \* 60 \* 60 \* 1000, max: networkLast/, 'network axes must use one canonical 12-hour window ending at the last real sample, independent of sample density');
 assert.match(chartSource, /min:\s*networkAxisBounds\.min,[\s\S]*?max:\s*networkAxisBounds\.max/, 'x plot scale must use the computed network rendering domain');
 assert.match(chartSource, /min:\s*0,[\s\S]*?max:\s*(?:networkMobileMax|NETWORK_EQUAL_STEP_AXIS\.length - 1)/, 'y plot scale must use data-derived bounds');
 assert.doesNotMatch(chartSource, /viewBox="0 0 [^"]* 238"|viewBox[^\n]*238/, 'network renderer must not retain a stale 238px SVG viewBox');

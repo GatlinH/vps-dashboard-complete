@@ -68,7 +68,7 @@ def get_public_traffic_history(sid):
     """Public traffic history for display page."""
     try:
         days = min(max(1, int(request.args.get('days', 7))), 30)
-        limit = min(max(1, int(request.args.get('limit', 1000))), 10000)
+        limit = min(max(1, int(request.args.get('limit', 1000))), 21600)
         offset = max(0, int(request.args.get('offset', 0)))
         bucket_minutes = request.args.get('bucket_minutes', type=int)
 

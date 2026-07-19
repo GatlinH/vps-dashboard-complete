@@ -808,6 +808,10 @@ function normalizeWindowRows(rows = [], hours = 12) {
     .sort((a, b) => a.__timeMs - b.__timeMs);
 }
 
+function normalizePersistedRows(rows = [], hours = 2) {
+  return normalizePersistedTimelineRows(rows, hours).map(({ row, t }) => ({ ...row, __timeMs: t }));
+}
+
 function numericMetricSeries(rows = [], key) {
   return (Array.isArray(rows) ? rows : [])
     .map(row => row?.[key])
@@ -1583,20 +1587,20 @@ function probeLinkBar(ms, loss = null) {
 }
 
 function renderProbeRows(pingTargetsData, pingData) {
-  if (pingTargetsData?.unavailable) return '<tr class="probe-empty-row"><td colspan="4">尚未配置外部探测目标</td></tr>';
-  const targets = (pingTargetsData?.targets || []).filter(t => t.type !== 'peer').slice(0, 6);
+  if (pingTargetsData?.unavailable) return '<tr class="probe-empty-row"><td colspan="4">尚无 VPS 互探采样</td></tr>';
+  const targets = (pingTargetsData?.targets || []).filter(t => t.type === 'peer' || String(t.key || '').startsWith('vps-')).slice(0, 6);
   if (targets.length) return targets.map((target) => {
     const ms = target.stats?.avg_ms != null ? Number(target.stats.avg_ms) : null;
     const loss = target.stats?.loss_pct != null ? Math.max(0, Number(target.stats.loss_pct)) : null;
     return `<tr><td>${target.label || 'probe'}</td><td>${ms != null ? ms.toFixed(0) : '—'}</td><td>${loss != null ? loss.toFixed(0) + '%' : '—'}</td><td>${probeLinkBar(ms, loss)}</td></tr>`;
   }).join('');
-  return '<tr class="probe-empty-row"><td colspan="4">尚未配置外部探测目标</td></tr>';
+  return '<tr class="probe-empty-row"><td colspan="4">尚无 VPS 互探采样</td></tr>';
 }
 
 async function refreshDetailProbeTargetsNow(serverId) {
   if (!serverId) return null;
   try {
-    const data = await fetchPingTargets(serverId, 3);
+    const data = await fetchPingTargets(serverId, 3, 'agent');
     if (!data?.targets?.length) return data;
     detailCache.pingTargets = data;
     setDetailPingTargetsFetchedAt(Date.now());
@@ -1661,11 +1665,11 @@ async function renderDetailPage(serverId) {
   bindTopbarEvents(app);
   updateRateDisplay();
   const isMobileDetail = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
-  const liveLimit = detailDays === 0 ? (isMobileDetail ? 900 : 14400) : (isMobileDetail ? 720 : 2000);
+  const liveLimit = detailDays === 0 ? 21600 : (isMobileDetail ? 720 : 2000);
   const historyDays = detailDays === 0 ? 1 : detailDays;
   // CPU, memory, and freshness are backed by ProbeResult history. Keep the
   // endpoint's full real-time day response instead of substituting browser samples.
-  const historyLimit = detailDays === 0 ? 14400 : liveLimit;
+  const historyLimit = detailDays === 0 ? 21600 : liveLimit;
   const targetHistoryHours = detailDays === 0 ? (isMobileDetail ? 2 : 12) : detailDays * 24;
   const settleWithin = (promise, timeoutMs, label) => Promise.race([
     promise.then((value) => ({ status: 'fulfilled', value }), (reason) => ({ status: 'rejected', reason })),
@@ -1679,7 +1683,7 @@ async function renderDetailPage(serverId) {
     settleWithin(fetchPing(resolvedServer), fetchBudgetMs, 'ping'),
     settleWithin(fetchServerHistory(resolvedServer.id, historyDays, historyLimit, detailBucketMinutes), fetchBudgetMs, 'server-history'),
     settleWithin(fetchPingTargets(resolvedServer.id, 3), fetchBudgetMs, 'ping-targets'),
-    settleWithin(fetchPingTargetHistory(resolvedServer.id, targetHistoryHours, historyLimit), fetchBudgetMs, 'ping-history'),
+    settleWithin(fetchPingTargetHistory(resolvedServer.id, targetHistoryHours, historyLimit, 'agent'), fetchBudgetMs, 'ping-history'),
     settleWithin(fetchPingTargets(resolvedServer.id, 3, 'agent'), fetchBudgetMs, 'peer-ping-targets'),
   ]);
 
@@ -1699,7 +1703,7 @@ async function renderDetailPage(serverId) {
   window.__DBG__.DETAIL_PING_TARGET_HISTORY = detailCache.pingTargetHistory || pingTargetHistoryData;
   const rv = calcResidualValue(resolvedServer);
   const pct = trafficData ? Number(trafficData.used_percent || 0) : (getTrafficPct(resolvedServer) || 0);
-  const historyRows = normalizeHistory24h(historyData?.data || []);
+  const historyRows = normalizePersistedRows(historyData?.data || [], 12);
   window.__DBG__.DETAIL_HISTORY_META = { days: detailDays, bucketMinutes: detailBucketMinutes, historyTotal: historyData?.total || 0, probeTotal: probeHistoryData?.total || 0 };
   detailCache.traffic = trafficData || detailCache.traffic;
   detailCache.historyRows = historyRows.length ? historyRows : detailCache.historyRows;
@@ -1707,7 +1711,7 @@ async function renderDetailPage(serverId) {
   const trafficUpSeries = historyRows.map((row) => Number(row.net_up || 0));
   const trafficDownSeries = historyRows.map((row) => Number(row.net_down || 0));
   const chartLabels = historyRows.map((row, idx) => row.ts || row.time || row.timestamp || `T${idx + 1}`);
-  const probeRows = normalizeWindowRows(probeHistoryData?.data || [], historyDays * 24);
+  const probeRows = normalizePersistedRows(probeHistoryData?.data || [], historyDays * 24);
   detailCache.probeRows = probeRows;
   const probeLabels = probeRows.map((row, idx) => row.created_at ? new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `P${idx + 1}`);
   const cpuSeries = numericMetricSeries(probeRows, 'cpu_use');
@@ -1792,7 +1796,7 @@ async function renderDetailPage(serverId) {
   });
   window.__DBG__.DETAIL_STARMAP_MOUNTED = !!detailStarmapUnmount;
   window.__DBG__.DETAIL_TRACE.push('before-charts');
-  await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows, pingTargetsData: detailCache.pingTargets || pingTargetsData, pingTargetHistoryData: detailCache.pingTargetHistory || pingTargetHistoryData, detailDays });
+  await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows, pingTargetsData: detailCache.peerPingTargets || peerPingTargetsData, pingTargetHistoryData: detailCache.pingTargetHistory || pingTargetHistoryData, detailDays });
   refreshDetailProbeTargetsNow(resolvedServer.id);
   startDetailRealtimeRefresh(resolvedServer.id);
   window.__DBG__.DETAIL_TRACE.push('done');
@@ -1900,14 +1904,14 @@ async function refreshDetailRealtime(serverId) {
     const shouldRefreshPingTargets = !detailCache.pingTargets?.targets?.length || now - getDetailPingTargetsFetchedAt() > 15000;
     const [traffic, history, probeHistory, pingTargets, pingTargetHistory] = await Promise.allSettled([
       fetchJson(`${API_ROOT}/api/v1/traffic/public/${current.id}`, { timeoutMs: 1000 }),
-      fetchJson(`${API_ROOT}/api/v1/traffic/public/${current.id}/history?days=${getDetailHistoryDays()}&bucket_minutes=${getDetailHistoryBucketMinutes(getDetailHistoryDays())}&limit=${getDetailHistoryDays() === 0 ? 14400 : 2000}`, { timeoutMs: 3000 }),
-      fetchServerHistory(current.id, getDetailHistoryDays() === 0 ? 1 : getDetailHistoryDays(), getDetailHistoryDays() === 0 ? 14400 : 2000, getDetailHistoryBucketMinutes(getDetailHistoryDays())),
-      shouldRefreshPingTargets ? fetchPingTargets(current.id, 3) : Promise.resolve(detailCache.pingTargets),
-      shouldRefreshPingTargets ? fetchPingTargetHistory(current.id, 12, getDetailHistoryDays() === 0 ? 14400 : 2000) : Promise.resolve(detailCache.pingTargetHistory),
+      fetchJson(`${API_ROOT}/api/v1/traffic/public/${current.id}/history?days=${getDetailHistoryDays()}&bucket_minutes=${getDetailHistoryBucketMinutes(getDetailHistoryDays())}&limit=${getDetailHistoryDays() === 0 ? 21600 : 2000}`, { timeoutMs: 3000 }),
+      fetchServerHistory(current.id, getDetailHistoryDays() === 0 ? 1 : getDetailHistoryDays(), getDetailHistoryDays() === 0 ? 21600 : 2000, getDetailHistoryBucketMinutes(getDetailHistoryDays())),
+      shouldRefreshPingTargets ? fetchPingTargets(current.id, 3, 'agent') : Promise.resolve(detailCache.pingTargets),
+      shouldRefreshPingTargets ? fetchPingTargetHistory(current.id, 12, getDetailHistoryDays() === 0 ? 21600 : 2000, 'agent') : Promise.resolve(detailCache.pingTargetHistory),
     ]);
     detailCache.traffic = traffic.status === 'fulfilled' ? traffic.value : detailCache.traffic;
     detailCache.historyRows = normalizeHistory24h((history.status === 'fulfilled' ? history.value?.data : detailCache.historyRows) || []);
-    detailCache.probeRows = normalizeWindowRows((probeHistory.status === 'fulfilled' ? probeHistory.value?.data : detailCache.probeRows) || [], Math.max(1, getDetailHistoryDays()) * 24);
+    detailCache.probeRows = normalizePersistedRows((probeHistory.status === 'fulfilled' ? probeHistory.value?.data : detailCache.probeRows) || [], Math.max(1, getDetailHistoryDays()) * 24);
     if (pingTargets.status === 'fulfilled' && (pingTargets.value?.targets?.length || pingTargets.value?.unavailable)) {
       detailCache.pingTargets = pingTargets.value;
       setDetailPingTargetsFetchedAt(now);

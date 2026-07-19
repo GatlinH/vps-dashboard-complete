@@ -65,3 +65,9 @@ def test_traffic_requires_auth(client):
     """未认证时流量接口返回 401"""
     response = client.get('/api/v1/traffic/')
     assert response.status_code == 401
+
+
+def test_public_traffic_history_accepts_full_21600_raw_window(client, test_server):
+    response = client.get(f'/api/v1/traffic/public/{test_server}/history?days=1&limit=21600')
+    assert response.status_code == 200
+    assert response.get_json()['limit'] == 21600

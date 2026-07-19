@@ -271,3 +271,23 @@ def test_ip_geo_fallback_is_explicitly_invalid():
     assert data['valid'] is False
     assert data['degraded'] is True
     assert data['source'] == 'fallback:anonymous'
+
+
+def test_public_agent_peer_history_excludes_external_targets(client, test_server, app):
+    from datetime import datetime
+
+    peer_targets = ([{
+        'key': 'vps-2', 'label': 'Peer VPS', 'host': '8.8.8.8', 'port': 80,
+        'protocol': 'tcp', 'peer_server_id': 2, 'type': 'peer',
+    }], True)
+    rows = [
+        {'target_key': 'vps-2', 'label': 'Peer VPS', 'port': 80, 'protocol': 'tcp', 'latency_ms': 0.8, 'success': True, 'loss_pct': 0, 'quality': 'good', 'created_at': datetime.now()},
+        {'target_key': 'external', 'label': 'External', 'port': 443, 'protocol': 'tcp', 'latency_ms': 10, 'success': True, 'loss_pct': 0, 'quality': 'good', 'created_at': datetime.now()},
+    ]
+    with patch('api.probe._server_peer_ping_targets', return_value=peer_targets), patch('api.probe._fetch_ping_target_history', return_value=rows):
+        response = client.get(f'/api/v1/probe/public/ping-targets/{test_server}/history?hours=12&source=agent')
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['probe_source'] == 'agent'
+    assert [target['key'] for target in payload['targets']] == ['vps-2']
+    assert payload['targets'][0]['points'][0]['latency_ms'] == 0.8

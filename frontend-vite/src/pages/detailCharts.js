@@ -327,7 +327,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   });
   const fixedSmallY = (scale) => { scale.width = 28; };
   const networkHours = detailDays === 0 ? 12 : detailDays * 24;
-  const networkNow = Date.now();
+  const networkNow = latestTimelineMs(probeRows);
   const networkStart = networkNow - networkHours * 60 * 60 * 1000;
   const probeNetworkRows = (Array.isArray(probeRows) ? probeRows : []).map((row) => {
     const x = Number(row?.__timeMs) || rowTimeMs(row, NaN);
@@ -346,24 +346,9 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   const networkRows = probeNetworkRows.length ? probeNetworkRows : historyNetworkRows;
   const networkBuckets = aggregateRateRowsForDisplay(networkRows, detailBucketMs);
   const networkMobile = isDetailMobileChart();
-  const networkBaseAxisBounds = accumulatingAxisBoundsFromTimes(networkBuckets.map(r => r.x), networkHours);
   const networkPointTimes = networkBuckets.map(r => Number(r.rawX || r.x)).filter(Number.isFinite).sort((a, b) => a - b);
-  let networkAxisBounds = networkBaseAxisBounds;
-  // Network charts must end at the last real sample, not at wall-clock now: otherwise
-  // a delayed agent leaves a misleading "future" blank region on desktop charts.
-  if (networkPointTimes.length >= 2) {
-    const first = networkPointTimes[0];
-    const last = networkPointTimes[networkPointTimes.length - 1];
-    const span = Math.max(0, last - first);
-    const minSpan = 30 * 60 * 1000;
-    const pad = Math.max(5 * 60 * 1000, span * 0.18);
-    if (span < minSpan) {
-      const mid = (first + last) / 2;
-      networkAxisBounds = { min: mid - minSpan / 2, max: mid + minSpan / 2, step: 10 * 60 * 1000 };
-    } else {
-      networkAxisBounds = { min: first - pad, max: last + pad, step: Math.max(5 * 60 * 1000, Math.round((span + pad * 2) / 3)) };
-    }
-  }
+  const networkLast = networkPointTimes.at(-1) || networkNow;
+  const networkAxisBounds = { min: networkLast - networkHours * 60 * 60 * 1000, max: networkLast, step: networkHours * 60 * 60 * 1000 / 4 };
   const networkUpDisplay = fitSeriesToRollingAxis(networkBuckets.map(r => ({ x: r.rawX || r.x, rawX: r.rawX || r.x, y: r.up, maxY: r.upMax, samples: r.samples })), networkAxisBounds, networkMobile ? 160 : 288);
   const networkDownDisplay = fitSeriesToRollingAxis(networkBuckets.map(r => ({ x: r.rawX || r.x, rawX: r.rawX || r.x, y: r.down, maxY: r.downMax, samples: r.samples })), networkAxisBounds, networkMobile ? 160 : 288);
   const networkUpEqualDisplay = expandSinglePointSeries(networkEqualStepSeries(networkUpDisplay));

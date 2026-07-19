@@ -651,13 +651,14 @@ def public_ping_targets_history(sid):
     server = Server.query.get(sid)
     hours = max(1, min(int(request.args.get("hours", 12)), 168))
     limit = max(1, min(int(request.args.get("limit", 2000)), 10000))
+    source = str(request.args.get("source") or "public").strip().lower()
     if not server:
         resp = jsonify({"server_id": sid, "hours": hours, "targets": [], "derived_from": "server not found", "configured": False, "not_configured": True})
         resp.headers["Cache-Control"] = "no-store"
         return resp
 
-    configured = _resolve_ping_targets_for_server(server)
-    if _ping_targets_are_peer_targets(server, configured):
+    configured = _server_peer_ping_targets(server)[0] if source == "agent" else _resolve_ping_targets_for_server(server)
+    if source == "agent" or _ping_targets_are_peer_targets(server, configured):
         # Peer latency history must come from agent reports only; never synthesize
         # controller/API-side fallback samples.
         stored_rows = _fetch_ping_target_history(sid, hours, limit)
@@ -687,7 +688,8 @@ def public_ping_targets_history(sid):
         if key not in targets_meta:
             continue
         meta_candidate = targets_meta.get(key, {})
-        if meta_candidate.get("type") == "peer" or key.startswith("vps-"):
+        is_peer = meta_candidate.get("type") == "peer" or key.startswith("vps-")
+        if (source == "agent" and not is_peer) or (source != "agent" and is_peer):
             continue
         meta = targets_meta.get(key, {})
         item = grouped.setdefault(key, {
@@ -713,7 +715,7 @@ def public_ping_targets_history(sid):
     for i, meta in enumerate(configured):
         key = str(meta.get("key") or meta.get("host") or meta.get("label") or f"target-{i}")
         grouped.setdefault(key, {"key": key, "label": meta.get("label") or key, "port": meta.get("port"), "protocol": meta.get("protocol") or "icmp", "points": []})
-    payload = {"server_id": sid, "hours": hours, "targets": list(grouped.values()), "derived_from": "persisted ping_target_results"}
+    payload = {"server_id": sid, "hours": hours, "targets": list(grouped.values()), "derived_from": "persisted agent peer results" if source == "agent" else "persisted ping_target_results", "probe_source": "agent" if source == "agent" else "public"}
     resp = jsonify(payload)
     resp.headers["Cache-Control"] = "no-store"
     return resp

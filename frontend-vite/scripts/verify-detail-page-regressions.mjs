@@ -66,16 +66,15 @@ assert.equal(
 );
 
 assert.match(detailChartsSource, /const telemetryHours = detailDays === 0 \? 2 : detailDays \* 24;/, 'today CPU/RAM/freshness must use an exact two-hour window');
-assert.match(detailChartsSource, /const pingHours = detailDays === 0 \? 12 : detailDays \* 24;/, 'today external PING must retain its twelve-hour window');
+assert.match(detailChartsSource, /const pingHours = detailDays === 0 \? 12 : detailDays \* 24;/, 'today VPS peer PING must retain its twelve-hour window');
 assert.match(detailChartsSource, /const networkHours = detailDays === 0 \? 12 : detailDays \* 24;/, 'today network must retain its twelve-hour window');
 assert.match(mainSource, /function normalizePersistedTimelineRows\(rows = \[\], hours = 2\)[\s\S]*?lastPersistedProbeMs[\s\S]*?const start = lastPersistedProbeMs - fullSpan;[\s\S]*?t >= start && t <= lastPersistedProbeMs/, 'resource data must be filtered against the last persisted ProbeResult, not browser time');
 assert.match(mainSource, /function adaptiveRollingBounds\(pointGroups = \[\], hours = 12\)[\s\S]*?const min = dataLast - fullSpan;[\s\S]*?const max = dataLast;/, 'resource chart axes must anchor exactly to the last real sample');
 assert.doesNotMatch(mainSource, /normalizeTimelineRows/, 'resource timeline must not include live server fallback rows');
-assert.match(detailPageSource, /外部探针延迟/, 'detail table must use the external-probe label');
-assert.doesNotMatch(detailPageSource, /全球探针延迟/, 'legacy global-probe label must be removed');
-assert.match(mainSource, /尚未配置外部探测目标/, 'unconfigured external targets must use the customer-facing empty state');
+assert.match(detailPageSource, /全球 VPS 互探延迟/, 'detail table must identify VPS peer probing');
+assert.match(mainSource, /尚无 VPS 互探采样/, 'empty peer targets must use the customer-facing peer empty state');
 const probeRowsRenderer = mainSource.match(/function renderProbeRows[\s\S]*?\n}\n\nasync function refreshDetailProbeTargetsNow/);
-assert.ok(probeRowsRenderer, 'external probe table renderer must exist');
-assert.doesNotMatch(probeRowsRenderer[0], /暂无真实节点侧互探采样/, 'empty external targets must not expose agent-side jargon');
+assert.ok(probeRowsRenderer, 'VPS peer table renderer must exist');
+assert.match(probeRowsRenderer[0], /startsWith\('vps-'\)/, 'peer table renderer must only include VPS peer targets');
 
 console.log('detail page regressions: ok');
