@@ -28,3 +28,5 @@ def test_csp_connect_src_preserves_existing_sources_and_allows_jsdelivr(client):
     assert 'https://api.telegram.org' in connect_src
     assert 'https://ip-api.com' in connect_src
     assert 'https://cdn.jsdelivr.net' in connect_src
+    assert 'https://services.arcgisonline.com' in connect_src
+    assert '*' not in connect_src

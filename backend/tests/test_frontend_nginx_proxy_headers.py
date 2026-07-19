@@ -26,3 +26,13 @@ def test_frontend_nginx_preserves_caddy_forwarded_proto_with_https_default():
             config,
         )
     ) == 2
+
+
+def test_nginx_csp_allows_arcgis_world_imagery_without_wildcard():
+    nginx_config = (Path(__file__).resolve().parents[1] / 'nginx.conf').read_text()
+
+    connect_src = re.search(r"connect-src ([^;]+);", nginx_config)
+
+    assert connect_src
+    assert 'https://services.arcgisonline.com' in connect_src.group(1)
+    assert '*' not in connect_src.group(1)

@@ -176,6 +176,23 @@ export function rebuildVpsEntities(globe) {
 
     globe._arcEntities.push(beaconRing);
     if (beaconAppearance) {
+      const clusterRangeRing = globe.viewer.entities.add({
+        id: `node-cluster-range-${server.id}`,
+        position: Cesium.Cartesian3.fromDegrees(lon, lat, 118),
+        ellipse: {
+          semiMajorAxis: 42000,
+          semiMinorAxis: 42000,
+          material: Cesium.Color.TRANSPARENT,
+          outline: true,
+          outlineColor: healthColor.withAlpha(0.9),
+          outlineWidth: 2,
+          heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+          classificationType: Cesium.ClassificationType.TERRAIN,
+        },
+        properties: { ...clusterClickProperties, clusterKey: cluster.key, vpsClusterRangeRing: true },
+      });
+      globe._arcEntities.push(clusterRangeRing);
+
       const sectorAngle = Cesium.Math.TWO_PI / beaconAppearance.sectors.length;
       beaconAppearance.sectors.forEach((sector, index) => {
         const sectorEntity = globe.viewer.entities.add({

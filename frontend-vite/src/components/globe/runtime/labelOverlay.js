@@ -229,7 +229,7 @@ export function updateHtmlNodeLabels(globe, cityMode) {
   if (visitorPoint && globe._visitorLabel) {
     // Visitor and VPS are often both in US West Coast on phones. Stagger the
     // visitor badge upward so labels stay readable instead of stacking.
-    placeLabel(visitorPoint, globe._visitorLabel, width <= 520 ? 82 : 46);
+    placeLabel(visitorPoint, globe._visitorLabel, width <= 520 ? 82 : 92);
   }
 }
 

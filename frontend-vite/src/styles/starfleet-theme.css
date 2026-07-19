@@ -1647,3 +1647,20 @@ body.starship-grabbing .starship-gltf-canvas { cursor: grabbing !important; }
     box-shadow: 0 0 26px rgba(98,245,238,.34), inset 0 0 0 1px rgba(127,255,248,.24) !important;
   }
 }
+
+/* final-showcase-boundary-20260719: preserve LA map labels while keeping the left-facing ship in the right foreground. */
+@media (min-width: 641px) {
+  .globe-only-page #globe-container .photo-space-showcase.is-globe-background-layer {
+    inset: auto 0 0 auto !important;
+    width: min(35vw, 560px) !important;
+    height: min(72vh, 620px) !important;
+    overflow: hidden !important;
+  }
+
+  .globe-only-page #globe-container .photo-space-showcase.is-globe-background-layer .starship-gltf-stage,
+  .globe-only-page #globe-container .photo-space-showcase.is-globe-background-layer .starship-gltf-canvas {
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+}

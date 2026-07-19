@@ -276,6 +276,7 @@ class Config:
             'https://api.telegram.org',
             'https://ip-api.com',
             'https://cdn.jsdelivr.net',
+            'https://services.arcgisonline.com',
         ],
         'frame-ancestors': "'none'",
         'base-uri': "'self'",

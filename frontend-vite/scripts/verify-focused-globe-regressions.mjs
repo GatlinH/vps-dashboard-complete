@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { aggregateClusterStatus } from '../src/components/globe/vpsClusterInteraction.js';
+import { STATUS_COLORS } from '../src/components/globe-utils.js';
 
 const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
 const cesiumSource = readFileSync(new URL('../src/components/CesiumGlobe.js', import.meta.url), 'utf8');
 const stylesSource = readFileSync(new URL('../src/styles/main.css', import.meta.url), 'utf8');
+const starfleetThemeSource = readFileSync(new URL('../src/styles/starfleet-theme.css', import.meta.url), 'utf8');
+const vpsEntitiesSource = readFileSync(new URL('../src/components/globe/vpsEntities.js', import.meta.url), 'utf8');
+const labelOverlaySource = readFileSync(new URL('../src/components/globe/runtime/labelOverlay.js', import.meta.url), 'utf8');
 
 const globeSelection = mainSource.match(/function handleGlobeNodeSelection\([\s\S]*?\n}/);
 const fanout = cesiumSource.match(/showClusterFanout\([\s\S]*?\n  }\n\n  expandClusterFanout/);
@@ -35,5 +40,24 @@ assert.ok(baseRenderIndex < arcGisAwaitIndex, 'base rendering must be requested 
 assert.ok(arcGisAwaitIndex < cloudAwaitIndex, 'cloud initialization must remain reachable after an ArcGIS failure');
 assert.match(imagerySource.slice(arcGisAwaitIndex, cloudAwaitIndex), /\} catch \(e\) \{[\s\S]*?imageryError/, 'ArcGIS initialization must handle its own failure before cloud initialization');
 assert.match(imagerySource.slice(cloudAwaitIndex), /\} catch \(e\) \{[\s\S]*?imageryError/, 'cloud initialization must handle its own failure');
+
+assert.match(starfleetThemeSource, /@media \(min-width: 641px\) \{[\s\S]*?\.photo-space-showcase\.is-globe-background-layer \{[\s\S]*?inset: auto 0 0 auto !important;[\s\S]*?width: min\(35vw, 560px\) !important;[\s\S]*?height: min\(72vh, 620px\) !important;[\s\S]*?overflow: hidden !important;/, 'the reparented desktop showcase must remain a bounded right-side foreground stage');
+assert.match(starfleetThemeSource, /\.photo-space-showcase\.is-globe-background-layer \.starship-gltf-stage,[\s\S]*?\.photo-space-showcase\.is-globe-background-layer \.starship-gltf-canvas \{[\s\S]*?width: 100% !important;[\s\S]*?height: 100% !important;/, 'the bounded showcase canvas must fill its own stage instead of the viewport');
+const rangeRingSource = vpsEntitiesSource.match(/const clusterRangeRing = globe\.viewer\.entities\.add\(\{[\s\S]*?globe\._arcEntities\.push\(clusterRangeRing\);/);
+assert.ok(rangeRingSource, 'cluster VPS markers must create a range ring');
+assert.match(rangeRingSource[0], /semiMajorAxis: 42000,[\s\S]*?semiMinorAxis: 42000/, 'cluster VPS range rings must retain 42 km geometry');
+assert.match(vpsEntitiesSource, /const clusterStatus = isCluster \? aggregateClusterStatus\(cluster\.members\) : server\.status;[\s\S]*?const healthColor = statusColor\(\{ status: clusterStatus \}\);[\s\S]*?outlineColor: healthColor\.withAlpha\(0\.9\)/, 'cluster VPS range rings must derive their outline from aggregate health color data');
+assert.doesNotMatch(rangeRingSource[0], /#ff4d4f|fromCssColorString\(/i, 'cluster VPS range rings must not hard-code red');
+
+for (const { members, status, color, label } of [
+  { members: [{ status: 'healthy' }, { status: 'online' }], status: 'online', color: [0, 255, 136], label: 'all healthy members' },
+  { members: [{ status: 'online' }, { status: 'error' }], status: 'warn', color: [255, 170, 0], label: 'mixed healthy and unavailable members' },
+  { members: [{ status: 'offline' }, { status: 'unknown' }, { status: 'error' }], status: 'offline', color: [255, 40, 72], label: 'all unavailable members' },
+]) {
+  const aggregateStatus = aggregateClusterStatus(members);
+  assert.equal(aggregateStatus, status, `${label} must aggregate to ${status}`);
+  assert.deepEqual(STATUS_COLORS[aggregateStatus], color, `${label} must use the expected health color`);
+}
+assert.match(labelOverlaySource, /placeLabel\(visitorPoint, globe\._visitorLabel, width <= 520 \? 82 : 92\);/, 'desktop visitor labels must use a distinct offset from VPS labels');
 
 console.log('focused globe regressions: ok');
