@@ -1,3 +1,4 @@
+import '../globals/dashboardGlobals.js';
 import { getDashboardDebug, getGlobeRuntimeDebug } from '../utils/debugState.js';
 /**
  * CesiumGlobe.js — 原生 CesiumJS 数字地球 (Google Earth 风格重建 v2)

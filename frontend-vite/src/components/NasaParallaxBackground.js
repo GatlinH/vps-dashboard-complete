@@ -1,3 +1,4 @@
+import '../globals/dashboardGlobals.js';
 export class NasaParallaxBackground {
   constructor(host) {
     this.host = host;

@@ -1,3 +1,4 @@
+import '../globals/dashboardGlobals.js';
 function ensureDenseSeries(series) {
   return (Array.isArray(series) ? series : []).map(Number).filter((v) => Number.isFinite(v));
 }

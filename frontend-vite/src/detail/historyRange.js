@@ -1,3 +1,4 @@
+import '../globals/dashboardGlobals.js';
 const DETAIL_HISTORY_BUCKETS = { 0: 0, 1: 5, 2: 10, 3: 15, 4: 20, 5: 30, 6: 30, 7: 60 };
 
 export function getDetailHistoryDays() {

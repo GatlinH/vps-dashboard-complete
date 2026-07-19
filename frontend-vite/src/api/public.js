@@ -1,3 +1,4 @@
+import '../globals/dashboardGlobals.js';
 /**
  * src/api/public.js
  * 公开只读接口封装 —— 无需鉴权

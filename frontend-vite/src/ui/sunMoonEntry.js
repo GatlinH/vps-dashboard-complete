@@ -1,3 +1,4 @@
+import '../globals/dashboardGlobals.js';
 export function renderSunBadge() {
   const mount = document.getElementById('globeSunMount');
   if (!mount) return;

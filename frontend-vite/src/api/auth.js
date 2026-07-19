@@ -1,3 +1,4 @@
+import '../globals/dashboardGlobals.js';
 /**
  * api/auth.js
  * 认证相关接口：登录 / 登出 / 会话检查

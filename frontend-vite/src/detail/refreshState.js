@@ -1,3 +1,4 @@
+import '../globals/dashboardGlobals.js';
 let detailRefreshTimer = null;
 let detailHeavyRefreshAt = 0;
 let detailPingTargetsFetchedAt = 0;

@@ -1,3 +1,4 @@
+import '../globals/dashboardGlobals.js';
 export function createDetailPingSampleCache({ pingStepValue, windowMs = 12 * 60 * 60 * 1000 } = {}) {
   const toStep = typeof pingStepValue === 'function' ? pingStepValue : (value) => value;
   const cache = {

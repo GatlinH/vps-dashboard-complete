@@ -1,3 +1,4 @@
+import '../globals/dashboardGlobals.js';
 import * as PIXI from 'pixi.js';
 
 const lerp = (a, b, t) => a + (b - a) * t;

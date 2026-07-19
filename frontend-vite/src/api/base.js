@@ -1,3 +1,4 @@
+import '../globals/dashboardGlobals.js';
 /**
  * api/base.js
  * 底层请求封装：统一 Base URL、credentials cookie、CSRF 防护

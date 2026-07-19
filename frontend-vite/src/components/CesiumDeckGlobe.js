@@ -1,3 +1,4 @@
+import '../globals/dashboardGlobals.js';
 import { getDashboardDebug, getGlobeResourceDebug } from '../utils/debugState.js';
 /**
  * CesiumDeckGlobe.js — Cesium 1.141 科幻地球 / 真实感增强版

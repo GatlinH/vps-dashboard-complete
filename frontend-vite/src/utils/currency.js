@@ -1,3 +1,4 @@
+import '../globals/dashboardGlobals.js';
 /**
  * utils/currency.js
  * 货币换算 + 剩余价值计算

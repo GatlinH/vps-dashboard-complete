@@ -7,8 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "analyze": "vite build && echo '\u2713 Build complete. Check ../frontend-dist/ for output.'",
-    "test:account-password-ui": "node scripts/verify-account-password-ui.mjs"
+    "analyze": "vite build && echo '✓ Build complete. Check ../frontend-dist/ for output.'",
+    "test:account-password-ui": "node scripts/verify-account-password-ui.mjs",
+    "test:dashboard-globals": "node scripts/verify-dashboard-globals.mjs"
   },
   "dependencies": {
     "@deck.gl/core": "^9.3.6",

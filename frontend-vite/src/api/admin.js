@@ -1,3 +1,4 @@
+import '../globals/dashboardGlobals.js';
 /**
  * src/api/admin.js
  * 管理接口封装 —— 仅供管理后台使用

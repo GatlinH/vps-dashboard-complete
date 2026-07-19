@@ -1,3 +1,4 @@
+import '../globals/dashboardGlobals.js';
 /**
  * api/telegram.js
  * Telegram 机器人推送接口

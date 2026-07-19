@@ -1,3 +1,4 @@
+import '../../../globals/dashboardGlobals.js';
 import * as Cesium from 'cesium';
 import { escapeHtml } from '../vpsEntities.js';
 import { getGlobeRuntimeDebug } from '../../../utils/debugState.js';

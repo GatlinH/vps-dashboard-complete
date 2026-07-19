@@ -1,3 +1,4 @@
+import '../globals/dashboardGlobals.js';
 export function getDashboardDebug(section = null) {
   window.__DBG__.DASHBOARD_DEBUG = window.__DBG__.DASHBOARD_DEBUG || {};
   if (!section) return window.__DBG__.DASHBOARD_DEBUG;

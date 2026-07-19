@@ -1,3 +1,4 @@
+import '../globals/dashboardGlobals.js';
 import { getIPInfo } from '../api/public.js';
 import { normalizePublicServer } from './serverGroups.js';
 

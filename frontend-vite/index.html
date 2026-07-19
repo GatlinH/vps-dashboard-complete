@@ -19,6 +19,7 @@
     window.__DBG__ = window.__DBG__ || {};
     if (window.__API_ROOT__ && !window.__DBG__.API_ROOT) {
       window.__DBG__.API_ROOT = window.__API_ROOT__;
+      delete window.__API_ROOT__;
     }
   </script>
 </head>

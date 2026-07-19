@@ -1,3 +1,4 @@
+import '../globals/dashboardGlobals.js';
 export function getRuntimeExternalLinks() {
   if (typeof window === 'undefined') return {};
   return window.__DBG__.DASHBOARD_EXTERNAL_LINKS && typeof window.__DBG__.DASHBOARD_EXTERNAL_LINKS === 'object'
