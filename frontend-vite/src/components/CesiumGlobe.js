@@ -307,24 +307,33 @@ export class CesiumGlobe {
       const base = layers.addImageryProvider(baseProvider, 0);
       Object.assign(base, { show: true, alpha: 1.0, ...(isMobileGlobe() ? MOBILE_IMAGERY_TONE : DESKTOP_BASE_IMAGERY_TONE) });
       this._baseLayer = base;
+      this.viewer.scene.requestRender();
 
       // 主图层: ArcGIS World Imagery 真实卫星, 各缩放级别常驻 (Google Earth 观感)
-      const satProvider = await Cesium.ArcGisMapServerImageryProvider.fromUrl(ARCGIS_WORLD_IMAGERY_URL, {
-        enablePickFeatures: false,
-      });
-      if (this._destroyed) return;
-      const sat = layers.addImageryProvider(satProvider, 1);
-      Object.assign(sat, { show: true, alpha: 1.0, ...(isMobileGlobe() ? MOBILE_IMAGERY_TONE : DESKTOP_SAT_IMAGERY_TONE) });
-      this._satLayer = sat;
+      try {
+        const satProvider = await Cesium.ArcGisMapServerImageryProvider.fromUrl(ARCGIS_WORLD_IMAGERY_URL, {
+          enablePickFeatures: false,
+        });
+        if (this._destroyed) return;
+        const sat = layers.addImageryProvider(satProvider, 1);
+        Object.assign(sat, { show: true, alpha: 1.0, ...(isMobileGlobe() ? MOBILE_IMAGERY_TONE : DESKTOP_SAT_IMAGERY_TONE) });
+        this._satLayer = sat;
+      } catch (e) {
+        getDashboardDebug('globe').imageryError = String(e?.message || e);
+      }
 
       // 云层: 半透明全球云图, 远景显示近景淡出
-      const cloudProvider = await Cesium.SingleTileImageryProvider.fromUrl(CLOUDS_TEXTURE_URL, {
-        rectangle: FULL_GLOBE_RECTANGLE,
-      });
-      if (this._destroyed) return;
-      const clouds = layers.addImageryProvider(cloudProvider, 2);
-      Object.assign(clouds, { show: true, alpha: CLOUD_MAX_ALPHA, brightness: 1.32, contrast: 1.08, gamma: 0.86 });
-      this._cloudLayer = clouds;
+      try {
+        const cloudProvider = await Cesium.SingleTileImageryProvider.fromUrl(CLOUDS_TEXTURE_URL, {
+          rectangle: FULL_GLOBE_RECTANGLE,
+        });
+        if (this._destroyed) return;
+        const clouds = layers.addImageryProvider(cloudProvider, 2);
+        Object.assign(clouds, { show: true, alpha: CLOUD_MAX_ALPHA, brightness: 1.32, contrast: 1.08, gamma: 0.86 });
+        this._cloudLayer = clouds;
+      } catch (e) {
+        getDashboardDebug('globe').imageryError = String(e?.message || e);
+      }
 
       getDashboardDebug('globe').imageryMode = 'ArcGIS World Imagery + Blue Marble base + cloud overlay';
       this._onCameraChanged();

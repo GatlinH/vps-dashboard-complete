@@ -22,4 +22,18 @@ assert.match(cesiumSource, /Object\.assign\(sat, \{ show: true, alpha: 1\.0, \.\
 assert.match(cesiumSource, /this\._baseLayer, mobile \? MOBILE_IMAGERY_TONE : DESKTOP_BASE_IMAGERY_TONE/, 'base layer activation must preserve the mobile branch');
 assert.match(cesiumSource, /this\._satLayer, mobile \? MOBILE_IMAGERY_TONE : DESKTOP_SAT_IMAGERY_TONE/, 'satellite layer activation must preserve the mobile branch');
 
+const imageryInstall = cesiumSource.match(/async _installImagery\(\) \{[\s\S]*?\n  \}\n\n  async _installWorldTerrain/);
+assert.ok(imageryInstall, 'imagery installer must exist');
+const imagerySource = imageryInstall[0];
+const baseAddIndex = imagerySource.indexOf('const base = layers.addImageryProvider(baseProvider, 0);');
+const baseRenderIndex = imagerySource.indexOf('this.viewer.scene.requestRender();', baseAddIndex);
+const arcGisAwaitIndex = imagerySource.indexOf('await Cesium.ArcGisMapServerImageryProvider.fromUrl');
+const cloudAwaitIndex = imagerySource.indexOf('await Cesium.SingleTileImageryProvider.fromUrl(CLOUDS_TEXTURE_URL');
+assert.ok(baseAddIndex >= 0, 'base imagery must be added');
+assert.ok(baseRenderIndex > baseAddIndex, 'base imagery must request rendering after it is added');
+assert.ok(baseRenderIndex < arcGisAwaitIndex, 'base rendering must be requested before awaiting ArcGIS');
+assert.ok(arcGisAwaitIndex < cloudAwaitIndex, 'cloud initialization must remain reachable after an ArcGIS failure');
+assert.match(imagerySource.slice(arcGisAwaitIndex, cloudAwaitIndex), /\} catch \(e\) \{[\s\S]*?imageryError/, 'ArcGIS initialization must handle its own failure before cloud initialization');
+assert.match(imagerySource.slice(cloudAwaitIndex), /\} catch \(e\) \{[\s\S]*?imageryError/, 'cloud initialization must handle its own failure');
+
 console.log('focused globe regressions: ok');
