@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "analyze": "vite build && echo '✓ Build complete. Check ../frontend-dist/ for output.'",
     "test:account-password-ui": "node scripts/verify-account-password-ui.mjs",
-    "test:dashboard-globals": "node scripts/verify-dashboard-globals.mjs"
+    "test:dashboard-globals": "node scripts/verify-dashboard-globals.mjs",
+    "test:ping-axis-wiring": "node scripts/verify-ping-axis-wiring.mjs"
   },
   "dependencies": {
     "@deck.gl/core": "^9.3.6",

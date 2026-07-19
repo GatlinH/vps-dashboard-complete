@@ -747,6 +747,7 @@ function buildPingDatasets(rows = [], hours = 24, pingTargetsData = null, pingTa
   return liveTargetDatasets;
 }
 
+const PING_AXIS_STEPS_MS = [0, 20, 50, 100, 200, 300, 400, 500];
 function pingStepValue(ms) {
   const v = Math.max(0, Math.min(500, Number(ms) || 0));
   const steps = PING_AXIS_STEPS_MS;
