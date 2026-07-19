@@ -4,6 +4,8 @@ export const detailCache = {
   probeRows: [],
   pingTargets: null,
   pingTargetHistory: null,
+  vpsProbeTargets: null,
+  vpsProbeHistory: null,
 };
 
 export function resetDetailCache() {
@@ -12,4 +14,6 @@ export function resetDetailCache() {
   detailCache.probeRows = [];
   detailCache.pingTargets = null;
   detailCache.pingTargetHistory = null;
+  detailCache.vpsProbeTargets = null;
+  detailCache.vpsProbeHistory = null;
 }

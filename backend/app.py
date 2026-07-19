@@ -1,7 +1,9 @@
 import logging
+import os
 import time
 from datetime import datetime, timezone
-from flask import Flask, g, request
+from pathlib import Path
+from flask import Flask, abort, g, request, send_from_directory
 from flask_cors import CORS
 from flasgger import Swagger as Flasgger
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -30,6 +32,46 @@ from config import get_config
 from services.scheduler import create_scheduler
 
 logger = logging.getLogger(__name__)
+
+
+def _register_frontend_routes(app: Flask):
+    """Serve the bundled Vite app without reserving API or health routes."""
+    frontend_dist = Path(os.environ.get("FRONTEND_DIST_DIR", Path(app.root_path).parent / "frontend-dist"))
+
+    def _send_asset(path: str):
+        asset = frontend_dist / path
+        if not asset.is_file():
+            abort(404)
+        response = send_from_directory(frontend_dist, path)
+        if path in {"sw.js", "manifest.webmanifest"}:
+            response.headers["Cache-Control"] = "no-cache"
+        elif "/assets/" in f"/{path}" or path.endswith((".js", ".css", ".woff", ".woff2")):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+    @app.get("/admin.html")
+    def frontend_admin():
+        return _send_asset("admin.html")
+
+    @app.get("/assets/<path:path>")
+    @app.get("/cesium/<path:path>")
+    @app.get("/globe/<path:path>")
+    def frontend_assets(path):
+        return _send_asset(request.path.lstrip("/"))
+
+    @app.get("/sw.js")
+    @app.get("/manifest.webmanifest")
+    @app.get("/favicon.ico")
+    @app.get("/icon-<path:path>")
+    def frontend_root_assets(path=None):
+        return _send_asset(request.path.lstrip("/"))
+
+    @app.get("/")
+    @app.get("/<path:path>")
+    def frontend_spa(path=""):
+        if path.startswith(("api/", "health", "metrics")):
+            abort(404)
+        return _send_asset("index.html")
 
 
 def _register_request_logger(app: Flask):
@@ -196,6 +238,8 @@ def create_app(**config_overrides):
     ]
     for bp, prefix in blueprints:
         app.register_blueprint(bp, url_prefix=prefix)
+
+    _register_frontend_routes(app)
 
     # ===== 数据库初始化 =====
     import os

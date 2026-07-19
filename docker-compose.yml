@@ -131,7 +131,7 @@ services:
       WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_HTTP_API_TOKEN:-}
       WATCHTOWER_HTTP_API_URL: http://watchtower:8080/v1/update
     ports:
-      - "127.0.0.1:5000:5000"
+      - "0.0.0.0:4500:5000"
     volumes:
       - /var/log/vps-dashboard:/var/log/vps-dashboard
       - /var/lib/vps-dashboard:/var/lib/vps-dashboard
@@ -179,26 +179,6 @@ services:
       AGENT_METRICS_ERROR_QUEUE: ${AGENT_METRICS_ERROR_QUEUE:-vps:agent:metrics_queue:error}
     volumes:
       - /var/log/vps-dashboard:/var/log/vps-dashboard
-    networks:
-      - vps-network
-
-  frontend:
-    image: ghcr.io/gatlinh/vps-dashboard-complete-frontend:latest
-    container_name: vps_frontend
-    restart: unless-stopped
-    labels:
-      com.centurylinklabs.watchtower.enable: "true"
-    depends_on:
-      api:
-        condition: service_healthy
-    ports:
-      - "127.0.0.1:9119:80"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
     networks:
       - vps-network
 

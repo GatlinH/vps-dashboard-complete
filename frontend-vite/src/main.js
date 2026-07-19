@@ -690,6 +690,7 @@ function buildLivePingDatasets(pingTargetsData = null, hours = 12) {
     const cached = (detailPingSamples.store[key] || []).filter(p => p.x >= cutoff && Number.isFinite(p.rawMs));
     const data = cached.map(p => ({ ...p, y: pingStepValue(p.rawMs), label, protocol: p.protocol || target?.protocol }));
     return {
+      key,
       label,
       borderColor: palette[idx % palette.length],
       backgroundColor: idx === 0 ? 'rgba(104,246,255,0.04)' : 'rgba(255,214,107,0.04)',
@@ -712,6 +713,7 @@ function buildPersistedPingTargetDatasets(pingTargetHistoryData = null, hours = 
   const now = Date.now();
   const cutoff = now - Math.max(1, hours) * 60 * 60 * 1000;
   return targets.map((target, idx) => {
+    const key = String(target?.key || target?.host || target?.label || `target-${idx}`);
     const label = target?.label || target?.host || target?.key || `目标 ${idx + 1}`;
     const points = Array.isArray(target?.points) ? target.points : [];
     const data = points.map(point => {
@@ -721,6 +723,7 @@ function buildPersistedPingTargetDatasets(pingTargetHistoryData = null, hours = 
       return { x, y: pingStepValue(rawMs), rawMs, label, key: point?.key || target?.key, protocol: point?.protocol || target?.protocol, success: true, lossPct: point?.loss_pct ?? point?.lossPct ?? 0 };
     }).filter(Boolean).sort((a, b) => a.x - b.x);
     return {
+      key,
       label,
       borderColor: palette[idx % palette.length],
       backgroundColor: idx === 0 ? 'rgba(104,246,255,0.04)' : 'rgba(255,214,107,0.04)',
@@ -738,46 +741,12 @@ function buildPersistedPingTargetDatasets(pingTargetHistoryData = null, hours = 
 
 function buildPingDatasets(rows = [], hours = 24, pingTargetsData = null, pingTargetHistoryData = null) {
   if (pingTargetsData?.unavailable || pingTargetHistoryData?.unavailable) return [];
-  const norm = normalizeWindowRows(rows, hours);
   const persistedTargetDatasets = buildPersistedPingTargetDatasets(pingTargetHistoryData, hours);
   if (persistedTargetDatasets.length) return persistedTargetDatasets;
   const liveTargetDatasets = buildLivePingDatasets(pingTargetsData, hours);
-  if (Array.isArray(pingTargetsData?.targets) && pingTargetsData.targets.length && liveTargetDatasets.length) return liveTargetDatasets;
-  const keys = pingTargetsFromRows(norm, pingTargetsData);
-  const palette = ['#68f6ff','#ffd66b','#ff6b8a','#b7ff7a','#d8a8ff','#7ab8ff','#ff9d4d','#7dffc1','#ff5ef1','#a2ff4d','#4dd8ff','#ffdf4d'];
-  const aliasOf = (row, key) => {
-    if (row == null) return null;
-    if (row[key] != null) return row[key];
-    const lk = String(key).toLowerCase();
-    for (const [rk, rv] of Object.entries(row)) {
-      if (typeof rv === 'object') continue;
-      const rr = String(rk).toLowerCase();
-      if (rr === lk) return rv;
-      if (rr.replace(/[^a-z0-9]/g,'') === lk.replace(/[^a-z0-9]/g,'')) return rv;
-      if (rr.includes(lk) || lk.includes(rr)) return rv;
-    }
-    return null;
-  };
-  const historyDatasets = keys.map((key, idx) => ({
-    label: key,
-    borderColor: palette[idx % palette.length],
-    backgroundColor: idx === 0 ? 'rgba(104,246,255,0.04)' : 'rgba(255,214,107,0.04)',
-    fill: false,
-    tension: 0.12,
-    pointRadius: 0,
-    borderWidth: 3,
-    data: norm.map(r => {
-      const raw = aliasOf(r, key);
-      if (raw == null || raw === '') return null;
-      const rawMs = Number(raw);
-      if (!Number.isFinite(rawMs)) return null;
-      return { x: r.__timeMs, y: pingStepValue(rawMs), rawMs };
-    }).filter(Boolean).filter(p => Number.isFinite(p.rawMs) && Number.isFinite(p.x)).sort((a, b) => a.x - b.x),
-  })).filter(ds => ds.data.length);
-  return historyDatasets.length ? historyDatasets : [];
+  return liveTargetDatasets;
 }
 
-const PING_AXIS_STEPS_MS = [0, 20, 50, 100, 200, 300, 400, 500];
 function pingStepValue(ms) {
   const v = Math.max(0, Math.min(500, Number(ms) || 0));
   const steps = PING_AXIS_STEPS_MS;
@@ -1586,6 +1555,16 @@ function probeLinkBar(ms, loss = null) {
   return `<div class="probe-link-bar ${cls}" title="${latency.toFixed(0)}ms / loss ${lossPct.toFixed(0)}%"><i style="width:${score.toFixed(0)}%"></i><b></b></div>`;
 }
 
+function renderGlobalVpsProbeRows(vpsProbeTargetsData) {
+  const targets = (vpsProbeTargetsData?.targets || []).filter((target) => String(target?.key || '').startsWith('vps-')).slice(0, 6);
+  if (targets.length) return targets.map((target) => {
+    const ms = target.stats?.avg_ms != null ? Number(target.stats.avg_ms) : null;
+    const loss = target.stats?.loss_pct != null ? Math.max(0, Number(target.stats.loss_pct)) : null;
+    return `<tr><td>${target.label || target.key}</td><td>${ms != null ? ms.toFixed(0) : '—'}</td><td>${loss != null ? loss.toFixed(0) + '%' : '—'}</td><td>${probeLinkBar(ms, loss)}</td></tr>`;
+  }).join('');
+  return '<tr class="probe-empty-row"><td colspan="4"><span>尚无 VPS 探针采样</span><em>等待当前 VPS Agent 上报全球 VPS 探针结果</em></td></tr>';
+}
+
 function renderProbeRows(pingTargetsData, pingData) {
   const targets = (pingTargetsData?.targets || []).slice(0, 6);
   if (targets.length) return targets.map((target) => {
@@ -1676,13 +1655,15 @@ async function renderDetailPage(serverId) {
   ]);
   const fetchBudgetMs = isMobileDetail ? 3600 : 12000;
   window.__DBG__.DETAIL_TRACE.push('before-fetches');
-  const [traffic, history, ping, probeHistory, pingTargets, pingTargetHistory] = await Promise.all([
+  const [traffic, history, ping, probeHistory, pingTargets, pingTargetHistory, vpsProbeTargets, vpsProbeHistory] = await Promise.all([
     settleWithin(fetchJson(`${API_ROOT}/api/v1/traffic/public/${resolvedServer.id}`, { timeoutMs: 1200 }), fetchBudgetMs, 'traffic'),
     settleWithin(fetchJson(`${API_ROOT}/api/v1/traffic/public/${resolvedServer.id}/history?days=${detailDays}&bucket_minutes=${detailBucketMinutes}&limit=${liveLimit}`, { timeoutMs: isMobileDetail ? 2200 : 1200 }), fetchBudgetMs, 'traffic-history'),
     settleWithin(fetchPing(resolvedServer), fetchBudgetMs, 'ping'),
     settleWithin(fetchServerHistory(resolvedServer.id, historyDays, historyLimit, detailBucketMinutes), fetchBudgetMs, 'server-history'),
     settleWithin(fetchPingTargets(resolvedServer.id, 3), fetchBudgetMs, 'ping-targets'),
     settleWithin(fetchPingTargetHistory(resolvedServer.id, targetHistoryHours, historyLimit), fetchBudgetMs, 'ping-history'),
+    settleWithin(fetchPingTargets(resolvedServer.id, 1, 'agent'), fetchBudgetMs, 'vps-probe-targets'),
+    settleWithin(fetchPingTargetHistory(resolvedServer.id, targetHistoryHours, historyLimit, 'agent'), fetchBudgetMs, 'vps-probe-history'),
   ]);
 
   const trafficData = traffic.status === 'fulfilled' ? traffic.value : null;
@@ -1691,12 +1672,18 @@ async function renderDetailPage(serverId) {
   const probeHistoryData = probeHistory.status === 'fulfilled' ? probeHistory.value : null;
   const pingTargetsData = pingTargets.status === 'fulfilled' ? pingTargets.value : null;
   const pingTargetHistoryData = pingTargetHistory.status === 'fulfilled' ? pingTargetHistory.value : null;
+  const vpsProbeTargetsData = vpsProbeTargets.status === 'fulfilled' ? vpsProbeTargets.value : null;
+  const vpsProbeHistoryData = vpsProbeHistory.status === 'fulfilled' ? vpsProbeHistory.value : null;
 
   if (pingTargetsData?.targets?.length) recordLivePingSamples(pingTargetsData, Date.now(), resolvedServer.id);
   detailCache.pingTargets = pingTargetsData?.targets?.length ? pingTargetsData : detailCache.pingTargets;
   detailCache.pingTargetHistory = pingTargetHistoryData?.targets?.length ? pingTargetHistoryData : detailCache.pingTargetHistory;
+  detailCache.vpsProbeTargets = vpsProbeTargetsData?.targets?.length ? vpsProbeTargetsData : detailCache.vpsProbeTargets;
+  detailCache.vpsProbeHistory = vpsProbeHistoryData?.targets?.length ? vpsProbeHistoryData : detailCache.vpsProbeHistory;
   window.__DBG__.DETAIL_PING_TARGETS = detailCache.pingTargets || pingTargetsData;
   window.__DBG__.DETAIL_PING_TARGET_HISTORY = detailCache.pingTargetHistory || pingTargetHistoryData;
+  window.__DBG__.DETAIL_GLOBAL_VPS_PROBE_TARGETS = detailCache.vpsProbeTargets || vpsProbeTargetsData;
+  window.__DBG__.DETAIL_GLOBAL_VPS_PROBE_HISTORY = detailCache.vpsProbeHistory || vpsProbeHistoryData;
   const rv = calcResidualValue(resolvedServer);
   const pct = trafficData ? Number(trafficData.used_percent || 0) : (getTrafficPct(resolvedServer) || 0);
   const historyRows = normalizePersistedRows(historyData?.data || [], 12);
@@ -1741,8 +1728,8 @@ async function renderDetailPage(serverId) {
   detailGrid.innerHTML = renderDetailConsole({
     resolvedServer,
     probeRows,
-    pingTargetsData,
-
+    pingTargetsData: detailCache.pingTargets || pingTargetsData,
+    vpsProbeTargetsData: detailCache.vpsProbeTargets || vpsProbeTargetsData,
     pingData,
     trafficData,
     upSeries,
@@ -1772,6 +1759,7 @@ async function renderDetailPage(serverId) {
       detailMetricValue,
       renderNodeDatabaseRows,
       renderProbeRows,
+      renderGlobalVpsProbeRows,
     },
   });
 
@@ -1792,7 +1780,7 @@ async function renderDetailPage(serverId) {
   });
   window.__DBG__.DETAIL_STARMAP_MOUNTED = !!detailStarmapUnmount;
   window.__DBG__.DETAIL_TRACE.push('before-charts');
-  await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows, pingTargetsData: detailCache.pingTargets || pingTargetsData, pingTargetHistoryData: detailCache.pingTargetHistory || pingTargetHistoryData, detailDays });
+  await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows, pingTargetsData: detailCache.pingTargets || pingTargetsData, pingTargetHistoryData: detailCache.pingTargetHistory || pingTargetHistoryData, vpsProbeTargetsData: detailCache.vpsProbeTargets || vpsProbeTargetsData, vpsProbeHistoryData: detailCache.vpsProbeHistory || vpsProbeHistoryData, detailDays });
   refreshDetailProbeTargetsNow(resolvedServer.id);
   startDetailRealtimeRefresh(resolvedServer.id);
   window.__DBG__.DETAIL_TRACE.push('done');

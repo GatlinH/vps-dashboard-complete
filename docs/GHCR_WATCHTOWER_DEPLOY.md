@@ -8,8 +8,7 @@ VPS Dashboard 默认生产部署方式是 GHCR 镜像部署：GitHub Actions 构
 git push main
   -> GitHub Actions 跑 CI gate
   -> 构建并推送镜像
-     - ghcr.io/gatlinh/vps-dashboard-complete-backend:latest
-     - ghcr.io/gatlinh/vps-dashboard-complete-frontend:latest
+     - ghcr.io/gatlinh/vps-dashboard-complete-backend:latest（内含 Vite 前端）
   -> VPS docker compose pull
   -> docker compose up -d --no-build
 ```
@@ -20,7 +19,7 @@ git push main
 
 - 复用 `ci.yml` 作为测试 gate；
 - 使用 `GITHUB_TOKEN` 登录 GHCR；
-- 发布 backend/frontend 两个镜像；
+- 发布一个内含 Vite 前端的 Dashboard 镜像；
 - 不需要 GitHub Actions 持有 VPS SSH 密钥。
 
 ## VPS 首次启用

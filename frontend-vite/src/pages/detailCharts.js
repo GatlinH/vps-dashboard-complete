@@ -262,14 +262,15 @@ function aggregateRateRowsForDisplay(rows = [], bucketMs = 60 * 1000) {
   }));
 }
 
-export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [], downSeries = [], pingData = null, probeLabels = [], cpuSeries = [], ramSeries = [], probeRows = [], pingTargetsData = null, pingTargetHistoryData = null, latestServer = null, detailDays = 0 }, deps) {
+export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [], downSeries = [], pingData = null, probeLabels = [], cpuSeries = [], ramSeries = [], probeRows = [], pingTargetsData = null, pingTargetHistoryData = null, vpsProbeTargetsData = null, vpsProbeHistoryData = null, latestServer = null, detailDays = 0 }, deps) {
   const { detailCharts, rowTimeMs, formatHourTickWithDate, formatTooltipClock, telemetryTooltipTime, seriesWindowFromRows, freshnessWindowFromRows, adaptiveRollingBounds, fitSeriesToRollingAxis, buildPingDatasets, accumulatingAxisBoundsFromTimes, fmtRate, pingStepLabel, PING_AXIS_STEPS_MS, latestTimelineMs, getDetailPingSampleCache } = deps;
   const networkCanvas = document.getElementById('detailNetworkChart');
   const cpuCanvas = document.getElementById('detailCpuChart');
   const memoryCanvas = document.getElementById('detailMemoryChart');
   const freshnessCanvas = document.getElementById('detailFreshnessChart');
   const pingCanvas = document.getElementById('detailPingChart');
-  if (!networkCanvas && !cpuCanvas && !memoryCanvas && !freshnessCanvas && !pingCanvas) return;
+  const globalVpsProbeCanvas = document.getElementById('detailGlobalVpsProbeChart');
+  if (!networkCanvas && !cpuCanvas && !memoryCanvas && !freshnessCanvas && !pingCanvas && !globalVpsProbeCanvas) return;
 
   const Chart = await detailCharts.ready();
 
@@ -279,6 +280,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   detailCharts.destroy('detailMemoryChart');
   detailCharts.destroy('detailFreshnessChart');
   detailCharts.destroy('detailPingChart');
+  detailCharts.destroy('detailGlobalVpsProbeChart');
 
   const networkCtx = networkCanvas?.getContext('2d');
   const cpuCtx = cpuCanvas?.getContext('2d');
@@ -472,6 +474,39 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     }));
     attachPingPointTooltip(pingCanvas, ping24hDatasets, { min: pingAxisBounds.min, max: pingAxisBounds.max });
   }
+  if (globalVpsProbeCanvas) {
+    const ctx = globalVpsProbeCanvas.getContext('2d');
+    const vpsProbeDatasets = buildPingDatasets([], pingHours, vpsProbeTargetsData, vpsProbeHistoryData)
+      .filter((dataset) => String(dataset?.key || '').startsWith('vps-'));
+    const vpsProbeTargets = (vpsProbeTargetsData?.targets || []).filter((target) => String(target?.key || '').startsWith('vps-'));
+    const hasVpsProbePoints = vpsProbeDatasets.some((dataset) => Array.isArray(dataset.data) && dataset.data.length);
+    const vpsProbeEmptyPlugin = {
+      id: 'globalVpsProbeEmptyState',
+      afterDraw(chart) {
+        if (hasVpsProbePoints) return;
+        const area = chart.chartArea;
+        if (!area) return;
+        chart.ctx.save();
+        chart.ctx.fillStyle = 'rgba(235,252,255,.92)';
+        chart.ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+        chart.ctx.textAlign = 'center';
+        chart.ctx.textBaseline = 'middle';
+        chart.ctx.fillText('尚无 VPS 探针采样', (area.left + area.right) / 2, (area.top + area.bottom) / 2 - 8);
+        chart.ctx.fillStyle = 'rgba(102,141,154,.92)';
+        chart.ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+        chart.ctx.fillText('等待当前 VPS Agent 上报全球 VPS 探针结果', (area.left + area.right) / 2, (area.top + area.bottom) / 2 + 12);
+        chart.ctx.restore();
+      }
+    };
+    detailCharts._register('detailGlobalVpsProbeChart', new Chart(ctx, {
+      type: 'line',
+      data: { datasets: vpsProbeDatasets.map((dataset) => ({ ...dataset, parsing: false })) },
+      plugins: [vpsProbeEmptyPlugin],
+      options: { ...makeHudChartOptions(5, 'ms'), scales: { x: { type: 'linear', ticks: { callback: (value) => xTickFmt(value), color: '#8ab5bd' }, grid: { color: 'rgba(98,245,238,0.13)' } }, y: makeHudChartOptions(5, 'ms').scales.y } }
+    }));
+    window.__DBG__.DETAIL_GLOBAL_VPS_PROBE_CHART = { targets: vpsProbeTargets.map((target) => target.key), datasets: vpsProbeDatasets.map((dataset) => dataset.label) };
+  }
+
   try {
     window.__DBG__.DETAIL_CHART_DEBUG = {
       cpuPoints: cpu12hSeries.length,

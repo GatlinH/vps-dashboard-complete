@@ -8,7 +8,7 @@ const detailChartsSource = readFileSync(new URL('../src/pages/detailCharts.js', 
 const detailStyles = readFileSync(new URL('../src/styles/detail-starfleet-console.css', import.meta.url), 'utf8');
 
 const pingTargetSelector = mainSource.match(/function pingTargetsFromRows[\s\S]*?\n}\n\nfunction recordLivePingSamples/);
-const pingDatasetBuilder = mainSource.match(/function buildPingDatasets[\s\S]*?\n}\n\nconst PING_AXIS_STEPS_MS/);
+const pingDatasetBuilder = mainSource.match(/function buildPingDatasets[\s\S]*?\n}\n\nfunction pingStepValue/);
 const bootFunction = mainSource.match(/async function boot\(\) \{[\s\S]*?\n}\n\nboot\(\);/);
 const detailRenderFunction = mainSource.match(/async function renderDetailPage\(serverId\) \{[\s\S]*?\n}\s*function denseFallbackSeries/);
 const loadingShell = detailPageSource.match(/export function detailLoadingShell\([^)]*\) \{[\s\S]*?\n}\s*export function renderDetailNotFound/);
@@ -25,8 +25,8 @@ assert.doesNotMatch(
 );
 assert.doesNotMatch(
   pingDatasetBuilder[0],
-  /key === '节点延迟'.*row\.latency_ms/,
-  'generic persisted latency_ms must not become an external PING chart dataset',
+  /normalizeWindowRows|latency_ms/,
+  'PING chart data must come only from configured target results, never generic latency fallback',
 );
 assert.match(
   detailStyles,

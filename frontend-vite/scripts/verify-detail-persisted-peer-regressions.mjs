@@ -15,10 +15,11 @@ assert.match(mainSource, /const probeRows = normalizePersistedRows\(probeHistory
 assert.doesNotMatch(mainSource, /const probeRows = normalizeWindowRows\(probeHistoryData/, 'future persisted rows must not be dropped by browser time');
 assert.match(mainSource, /const liveLimit = detailDays === 0 \? 21600 :/, 'Today must request 21,600 raw rows on every viewport');
 assert.match(mainSource, /fetchPingTargetHistory\(resolvedServer\.id, targetHistoryHours, historyLimit\)/, 'detail PING history must use the public configured-target endpoint');
-assert.doesNotMatch(mainSource, /fetchPingTargetHistory\(resolvedServer\.id, targetHistoryHours, historyLimit, 'agent'\)/, 'detail PING history must not request agent peer data');
+assert.match(mainSource, /fetchPingTargetHistory\(resolvedServer\.id, targetHistoryHours, historyLimit\)/, 'configured-target PING history must remain source=public');
+assert.match(mainSource, /fetchPingTargetHistory\(resolvedServer\.id, targetHistoryHours, historyLimit, 'agent'\)/, 'global VPS probe history must explicitly request agent-reported peers');
 assert.match(detailPageSource, /PING 延迟/, 'detail chart terminology must identify PING latency');
 assert.match(detailPageSource, /延迟监控目标/, 'detail table terminology must identify configured targets');
-assert.doesNotMatch(detailPageSource, /displayPeerPingTargetsData|全球 VPS 互探延迟/, 'detail must not retain peer-only PING context');
+assert.match(detailPageSource, /全球 VPS 探针延迟/, 'detail must render the dedicated global VPS probe surface');
 assert.match(mainSource, /未读取到延迟监控目标/, 'configured-target empty state must not refer to VPS peers');
 assert.match(apiSource, /sourceParam.*source=/s, 'ping history API client must pass an explicit source mode');
 assert.match(chartsSource, /const networkAxisBounds = \{ min: networkLast - networkHours \* 60 \* 60 \* 1000, max: networkLast/, 'network axis must be a full canonical range ending at latest real sample');
