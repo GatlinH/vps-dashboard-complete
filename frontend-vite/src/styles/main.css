@@ -4225,6 +4225,13 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
 .cluster-member-picker button { border: 1px solid rgba(174,246,255,.55); border-radius: 7px; padding: 6px 9px; background: #14263c; color: #fff; cursor: pointer; }
 .cluster-picker-close { position: absolute; top: 14px; right: 14px; }
 
+/* Must follow the theme bundle: map beacon callouts stay translucent even in starship mode. */
+html body .google-earth-node-html-label.is-vps-node.is-vps-beacon-node {
+  background: rgba(8, 18, 31, .60) !important;
+  backdrop-filter: blur(10px) saturate(1.08);
+  -webkit-backdrop-filter: blur(10px) saturate(1.08);
+}
+
 /* Network throughput uses Chart.js canvas; keep one responsive rendering surface. */
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .network-throughput-card{
   display:flex!important;
