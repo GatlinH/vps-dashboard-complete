@@ -4226,7 +4226,8 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
 .cluster-picker-close { position: absolute; top: 14px; right: 14px; }
 
 /* Must follow the theme bundle: map beacon callouts stay translucent even in starship mode. */
-html body .google-earth-node-html-label.is-vps-node.is-vps-beacon-node {
+html body .google-earth-node-html-label.is-vps-node.is-vps-beacon-node,
+html body .google-earth-node-label-layer.is-far-hidden .google-earth-node-html-label.is-vps-node.is-vps-beacon-node.is-visible {
   background: rgba(8, 18, 31, .60) !important;
   backdrop-filter: blur(10px) saturate(1.08);
   -webkit-backdrop-filter: blur(10px) saturate(1.08);
