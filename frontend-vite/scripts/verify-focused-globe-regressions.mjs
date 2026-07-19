@@ -43,11 +43,11 @@ assert.match(imagerySource.slice(cloudAwaitIndex), /\} catch \(e\) \{[\s\S]*?ima
 
 assert.match(starfleetThemeSource, /@media \(min-width: 641px\) \{[\s\S]*?\.photo-space-showcase\.is-globe-background-layer \{[\s\S]*?inset: auto 0 0 auto !important;[\s\S]*?width: min\(35vw, 560px\) !important;[\s\S]*?height: min\(72vh, 620px\) !important;[\s\S]*?overflow: hidden !important;/, 'the reparented desktop showcase must remain a bounded right-side foreground stage');
 assert.match(starfleetThemeSource, /\.photo-space-showcase\.is-globe-background-layer \.starship-gltf-stage,[\s\S]*?\.photo-space-showcase\.is-globe-background-layer \.starship-gltf-canvas \{[\s\S]*?width: 100% !important;[\s\S]*?height: 100% !important;/, 'the bounded showcase canvas must fill its own stage instead of the viewport');
-const rangeRingSource = vpsEntitiesSource.match(/const clusterRangeRing = globe\.viewer\.entities\.add\(\{[\s\S]*?globe\._arcEntities\.push\(clusterRangeRing\);/);
-assert.ok(rangeRingSource, 'cluster VPS markers must create a range ring');
-assert.match(rangeRingSource[0], /semiMajorAxis: 42000,[\s\S]*?semiMinorAxis: 42000/, 'cluster VPS range rings must retain 42 km geometry');
-assert.match(vpsEntitiesSource, /const clusterStatus = isCluster \? aggregateClusterStatus\(cluster\.members\) : server\.status;[\s\S]*?const healthColor = statusColor\(\{ status: clusterStatus \}\);[\s\S]*?outlineColor: healthColor\.withAlpha\(0\.9\)/, 'cluster VPS range rings must derive their outline from aggregate health color data');
-assert.doesNotMatch(rangeRingSource[0], /#ff4d4f|fromCssColorString\(/i, 'cluster VPS range rings must not hard-code red');
+const clusterAnchorSource = vpsEntitiesSource.match(/const anchorEntity = globe\.viewer\.entities\.add\(\{[\s\S]*?globe\._nodeEntities\.push\(anchorEntity\);/);
+assert.ok(clusterAnchorSource, 'cluster VPS markers must create one anchor point');
+assert.match(clusterAnchorSource[0], /position: Cesium\.Cartesian3\.fromDegrees\(lon, lat, 180\),[\s\S]*?point: \{[\s\S]*?pixelSize: 16,[\s\S]*?color: healthColor,[\s\S]*?outlineColor: Cesium\.Color\.fromCssColorString\('#ffffff'\)\.withAlpha\(0\.9\),[\s\S]*?disableDepthTestDistance: Number\.POSITIVE_INFINITY/, 'cluster anchors must remain legible at their real coordinate with aggregate health color, white outline, and depth-test behavior');
+assert.match(vpsEntitiesSource, /const clusterStatus = isCluster \? aggregateClusterStatus\(cluster\.members\) : server\.status;[\s\S]*?const healthColor = statusColor\(\{ status: clusterStatus \}\);/, 'cluster VPS anchors must derive their color from aggregate health data');
+assert.doesNotMatch(vpsEntitiesSource, /node-cluster-range|semiMajorAxis:\s*42000/, 'cluster VPS markers must not render a misleading 42 km geographic range');
 
 for (const { members, status, color, label } of [
   { members: [{ status: 'healthy' }, { status: 'online' }], status: 'online', color: [0, 255, 136], label: 'all healthy members' },
