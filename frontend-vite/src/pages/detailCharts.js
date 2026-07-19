@@ -457,10 +457,10 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
         chart.ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
         chart.ctx.textAlign = 'center';
         chart.ctx.textBaseline = 'middle';
-        chart.ctx.fillText(pingTargetsData?.unavailable ? '暂无真实节点侧互探采样' : (targets.length ? '正在累计真实 ICMP 采样点' : '暂无有效 PING 延迟数据'), (area.left + area.right) / 2, (area.top + area.bottom) / 2 - 8);
+        chart.ctx.fillText(targets.length ? '正在累计真实 ICMP 采样点' : '未读取到延迟监控目标', (area.left + area.right) / 2, (area.top + area.bottom) / 2 - 8);
         chart.ctx.fillStyle = 'rgba(102,141,154,.92)';
         chart.ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
-        chart.ctx.fillText(pingTargetsData?.unavailable ? '已停止主控代测，等待 agent 上报' : (Number.isFinite(loss) ? `当前探测失败 / 丢包 ${loss.toFixed(0)}%` : '等待探测样本'), (area.left + area.right) / 2, (area.top + area.bottom) / 2 + 12);
+        chart.ctx.fillText(Number.isFinite(loss) ? `当前探测失败 / 丢包 ${loss.toFixed(0)}%` : (targets.length ? '等待探测样本' : '请在后台「延迟监测」配置 ping_targets'), (area.left + area.right) / 2, (area.top + area.bottom) / 2 + 12);
         chart.ctx.restore();
       }
     };

@@ -66,15 +66,17 @@ assert.equal(
 );
 
 assert.match(detailChartsSource, /const telemetryHours = detailDays === 0 \? 2 : detailDays \* 24;/, 'today CPU/RAM/freshness must use an exact two-hour window');
-assert.match(detailChartsSource, /const pingHours = detailDays === 0 \? 12 : detailDays \* 24;/, 'today VPS peer PING must retain its twelve-hour window');
+assert.match(detailChartsSource, /const pingHours = detailDays === 0 \? 12 : detailDays \* 24;/, 'today configured-target PING must retain its twelve-hour window');
 assert.match(detailChartsSource, /const networkHours = detailDays === 0 \? 12 : detailDays \* 24;/, 'today network must retain its twelve-hour window');
 assert.match(mainSource, /function normalizePersistedTimelineRows\(rows = \[\], hours = 2\)[\s\S]*?lastPersistedProbeMs[\s\S]*?const start = lastPersistedProbeMs - fullSpan;[\s\S]*?t >= start && t <= lastPersistedProbeMs/, 'resource data must be filtered against the last persisted ProbeResult, not browser time');
 assert.match(mainSource, /function adaptiveRollingBounds\(pointGroups = \[\], hours = 12\)[\s\S]*?const min = dataLast - fullSpan;[\s\S]*?const max = dataLast;/, 'resource chart axes must anchor exactly to the last real sample');
 assert.doesNotMatch(mainSource, /normalizeTimelineRows/, 'resource timeline must not include live server fallback rows');
-assert.match(detailPageSource, /全球 VPS 互探延迟/, 'detail table must identify VPS peer probing');
-assert.match(mainSource, /尚无 VPS 互探采样/, 'empty peer targets must use the customer-facing peer empty state');
+assert.match(detailPageSource, /PING 延迟/, 'detail chart must use the configured-target PING label');
+assert.match(detailPageSource, /延迟监控目标/, 'detail table must use the configured-target label');
+assert.match(mainSource, /未读取到延迟监控目标/, 'empty configured targets must use the customer-facing empty state');
+assert.match(mainSource, /请在后台「延迟监测」配置 ping_targets/, 'empty configured targets must explain how to configure them');
 const probeRowsRenderer = mainSource.match(/function renderProbeRows[\s\S]*?\n}\n\nasync function refreshDetailProbeTargetsNow/);
-assert.ok(probeRowsRenderer, 'VPS peer table renderer must exist');
-assert.match(probeRowsRenderer[0], /startsWith\('vps-'\)/, 'peer table renderer must only include VPS peer targets');
+assert.ok(probeRowsRenderer, 'configured-target table renderer must exist');
+assert.doesNotMatch(probeRowsRenderer[0], /startsWith\('vps-'\)|type === 'peer'/, 'detail table must not filter for VPS peer targets');
 
 console.log('detail page regressions: ok');

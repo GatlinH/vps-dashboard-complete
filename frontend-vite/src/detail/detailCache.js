@@ -4,7 +4,6 @@ export const detailCache = {
   probeRows: [],
   pingTargets: null,
   pingTargetHistory: null,
-  peerPingTargets: null,
 };
 
 export function resetDetailCache() {
@@ -13,5 +12,4 @@ export function resetDetailCache() {
   detailCache.probeRows = [];
   detailCache.pingTargets = null;
   detailCache.pingTargetHistory = null;
-  detailCache.peerPingTargets = null;
 }
