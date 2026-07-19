@@ -91,7 +91,10 @@ export default defineConfig({
     devSourcemap: true,
   },
   plugins: [
-    cesium(),
+    cesium({
+      rebuildCesium: true,
+      cesiumBaseUrl: '/cesium',
+    }),
     VitePWA({
       injectRegister: false,
       registerType: 'autoUpdate',

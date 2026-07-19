@@ -11,7 +11,8 @@
     "test:account-password-ui": "node scripts/verify-account-password-ui.mjs",
     "test:dashboard-globals": "node scripts/verify-dashboard-globals.mjs",
     "test:ping-axis-wiring": "node scripts/verify-ping-axis-wiring.mjs",
-    "test:focused-globe-regressions": "node scripts/verify-focused-globe-regressions.mjs"
+    "test:focused-globe-regressions": "node scripts/verify-focused-globe-regressions.mjs",
+    "test:cesium-module-workers": "node scripts/verify-cesium-module-workers.mjs"
   },
   "dependencies": {
     "@deck.gl/core": "^9.3.6",
