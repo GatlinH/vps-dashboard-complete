@@ -11,6 +11,7 @@ const charts = readFileSync(new URL('../src/pages/detailCharts.js', import.meta.
 assert.match(rootDockerfile, /FROM node:.* AS frontend-build/);
 assert.match(rootDockerfile, /COPY --from=frontend-build .*frontend-dist/);
 assert.doesNotMatch(rootDockerfile, /nginx/i);
+assert.match(rootDockerfile, /^EXPOSE 5000$/m, 'the single Dashboard image must declare its direct application port for Docker publishing');
 assert.match(compose, /"0\.0\.0\.0:4500:5000"/);
 assert.doesNotMatch(compose, /^  frontend:/m);
 assert.doesNotMatch(compose, /nginx/i);
