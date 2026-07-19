@@ -275,6 +275,7 @@ class Config:
             "'self'",
             'https://api.telegram.org',
             'https://ip-api.com',
+            'https://cdn.jsdelivr.net',
         ],
         'frame-ancestors': "'none'",
         'base-uri': "'self'",
