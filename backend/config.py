@@ -256,6 +256,7 @@ class Config:
         'default-src': "'self'",
         'script-src': [
             "'self'",
+            "'unsafe-eval'",
         ],
         'style-src': [
             "'self'",
