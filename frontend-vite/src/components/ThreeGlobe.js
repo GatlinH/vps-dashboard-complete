@@ -622,7 +622,7 @@ export class ThreeGlobe {
       earthOffsetX: options.earthOffsetX ?? 0,
       earthOffsetY: options.earthOffsetY ?? -0.04,
       enableStarship: options.enableStarship ?? false,
-      starshipModelUrl: options.starshipModelUrl ?? '/globe/star_trek_dsc_enterprise_user.glb',
+      starshipModelUrl: options.starshipModelUrl ?? '/globe/xinjian1.glb',
     };
 
     this.servers = [];

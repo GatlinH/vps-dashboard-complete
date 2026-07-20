@@ -12,7 +12,8 @@
     "test:dashboard-globals": "node scripts/verify-dashboard-globals.mjs",
     "test:ping-axis-wiring": "node scripts/verify-ping-axis-wiring.mjs",
     "test:focused-globe-regressions": "node scripts/verify-focused-globe-regressions.mjs",
-    "test:cesium-module-workers": "node scripts/verify-cesium-module-workers.mjs"
+    "test:cesium-module-workers": "node scripts/verify-cesium-module-workers.mjs",
+    "test:single-renderer-home": "node scripts/verify-single-renderer-home.mjs"
   },
   "dependencies": {
     "@deck.gl/core": "^9.3.6",

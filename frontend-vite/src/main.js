@@ -5,9 +5,7 @@ import './styles/detail-starfleet-console.css';
 
 import { state } from './store/state.js';
 import { listServersPublic } from './api/public.js';
-import { CesiumGlobe } from './components/CesiumGlobe.js';
 import { ThreeGlobe } from './components/ThreeGlobe.js';
-import { StarshipShowcase } from './components/StarshipShowcase.js';
 import { TrafficChart } from './components/TrafficChart.js';
 import { mountGlobeStarmap } from './components/GlobeStarmapMount.jsx';
 import { toDisplay, calcResidualValue, getMonthlyPrice, getBillingMonths, sourceAmountToCny, getSourceCurrency, updateRateDisplay, refreshExchangeRates } from './utils/currency.js';
@@ -28,19 +26,6 @@ import { groupClusterMembers } from './services/serverGroups.js';
 import { clusterServersByCoordinate } from './components/globe/vpsClusters.js';
 
 let globe = null;
-let starshipShowcase = null;
-function useSingleRendererGlobe() {
-  return new URLSearchParams(window.location.search).get('renderer') === 'single';
-}
-function applySingleRendererPageMode() {
-  if (!useSingleRendererGlobe()) return;
-  document.body.classList.add('single-renderer-globe-page');
-  const starfield = document.getElementById('starfield');
-  if (starfield) {
-    starfield.style.display = 'none';
-    starfield.setAttribute('aria-hidden', 'true');
-  }
-}
 const serversChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('vps-servers') : null;
 window.__DBG__.STATE = state;
 const detailCharts = new TrafficChart();
@@ -257,11 +242,6 @@ function mountDisplayPage() {
   app.innerHTML = `
     <section class="display-page-fullscreen globe-only-page" id="page-globe">
       <div id="globe-container" class="display-globe-fullscreen immersive-globe-canvas-wrap three-globe-host"></div>
-      <div class="photo-space-showcase" aria-hidden="true">
-        <div class="photo-nebula-field"></div>
-        <div class="photo-sun-star"></div>
-        <div class="starship-gltf-stage" id="starship-gltf-stage"></div>
-      </div>
       <div class="globe-overlay-layer">
         <div id="globeSunMount"></div>
         <div class="globe-focus-badge" id="globeFocusBadge"></div>
@@ -276,28 +256,6 @@ function renderPublicOverviewPage() {
   bindTopbarEvents(document);
   return result;
 }
-function initStarshipShowcase() {
-  if (useSingleRendererGlobe()) {
-    const showcase = document.querySelector('.photo-space-showcase');
-    if (showcase) showcase.style.display = 'none';
-    if (starshipShowcase) { starshipShowcase.destroy(); starshipShowcase = null; }
-    return;
-  }
-  const globeHost = document.getElementById('globe-container');
-  const showcase = document.querySelector('.photo-space-showcase');
-  if (globeHost && showcase && showcase.parentElement !== globeHost) {
-    globeHost.appendChild(showcase);
-    showcase.classList.add('is-globe-background-layer');
-  }
-  const stage = document.getElementById('starship-gltf-stage');
-  if (!stage) return;
-  if (starshipShowcase) starshipShowcase.destroy();
-  starshipShowcase = new StarshipShowcase(stage, {
-    modelUrl: '/globe/star_trek_dsc_enterprise_user.glb',
-  });
-  window.__DBG__.starshipShowcase = starshipShowcase;
-}
-
 let clusterPicker = null;
 
 function closeClusterInteraction() {
@@ -367,27 +325,20 @@ function handleGlobeNodeSelection(server, clusterMembers, cluster) {
 }
 
 function getGlobe() {
-  applySingleRendererPageMode();
   if (globe) return globe;
-  if (useSingleRendererGlobe() || new URLSearchParams(window.location.search).get('renderer') === 'three') {
-    globe = new ThreeGlobe('#globe-container', state.servers, {
-      enableStarship: useSingleRendererGlobe(),
-      starshipModelUrl: '/globe/star_trek_dsc_enterprise_user.glb',
-      defaultDistance: 2.35,
-      minDistance: 1.55,
-      maxDistance: 5.8,
-      onNodeClick: handleGlobeNodeSelection,
-      onBlankClick: closeClusterInteraction,
-    });
-    globe.start();
-    getGlobeRuntimeDebug().globeMode = 'three-fallback';
-  } else {
-    globe = new CesiumGlobe('#globe-container', state.servers, { onNodeClick: handleGlobeNodeSelection, onBlankClick: closeClusterInteraction });
-    getGlobeRuntimeDebug().globeMode = 'cesium-default-no-ion-terrain';
-  }
+  globe = new ThreeGlobe('#globe-container', state.servers, {
+    enableStarship: true,
+    starshipModelUrl: '/globe/xinjian1.glb',
+    defaultDistance: 2.35,
+    minDistance: 1.55,
+    maxDistance: 5.8,
+    onNodeClick: handleGlobeNodeSelection,
+    onBlankClick: closeClusterInteraction,
+  });
+  globe.start();
+  getGlobeRuntimeDebug().globeMode = 'three-single-renderer';
   renderSunBadge();
   renderMoonPanel();
-  initStarshipShowcase();
   window.__DBG__.globe = globe;
   return globe;
 }
@@ -397,7 +348,6 @@ function initGlobe() {
   instance.updateServers(state.servers);
   renderSunBadge();
   renderMoonPanel();
-  initStarshipShowcase();
 }
 
 const API_ROOT = window.__DBG__.API_ROOT || (location.port === "5000" ? `${location.protocol}//${location.hostname}:5000` : location.origin);
