@@ -62,7 +62,7 @@ jobs:
           from sign_manifest import verify_manifest
           assert verify_manifest(open('release-assets/manifest.json').read(), open('release-assets/manifest.sig').read().strip(), open('release-assets/manifest.pub').read().strip())
           PY
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ inputs.version || github.ref_name }}
           generate_release_notes: true
