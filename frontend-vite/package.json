@@ -24,7 +24,7 @@
     "chart.js": "^4.4.1",
     "pixi.js": "^8.19.0",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7",
+    "react-dom": "^19.2.8",
     "three": "^0.185.0",
     "topojson-client": "^3.1.0",
     "vite-plugin-cesium": "^1.2.23",
