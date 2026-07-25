@@ -1,0 +1,49 @@
+# Optional split frontend edge.
+#
+# Default install is unified: api serves /, /assets, /cesium and /globe directly on :4500.
+# Use this override only when the operator explicitly wants an independent Nginx
+# frontend container for cache/edge policy:
+#   docker compose -f docker-compose.yml -f docker-compose.frontend.yml up -d
+#
+# The operator remains responsible for any host Caddy/Nginx/TLS reverse proxy.
+
+services:
+  api:
+    # Compose lists append by default; !override is required to remove the
+    # unified :4500 API publication before Nginx becomes the sole edge owner.
+    ports: !override []
+    environment:
+      # API is reached by optional frontend through the Docker network.
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+
+  frontend:
+    image: nginx:1.27-alpine
+    container_name: vps_frontend
+    restart: unless-stopped
+    profiles: ["split-frontend"]
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "0.0.0.0:4500:4500"
+    volumes:
+      - ./deploy/nginx/frontend.conf:/etc/nginx/conf.d/default.conf:ro
+      # For image deployments, mount the externally provisioned dist directory.
+      # It must contain the same bundle as the api image.
+      - ${FRONTEND_DIST_HOST_DIR:-/var/lib/vps-dashboard/frontend-dist-live}:/usr/share/nginx/html:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4500/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - vps-network
+
+networks:
+  vps-network:
+    name: vps-dashboard-network
+    driver: bridge
+
+# NOTE: Compose profiles are activated by `--profile split-frontend`; this file
+# contains the service definition but does not make Nginx a default dependency.
