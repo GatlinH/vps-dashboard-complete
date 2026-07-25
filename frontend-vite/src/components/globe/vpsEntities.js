@@ -8,7 +8,15 @@ function toCesiumColor(rgb, alpha = 1) {
 }
 
 function statusColor(server, alpha = 1) {
-  const c = STATUS_COLORS[server.status] || STATUS_COLORS.unknown;
+  // Normalize aliases so master/agent statuses like healthy/ok/up map to health palette.
+  const raw = String(server?.status || '').trim().toLowerCase();
+  const normalized = (
+    raw === 'healthy' || raw === 'ok' || raw === 'up' || raw === 'online' ? 'online'
+    : raw === 'warn' || raw === 'warning' || raw === 'degraded' ? 'warn'
+    : raw === 'offline' || raw === 'error' || raw === 'down' || raw === 'unavailable' || raw === 'unknown' ? 'offline'
+    : (STATUS_COLORS[raw] ? raw : 'offline')
+  );
+  const c = STATUS_COLORS[normalized] || STATUS_COLORS.offline;
   return toCesiumColor(c, alpha);
 }
 
@@ -87,11 +95,28 @@ export function rebuildVpsEntities(globe) {
 
   for (const cluster of clusterServersByCoordinate(globe.servers)) {
     const server = cluster.members[0];
-    const { lat, lon } = cluster.valid ? cluster : getServerCoords(server);
+    // getServerCoords returns [lat, lon]; invalid clusters (e.g. lat/lon 0,0 from a
+    // newly added NAT node) must not object-destructure that array or lon becomes
+    // undefined and Cesium.Cartesian3.fromDegrees throws, blanking the homepage.
+    let lat;
+    let lon;
+    if (cluster.valid && Number.isFinite(cluster.lat) && Number.isFinite(cluster.lon)
+      && !(Number(cluster.lat) === 0 && Number(cluster.lon) === 0)) {
+      lat = Number(cluster.lat);
+      lon = Number(cluster.lon);
+    } else {
+      [lat, lon] = getServerCoords(server);
+    }
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      console.warn('[globe] skip VPS entity with invalid coords', server?.id, server?.name, lat, lon);
+      continue;
+    }
     const isCluster = cluster.members.length > 1;
     const memberTitle = cluster.members.map((member) => String(member.name || 'VPS-' + (member.id || ''))).join(' · ');
     const beaconAppearance = isCluster ? buildClusterBeaconAppearance(cluster.members) : null;
-    const clusterStatus = isCluster ? aggregateClusterStatus(cluster.members) : server.status;
+    const clusterStatus = isCluster
+      ? aggregateClusterStatus(cluster.members)
+      : (aggregateClusterStatus([server]));
     const healthColor = statusColor({ status: clusterStatus });
     const clusterClickProperties = isCluster ? {
       serverId: server.id,
@@ -100,40 +125,40 @@ export function rebuildVpsEntities(globe) {
       clusterCentroid: { lat, lon, clusterKey: cluster.key },
       vpsClusterClick: true,
     } : null;
+    // Latest backup contract: every VPS beacon (single master or co-located cluster)
+    // uses aggregate health color — never a hardcoded cyan/blue core.
+    // all healthy/online => green; mixed => amber; all offline/error/unknown => red.
     let nodeEntity = null;
+    const anchorPoint = {
+      pixelSize: 16,
+      color: healthColor,
+      outlineColor: Cesium.Color.fromCssColorString('#ffffff').withAlpha(0.9),
+      outlineWidth: 2,
+      scaleByDistance: new Cesium.NearFarScalar(220000, 1.35, 5.0e7, 0.85),
+      translucencyByDistance: new Cesium.NearFarScalar(200000, 1.0, 5.0e7, 0.9),
+      heightReference: Cesium.HeightReference.NONE,
+      // Visibility is controlled per-frame by hemisphere in labelOverlay. Keeping this
+      // point out of the depth buffer prevents a near-side circle being cut in half.
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+    };
     if (isCluster) {
       const anchorEntity = globe.viewer.entities.add({
         id: `node-${server.id}`,
-        position: Cesium.Cartesian3.fromDegrees(lon, lat, 180),
-        point: {
-          pixelSize: 16,
-          color: healthColor,
-          outlineColor: Cesium.Color.fromCssColorString('#ffffff').withAlpha(0.9),
-          outlineWidth: 2,
-          scaleByDistance: new Cesium.NearFarScalar(220000, 1.35, 5.0e7, 0.85),
-          translucencyByDistance: new Cesium.NearFarScalar(200000, 1.0, 5.0e7, 0.9),
-          heightReference: Cesium.HeightReference.NONE,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        },
-        properties: { ...clusterClickProperties, clusterKey: cluster.key, vpsClusterAnchor: true },
+        // Lift the depth-tested point above terrain; otherwise its center intersects
+        // the globe depth surface and visually renders as a half-circle.
+        position: Cesium.Cartesian3.fromDegrees(lon, lat, 1200),
+        point: anchorPoint,
+        properties: { ...clusterClickProperties, clusterKey: cluster.key, vpsClusterAnchor: true, healthStatus: clusterStatus },
       });
       globe._nodeEntities.push(anchorEntity);
       nodeEntity = anchorEntity;
     } else {
-      const coreColor = Cesium.Color.fromCssColorString('#38e8ff').withAlpha(0.95);
       nodeEntity = globe.viewer.entities.add({
         id: `node-${server.id}`,
-        position: Cesium.Cartesian3.fromDegrees(lon, lat, 180),
-        point: {
-          pixelSize: 10,
-          color: coreColor,
-          outlineColor: Cesium.Color.fromCssColorString('#ffffff').withAlpha(0.9),
-          outlineWidth: 2,
-          scaleByDistance: new Cesium.NearFarScalar(220000, 1.35, 5.0e7, 0.85),
-          translucencyByDistance: new Cesium.NearFarScalar(200000, 1.0, 5.0e7, 0.9),
-          heightReference: Cesium.HeightReference.NONE,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        },
+        // Same raised altitude for single-node beacons: fully visible on the near side,
+        // still occluded by Earth on the far side.
+        position: Cesium.Cartesian3.fromDegrees(lon, lat, 1200),
+        point: anchorPoint,
         label: {
           text: `${serverFlag(server)} ${shortServerLabel(server)}`,
           font: '700 15px Inter, system-ui, sans-serif',
@@ -149,10 +174,12 @@ export function rebuildVpsEntities(globe) {
           verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
           scaleByDistance: new Cesium.NearFarScalar(200000, 1.08, 18_000_000, 0.72),
           translucencyByDistance: new Cesium.NearFarScalar(180000, 1.0, 22_000_000, 0.55),
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          // Legacy Cesium label remains depth-aware; the visible DOM label is
+          // separately hidden whenever this VPS is on the far hemisphere.
+          disableDepthTestDistance: 0,
           show: false,
         },
-        properties: { serverId: server.id, serverData: server, clusterMembers: cluster.members },
+        properties: { serverId: server.id, serverData: server, clusterMembers: cluster.members, healthStatus: clusterStatus },
       });
       globe._nodeEntities.push(nodeEntity);
     }

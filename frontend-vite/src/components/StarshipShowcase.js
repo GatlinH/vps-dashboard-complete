@@ -1,17 +1,20 @@
-import '../globals/dashboardGlobals.js';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
 export class StarshipShowcase {
   constructor(selector = '#starship-gltf-stage', options = {}) {
     this.container = typeof selector === 'string' ? document.querySelector(selector) : selector;
-    this.options = { modelUrl: '/globe/star_trek_dsc_enterprise_user.glb', ...options };
+    this.options = {
+      // Full original xinjian1 (textures + denser meshes). Keep legacy filename as fallback.
+      modelUrl: '/globe/xinjian1.glb',
+      // Lightweight fallback if the hero GLB OOMs low-end GPUs.
+      fallbackModelUrl: '/globe/star_trek_dsc_enterprise_user.glb',
+      deferMs: 120,
+      ...options,
+    };
     this._frame = null;
     this._destroyed = false;
+    this._initTimer = null;
     this.ship = null;
     this.gltfMixer = null;
     this.gltfClock = new THREE.Clock();
@@ -19,10 +22,14 @@ export class StarshipShowcase {
     this.gltfAnimationActions = [];
     this.registryDecal = null;
     this.exhaustGroup = null;
-    this.exhaustVersion = 'weiyan11-ue-niagara-texture-safe';
+    this.exhaustVersion = 'minimal-nacelle-propulsion-v1';
     this.composer = null;
     this.userOffset = new THREE.Vector2(0, 0);
-    this.userScale = 0.52;
+    // Desktop hero scale — matched to the reference: prominent on the right,
+    // but still leaves the globe and node callouts readable.
+    // Keep the saucer registry readable at the normal desktop viewport while
+    // preserving the right-side globe composition and label safe area.
+    this.userScale = 0.98;
     this.userYaw = 0;
     this.userRoll = 0;
     this.userFlip = 1;
@@ -30,35 +37,150 @@ export class StarshipShowcase {
     this._rotating = false;
     this._lastPointer = null;
     if (!this.container) return;
-    this._init();
+    // Wait until the stage has real layout. Cesium + Three both throw
+    // "Expected width to be greater than 0" when initialized at 0×0.
+    this._scheduleInit(Math.max(0, Number(this.options.deferMs) || 0));
+  }
+
+  _scheduleInit(delayMs = 0, attempt = 0) {
+    if (this._destroyed || !this.container) return;
+    if (this._initTimer) {
+      clearTimeout(this._initTimer);
+      this._initTimer = null;
+    }
+    this._initTimer = window.setTimeout(() => {
+      this._initTimer = null;
+      if (this._destroyed) return;
+      const size = this._measureSize();
+      // Use raw layout size, not the window fallback — otherwise we never wait for CSS.
+      if ((size.rawW < 2 || size.rawH < 2) && attempt < 40) {
+        this._scheduleInit(attempt < 8 ? 50 : 100, attempt + 1);
+        return;
+      }
+      try {
+        this._init();
+      } catch (error) {
+        this._failSoft(error, 'init');
+      }
+    }, Math.max(0, delayMs));
+  }
+
+  _measureSize() {
+    const el = this.container;
+    const rect = el?.getBoundingClientRect?.();
+    const w = Math.max(
+      0,
+      Math.floor(el?.clientWidth || rect?.width || window.innerWidth || 0),
+    );
+    const h = Math.max(
+      0,
+      Math.floor(el?.clientHeight || rect?.height || window.innerHeight || 0),
+    );
+    return {
+      w: w > 0 ? w : Math.max(1, window.innerWidth || 1),
+      h: h > 0 ? h : Math.max(1, window.innerHeight || 1),
+      rawW: w,
+      rawH: h,
+    };
+  }
+
+  _safeSetRendererSize(w, h) {
+    const width = Math.max(1, Math.floor(Number(w) || 0));
+    const height = Math.max(1, Math.floor(Number(h) || 0));
+    if (!this.renderer || !this.camera) return { width, height };
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
+    // Three.js / render targets reject 0-sized framebuffers with DeveloperError-like throws.
+    this.renderer.setSize(width, height, false);
+    this.composer?.setSize?.(width, height);
+    this.bloomPass?.setSize?.(width, height);
+    return { width, height };
+  }
+
+  _dbgSet(key, value) {
+    try {
+      window.__DBG__ = window.__DBG__ || {};
+      window.__DBG__[key] = value;
+    } catch (_) {}
+  }
+
+  _failSoft(error, phase = 'unknown') {
+    console.warn(`[StarshipShowcase] ${phase} failed — homepage globe continues without starship`, error);
+    this._dbgSet('starshipError', String(error?.message || error || phase));
+    this._dbgSet('starshipPhase', phase);
+    try {
+      this.container?.classList?.add('is-error');
+      this.container?.classList?.remove('is-loaded');
+    } catch (_) {}
+    // Tear down partial GPU resources so Cesium can keep the page alive.
+    try { this.destroy(); } catch (_) {}
   }
 
   _init() {
-    const w = this.container.clientWidth || window.innerWidth;
-    const h = this.container.clientHeight || window.innerHeight;
+    if (this._destroyed || !this.container) return;
+    const size = this._measureSize();
+    const w = Math.max(1, size.w);
+    const h = Math.max(1, size.h);
+    this._dbgSet('starshipInitSize', { w, h, rawW: size.rawW, rawH: size.rawH });
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(34, Math.max(1, w) / Math.max(1, h), 0.1, 100);
-    // Pull back slightly so the full imported ship silhouette is not clipped.
-    this.camera.position.set(0.0, 0.06, 7.35);
-    this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(1.5, window.devicePixelRatio || 1));
-    this.renderer.setSize(Math.max(1, w), Math.max(1, h));
+    this.camera = new THREE.PerspectiveCamera(34, w / h, 0.1, 100);
+    // Keep the complete silhouette in frame; the right-side hero layout is
+    // achieved with anchor placement rather than clipping it at the viewport edge.
+    this.camera.position.set(0.0, 0.06, 9.35);
+
+    // Homepage already runs Cesium WebGL. Prefer a lighter second context.
+    // failIfMajorPerformanceCaveat avoids software GL that freezes mobile tabs.
+    const canvas = document.createElement('canvas');
+    // Seed a non-zero drawing buffer before WebGL init — some drivers reject 0×0.
+    canvas.width = w;
+    canvas.height = h;
+    const gl =
+      canvas.getContext('webgl2', { alpha: true, antialias: true, powerPreference: 'high-performance', failIfMajorPerformanceCaveat: true })
+      || canvas.getContext('webgl', { alpha: true, antialias: true, powerPreference: 'high-performance', failIfMajorPerformanceCaveat: true })
+      || canvas.getContext('webgl2', { alpha: true, antialias: false, powerPreference: 'default' })
+      || canvas.getContext('webgl', { alpha: true, antialias: false, powerPreference: 'default' });
+    if (!gl) {
+      throw new Error('WebGL unavailable for starship overlay');
+    }
+
+    this.renderer = new THREE.WebGLRenderer({
+      canvas,
+      context: gl,
+      alpha: true,
+      antialias: true,
+      powerPreference: 'high-performance',
+      failIfMajorPerformanceCaveat: false,
+    });
+    const isMobile = window.matchMedia?.('(max-width: 640px)')?.matches;
+    // Restore desktop detail without reintroducing the old multi-target post-process path.
+    // Mobile remains deliberately lower density to protect its shared GPU budget with Cesium.
+    // Force enough raster samples for panel maps even when the host reports DPR=1
+    // (headless browsers and some remote desktop sessions).
+    // 1.75 DPR with 25 rehydrated 1536px textures stalls shared Cesium/Three frames.
+    // Keep panel readability while preserving interactive/screenshot stability.
+    this.renderer.setPixelRatio(isMobile ? 1 : 1.25);
+    this._safeSetRendererSize(w, h);
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.autoClear = true;
     this.renderer.useLegacyLights = false;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.98;
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.composer = new EffectComposer(this.renderer);
-    this.composer.setSize(Math.max(1, w), Math.max(1, h));
-    this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(Math.max(1, w), Math.max(1, h)), 0.90, 0.65, 0.55);
-    this.composer.addPass(this.bloomPass);
-    const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.02).texture;
-    this.scene.environmentIntensity = 0.24;
+    // Darker exposure so contrast-boosted panel maps don't wash to chalk white.
+    this.renderer.toneMappingExposure = isMobile ? 0.90 : 0.82;
+    this.renderer.shadowMap.enabled = false;
+    this.composer = null;
+    this.bloomPass = null;
+
+    // No synthetic studio/atmospheric IBL: retain direct lighting and the original GLB material read.
+    this.scene.environment = null;
+    this.scene.environmentIntensity = 0;
+    this._dbgSet('starshipDetailProfile', {
+      profile: isMobile ? 'mobile-safe' : 'desktop-panel-readable',
+      pixelRatio: this.renderer.getPixelRatio(),
+      exposure: this.renderer.toneMappingExposure,
+      environmentIntensity: this.scene.environmentIntensity,
+    });
+
     this.renderer.domElement.className = 'starship-gltf-canvas';
     this.container.appendChild(this.renderer.domElement);
     this.hitbox = document.createElement('div');
@@ -66,38 +188,209 @@ export class StarshipShowcase {
     this.hitbox.setAttribute('aria-label', 'Hover starship: drag to move, wheel to scale, right-drag to rotate, double-click to flip');
     this.container.appendChild(this.hitbox);
 
-    const ambientFloor = new THREE.AmbientLight(0x0a1830, 0.22);
+    this.renderer.domElement.addEventListener('webglcontextlost', (ev) => {
+      ev.preventDefault();
+      this._failSoft(new Error('webglcontextlost'), 'contextlost');
+    }, false);
+
+    // 172 lighting: warm key from upper-right, cool fill and rim, restrained ambient.
+    const ambientFloor = new THREE.AmbientLight(0x0a1220, isMobile ? 0.16 : 0.14);
     this.scene.add(ambientFloor);
-    const key = new THREE.DirectionalLight(0xe7f1ff, 2.9);
+    const key = new THREE.DirectionalLight(0xe8f1ff, isMobile ? 2.2 : 2.90);
     key.position.set(5.8, 4.6, 6.2);
-    key.castShadow = true;
-    key.shadow.mapSize.width = 2048;
-    key.shadow.mapSize.height = 2048;
+    key.castShadow = false;
     this.scene.add(key);
-    const fill = new THREE.DirectionalLight(0x54719c, 0.72);
-    fill.position.set(-3.8, -1.0, 3.6);
-    this.scene.add(fill);
-    const rim = new THREE.DirectionalLight(0xb4d0ff, 0.95);
+    const coolFill = new THREE.HemisphereLight(0x5478a8, 0x05070d, isMobile ? 0.22 : 0.30);
+    this.scene.add(coolFill);
+    const rim = new THREE.DirectionalLight(0xb4c8ff, isMobile ? 0.55 : 0.95);
     rim.position.set(-4.5, 2.8, -5.0);
     this.scene.add(rim);
-    const warm = new THREE.PointLight(0xff6a38, 0.66, 5.6);
+    const warm = new THREE.PointLight(0xff6a38, isMobile ? 0.42 : 0.70, 5.6);
     warm.position.set(-2.8, 1.8, 2.6);
     this.scene.add(warm);
-    const windowGlow = new THREE.PointLight(0xdff6ff, 0.58, 4.8);
+    const windowGlow = new THREE.PointLight(0xdff0ff, isMobile ? 0.42 : 0.70, 4.8);
     windowGlow.position.set(0.6, 0.35, 1.8);
     this.scene.add(windowGlow);
 
     this.anchor = new THREE.Group();
-    // Initial composition: dark-metal hero pose, lifted to reduce bottom crowding.
-    this.basePosition = new THREE.Vector3(3.0, -0.18, 0.0);
+    // Closer to 172's right-side hero pose.
+    this.basePosition = new THREE.Vector3(3.00, -0.16, 0.0);
     this.baseRotation = new THREE.Euler(0.62, -0.72, 0.18);
     this.anchor.position.copy(this.basePosition);
     this.anchor.rotation.copy(this.baseRotation);
     this.anchor.scale.setScalar(this.userScale);
     this.scene.add(this.anchor);
 
+    this._loadModel(this.options.modelUrl, true);
+
+    this._installInteractionHandlers();
+    this._onResize = () => this.resize();
+    window.addEventListener('resize', this._onResize, { passive: true });
+    this._start = performance.now();
+    this._tick();
+    this._dbgSet('starshipMode', 'independent-three-overlay-safe');
+  }
+
+  _loadModel(url, allowFallback = false) {
+    if (this._destroyed || !url) return;
     const gltfLoader = new GLTFLoader();
-    gltfLoader.load(this.options.modelUrl, (gltf) => {
+    this._dbgSet('starshipModelUrl', url);
+    gltfLoader.load(
+      url,
+      (gltf) => {
+        // GLTFLoader may resolve materials before ImageBitmap textures finish, or drop maps
+        // in some browser paths. Always rehydrate maps from the GLB binary after load.
+        this._finishModelLoad(gltf, url, allowFallback).catch((error) => {
+          this._failSoft(error, 'model-setup');
+        });
+      },
+      undefined,
+      (error) => {
+        console.warn('[StarshipShowcase] GLB load failed', url, error);
+        if (allowFallback && this.options.fallbackModelUrl && this.options.fallbackModelUrl !== url) {
+          this._dbgSet('starshipFallback', this.options.fallbackModelUrl);
+          this._loadModel(this.options.fallbackModelUrl, false);
+          return;
+        }
+        this.container?.classList?.add('is-error');
+        this._dbgSet('starshipError', String(error?.message || error || 'glb-load-failed'));
+      },
+    );
+  }
+
+  async _rehydrateGltfTextures(gltf) {
+    const parser = gltf?.parser;
+    const json = parser?.json;
+    if (!parser || !json?.images?.length || !json?.materials?.length) {
+      return { attempted: 0, attached: 0, reason: 'no-parser-json' };
+    }
+
+    const textureCache = new Map();
+    const loadTextureByIndex = async (textureIndex, colorSpace) => {
+      if (textureIndex == null || textureIndex < 0) return null;
+      const cacheKey = `${textureIndex}:${colorSpace || 'default'}`;
+      if (textureCache.has(cacheKey)) return textureCache.get(cacheKey);
+
+      const texDef = json.textures?.[textureIndex];
+      if (!texDef) return null;
+      const sourceIndex = texDef.source;
+      const imageDef = json.images?.[sourceIndex];
+      if (!imageDef || imageDef.bufferView == null) return null;
+
+      const bufferView = await parser.getDependency('bufferView', imageDef.bufferView);
+      // Offline GLB already contrast-boosted; avoid double-processing that can posterize.
+      let imageBitmap;
+      try {
+        const blob = new Blob([bufferView], { type: imageDef.mimeType || 'image/png' });
+        imageBitmap = await createImageBitmap(blob);
+      } catch (err) {
+        console.warn('[StarshipShowcase] createImageBitmap failed', textureIndex, err);
+        return null;
+      }
+
+      const texture = new THREE.Texture(imageBitmap);
+      texture.flipY = false;
+      texture.needsUpdate = true;
+      texture.colorSpace = colorSpace || THREE.NoColorSpace;
+      texture.anisotropy = Math.min(8, this.renderer?.capabilities?.getMaxAnisotropy?.() || 1);
+      texture.userData = {
+        rehydrated: true,
+        contrastBoosted: colorSpace === THREE.SRGBColorSpace,
+        textureIndex,
+        sourceIndex,
+        mimeType: imageDef.mimeType || 'image/png',
+      };
+
+      // Apply sampler wrap/filter when present.
+      const sampler = json.samplers?.[texDef.sampler ?? 0] || {};
+      if (sampler.wrapS != null) texture.wrapS = sampler.wrapS;
+      if (sampler.wrapT != null) texture.wrapT = sampler.wrapT;
+      if (sampler.magFilter != null) texture.magFilter = sampler.magFilter;
+      if (sampler.minFilter != null) texture.minFilter = sampler.minFilter;
+
+      textureCache.set(cacheKey, texture);
+      return texture;
+    };
+
+    let attempted = 0;
+    let attached = 0;
+    const materialTextures = [];
+
+    for (let i = 0; i < json.materials.length; i += 1) {
+      const matDef = json.materials[i];
+      const pbr = matDef.pbrMetallicRoughness || {};
+      const slots = [];
+      if (pbr.baseColorTexture?.index != null) {
+        slots.push({ slot: 'map', index: pbr.baseColorTexture.index, colorSpace: THREE.SRGBColorSpace });
+      }
+      if (pbr.metallicRoughnessTexture?.index != null) {
+        slots.push({ slot: 'metalnessMap', index: pbr.metallicRoughnessTexture.index, colorSpace: THREE.NoColorSpace });
+        slots.push({ slot: 'roughnessMap', index: pbr.metallicRoughnessTexture.index, colorSpace: THREE.NoColorSpace });
+      }
+      if (matDef.normalTexture?.index != null) {
+        slots.push({ slot: 'normalMap', index: matDef.normalTexture.index, colorSpace: THREE.NoColorSpace });
+      }
+      if (matDef.emissiveTexture?.index != null) {
+        slots.push({ slot: 'emissiveMap', index: matDef.emissiveTexture.index, colorSpace: THREE.SRGBColorSpace });
+      }
+      if (matDef.occlusionTexture?.index != null) {
+        slots.push({ slot: 'aoMap', index: matDef.occlusionTexture.index, colorSpace: THREE.NoColorSpace });
+      }
+      if (!slots.length) continue;
+
+      const loaded = {};
+      for (const s of slots) {
+        attempted += 1;
+        // metalness/roughness share one texture object; load once
+        if (loaded[s.slot]) continue;
+        // eslint-disable-next-line no-await-in-loop
+        const tex = await loadTextureByIndex(s.index, s.colorSpace);
+        if (tex) {
+          loaded[s.slot] = tex;
+          attached += 1;
+        }
+      }
+      if (Object.keys(loaded).length) {
+        materialTextures.push({ materialIndex: i, name: matDef.name || `mat_${i}`, maps: loaded });
+      }
+    }
+
+    // Assign onto live scene materials by material index when available, else by name.
+    this.ship?.traverse((obj) => {
+      if (!obj.isMesh || !obj.material) return;
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      mats.forEach((mat) => {
+        // Prefer exact gltf material index if three stored it.
+        const idx = mat.userData?.gltfExtensions ? null : (mat.userData?.materialIndex ?? null);
+        let entry = null;
+        if (idx != null) entry = materialTextures.find((m) => m.materialIndex === idx);
+        if (!entry && mat.name) entry = materialTextures.find((m) => m.name === mat.name);
+        if (!entry) return;
+        Object.entries(entry.maps).forEach(([slot, tex]) => {
+          if (!mat[slot]) {
+            mat[slot] = tex;
+            // roughness/metalness often share the same texture instance
+            if (slot === 'metalnessMap' && !mat.roughnessMap) mat.roughnessMap = tex;
+            if (slot === 'roughnessMap' && !mat.metalnessMap) mat.metalnessMap = tex;
+          }
+        });
+        mat.needsUpdate = true;
+      });
+    });
+
+    // Second pass: match by material definition order if names collided.
+    // Collect unique materials currently used and map by name only (already done).
+
+    return {
+      attempted,
+      attached,
+      materialsWithMaps: materialTextures.length,
+      textureObjects: textureCache.size,
+    };
+  }
+
+  async _finishModelLoad(gltf, url, allowFallback) {
+    try {
       if (this._destroyed) return;
       this.ship = gltf.scene;
       this.ship.name = 'User DSC Enterprise GLB Starship';
@@ -115,59 +408,171 @@ export class StarshipShowcase {
           duration: clip.duration,
           tracks: clip.tracks?.map((track) => track.name) || [],
         }));
-        window.__DBG__.starshipGltfAnimationInfo = this.ship.userData.gltfAnimationInfo;
+        this._dbgSet('starshipGltfAnimationInfo', this.ship.userData.gltfAnimationInfo);
       }
       this._normalizeUserModel(this.ship);
+
+      // Inventory BEFORE rehydrate
+      let texStatsBefore = { total: 0, withMap: 0, withNormal: 0, withEmissiveMap: 0, samples: [] };
       this.ship.traverse((obj) => {
         if (!obj.isMesh || !obj.material) return;
-        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        const srcMats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        srcMats.forEach((m) => {
+          texStatsBefore.total += 1;
+          if (m.map) texStatsBefore.withMap += 1;
+          if (m.normalMap) texStatsBefore.withNormal += 1;
+          if (m.emissiveMap) texStatsBefore.withEmissiveMap += 1;
+          if (texStatsBefore.samples.length < 6) {
+            texStatsBefore.samples.push({
+              name: m.name,
+              type: m.type,
+              hasMap: !!m.map,
+              mapSize: m.map?.image?.width || m.map?.source?.data?.width || 0,
+              color: m.color?.getHexString?.(),
+            });
+          }
+        });
+      });
+      this._dbgSet('starshipTextureInventoryBefore', texStatsBefore);
+
+      const rehydrate = await this._rehydrateGltfTextures(gltf);
+      this._dbgSet('starshipTextureRehydrate', rehydrate);
+
+      // Inventory AFTER rehydrate, before semantic mutation
+      let texStats = { total: 0, withMap: 0, withNormal: 0, withEmissiveMap: 0, samples: [] };
+      this.ship.traverse((obj) => {
+        if (!obj.isMesh || !obj.material) return;
+        const srcMats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        srcMats.forEach((m) => {
+          texStats.total += 1;
+          if (m.map) texStats.withMap += 1;
+          if (m.normalMap) texStats.withNormal += 1;
+          if (m.emissiveMap) texStats.withEmissiveMap += 1;
+          if (texStats.samples.length < 8) {
+            texStats.samples.push({
+              name: m.name,
+              type: m.type,
+              hasMap: !!m.map,
+              mapSize: m.map?.image?.width || m.map?.source?.data?.width || 0,
+              color: m.color?.getHexString?.(),
+            });
+          }
+        });
+      });
+      this._dbgSet('starshipTextureInventory', texStats);
+
+      // Preserve original maps. Only clone+boost a few named emitters so shared materials
+      // are not cross-contaminated. Never repaint the whole hull when a map exists.
+      this.ship.traverse((obj) => {
+        if (!obj.isMesh || !obj.material) return;
+        const srcMats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        const mats = srcMats.map((m) => {
+          const c = m.clone();
+          c.map = m.map || null;
+          c.normalMap = m.normalMap || null;
+          c.roughnessMap = m.roughnessMap || null;
+          c.metalnessMap = m.metalnessMap || null;
+          c.emissiveMap = m.emissiveMap || null;
+          c.aoMap = m.aoMap || null;
+          if (c.map) {
+            c.map.colorSpace = THREE.SRGBColorSpace;
+            c.map.needsUpdate = true;
+          }
+          c.userData = { ...(m.userData || {}), clonedFrom: m.name || 'mat', hadMap: !!m.map };
+          return c;
+        });
+        obj.material = Array.isArray(obj.material) ? mats : mats[0];
         mats.forEach((mat) => {
           const materialName = `${mat.name || ''} ${obj.name || ''}`.toLowerCase();
-          const isEmissivePart = materialName.includes('material_1') || (mat.emissive && mat.emissive.getHex && mat.emissive.getHex() !== 0x000000);
-          if (isEmissivePart) {
-            if (mat.color) mat.color.set(0xb8c4d6);
-            if ('emissive' in mat) mat.emissive.set(0x7fb8ff);
-            mat.envMapIntensity = 1.45;
-            if ('metalness' in mat) mat.metalness = 0.40;
-            if ('roughness' in mat) mat.roughness = 0.24;
-            if ('emissiveIntensity' in mat) mat.emissiveIntensity = 0.35;
-            mat.toneMapped = false;
-          } else {
-            if (mat.color) mat.color.set(0x5f6b7e);
-            mat.envMapIntensity = 0.28;
-            if ('metalness' in mat) mat.metalness = 0.76;
-            if ('roughness' in mat) mat.roughness = 0.44;
+          const hasMap = !!(mat.map || mat.normalMap || mat.roughnessMap || mat.metalnessMap || mat.emissiveMap);
+          const isRegistry = /registry|decal|letter|ncc|label_\d+/.test(materialName);
+          const isWarpCoil = /warp[_-]?coils?|warpcoil/.test(materialName);
+          // Do not recolor or boost model nav-light materials. The user requested removal
+          // of the artificial red/green saucer lamps; native GLB material values remain untouched.
+          const isGreenNav = false;
+          const isRedNav = false;
+          const isWindow = /window|pilot_light|force_field|sensor_ball/.test(materialName);
+          const isEngine = /(bussard_dome|bussard|impulse_engines|thruster|plasma)/.test(materialName) && !isWarpCoil;
+
+          if (isRegistry) {
+            if (!hasMap && mat.color) mat.color.set(0x101820);
             if ('emissive' in mat) mat.emissive.set(0x000000);
             if ('emissiveIntensity' in mat) mat.emissiveIntensity = 0;
-            mat.toneMapped = true;
+            if ('metalness' in mat) mat.metalness = Math.min(Number(mat.metalness ?? 0.2), 0.25);
+            if ('roughness' in mat) mat.roughness = Math.max(Number(mat.roughness ?? 0.5), 0.45);
+          } else if (isGreenNav || isRedNav) {
+            const navColor = isGreenNav ? 0x2dff7a : 0xff2a3a;
+            if (!hasMap && mat.color) mat.color.set(navColor);
+            if ('emissive' in mat) mat.emissive.set(navColor);
+            if ('emissiveIntensity' in mat) mat.emissiveIntensity = 2.6;
+            mat.toneMapped = false;
+          } else if (isWarpCoil) {
+            // Preserve the strip texture but enforce the classic electric-blue energy tint.
+            // Texture acts as a mask/detail layer; blue must remain visible at homepage distance.
+            if (mat.color) mat.color.set(0x58c7ff);
+            if ('emissive' in mat) mat.emissive.set(0x138dff);
+            if ('emissiveIntensity' in mat) mat.emissiveIntensity = Math.max(Number(mat.emissiveIntensity || 0), 4.4);
+            if ('metalness' in mat) mat.metalness = 0.22;
+            if ('roughness' in mat) mat.roughness = 0.20;
+            mat.envMapIntensity = 0.65;
+            mat.toneMapped = false;
+          } else if (isEngine) {
+            // Bussard collectors need an unmistakable warm contrast against blue warp strips.
+            if (mat.color) mat.color.set(0xff7628);
+            if ('emissive' in mat) mat.emissive.set(0xff4b12);
+            if ('emissiveIntensity' in mat) mat.emissiveIntensity = Math.max(Number(mat.emissiveIntensity || 0), 4.8);
+            if ('metalness' in mat) mat.metalness = 0.18;
+            if ('roughness' in mat) mat.roughness = 0.26;
+            mat.envMapIntensity = 0.45;
+            mat.toneMapped = false;
+          } else if (isWindow) {
+            if ('emissive' in mat && (!mat.emissive || mat.emissive.getHex() === 0)) mat.emissive.set(0x8ec7ff);
+            if ('emissiveIntensity' in mat) mat.emissiveIntensity = Math.max(Number(mat.emissiveIntensity || 0), 0.55);
+            mat.toneMapped = false;
+          } else {
+            // HULL: keep maps, push darker metal so bright panel maps don't look like white plastic.
+            if (!hasMap) {
+              const base = mat.color ? mat.color.getHex() : 0xffffff;
+              if (mat.color && base === 0xffffff) mat.color.set(0xb7c0cc);
+            } else if (mat.color) {
+              // Darken albedo multiplier so contrast-boosted panel maps remain visible.
+              mat.color.set(0xcfd6df);
+            }
+            if ('metalness' in mat) mat.metalness = Math.max(Number(mat.metalness || 0), hasMap ? 0.72 : 0.62);
+            if ('roughness' in mat) {
+              const r = Number(mat.roughness ?? 0.5);
+              mat.roughness = hasMap ? Math.min(Math.max(r, 0.28), 0.48) : Math.min(Math.max(r, 0.28), 0.48);
+            }
+            mat.envMapIntensity = Math.max(Number(mat.envMapIntensity || 0), hasMap ? 1.15 : 0.95);
           }
-          obj.castShadow = true;
-          obj.receiveShadow = true;
+          obj.castShadow = false;
+          obj.receiveShadow = false;
           mat.needsUpdate = true;
         });
       });
-      this.anchor.add(this.ship);
-      // clonefix1: disabled whole-ship cold edge clone for performance.
-      // this._addColdEdgeShell(this.ship);
-      // clonefix1: disabled whole-ship chromatic clone passes for performance.
-      // this._addChromaticEdgePass(this.ship);
-      // Keep nacelle exhaust as the only large blue-white energy effect; avoid saucer/mid-body glow blobs.
-      // this._addShowcaseGlowRig();
-      // Disable body/window glow sprites; keep blue-white only at nacelle exhaust ports.
-      // this._addWindowGlowRig();
-      // xinjian1 model swap: tail-exhaust VFX has been abandoned. Keep the GLB bussard animation only.
-      // this._addExhaustRig();
-      this.container.classList.add('is-loaded');
-    }, undefined, (error) => {
-      console.warn('[StarshipShowcase] GLB load failed', error);
-      this.container.classList.add('is-error');
-    });
 
-    this._installInteractionHandlers();
-    this._onResize = () => this.resize();
-    window.addEventListener('resize', this._onResize, { passive: true });
-    this._start = performance.now();
-    this._tick();
+      this.anchor.add(this.ship);
+      this._addExhaustRig();
+      this._addBussardCollectorFidelity();
+      // Keep native GLB label/nav geometry only. Do not add screen-facing registry text
+      // or synthetic red/green saucer lamps.
+      this._dbgSet('starshipAnimationContract', {
+        clips: this.gltfAnimationActions.length,
+        bussardTracks: this.ship.userData.gltfAnimationInfo?.flatMap((clip) => clip.tracks || []).filter((track) => /bussard/i.test(track)) || [],
+        exhaustAttached: !!this.exhaustGroup,
+      });
+      this.container.classList.add('is-loaded');
+      this.container.classList.remove('is-error');
+      this._dbgSet('starshipLoaded', true);
+      this._dbgSet('starshipModelUrlFinal', url);
+    } catch (error) {
+      if (allowFallback && this.options.fallbackModelUrl && this.options.fallbackModelUrl !== url) {
+        this._dbgSet('starshipFallback', this.options.fallbackModelUrl);
+        this._loadModel(this.options.fallbackModelUrl, false);
+        return;
+      }
+      this._failSoft(error, 'model-setup');
+    }
   }
 
 
@@ -186,6 +591,56 @@ export class StarshipShowcase {
     this._modelInfo = { size: size.toArray(), center: center.toArray(), scale, centeredPosition: ship.position.toArray() };
   }
 
+
+  _addBussardCollectorFidelity() {
+    if (!this.ship || this.bussardCollectorEffects) return;
+    this.bussardCollectorEffects = new THREE.Group();
+    this.bussardCollectorEffects.name = 'Visible animated Bussard collector glows';
+
+    const orangeTexture = this._makeGlowTexture(255, 92, 18);
+    const makeCollector = (engineName, id) => {
+      const engine = this.ship.getObjectByName(engineName);
+      if (!engine) return null;
+
+      // Find actual forward-most local mesh point from the animated Bussard hierarchy.
+      // A small camera-facing sprite avoids hiding the native rotating dome yet guarantees
+      // that its orange collection glow is visible at the homepage hero distance.
+      const box = new THREE.Box3().setFromObject(engine);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      const localCenter = this.ship.worldToLocal(center.clone());
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: orangeTexture,
+        color: 0xff6a20,
+        transparent: true,
+        opacity: 0.88,
+        depthWrite: false,
+        depthTest: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+      }));
+      sprite.name = `${id} visible orange Bussard collector`;
+      sprite.position.copy(localCenter);
+      // Raw GLB local units; box size gives a scale that reads as a compact dome, not HUD.
+      const glow = Math.max(44, Math.min(92, Math.max(size.x, size.y, size.z) * 0.56));
+      sprite.scale.set(glow, glow, 1);
+      sprite.renderOrder = 54;
+      sprite.userData = { engineName, localCenter: localCenter.toArray(), glow };
+      this.bussardCollectorEffects.add(sprite);
+      return sprite;
+    };
+
+    this.bussardCollectorRight = makeCollector('bussard_right', 'Starboard');
+    this.bussardCollectorLeft = makeCollector('bussard_left', 'Port');
+    if (this.bussardCollectorRight || this.bussardCollectorLeft) {
+      this.ship.add(this.bussardCollectorEffects);
+    }
+    this._dbgSet('starshipBussardCollectors', {
+      left: this.bussardCollectorLeft?.userData || null,
+      right: this.bussardCollectorRight?.userData || null,
+      visibleOrange: !!(this.bussardCollectorLeft || this.bussardCollectorRight),
+    });
+  }
 
   _addColdEdgeShell(source) {
     // clonefix1: keep bussard/exhaust animation, but do not clone entire GLTF scene.
@@ -371,220 +826,40 @@ export class StarshipShowcase {
 
   _addExhaustRig() {
     if (this.exhaustGroup) return;
+    // High-detail propulsion, constrained to two real nacelle anchors. It deliberately
+    // restores structured engine motion without reintroducing any saucer/HUD overlays.
     this.exhaustGroup = new THREE.Group();
-    this.exhaustGroup.name = 'Blue-white nacelle fluid exhaust rig - ship child';
-    this.exhaustGroup.position.set(0, 0, 0);
-    this.exhaustGroup.rotation.set(0, 0, 0);
-    this.exhaustGroup.scale.set(1, 1, 1);
-    this.exhaustModelSpace = null;
-    this.exhaustNiagaraLayers = {
-      EnergyCore: new THREE.Group(),
-      Thrusters: new THREE.Group(),
-      HeatHaze: new THREE.Group(),
-      Particulates: new THREE.Group(),
-    };
-    Object.entries(this.exhaustNiagaraLayers).forEach(([name, group]) => {
-      group.name = `UE Niagara ${name} emitter layer`;
-      this.exhaustGroup.add(group);
-    });
-    const material = this._makeExhaustMaterial();
-    this.exhaustMaterial = material;
-    const plumeLength = 10.80;
-    const geometry = this._makeIrregularPlasmaPlumeGeometry(plumeLength, 0.82, 96, 32, 11);
-    const coreLengthRatio = 0.56;
-    const coreGeo = new THREE.CylinderGeometry(0.026, 0.155, plumeLength * coreLengthRatio, 28, 1, true);
-    const coreVertexShader = `
-      varying float vAxisT;
-      varying float vRadialT;
-      void main() {
-        vAxisT = clamp((position.y + 3.024) / 6.048, 0.0, 1.0);
-        vRadialT = clamp(length(position.xz) / 0.155, 0.0, 1.0);
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `;
-    const coreFragmentShader = `
-      varying float vAxisT;
-      varying float vRadialT;
-      void main() {
-        float radialFade = 1.0 - smoothstep(0.0, 1.0, vRadialT);
-        float axialFade  = 1.0 - smoothstep(0.0, 1.0, vAxisT);
-        float hotFront = 1.0 - smoothstep(0.0, 0.56, vAxisT);
-        float alpha = pow(radialFade, 1.55) * axialFade;
-        vec3 color = mix(vec3(0.03, 0.26, 1.0), vec3(0.92, 0.98, 1.0), clamp(radialFade * 1.25 + hotFront * 0.25, 0.0, 1.0));
-        gl_FragColor = vec4(color * (1.72 + hotFront * 0.48), alpha * 0.26);
-      }
-    `;
+    this.exhaustGroup.name = 'High-detail dual nacelle propulsion rig';
+    this.exhaustNiagaraLayers = { EnergyCore: new THREE.Group(), Thrusters: new THREE.Group(), Particulates: new THREE.Group() };
+    Object.values(this.exhaustNiagaraLayers).forEach((group) => this.exhaustGroup.add(group));
     this.exhaustCoreMaterials = [];
+    this.exhaustTailMaterials = [];
     this.plasmaFilamentMaterials = [];
     this.particlePlumeMaterials = [];
-    const ports = [
-      [-4.00,  3.20, -4.50],
-      [-4.00, -3.20, -4.50],
-    ];
+    const ports = [[-4.00, 3.20, -4.50], [-4.00, -3.20, -4.50]];
     ports.forEach(([x, y, z], idx) => {
-      const plume = new THREE.Mesh(geometry, material);
-      const tailScale = idx === 0 ? 1.04 : 1.24;
-      const radialScale = idx === 0 ? 0.66 : 1.36;
-      plume.name = `NE_Thrusters / M_Thrusters volumetric plume ${idx + 1}`;
-      // Custom plume geometry is Y-axis based. In the current imported/model-normalized ship pose,
-      // model-space -X projects downward on screen, while model-space -Z projects toward the visual tail/left.
-      // Rotate local +Y -> model -Z and place the irregular plume center half a length behind the nacelle cap:
-      // the wide/high-pressure region stays near the red nacelle/nozzle, the disturbed wake trails left/back.
-      plume.position.set(x, y, z - (plumeLength * tailScale) / 2);
-      plume.rotation.x = -Math.PI / 2;
-      plume.scale.set(radialScale, tailScale, radialScale);
-      plume.renderOrder = 20;
-      plume.frustumCulled = false;
-      plume.raycast = () => {};
-      this.exhaustNiagaraLayers.Thrusters.add(plume);
-
-      const coreMat = new THREE.ShaderMaterial({
-        vertexShader: coreVertexShader,
-        fragmentShader: coreFragmentShader,
-        uniforms: { uTime: { value: 0 } },
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        side: THREE.DoubleSide,
-      });
-      const coreMesh = new THREE.Mesh(coreGeo, coreMat);
-      coreMesh.name = `NE_EnergyCore white-blue inner column ${idx + 1}`;
-      coreMesh.position.set(x, y, z - (plumeLength * coreLengthRatio * tailScale) / 2);
-      coreMesh.rotation.copy(plume.rotation);
-      coreMesh.scale.set((idx === 0 ? 0.58 : 1.28), tailScale, (idx === 0 ? 0.58 : 1.28));
-      coreMesh.renderOrder = 22;
-      coreMesh.frustumCulled = false;
-      coreMesh.raycast = () => {};
+      const scale = idx === 0 ? 0.72 : 1.0;
+      const width = idx === 0 ? 0.76 : 1.08;
+      const coreMat = new THREE.MeshBasicMaterial({ color: 0xe5f8ff, transparent: true, opacity: 0.96, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+      const core = new THREE.Mesh(new THREE.SphereGeometry(0.20 * scale, 16, 10), coreMat);
+      core.name = `High-detail nacelle hot core ${idx + 1}`;
+      core.position.set(x, y, z - 0.05);
+      core.renderOrder = 22;
+      this.exhaustNiagaraLayers.EnergyCore.add(core);
       this.exhaustCoreMaterials.push(coreMat);
-      this.exhaustNiagaraLayers.EnergyCore.add(coreMesh);
 
-      const ribbon = this._makeExhaustRibbonMesh(plumeLength * tailScale, idx === 0 ? 0.70 : 1.48);
-      ribbon.name = `NE_Thrusters torn blue-violet ribbon ${idx + 1}`;
-      // PlaneGeometry length is local X; rotate so X runs along model -Z, centered behind nozzle.
-      ribbon.position.set(x, y, z - (plumeLength * tailScale) / 2);
-      ribbon.rotation.y = Math.PI / 2;
-      ribbon.rotation.z = idx === 0 ? 0.10 : -0.10;
-      ribbon.renderOrder = 24;
-      this.exhaustNiagaraLayers.Thrusters.add(ribbon);
+      // The two purple flipbook flame sheets and matching filaments previously added
+      // here are deliberately omitted. Keep propulsion anchored as compact white-blue
+      // cores plus particle detail, without flames through the middle of the hull.
 
-      // High-speed plasma filaments: animated cross-shear sheets that read as stretched ionized flow.
-      const filamentBaseWidth = idx === 0 ? 0.46 : 0.82;
-      const filamentSpecs = idx === 0
-        ? [[0.00, 0.18, filamentBaseWidth, 0.92, 0.08], [0.18, -0.12, filamentBaseWidth * 0.72, 0.74, -0.18], [0.34, 0.02, filamentBaseWidth * 0.46, 0.54, 0.30]]
-        : [[0.00, -0.22, filamentBaseWidth, 1.18, -0.08], [0.16, 0.18, filamentBaseWidth * 0.82, 0.92, 0.20], [0.34, -0.04, filamentBaseWidth * 0.58, 0.70, -0.32], [0.50, 0.10, filamentBaseWidth * 0.40, 0.48, 0.42]];
-      filamentSpecs.forEach(([phase, yOff, width, intensity, roll], fIdx) => {
-        const filament = this._makePlasmaFilamentMesh(plumeLength * tailScale * (idx === 0 ? 1.02 : 1.06), width, phase, intensity);
-        filament.name = `Animated high-speed plasma filament ${idx + 1}.${fIdx + 1}`;
-        filament.position.set(x, y + yOff, z - (plumeLength * tailScale) / 2);
-        filament.rotation.y = Math.PI / 2;
-        filament.rotation.z = roll;
-        filament.renderOrder = 28 + fIdx;
-        this.exhaustNiagaraLayers.Thrusters.add(filament);
-      });
-
-      // Broken tail wisps: small camera-facing blue/magenta fragments near the far end.
-      // They make the plume fade as torn plasma instead of a clean triangular light sheet.
-      const shardSpecs = idx === 0
-        ? [[0.54, 0.30, 0.70, 0.30, 80, 160, 255, 0.40], [0.66, -0.22, 0.48, 0.20, 255, 55, 205, 0.34], [0.78, 0.12, 0.36, 0.16, 120, 80, 255, 0.30], [0.90, -0.16, 0.24, 0.11, 70, 130, 255, 0.22]]
-        : [[0.48, -0.48, 1.20, 0.50, 80, 160, 255, 0.58], [0.62, 0.24, 0.56, 0.23, 255, 55, 205, 0.38], [0.74, -0.10, 0.42, 0.18, 120, 80, 255, 0.32], [0.86, 0.18, 0.30, 0.13, 70, 130, 255, 0.26], [0.96, -0.18, 0.20, 0.09, 255, 55, 205, 0.18]];
-      shardSpecs.forEach(([t, yOff, sx, sy, r, g, b, op], shardIdx) => {
-        const shard = this._makeGlowSprite(r, g, b, 1.0, op);
-        shard.name = `Broken exhaust plasma wisp ${idx + 1}.${shardIdx + 1}`;
-        shard.position.set(x, y + yOff, z - plumeLength * tailScale * t);
-        shard.scale.set(sx, sy, 1);
-        shard.renderOrder = 26;
-        shard.frustumCulled = false;
-        shard.raycast = () => {};
-        this.exhaustNiagaraLayers.Particulates.add(shard);
-      });
-
-      const featherSpecs = idx === 0
-        ? [[0.46, 0.52, .16, .055, 65,145,255,.16], [0.55,-0.56,.16,.06,250,70,210,.14], [0.70,0.42,.13,.05,80,115,255,.13], [0.84,-0.34,.10,.04,210,80,255,.10], [0.96,0.26,.08,.035,80,130,255,.08]]
-        : [[0.38,-0.74,.30,.10,65,145,255,.24], [0.52,0.62,.18,.07,250,70,210,.16], [0.66,-0.48,.15,.055,80,115,255,.15], [0.80,0.38,.12,.045,210,80,255,.12], [0.93,-0.28,.09,.035,80,130,255,.09]];
-      featherSpecs.forEach(([t, yOff, sx, sy, r, g, b, op], fIdx) => {
-        const feather = this._makeGlowSprite(r, g, b, 1.0, op);
-        feather.name = `Feathered exhaust edge fragment ${idx + 1}.${fIdx + 1}`;
-        feather.position.set(x, y + yOff, z - plumeLength * tailScale * t);
-        feather.scale.set(sx, sy, 1);
-        feather.renderOrder = 27;
-        feather.frustumCulled = false;
-        feather.raycast = () => {};
-        this.exhaustNiagaraLayers.Particulates.add(feather);
-      });
-
-      const nozzle = this._makeGlowSprite(232, 246, 255, 0.92, 0.92);
-      nozzle.name = `NE_EnergyCore nozzle hot spawn ${idx + 1}`;
-      nozzle.position.set(x, y, z);
-      nozzle.renderOrder = 25;
-      nozzle.frustumCulled = false;
-      nozzle.raycast = () => {};
-      this.exhaustNiagaraLayers.EnergyCore.add(nozzle);
-
-
-      const vaporSheet = this._makeFluidVaporSheet(plumeLength * tailScale * (idx === 0 ? 1.10 : 1.18), idx === 0 ? 0.92 : 1.80, idx * 0.37);
-      vaporSheet.name = `Transparent turbulent fluid exhaust sheet ${idx + 1}`;
-      vaporSheet.position.set(x, y + (idx === 0 ? 0.06 : -0.08), z - (plumeLength * tailScale) / 2);
-      vaporSheet.rotation.y = Math.PI / 2;
-      vaporSheet.rotation.z = idx === 0 ? -0.42 : 0.36;
-      vaporSheet.renderOrder = 29;
-      this.exhaustNiagaraLayers.Thrusters.add(vaporSheet);
-
-      const flipbookA = this._makeFlipbookExhaustMesh(plumeLength * tailScale * (idx === 0 ? 1.06 : 1.16), idx === 0 ? 0.86 : 1.64, idx * 0.23, 0.34);
-      flipbookA.name = `Flipbook fluid exhaust skin A ${idx + 1}`;
-      flipbookA.position.set(x, y + (idx === 0 ? 0.02 : -0.03), z - (plumeLength * tailScale) / 2);
-      flipbookA.rotation.y = Math.PI / 2;
-      flipbookA.rotation.z = idx === 0 ? -0.24 : 0.22;
-      flipbookA.renderOrder = 30;
-      this.exhaustNiagaraLayers.Thrusters.add(flipbookA);
-
-      const flipbookB = this._makeFlipbookExhaustMesh(plumeLength * tailScale * (idx === 0 ? 1.00 : 1.10), idx === 0 ? 0.58 : 1.10, idx * 0.23 + 0.47, 0.26);
-      flipbookB.name = `Flipbook fluid exhaust skin B ${idx + 1}`;
-      flipbookB.position.set(x, y + (idx === 0 ? -0.08 : 0.10), z - (plumeLength * tailScale) / 2);
-      flipbookB.rotation.y = Math.PI / 2;
-      flipbookB.rotation.z = idx === 0 ? 0.54 : -0.50;
-      flipbookB.renderOrder = 31;
-      this.exhaustNiagaraLayers.Thrusters.add(flipbookB);
-
-      const heatHaze = this._makeWeiyanHeatHazeMesh(plumeLength * tailScale * (idx === 0 ? 0.72 : 0.82), idx === 0 ? 0.64 : 1.20, idx * 0.31);
-      heatHaze.name = `NE_HeatHaze / M_HeatHaze distortion sheet ${idx + 1}`;
-      heatHaze.position.set(x, y + (idx === 0 ? 0.00 : 0.00), z - (plumeLength * tailScale) * 0.33);
-      heatHaze.rotation.y = Math.PI / 2;
-      heatHaze.rotation.z = idx === 0 ? 0.18 : -0.16;
-      heatHaze.renderOrder = 32;
-      this.exhaustNiagaraLayers.HeatHaze.add(heatHaze);
-
-      const plumeLayers = idx === 0
-        ? [
-            ['nearfield', 260, plumeLength * 0.22, 0.24, 1.28, 1.42, 12.0, 31],
-            ['core',      980, plumeLength * tailScale * 1.03, 0.28, 1.34, 1.10, 13.0, 32],
-            ['sheath',   1180, plumeLength * tailScale * 1.02, 0.58, 1.18, 0.68, 14.0, 33],
-            ['dissipate', 620, plumeLength * tailScale * 1.18, 0.70, 0.74, 0.44, 15.0, 34],
-          ]
-        : [
-            ['nearfield', 340, plumeLength * 0.26, 0.38, 1.45, 1.26, 31.0, 31],
-            ['core',     1320, plumeLength * tailScale * 1.06, 0.44, 1.48, 0.96, 32.0, 32],
-            ['sheath',   1540, plumeLength * tailScale * 1.08, 0.96, 1.30, 0.58, 33.0, 33],
-            ['dissipate', 900, plumeLength * tailScale * 1.24, 1.05, 0.86, 0.38, 34.0, 34],
-          ];
-      plumeLayers.forEach(([layer, count, length, radialScale, brightness, speed, seed, order], layerIdx) => {
-        const particlePlume = this._makeParticlePlumeMesh({ x, y, z, count, length, radialScale, brightness, speed, seed, layer });
-        particlePlume.name = `NE_Particulates curl-noise ${layer} ${idx + 1}`;
-        particlePlume.renderOrder = order;
-        this.exhaustNiagaraLayers.Particulates.add(particlePlume);
-      });
+      // No synthetic purple particle trails: the original GLB's engine surfaces and
+      // compact core above provide the intended high-detail read without loose sparks.
     });
-    // weiyan6: the earlier UE-style center plume layers were visually floating between/under the nacelles.
-    // Clear them so the only visible exhaust is the two nozzle-anchored nacelle trails.
-    Object.values(this.exhaustNiagaraLayers).forEach((layer) => {
-      while (layer.children.length) layer.remove(layer.children[0]);
-    });
-    this._addWeiyan5DualNacelleWarpTrails(this.exhaustNiagaraLayers.Thrusters);
     (this.ship || this.anchor || this.scene).add(this.exhaustGroup);
     this.exhaustGroup.userData.boundToShip = !!this.ship;
-    this.exhaustGroup.userData.boundToAnchor = false;
-    this.exhaustGroup.userData.weiyanVersion = this.exhaustVersion;
-    this.exhaustGroup.userData.niagaraEmitters = ['NE_EnergyCore', 'NE_Thrusters', 'NE_HeatHaze', 'NE_Particulates'];
-    this.exhaustGroup.userData.weiyan11Structure = 'Safe UE/Niagara extracted texture pass: preserves ship binding and visible architecture, strengthens grunge smoke/particulate material dominance';
+    this.exhaustGroup.userData.weiyanVersion = 'high-detail-dual-nacelle-v1';
+    this.exhaustGroup.userData.niagaraEmitters = ['dual-core'];
+    this.exhaustGroup.userData.atmosphericEffects = true;
   }
 
   _makeGlowSprite(r = 115, g = 205, b = 255, size = 0.7, opacity = 0.8) {
@@ -1685,11 +1960,7 @@ export class StarshipShowcase {
     this.anchor.rotation.y = this.baseRotation.y + this.userYaw + Math.sin(t * 0.42) * 0.035;
     this.anchor.rotation.z = this.baseRotation.z + Math.sin(t * 0.58) * 0.014;
     if (this.exhaustGroup) {
-      if (this.exhaustGroup.parent === this.ship) {
-        this.exhaustGroup.position.set(0, 0, 0);
-        this.exhaustGroup.rotation.set(0, 0, 0);
-        this.exhaustGroup.scale.set(1, 1, 1);
-      } else if (this.exhaustGroup.parent === this.anchor) {
+      if (this.exhaustGroup.parent === this.ship || this.exhaustGroup.parent === this.anchor) {
         this.exhaustGroup.position.set(0, 0, 0);
         this.exhaustGroup.rotation.set(0, 0, 0);
         this.exhaustGroup.scale.set(1, 1, 1);
@@ -1698,25 +1969,27 @@ export class StarshipShowcase {
         this.exhaustGroup.rotation.copy(this.anchor.rotation);
         this.exhaustGroup.scale.copy(this.anchor.scale);
       }
-      if (this.exhaustMaterial?.uniforms?.uTime) this.exhaustMaterial.uniforms.uTime.value = t;
-      if (this.exhaustGroup) {
-        this.exhaustGroup.userData.liveLayerCounts = Object.fromEntries(Object.entries(this.exhaustNiagaraLayers || {}).map(([k, g]) => [k, g.children.length]));
-        this.exhaustGroup.userData.weiyan5NacelleCount = this.weiyan5Root?.children?.length || 0;
-      }
-        this.exhaustGroup.traverse((obj) => {
-          const mat = obj.material;
-          const map = mat?.map;
-          if (map && mat.userData?.ueNiagaraExtracted) {
-            const textureName = mat.userData.textureName || '';
-            const speed = textureName.includes('Particulate') ? 0.075 : 0.032;
-            map.offset.x = (Math.sin(t * 0.23) * 0.015) % 1;
-            map.offset.y = (t * speed) % 1;
-          }
-        });
-        this.exhaustCoreMaterials?.forEach((mat) => { if (mat?.uniforms?.uTime) mat.uniforms.uTime.value = t; });
-        this.plasmaFilamentMaterials?.forEach((mat) => { if (mat?.uniforms?.uTime) mat.uniforms.uTime.value = t; });
-        this.particlePlumeMaterials?.forEach((mat) => { if (mat?.uniforms?.uTime) mat.uniforms.uTime.value = t; });
+      const propulsionPulse = 0.5 + 0.5 * Math.sin(t * 4.0);
+      this.exhaustCoreMaterials?.forEach((mat) => { mat.opacity = 0.76 + propulsionPulse * 0.18; });
+      this.exhaustTailMaterials?.forEach((mat) => {
+        if (mat?.uniforms?.uTime) mat.uniforms.uTime.value = t;
+        if ('opacity' in (mat || {})) mat.opacity = 0.46 + propulsionPulse * 0.20;
+      });
+      this.plasmaFilamentMaterials?.forEach((mat) => { if (mat?.uniforms?.uTime) mat.uniforms.uTime.value = t; });
+      this.particlePlumeMaterials?.forEach((mat) => { if (mat?.uniforms?.uTime) mat.uniforms.uTime.value = t; });
+      this.exhaustGroup.userData.liveLayerCounts = Object.fromEntries(Object.entries(this.exhaustNiagaraLayers || {}).map(([k, g]) => [k, g.children.length]));
+      this._dbgSet('starshipPropulsionPulse', Number(propulsionPulse.toFixed(3)));
     }
+    const coilPulse = 0.50 + 0.50 * Math.sin(t * 3.2);
+    this.ship?.traverse?.((obj) => {
+      if (!obj.isMesh || !obj.material) return;
+      (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach((mat) => {
+        if (/warp[_-]?coils?|warpcoil/i.test(`${mat.name || ''} ${obj.name || ''}`) && 'emissiveIntensity' in mat) {
+          mat.emissiveIntensity = 1.55 + coilPulse * 0.85;
+        }
+      });
+    });
+    this._dbgSet('starshipWarpPulse', Number(coilPulse.toFixed(3)));
     // Use direct transparent rendering on the homepage. EffectComposer/UnrealBloomPass
     // outputs an opaque black rectangle in a partial overlay canvas, which darkens the Earth
     // or forces screen blending that makes the ship look transparent.
@@ -1727,36 +2000,46 @@ export class StarshipShowcase {
   }
 
   resize() {
-    if (!this.container || !this.renderer || !this.camera) return;
-    const w = this.container.clientWidth || window.innerWidth;
-    const h = this.container.clientHeight || window.innerHeight;
-    this.camera.aspect = Math.max(1, w) / Math.max(1, h);
-    this.camera.updateProjectionMatrix();
-    this.renderer.setSize(Math.max(1, w), Math.max(1, h));
-    this.composer?.setSize(Math.max(1, w), Math.max(1, h));
-    this.bloomPass?.setSize?.(Math.max(1, w), Math.max(1, h));
+    if (!this.container || !this.renderer || !this.camera || this._destroyed) return;
+    const size = this._measureSize();
+    // Skip 0×0 frames (hidden route / display:none) — never call setSize(0, *).
+    if (size.rawW < 1 || size.rawH < 1) return;
+    this._safeSetRendererSize(size.w, size.h);
   }
 
   destroy() {
     this._destroyed = true;
+    if (this._initTimer) {
+      clearTimeout(this._initTimer);
+      this._initTimer = null;
+    }
     if (this._frame) cancelAnimationFrame(this._frame);
+    this._frame = null;
     this.gltfMixer?.stopAllAction?.();
     this.gltfMixer = null;
     this.gltfLastUpdate = null;
     this.gltfAnimationActions = [];
-    window.removeEventListener('resize', this._onResize);
+    if (this._onResize) window.removeEventListener('resize', this._onResize);
     this.scene?.traverse((obj) => {
       obj.geometry?.dispose?.();
       const mats = obj.material ? (Array.isArray(obj.material) ? obj.material : [obj.material]) : [];
       mats.forEach((m) => { m.map?.dispose?.(); m.dispose?.(); });
     });
-    window.removeEventListener('pointerdown', this._onPointerDown, true);
-    window.removeEventListener('pointermove', this._onPointerMove, true);
-    window.removeEventListener('pointerup', this._onPointerUp, true);
-    window.removeEventListener('pointercancel', this._onPointerUp, true);
-    window.removeEventListener('wheel', this._onWheel, { capture: true });
-    window.removeEventListener('dblclick', this._onDoubleClick, true);
-    window.removeEventListener('contextmenu', this._onContextMenu, true);
+    // Interaction listeners are attached to the hitbox/target, not always window.
+    try {
+      const target = this.hitbox || this.renderer?.domElement;
+      if (target) {
+        if (this._onPointerDown) target.removeEventListener('pointerdown', this._onPointerDown, true);
+        if (this._onPointerMove) target.removeEventListener('pointermove', this._onPointerMove, true);
+        if (this._onPointerUp) {
+          target.removeEventListener('pointerup', this._onPointerUp, true);
+          target.removeEventListener('pointercancel', this._onPointerUp, true);
+        }
+        if (this._onWheel) target.removeEventListener('wheel', this._onWheel, { capture: true });
+        if (this._onDoubleClick) target.removeEventListener('dblclick', this._onDoubleClick, true);
+        if (this._onContextMenu) target.removeEventListener('contextmenu', this._onContextMenu, true);
+      }
+    } catch (_) {}
     document.body.classList.remove('starship-hovering', 'starship-grabbing');
     this.composer?.dispose?.();
     this.renderer?.dispose?.();

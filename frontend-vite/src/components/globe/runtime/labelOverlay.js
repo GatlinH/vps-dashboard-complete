@@ -201,6 +201,8 @@ export function updateHtmlNodeLabels(globe, cityMode) {
   const placeLabel = (entity, labelEl, yOffset = 30) => {
     if (!labelEl) return;
     const forceBeacon = isBeacon(labelEl);
+    const isVpsBeacon = labelEl.classList.contains('is-vps-beacon-node');
+    const isVisitorBeacon = labelEl.classList.contains('is-visitor-node');
     if (!entity.show && !forceBeacon) { hideLabel(labelEl); return; }
     const pos = entity.position?.getValue(now);
     if (!pos) { hideLabel(labelEl); return; }
@@ -214,7 +216,10 @@ export function updateHtmlNodeLabels(globe, cityMode) {
     }
     const rawX = win.x;
     const rawY = win.y;
-    if (!forceBeacon && (!frontFacing || rawX < -40 || rawX > width + 40 || rawY < -40 || rawY > height + 40)) {
+    // Front-side beacons render as complete circles; far-side beacons are hidden as a
+    // whole. This avoids the depth-buffer half-circle artifact without allowing pierce-through.
+    if ((isVpsBeacon || isVisitorBeacon) && entity.point) entity.point.show = frontFacing;
+    if (((isVpsBeacon || isVisitorBeacon) && !frontFacing) || (!forceBeacon && (rawX < -40 || rawX > width + 40 || rawY < -40 || rawY > height + 40))) {
       hideLabel(labelEl);
       return;
     }

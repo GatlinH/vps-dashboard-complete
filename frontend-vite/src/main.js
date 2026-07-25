@@ -5,7 +5,8 @@ import './styles/detail-starfleet-console.css';
 
 import { state } from './store/state.js';
 import { listServersPublic } from './api/public.js';
-import { ThreeGlobe } from './components/ThreeGlobe.js';
+import { CesiumGlobe } from './components/CesiumGlobe.js';
+import { StarshipShowcase } from './components/StarshipShowcase.js';
 import { TrafficChart } from './components/TrafficChart.js';
 import { mountGlobeStarmap } from './components/GlobeStarmapMount.jsx';
 import { toDisplay, calcResidualValue, getMonthlyPrice, getBillingMonths, sourceAmountToCny, getSourceCurrency, updateRateDisplay, refreshExchangeRates } from './utils/currency.js';
@@ -26,6 +27,7 @@ import { groupClusterMembers } from './services/serverGroups.js';
 import { clusterServersByCoordinate } from './components/globe/vpsClusters.js';
 
 let globe = null;
+let starshipShowcase = null;
 const serversChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('vps-servers') : null;
 window.__DBG__.STATE = state;
 const detailCharts = new TrafficChart();
@@ -242,6 +244,10 @@ function mountDisplayPage() {
   app.innerHTML = `
     <section class="display-page-fullscreen globe-only-page" id="page-globe">
       <div id="globe-container" class="display-globe-fullscreen immersive-globe-canvas-wrap three-globe-host"></div>
+      <div class="photo-space-showcase" aria-hidden="true">
+        <div class="photo-nebula-field"></div>
+        <div id="starship-gltf-stage" class="starship-gltf-stage"></div>
+      </div>
       <div class="globe-overlay-layer">
         <div id="globeSunMount"></div>
         <div class="globe-focus-badge" id="globeFocusBadge"></div>
@@ -326,17 +332,33 @@ function handleGlobeNodeSelection(server, clusterMembers, cluster) {
 
 function getGlobe() {
   if (globe) return globe;
-  globe = new ThreeGlobe('#globe-container', state.servers, {
-    enableStarship: true,
-    starshipModelUrl: '/globe/xinjian1.glb',
-    defaultDistance: 2.35,
-    minDistance: 1.55,
-    maxDistance: 5.8,
+  // Cesium earth only. Starship stays on independent Three.js StarshipShowcase —
+  // Enterprise GLB is not Cesium-compatible (attribute validation fails).
+  globe = new CesiumGlobe('#globe-container', state.servers, {
     onNodeClick: handleGlobeNodeSelection,
     onBlankClick: closeClusterInteraction,
+    enableStarship: false,
   });
-  globe.start();
-  getGlobeRuntimeDebug().globeMode = 'three-single-renderer';
+  getGlobeRuntimeDebug().globeMode = 'cesium-earth-independent-starship-showcase';
+  const stage = document.getElementById('starship-gltf-stage');
+  if (stage) {
+    try { starshipShowcase?.destroy?.(); } catch (_) {}
+    try {
+      starshipShowcase = new StarshipShowcase(stage, {
+        // Full original xinjian1 (textures + denser meshes) from /root/xinjian1.glb
+        modelUrl: '/globe/xinjian1.glb',
+        fallbackModelUrl: '/globe/star_trek_dsc_enterprise_user.glb',
+        deferMs: 180,
+      });
+      window.__starshipShowcase = starshipShowcase;
+      window.__DBG__.starshipShowcase = starshipShowcase;
+      window.__DBG__.starshipRenderer = 'three-showcase';
+    } catch (error) {
+      console.warn('[homepage] starship showcase failed; globe continues', error);
+      window.__DBG__.starshipError = String(error?.message || error);
+      starshipShowcase = null;
+    }
+  }
   renderSunBadge();
   renderMoonPanel();
   window.__DBG__.globe = globe;
@@ -563,18 +585,23 @@ function telemetryTooltipTime(item) {
 
 
 function adaptiveRollingBounds(pointGroups = [], hours = 12) {
+  // Cold-start: X axis anchors at the first real sample and grows forward.
+  // Only after a full window of data has accumulated does the axis roll with the latest sample.
+  // Never right-align sparse data (that makes CPU/memory/freshness appear to draw right-to-left).
   const fullSpan = hours * 60 * 60 * 1000;
   const xs = pointGroups.flat().map((point) => Number(point?.x)).filter(Number.isFinite).sort((a, b) => a - b);
   const dataFirst = xs.length ? xs[0] : 0;
   const dataLast = xs.length ? xs[xs.length - 1] : dataFirst;
-  const min = dataLast - fullSpan;
-  const max = dataLast;
+  const coldMax = dataFirst + fullSpan;
+  const rolling = xs.length > 0 && dataLast >= coldMax;
+  const min = rolling ? dataLast - fullSpan : dataFirst;
+  const max = rolling ? dataLast : coldMax;
   const span = Math.max(1, max - min);
   return {
     min,
     max,
     step: Math.max(60 * 1000, Math.round(span / 4)),
-    mode: 'anchored-to-last-persisted-sample',
+    mode: rolling ? 'rolling-after-full-window' : 'accumulating-from-first-sample',
     dataFirst,
     dataLast,
     dataSpanMs: xs.length ? Math.max(0, dataLast - dataFirst) : 0,
@@ -600,11 +627,14 @@ function pingTargetsFromRows(rows = [], pingTargetsData = null) {
 }
 
 function recordLivePingSamples(pingTargetsData = null, fetchedAt = Date.now(), serverId = null) {
-  if (pingTargetsData?.unavailable) {
-    detailPingSamples.setUnavailable(serverId || pingTargetsData?.server_id);
+  // Never wipe local history just because one unavailable payload arrives.
+  // Global VPS peer probes also return unavailable when no samples yet; that must
+  // not clear PING sample cache for external latency-monitor targets.
+  if (pingTargetsData?.unavailable && !(Array.isArray(pingTargetsData?.targets) && pingTargetsData.targets.length)) {
     return;
   }
-  const targets = (Array.isArray(pingTargetsData?.targets) ? pingTargetsData.targets : []).filter(t => t.type !== 'peer');
+  const targets = (Array.isArray(pingTargetsData?.targets) ? pingTargetsData.targets : []).filter((t) => t.type !== 'peer' && !String(t?.key || '').startsWith('vps-'));
+  if (!targets.length) return;
   const cutoff = fetchedAt - DETAIL_PING_SAMPLE_WINDOW_MS;
   for (const target of targets) {
     const key = String(target?.key || target?.host || target?.label || target?.target || target?.domain || 'unknown');
@@ -618,14 +648,74 @@ function recordLivePingSamples(pingTargetsData = null, fetchedAt = Date.now(), s
       if (!row?.success || !Number.isFinite(rawMs)) continue;
       const seq = Number(row?.seq || 1);
       const x = fetchedAt - Math.max(0, rows.length - seq) * 2500;
-      const exists = samples.some(p => Math.abs(p.x - x) < 900 && Math.abs(p.rawMs - rawMs) < 0.05);
+      const exists = samples.some((p) => Math.abs(p.x - x) < 900 && Math.abs(p.rawMs - rawMs) < 0.05);
       if (!exists) samples.push({ x, y: pingStepValue(rawMs), rawMs, success: true, label, key, protocol, lossPct });
+    }
+    // If the live payload only has aggregate stats (common on first paint), seed one point.
+    if (!rows.length) {
+      const avg = Number(target?.stats?.avg_ms);
+      if (Number.isFinite(avg) && avg >= 0) {
+        const exists = samples.some((p) => Math.abs(p.x - fetchedAt) < 5000);
+        if (!exists) samples.push({ x: fetchedAt, y: pingStepValue(avg), rawMs: avg, success: true, label, key, protocol, lossPct });
+      }
     }
     samples.sort((a, b) => a.x - b.x);
     detailPingSamples.prune(key, cutoff);
   }
   detailPingSamples.expose();
   detailPingSamples.saveStored(serverId || pingTargetsData?.server_id);
+}
+
+function seedPingSamplesFromHistory(historyData = null, serverId = null) {
+  // Backend history already has multi-hour points. On each detail open we must
+  // hydrate local cache so the PING chart does not restart from zero.
+  const targets = Array.isArray(historyData?.targets) ? historyData.targets : [];
+  if (!targets.length) return 0;
+  const cutoff = Date.now() - DETAIL_PING_SAMPLE_WINDOW_MS;
+  let added = 0;
+  for (const target of targets) {
+    const key = String(target?.key || target?.host || target?.label || 'unknown');
+    if (!key || key.startsWith('vps-') || target?.type === 'peer') continue;
+    const label = target?.label || target?.name || target?.host || key;
+    const protocol = target?.protocol || target?.stats?.protocol || 'icmp';
+    const points = Array.isArray(target?.points)
+      ? target.points
+      : (Array.isArray(target?.results) ? target.results : []);
+    if (!points.length) continue;
+    const samples = detailPingSamples.ensure(key);
+    for (const point of points) {
+      const rawMs = Number(point?.latency_ms ?? point?.rawMs ?? point?.y);
+      if (!Number.isFinite(rawMs) || rawMs < 0) continue;
+      if (point?.success === false) continue;
+      // History API returns x as ISO string (or epoch ms). Never Number(iso) which is NaN.
+      let x = Number(point?.x);
+      if (!Number.isFinite(x)) {
+        const ts = Date.parse(point?.x || point?.created_at || point?.timestamp || point?.time || '');
+        x = Number.isFinite(ts) ? ts : NaN;
+      }
+      if (!Number.isFinite(x) || x < cutoff) continue;
+      const exists = samples.some((p) => Math.abs(p.x - x) < 1200 && Math.abs(Number(p.rawMs) - rawMs) < 0.05);
+      if (exists) continue;
+      samples.push({
+        x,
+        y: pingStepValue(rawMs),
+        rawMs,
+        success: true,
+        label,
+        key,
+        protocol: point?.protocol || protocol,
+        lossPct: Number(point?.loss_pct ?? target?.stats?.loss_pct ?? 0),
+      });
+      added += 1;
+    }
+    samples.sort((a, b) => a.x - b.x);
+    detailPingSamples.prune(key, cutoff);
+  }
+  if (added) {
+    detailPingSamples.expose();
+    detailPingSamples.saveStored(serverId || historyData?.server_id);
+  }
+  return added;
 }
 
 function buildLivePingDatasets(pingTargetsData = null, hours = 12) {
@@ -1487,7 +1577,7 @@ function renderProbeStatusCard(pingData, pingTargetsData) {
     const ms = t.stats?.avg_ms != null ? Number(t.stats.avg_ms) : 0;
     const l = t.stats?.loss_pct != null ? Math.max(0, Number(t.stats.loss_pct)) : 0;
     return `<div><span>${t.label || 'probe'}</span>${probeLinkBar(ms, l)}<em>${ms ? ms.toFixed(0)+'ms' : '—'} / ${l.toFixed(0)}%</em></div>`;
-  }).join('') : '<div class="probe-empty-row"><span>未读取到延迟监控目标</span><em>请在后台「延迟监测」配置 ping_targets</em></div>');
+  }).join('') : '<div class="probe-empty-row"><span>未配置延迟监测目标</span><em>请在后台「延迟监测」配置 ping_targets</em></div>');
   return `<div class="fleet-chart-card probe-status-card ${cls}">
     <div class="fleet-chart-head"><span>探针链路状态</span><strong>${state}</strong></div>
     <div class="probe-status-hero"><b>${agentUnavailable ? '—' : `${loss.toFixed(0)}%`}</b><span>${agentUnavailable ? '节点侧' : '丢包率'}</span><em>${agentUnavailable ? '暂无真实互探样本' : (avg != null ? `平均 ${avg.toFixed(0)} ms` : '无有效延迟样本')}</em></div>
@@ -1507,13 +1597,25 @@ function probeLinkBar(ms, loss = null) {
 }
 
 function renderGlobalVpsProbeRows(vpsProbeTargetsData) {
-  const targets = (vpsProbeTargetsData?.targets || []).filter((target) => String(target?.key || '').startsWith('vps-')).slice(0, 6);
-  if (targets.length) return targets.map((target) => {
-    const ms = target.stats?.avg_ms != null ? Number(target.stats.avg_ms) : null;
-    const loss = target.stats?.loss_pct != null ? Math.max(0, Number(target.stats.loss_pct)) : null;
-    return `<tr><td>${target.label || target.key}</td><td>${ms != null ? ms.toFixed(0) : '—'}</td><td>${loss != null ? loss.toFixed(0) + '%' : '—'}</td><td>${probeLinkBar(ms, loss)}</td></tr>`;
-  }).join('');
-  return '<tr class="probe-empty-row"><td colspan="4"><span>尚无 VPS 探针采样</span><em>等待当前 VPS Agent 上报全球 VPS 探针结果</em></td></tr>';
+  const raw = Array.isArray(vpsProbeTargetsData?.targets) ? vpsProbeTargetsData.targets : [];
+  // Peer probes only: key vps-* / type peer / peer_server_id. Never mix external ping_targets.
+  const targets = raw.filter((target) => {
+    const key = String(target?.key || '');
+    return key.startsWith('vps-') || target?.type === 'peer' || target?.peer_server_id != null;
+  }).slice(0, 12);
+  const unavailable = !!vpsProbeTargetsData?.unavailable;
+  if (targets.length) {
+    return targets.map((target) => {
+      const ms = target.stats?.avg_ms != null ? Number(target.stats.avg_ms) : null;
+      const loss = target.stats?.loss_pct != null ? Math.max(0, Number(target.stats.loss_pct)) : null;
+      const label = target.label || target.key || 'peer';
+      return `<tr><td>${label}</td><td>${ms != null ? ms.toFixed(0) : '—'}</td><td>${loss != null ? loss.toFixed(0) + '%' : '—'}</td><td>${probeLinkBar(ms, loss)}</td></tr>`;
+    }).join('');
+  }
+  if (unavailable) {
+    return '<tr class="probe-empty-row"><td colspan="4"><span>暂无节点侧互探采样</span><em>目标已识别，等待当前 VPS Agent 上报</em></td></tr>';
+  }
+  return '<tr class="probe-empty-row"><td colspan="4"><span>暂无其它 VPS 可互探</span><em>全球探针 = 当前节点 → 其它节点；仅 1 台时为空</em></td></tr>';
 }
 
 function renderProbeRows(pingTargetsData, pingData) {
@@ -1523,23 +1625,23 @@ function renderProbeRows(pingTargetsData, pingData) {
     const loss = target.stats?.loss_pct != null ? Math.max(0, Number(target.stats.loss_pct)) : null;
     return `<tr><td>${target.label || 'probe'}</td><td>${ms != null ? ms.toFixed(0) : '—'}</td><td>${loss != null ? loss.toFixed(0) + '%' : '—'}</td><td>${probeLinkBar(ms, loss)}</td></tr>`;
   }).join('');
-  return '<tr class="probe-empty-row"><td colspan="4"><span>未读取到延迟监控目标</span><em>请在后台「延迟监测」配置 ping_targets</em></td></tr>';
+  return '<tr class="probe-empty-row"><td colspan="4"><span>未读取到延迟监测目标</span><em>请在后台「延迟监测」配置 ping_targets</em></td></tr>';
 }
 
 async function refreshDetailProbeTargetsNow(serverId) {
   if (!serverId) return null;
   try {
-    const data = await fetchPingTargets(serverId, 3);
+    // Global VPS peer probes come from source=agent, not external ping_targets.
+    const data = await fetchPingTargets(serverId, 1, 'agent');
     if (!data) return null;
-    detailCache.pingTargets = data;
-    setDetailPingTargetsFetchedAt(Date.now());
-    window.__DBG__.DETAIL_PING_TARGETS = data;
+    detailCache.vpsProbeTargets = data?.targets?.length ? data : detailCache.vpsProbeTargets;
+    window.__DBG__.DETAIL_GLOBAL_VPS_PROBE_TARGETS = detailCache.vpsProbeTargets || data;
     const tbody = document.querySelector('.fleet-probe-table-panel tbody');
-    if (tbody) tbody.innerHTML = renderProbeRows(data, null);
+    if (tbody) tbody.innerHTML = renderGlobalVpsProbeRows(detailCache.vpsProbeTargets || data);
     return data;
   } catch (error) {
     window.__DBG__.DETAIL_PROBE_TARGET_REFRESH_ERROR = String(error?.stack || error);
-    console.warn('[detail] probe target refresh failed', error);
+    console.warn('[detail] global vps probe target refresh failed', error);
     return null;
   }
 }
@@ -1626,11 +1728,18 @@ async function renderDetailPage(serverId) {
   const vpsProbeTargetsData = vpsProbeTargets.status === 'fulfilled' ? vpsProbeTargets.value : null;
   const vpsProbeHistoryData = vpsProbeHistory.status === 'fulfilled' ? vpsProbeHistory.value : null;
 
-  if (pingTargetsData?.targets?.length) recordLivePingSamples(pingTargetsData, Date.now(), resolvedServer.id);
+  // Hydrate PING chart from backend history first so reopen does not restart from zero.
+  // Live targets then append the newest samples on top.
+  if (pingTargetHistoryData?.targets?.length) {
+    seedPingSamplesFromHistory(pingTargetHistoryData, resolvedServer.id);
+  }
+  if (pingTargetsData?.targets?.length) {
+    recordLivePingSamples(pingTargetsData, Date.now(), resolvedServer.id);
+  }
   detailCache.pingTargets = pingTargetsData?.targets?.length ? pingTargetsData : detailCache.pingTargets;
   detailCache.pingTargetHistory = pingTargetHistoryData?.targets?.length ? pingTargetHistoryData : detailCache.pingTargetHistory;
-  detailCache.vpsProbeTargets = vpsProbeTargetsData?.targets?.length ? vpsProbeTargetsData : detailCache.vpsProbeTargets;
-  detailCache.vpsProbeHistory = vpsProbeHistoryData?.targets?.length ? vpsProbeHistoryData : detailCache.vpsProbeHistory;
+  detailCache.vpsProbeTargets = vpsProbeTargetsData || detailCache.vpsProbeTargets;
+  detailCache.vpsProbeHistory = vpsProbeHistoryData || detailCache.vpsProbeHistory;
   window.__DBG__.DETAIL_PING_TARGETS = detailCache.pingTargets || pingTargetsData;
   window.__DBG__.DETAIL_PING_TARGET_HISTORY = detailCache.pingTargetHistory || pingTargetHistoryData;
   window.__DBG__.DETAIL_GLOBAL_VPS_PROBE_TARGETS = detailCache.vpsProbeTargets || vpsProbeTargetsData;
@@ -1694,6 +1803,7 @@ async function renderDetailPage(serverId) {
     detailDays,
     detailBucketMinutes,
     detailCachedPingTargets: detailCache.pingTargets,
+    detailCachedVpsProbeTargets: detailCache.vpsProbeTargets,
 
     helpers: {
       renderFleetShip,
@@ -1856,6 +1966,7 @@ async function refreshDetailRealtime(serverId) {
     if (pingTargetHistory.status === 'fulfilled' && (pingTargetHistory.value?.targets?.length || pingTargetHistory.value?.unavailable)) {
       detailCache.pingTargetHistory = pingTargetHistory.value;
       window.__DBG__.DETAIL_PING_TARGET_HISTORY = detailCache.pingTargetHistory;
+      if (pingTargetHistory.value?.targets?.length) seedPingSamplesFromHistory(pingTargetHistory.value, current.id);
     }
     setDetailHeavyRefreshAt(now);
   }

@@ -2,17 +2,40 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-const defaultGlobe = mainSource.match(/function getGlobe\(\) \{[\s\S]*?\n}\n\nfunction initGlobe/);
-const displayMount = mainSource.match(/function mountDisplayPage\(\) \{[\s\S]*?\n}\n\nfunction renderPublicOverviewPage/);
-const bootRoute = mainSource.match(/async function boot\(\) \{[\s\S]*?\n}\n\nboot\(\);/);
+const showcaseSource = readFileSync(new URL('../src/components/StarshipShowcase.js', import.meta.url), 'utf8');
+const cesiumSource = readFileSync(new URL('../src/components/CesiumGlobe.js', import.meta.url), 'utf8');
+const defaultGlobe = mainSource.match(/function getGlobe\(\) \{[\s\S]*?\n\}\n\nfunction initGlobe/);
+const displayMount = mainSource.match(/function mountDisplayPage\(\) \{[\s\S]*?\n\}\n\nfunction renderPublicOverviewPage/);
 
-assert.ok(defaultGlobe, 'default globe initializer must exist');
-assert.ok(displayMount, 'default display mount must exist');
-assert.ok(bootRoute, 'application route dispatch must exist');
-assert.match(defaultGlobe[0], /new ThreeGlobe\('#globe-container', state\.servers, \{[\s\S]*?enableStarship: true,[\s\S]*?starshipModelUrl: '\/globe\/xinjian1\.glb'/, 'the default home must use ThreeGlobe with the original starship model enabled');
-assert.doesNotMatch(defaultGlobe[0], /CesiumGlobe|URLSearchParams\(window\.location\.search\)\.get\('renderer'\)/, 'the default home must not select Cesium or depend on a renderer query parameter');
-assert.doesNotMatch(displayMount[0], /photo-space-showcase|starship-gltf-stage/, 'the default home must not mount an independent StarshipShowcase stage');
-assert.doesNotMatch(mainSource, /StarshipShowcase|initStarshipShowcase/, 'the default application path must not initialize StarshipShowcase');
-assert.match(bootRoute[0], /else if \(selectedServerId\) \{[\s\S]*?await renderDetailPage\(selectedServerId\);[\s\S]*?else \{[\s\S]*?mountDisplayPage\(\);[\s\S]*?initGlobe\(\);/, 'a ?server= detail route must render before the default ThreeGlobe home path');
+assert.ok(defaultGlobe, 'getGlobe must exist');
+assert.ok(displayMount, 'mountDisplayPage must exist');
 
-console.log('single-renderer home regression: ok');
+assert.match(defaultGlobe[0], /new CesiumGlobe\('#globe-container', state\.servers, \{[\s\S]*?enableStarship: false/, '7/17 default: Cesium without embedded ship');
+assert.match(defaultGlobe[0], /new StarshipShowcase\(stage, \{[\s\S]*?modelUrl: '\/globe\/xinjian1\.glb'[\s\S]*?fallbackModelUrl: '\/globe\/star_trek_dsc_enterprise_user\.glb'/, 'independent showcase uses the original xinjian1 hero with legacy fallback');
+assert.match(defaultGlobe[0], /modelUrl: '\/globe\/xinjian1\.glb'/, 'homepage explicitly selects the original hero model');
+assert.match(defaultGlobe[0], /fallbackModelUrl: '\/globe\/star_trek_dsc_enterprise_user\.glb'/, 'homepage retains a compatible fallback');
+
+assert.match(displayMount[0], /photo-space-showcase[\s\S]*?starship-gltf-stage/, 'independent stage markup present');
+assert.doesNotMatch(defaultGlobe[0], /ThreeGlobe/, 'default home must not use ThreeGlobe');
+assert.doesNotMatch(defaultGlobe[0], /fromGltfAsync/, 'default home must not load ship via Cesium Model');
+
+// Composition is intentionally tuned for the complete 55MB original model:
+// full silhouette in frame, right-side hero anchor, and readable NCC panel detail.
+assert.match(showcaseSource, /camera\.position\.set\(0\.0, 0\.06, 9\.35\)/, 'full original-model camera distance');
+assert.match(showcaseSource, /basePosition = new THREE\.Vector3\(3\.00, -0\.16, 0\.0\)/, 'right-side hero anchor');
+assert.match(showcaseSource, /userScale = 0\.98/, 'original-model hero scale');
+assert.match(showcaseSource, /const target = 4\.85/, 'model normalization target');
+assert.match(showcaseSource, /this\._addExhaustRig\(\);/, 'runtime adds compact nacelle propulsion');
+assert.match(showcaseSource, /const ports = \[\[-4\.00, 3\.20, -4\.50\], \[-4\.00, -3\.20, -4\.50\]\];/, 'propulsion is anchored to two nacelles');
+assert.doesNotMatch(showcaseSource.match(/_finishModelLoad\([\s\S]*?\n  _normalizeUserModel/)[0], /_addWeiyan[45]/, 'runtime model load does not attach legacy smoke/plume rigs');
+assert.doesNotMatch(showcaseSource.match(/_addExhaustRig\(\) \{[\s\S]*?\n  _makeGlowSprite/)[0], /this\._makeExhaustRibbonTexture\(|this\._addWeiyan[45]/, 'compact exhaust rig does not create legacy flame-sheet or plume rigs');
+assert.match(showcaseSource, /modelUrl: '\/globe\/xinjian1\.glb'/, 'showcase default uses original xinjian1 hero model');
+assert.match(showcaseSource, /fallbackModelUrl: '\/globe\/star_trek_dsc_enterprise_user\.glb'/, 'showcase retains legacy fallback');
+assert.match(showcaseSource, /_installInteractionHandlers/, 'interaction handlers');
+assert.match(showcaseSource, /AnimationMixer/, 'GLB mixer');
+assert.match(showcaseSource, /bussard/, 'bussard animation path');
+assert.match(showcaseSource, /new THREE\.WebGLRenderer/, 'single WebGLRenderer');
+assert.match(showcaseSource, /requestAnimationFrame\(\(\) => this\._tick\(\)\)/, 'single rAF');
+assert.match(cesiumSource, /this\.enableStarship = options\.enableStarship === true/, 'Cesium starship opt-in only');
+
+console.log('july17 rendering + star_trek_dsc_enterprise_user model regression: ok');

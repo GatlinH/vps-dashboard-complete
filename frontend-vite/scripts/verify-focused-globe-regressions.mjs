@@ -5,6 +5,7 @@ import { STATUS_COLORS } from '../src/components/globe-utils.js';
 
 const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
 const cesiumSource = readFileSync(new URL('../src/components/CesiumGlobe.js', import.meta.url), 'utf8');
+const showcaseSource = readFileSync(new URL('../src/components/StarshipShowcase.js', import.meta.url), 'utf8');
 const stylesSource = readFileSync(new URL('../src/styles/main.css', import.meta.url), 'utf8');
 const starfleetThemeSource = readFileSync(new URL('../src/styles/starfleet-theme.css', import.meta.url), 'utf8');
 const vpsEntitiesSource = readFileSync(new URL('../src/components/globe/vpsEntities.js', import.meta.url), 'utf8');
@@ -31,7 +32,7 @@ const imageryInstall = cesiumSource.match(/async _installImagery\(\) \{[\s\S]*?\
 assert.ok(imageryInstall, 'imagery installer must exist');
 const imagerySource = imageryInstall[0];
 const baseAddIndex = imagerySource.indexOf('const base = layers.addImageryProvider(baseProvider, 0);');
-const baseRenderIndex = imagerySource.indexOf('this.viewer.scene.requestRender();', baseAddIndex);
+const baseRenderIndex = imagerySource.indexOf('this._safeRequestRender();', baseAddIndex);
 const arcGisAwaitIndex = imagerySource.indexOf('await Cesium.ArcGisMapServerImageryProvider.fromUrl');
 const cloudAwaitIndex = imagerySource.indexOf('await Cesium.SingleTileImageryProvider.fromUrl(CLOUDS_TEXTURE_URL');
 assert.ok(baseAddIndex >= 0, 'base imagery must be added');
@@ -41,12 +42,15 @@ assert.ok(arcGisAwaitIndex < cloudAwaitIndex, 'cloud initialization must remain 
 assert.match(imagerySource.slice(arcGisAwaitIndex, cloudAwaitIndex), /\} catch \(e\) \{[\s\S]*?imageryError/, 'ArcGIS initialization must handle its own failure before cloud initialization');
 assert.match(imagerySource.slice(cloudAwaitIndex), /\} catch \(e\) \{[\s\S]*?imageryError/, 'cloud initialization must handle its own failure');
 
-assert.match(starfleetThemeSource, /@media \(min-width: 641px\) \{[\s\S]*?\.photo-space-showcase\.is-globe-background-layer \{[\s\S]*?inset: auto 0 0 auto !important;[\s\S]*?width: min\(35vw, 560px\) !important;[\s\S]*?height: min\(72vh, 620px\) !important;[\s\S]*?overflow: hidden !important;/, 'the reparented desktop showcase must remain a bounded right-side foreground stage');
-assert.match(starfleetThemeSource, /\.photo-space-showcase\.is-globe-background-layer \.starship-gltf-stage,[\s\S]*?\.photo-space-showcase\.is-globe-background-layer \.starship-gltf-canvas \{[\s\S]*?width: 100% !important;[\s\S]*?height: 100% !important;/, 'the bounded showcase canvas must fill its own stage instead of the viewport');
+assert.match(mainSource, /new StarshipShowcase\(stage, \{[\s\S]*?modelUrl: '\/globe\/xinjian1\.glb'[\s\S]*?fallbackModelUrl: '\/globe\/star_trek_dsc_enterprise_user\.glb'/, 'homepage mounts independent original-model StarshipShowcase');
+assert.match(mainSource, /enableStarship: false/, 'Cesium embedded starship must stay disabled on home');
+assert.match(showcaseSource, /_installInteractionHandlers/, 'independent showcase must keep interaction handlers');
+assert.match(showcaseSource, /camera\.position\.set\(0\.0, 0\.06, 9\.35\)/, 'original-model complete-silhouette camera baseline');
 const clusterAnchorSource = vpsEntitiesSource.match(/const anchorEntity = globe\.viewer\.entities\.add\(\{[\s\S]*?globe\._nodeEntities\.push\(anchorEntity\);/);
 assert.ok(clusterAnchorSource, 'cluster VPS markers must create one anchor point');
-assert.match(clusterAnchorSource[0], /position: Cesium\.Cartesian3\.fromDegrees\(lon, lat, 180\),[\s\S]*?point: \{[\s\S]*?pixelSize: 16,[\s\S]*?color: healthColor,[\s\S]*?outlineColor: Cesium\.Color\.fromCssColorString\('#ffffff'\)\.withAlpha\(0\.9\),[\s\S]*?disableDepthTestDistance: Number\.POSITIVE_INFINITY/, 'cluster anchors must remain legible at their real coordinate with aggregate health color, white outline, and depth-test behavior');
-assert.match(vpsEntitiesSource, /const clusterStatus = isCluster \? aggregateClusterStatus\(cluster\.members\) : server\.status;[\s\S]*?const healthColor = statusColor\(\{ status: clusterStatus \}\);/, 'cluster VPS anchors must derive their color from aggregate health data');
+assert.match(clusterAnchorSource[0], /position: Cesium\.Cartesian3\.fromDegrees\(lon, lat, 1200\),[\s\S]*?point: anchorPoint/, 'cluster anchors must lift complete health-colored points above terrain depth clipping');
+assert.match(vpsEntitiesSource, /pixelSize: 16,[\s\S]*?color: healthColor/, 'VPS beacons use 16px health color anchors for single and clustered nodes');
+assert.match(vpsEntitiesSource, /const clusterStatus = isCluster\s*\? aggregateClusterStatus\(cluster\.members\)\s*:\s*\(aggregateClusterStatus\(\[server\]\)\);[\s\S]*?const healthColor = statusColor\(\{ status: clusterStatus \}\);/, 'all VPS anchors must derive color from aggregate health data');
 assert.doesNotMatch(vpsEntitiesSource, /node-cluster-range|semiMajorAxis:\s*42000/, 'cluster VPS markers must not render a misleading 42 km geographic range');
 
 for (const { members, status, color, label } of [

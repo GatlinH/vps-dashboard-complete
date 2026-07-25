@@ -11,7 +11,6 @@ import {
 
 const entitiesSource = readFileSync(new URL('../src/components/globe/vpsEntities.js', import.meta.url), 'utf8');
 const cesiumSource = readFileSync(new URL('../src/components/CesiumGlobe.js', import.meta.url), 'utf8');
-const threeSource = readFileSync(new URL('../src/components/ThreeGlobe.js', import.meta.url), 'utf8');
 const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
 const indexSource = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const labelOverlaySource = readFileSync(new URL('../src/components/globe/runtime/labelOverlay.js', import.meta.url), 'utf8');
@@ -67,7 +66,8 @@ assert.match(entitiesSource, /clusterMembers:\s*cluster\.members/, 'Cesium entit
 assert.match(entitiesSource, /buildClusterBeaconAppearance/, 'collapsed Cesium beacons must render composition sectors');
 assert.match(entitiesSource, /aggregateClusterStatus/, 'collapsed Cesium beacons must use aggregate health status');
 assert.match(entitiesSource, /const clusterClickProperties = isCluster \? \{[\s\S]*serverData: server,[\s\S]*clusterMembers: cluster\.members,[\s\S]*clusterCentroid: \{ lat, lon, clusterKey: cluster\.key \},[\s\S]*vpsClusterClick: true,[\s\S]*\} : null;/, 'collapsed cluster layers must share full-members, representative, canonical-centroid click metadata');
-assert.match(entitiesSource, /const anchorEntity = globe\.viewer\.entities\.add\(\{[\s\S]*?id: `node-\$\{server\.id\}`,[\s\S]*?point: \{[\s\S]*?color: healthColor,[\s\S]*?properties: \{ \.\.\.clusterClickProperties, clusterKey: cluster\.key, vpsClusterAnchor: true \}[\s\S]*?\}\);[\s\S]*?globe\._nodeEntities\.push\(anchorEntity\);/, 'every coordinate cluster must create exactly one projected anchor point in _nodeEntities');
+assert.match(entitiesSource, /const anchorPoint = \{[\s\S]*?pixelSize: 16,[\s\S]*?color: healthColor,[\s\S]*?\};/, 'single and cluster beacons must share one health-colored anchor style');
+assert.match(entitiesSource, /const anchorEntity = globe\.viewer\.entities\.add\(\{[\s\S]*?id: `node-\$\{server\.id\}`,[\s\S]*?position: Cesium\.Cartesian3\.fromDegrees\(lon, lat, 1200\),[\s\S]*?point: anchorPoint,[\s\S]*?properties: \{ \.\.\.clusterClickProperties, clusterKey: cluster\.key, vpsClusterAnchor: true, healthStatus: clusterStatus \},[\s\S]*?\}\);[\s\S]*?globe\._nodeEntities\.push\(anchorEntity\);/, 'every coordinate cluster must create exactly one raised projected anchor point in _nodeEntities');
 assert.match(entitiesSource, /nodeEntity = anchorEntity;/, 'cluster labels must use the projected cluster anchor entity');
 assert.match(entitiesSource, /globe\._htmlLabels\.set\(nodeEntity\.id, labelEl\);/, 'cluster HTML labels must use their projected anchor entity key without a fallback key');
 assert.match(entitiesSource, /properties: \{ \.\.\.clusterClickProperties, clusterKey: cluster\.key, vpsBeaconRing: true \}/, 'cluster health ring must carry unified cluster click metadata');
@@ -94,10 +94,11 @@ assert.match(cesiumSource, /worldToWindowCoordinates/, 'the HUD must project its
 assert.match(cesiumSource, /frontFacing/, 'the HUD must hide for anchors behind the globe');
 assert.match(cesiumSource, /updateServers\(servers\) \{[\s\S]*this\.clearClusterFanout\(\);[\s\S]*this\._buildEntities\(\);/, 'server refresh must clear fanout before rebuilding collapsed cluster visuals');
 assert.match(cesiumSource, /onBlankClick/, 'Cesium blank-globe clicks must be observable for closing fanout');
-assert.match(threeSource, /onBlankClick/, 'Three fallback blank clicks must close its picker');
+assert.doesNotMatch(mainSource, /ThreeGlobe/, 'ThreeGlobe renderer must be removed');
+assert.doesNotMatch(mainSource, /three-fallback/, 'three-fallback mode must be removed');
 assert.match(mainSource, /function handleGlobeNodeSelection/, 'all renderers must route node selection through one handler');
 assert.match(mainSource, /function closeClusterInteraction/, 'cluster interaction must have an explicit close path');
-assert.match(mainSource, /showClusterMemberPicker/, 'Three fallback must present a grouped picker');
+assert.match(mainSource, /showClusterMemberPicker/, 'cluster member picker remains for multi-node groups');
 assert.match(mainSource, /const canonicalCluster = clusterServersByCoordinate\(state\.servers\)/, 'fanout must resolve the canonical live cluster before using label metadata');
 assert.match(mainSource, /const fanoutCluster = canonicalCluster \|\| cluster/, 'Cesium clusters must use a canonical centroid for the one anchor');
 assert.match(mainSource, /buildClusterScreenFanout/, 'multi-cluster handler must build screen-space HUD members');

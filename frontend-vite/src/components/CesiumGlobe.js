@@ -84,6 +84,15 @@ const MOBILE_GLOBE_MEDIA = '(max-width: 640px)';
 const MOBILE_IMAGERY_TONE = { brightness: 0.96, contrast: 1.08, saturation: 1.04, gamma: 1.0 };
 const DESKTOP_BASE_IMAGERY_TONE = { brightness: 1.48, contrast: 1.03, saturation: 1.16, gamma: 0.70 };
 const DESKTOP_SAT_IMAGERY_TONE = { brightness: 1.42, contrast: 1.03, saturation: 1.14, gamma: 0.72 };
+// Shared Cesium WebGL starship: camera-relative composition (no second Three.js renderer).
+const STARSHIP_MODEL_URL = '/globe/xinjian1.glb';
+// Place the ship a few percent of camera height ahead so it stays in the near field of the home view.
+const STARSHIP_FORWARD_MIN_M = 1800;
+const STARSHIP_FORWARD_MAX_M = 120000;
+const STARSHIP_FORWARD_HEIGHT_RATIO = 0.0048;
+const STARSHIP_RIGHT_RATIO = 0.52;
+const STARSHIP_UP_RATIO = 0.04;
+const STARSHIP_TARGET_RADIUS_RATIO = 0.20; // world-radius / forward distance
 
 function clamp01(v) { return Math.max(0, Math.min(1, v)); }
 function smoothstep(edge0, edge1, x) {
@@ -102,9 +111,29 @@ export class CesiumGlobe {
     this.servers = servers || [];
     this.onNodeClick = options.onNodeClick || null;
     this.onBlankClick = options.onBlankClick || null;
+    this.enableStarship = options.enableStarship === true;
+    this.starshipModelUrl = options.starshipModelUrl || STARSHIP_MODEL_URL;
     this._destroyed = false;
+    this._initStarted = false;
+    this._layoutWaitTimer = null;
+    this._layoutObserver = null;
     this._clusterFanoutExpansionId = 0;
     this._hiddenClusterFanoutVisuals = null;
+    this._starshipModel = null;
+    this._starshipReady = false;
+    this._starshipLoadToken = 0;
+    this._starshipNativeRadius = null;
+    this._starshipScratch = {
+      position: new Cesium.Cartesian3(),
+      right: new Cesium.Cartesian3(),
+      up: new Cesium.Cartesian3(),
+      direction: new Cesium.Cartesian3(),
+      forward: new Cesium.Cartesian3(),
+      tmp: new Cesium.Cartesian3(),
+      rot: new Cesium.Matrix3(),
+      scale: new Cesium.Matrix4(),
+      modelMatrix: new Cesium.Matrix4(),
+    };
 
     // VPS / 访客 / 标签状态
     this._nodeEntities = [];
@@ -128,7 +157,99 @@ export class CesiumGlobe {
     this._clickSuppressUntil = 0;
     this._dragMovedPx = 0;
 
-    try { this._init(); } catch (e) { window.__DBG__.globeError = e; throw e; }
+    // Defer Viewer creation until the host has a real non-zero layout.
+    // Creating Cesium.Viewer in a 0×0 box throws:
+    //   DeveloperError: Expected width to be greater than 0, actual value was 0
+    // and permanently stops rendering.
+    try {
+      this._scheduleInitWhenReady();
+    } catch (e) {
+      window.__DBG__.globeError = e;
+      throw e;
+    }
+  }
+
+  _hostSize() {
+    const host = this._cesiumDiv || this.container;
+    const rect = host?.getBoundingClientRect?.();
+    const w = Math.max(
+      0,
+      Math.floor(host?.clientWidth || rect?.width || 0),
+    );
+    const h = Math.max(
+      0,
+      Math.floor(host?.clientHeight || rect?.height || 0),
+    );
+    return { w, h };
+  }
+
+  _hasRenderableSize(min = 2) {
+    const { w, h } = this._hostSize();
+    return w >= min && h >= min;
+  }
+
+  _scheduleInitWhenReady(attempt = 0) {
+    if (this._destroyed || this._initStarted) return;
+    if (this._layoutWaitTimer) {
+      clearTimeout(this._layoutWaitTimer);
+      this._layoutWaitTimer = null;
+    }
+
+    const tryStart = () => {
+      if (this._destroyed || this._initStarted) return;
+      // Force a layout pass: empty absolute hosts sometimes report 0 until painted.
+      try {
+        this.container.style.minWidth = this.container.style.minWidth || '1px';
+        this.container.style.minHeight = this.container.style.minHeight || '1px';
+      } catch (_) {}
+
+      if (this._hasRenderableSize(2) || attempt >= 60) {
+        this._initStarted = true;
+        try {
+          this._init();
+        } catch (e) {
+          window.__DBG__.globeError = e;
+          console.error('[CesiumGlobe] init failed', e);
+          // One more delayed retry if the first paint size was still wrong.
+          if (attempt < 70 && /width|greater than 0/i.test(String(e?.message || e))) {
+            this._initStarted = false;
+            this._layoutWaitTimer = setTimeout(() => this._scheduleInitWhenReady(attempt + 1), 120);
+            return;
+          }
+          throw e;
+        }
+        return;
+      }
+
+      this._layoutWaitTimer = setTimeout(() => this._scheduleInitWhenReady(attempt + 1), attempt < 10 ? 32 : 80);
+    };
+
+    if (typeof ResizeObserver !== 'undefined' && !this._layoutObserver) {
+      try {
+        this._layoutObserver = new ResizeObserver(() => {
+          if (!this._initStarted) tryStart();
+          else this.resize();
+        });
+        this._layoutObserver.observe(this.container);
+      } catch (_) {}
+    }
+
+    // Always also poll: ResizeObserver can miss first paint on some mobile browsers.
+    tryStart();
+  }
+
+  _safeRequestRender() {
+    if (this._destroyed || !this.viewer?.scene) return;
+    if (!this._hasRenderableSize(1)) return;
+    try {
+      const canvas = this.viewer.scene.canvas;
+      const w = canvas?.clientWidth || canvas?.width || 0;
+      const h = canvas?.clientHeight || canvas?.height || 0;
+      if (w < 1 || h < 1) return;
+      this.viewer.scene.requestRender();
+    } catch (error) {
+      console.warn('[CesiumGlobe] requestRender skipped', error);
+    }
   }
 
   _init() {
@@ -144,12 +265,27 @@ export class CesiumGlobe {
     this._starProjectionBg.appendChild(this._earthSyncStarsB);
     this.container.appendChild(this._starProjectionBg);
     this._nasaParallaxBackground = new NasaParallaxBackground(this._starProjectionBg);
-    this._starEffectsLayer = new StarEffectsLayer(this.container, { seed: 2406 });
+    // Optional PIXI star sparkles; fail-soft if host is 0×0 or WebGL is busy.
+    try {
+      this._starEffectsLayer = new StarEffectsLayer(this.container, { seed: 2406 });
+    } catch (error) {
+      console.warn('[CesiumGlobe] StarEffectsLayer skipped', error);
+      this._starEffectsLayer = null;
+    }
 
     this._cesiumDiv = document.createElement('div');
     this._cesiumDiv.id = 'cesium-globe-container';
-    this._cesiumDiv.style.cssText = 'width:100%;height:100%;position:absolute;inset:0;';
+    this._cesiumDiv.style.cssText = 'width:100%;height:100%;min-width:1px;min-height:1px;position:absolute;inset:0;';
     this.container.appendChild(this._cesiumDiv);
+
+    // Guarantee non-zero host before Cesium measures the canvas.
+    const size = this._hostSize();
+    if (size.w < 2 || size.h < 2) {
+      const fallbackW = Math.max(2, window.innerWidth || 320);
+      const fallbackH = Math.max(2, window.innerHeight || 240);
+      this._cesiumDiv.style.width = `${fallbackW}px`;
+      this._cesiumDiv.style.height = `${fallbackH}px`;
+    }
 
     // HTML 标签层
     this._labelLayer = document.createElement('div');
@@ -187,6 +323,142 @@ export class CesiumGlobe {
       maximumRenderTimeChange: Infinity,
     });
 
+    // Hide Cesium's fatal red panel and keep the loop alive on zero-size frames.
+    try {
+      if (this.viewer.cesiumWidget) {
+        // Replace showErrorPanel with a no-op so the red "Rendering has stopped"
+        // overlay never appears for recoverable zero-size frames.
+        this.viewer.cesiumWidget.showErrorPanel = function showErrorPanelNoop() {};
+      }
+    } catch (_) {}
+    try {
+      this.viewer.scene.rethrowRenderErrors = false;
+    } catch (_) {}
+
+    // Force a non-zero drawing buffer immediately after Viewer construction.
+    try {
+      const canvas = this.viewer.scene?.canvas;
+      const size = this._hostSize();
+      const w = Math.max(1, size.w || window.innerWidth || 1);
+      const h = Math.max(1, size.h || window.innerHeight || 1);
+      if (canvas) {
+        if (!canvas.width) canvas.width = w;
+        if (!canvas.height) canvas.height = h;
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+      }
+    } catch (_) {}
+
+    // Guard CesiumWidget.resize — this is the usual source of:
+    // DeveloperError: Expected width to be greater than 0
+    // Cesium's default render loop calls resize every frame; a 0×0 host stops rendering forever.
+    try {
+      const widget = this.viewer.cesiumWidget;
+      if (widget && typeof widget.resize === 'function') {
+        const originalWidgetResize = widget.resize.bind(widget);
+        widget.resize = () => {
+          if (this._destroyed) return;
+          const host = this._cesiumDiv || this.container;
+          const canvas = widget.canvas || this.viewer?.scene?.canvas;
+          const w = Math.max(
+            host?.clientWidth || 0,
+            canvas?.clientWidth || 0,
+            canvas?.width || 0,
+            this.container?.clientWidth || 0,
+          );
+          const h = Math.max(
+            host?.clientHeight || 0,
+            canvas?.clientHeight || 0,
+            canvas?.height || 0,
+            this.container?.clientHeight || 0,
+          );
+          if (w < 1 || h < 1) return;
+          try {
+            return originalWidgetResize();
+          } catch (error) {
+            const msg = String(error?.message || error || '');
+            if (/width to be greater than 0|height to be greater than 0/i.test(msg)) {
+              console.warn('[CesiumGlobe] widget.resize skipped (zero size)', error);
+              return;
+            }
+            throw error;
+          }
+        };
+      }
+    } catch (_) {}
+
+    // Guard Viewer.resize similarly.
+    try {
+      if (typeof this.viewer.resize === 'function') {
+        const originalViewerResize = this.viewer.resize.bind(this.viewer);
+        this.viewer.resize = () => {
+          if (this._destroyed) return;
+          if (!this._hasRenderableSize(1)) return;
+          try {
+            return originalViewerResize();
+          } catch (error) {
+            const msg = String(error?.message || error || '');
+            if (/width to be greater than 0|height to be greater than 0/i.test(msg)) {
+              console.warn('[CesiumGlobe] viewer.resize skipped (zero size)', error);
+              return;
+            }
+            throw error;
+          }
+        };
+      }
+    } catch (_) {}
+
+    // Guard Cesium's own render path: if layout collapses to 0, skip the frame
+    // instead of letting DeveloperError permanently stop the render loop.
+    try {
+      const scene = this.viewer.scene;
+      const originalRender = scene.render.bind(scene);
+      scene.render = (...args) => {
+        if (this._destroyed) return;
+        const canvas = scene.canvas;
+        const w = canvas?.clientWidth || canvas?.width || this._cesiumDiv?.clientWidth || 0;
+        const h = canvas?.clientHeight || canvas?.height || this._cesiumDiv?.clientHeight || 0;
+        if (w < 1 || h < 1) return;
+        try {
+          return originalRender(...args);
+        } catch (error) {
+          const msg = String(error?.message || error || '');
+          if (/width to be greater than 0|height to be greater than 0/i.test(msg)) {
+            console.warn('[CesiumGlobe] render skipped (zero size)', error);
+            // Ensure the default loop is not left permanently disabled.
+            try { this.viewer.useDefaultRenderLoop = true; } catch (_) {}
+            return;
+          }
+          throw error;
+        }
+      };
+    } catch (_) {}
+
+    // If Cesium still raises renderError, swallow zero-size and resume the loop.
+    try {
+      this._removeRenderError = this.viewer.scene.renderError.addEventListener((scene, error) => {
+        const msg = String(error?.message || error || '');
+        window.__DBG__.lastCesiumRenderError = msg;
+        if (/width to be greater than 0|height to be greater than 0/i.test(msg)) {
+          console.warn('[CesiumGlobe] renderError swallowed (zero size)', error);
+          try { this.viewer.useDefaultRenderLoop = true; } catch (_) {}
+          try { this.viewer.cesiumWidget?.showErrorPanel?.(false); } catch (_) {}
+          // Hide any residual error panel DOM Cesium may have inserted.
+          try {
+            this._cesiumDiv?.querySelectorAll?.('.cesium-widget-errorPanel')?.forEach((el) => el.remove());
+          } catch (_) {}
+          // Retry after layout recovers.
+          setTimeout(() => {
+            if (this._destroyed) return;
+            this.resize();
+            this._safeRequestRender();
+          }, 120);
+          return;
+        }
+        console.error('[CesiumGlobe] renderError', error);
+      });
+    } catch (_) {}
+
     this._setupScene();
     this._setupNativeCamera();
     this._installImagery();
@@ -200,16 +472,145 @@ export class CesiumGlobe {
 
     this._removeCameraListener = this.viewer.camera.changed.addEventListener(() => this._onCameraChanged());
     this.viewer.camera.percentageChanged = 0.02;
-    this._removePostRender = this.viewer.scene.postRender.addEventListener(() => this._updateOverlays());
+    this._removePostRender = this.viewer.scene.postRender.addEventListener(() => {
+      if (!this._hasRenderableSize(1)) return;
+      this._updateStarshipModelMatrix();
+      this._updateOverlays();
+    });
 
-    this._buildEntities();
+    try {
+      this._buildEntities();
+    } catch (error) {
+      // Never let a bad VPS row (invalid coords / NAT placeholder) blank the whole homepage.
+      window.__DBG__.globeError = error;
+      console.error('[CesiumGlobe] rebuild entities failed', error);
+    }
     installVisitorBeacon(this);
     this._onCameraChanged();
     this._installAutoRotate();
+    if (this.enableStarship) this._installStarshipModel();
+
+    // Force one safe resize after layout settles.
+    requestAnimationFrame(() => {
+      this.resize();
+      this._safeRequestRender();
+    });
 
     window.__DBG__.globe = this;
     window.__DBG__.CESIUM_GLOBE = this;
-    getGlobeRuntimeDebug().globeMode = 'Native CesiumJS rebuild v2 (real imagery + clouds + spin)';
+    getGlobeRuntimeDebug().globeMode = 'Native CesiumJS rebuild v2 (real imagery + clouds + spin + shared-webgl starship)';
+  }
+
+  async _installStarshipModel() {
+    if (!this.viewer || this._destroyed) return;
+    const token = ++this._starshipLoadToken;
+    try {
+      const model = await Cesium.Model.fromGltfAsync({
+        url: this.starshipModelUrl,
+        show: true,
+        asynchronous: true,
+        allowPicking: false,
+        cull: false,
+        shadows: Cesium.ShadowMode.DISABLED,
+        incrementallyLoadTextures: true,
+      });
+      if (this._destroyed || token !== this._starshipLoadToken) {
+        try { model.destroy?.(); } catch (_) {}
+        return;
+      }
+      this._starshipModel = this.viewer.scene.primitives.add(model);
+      const playAnimations = () => {
+        if (!this._starshipModel || this._destroyed) return;
+        try {
+          const animations = this._starshipModel.activeAnimations;
+          if (animations) {
+            try {
+              animations.addAll({ loop: Cesium.ModelAnimationLoop.REPEAT });
+            } catch (_) {
+              try { animations.add({ index: 0, loop: Cesium.ModelAnimationLoop.REPEAT }); } catch (__) {}
+            }
+          }
+        } catch (err) {
+          getDashboardDebug('globe').starshipAnimationError = String(err?.message || err);
+        }
+        this._starshipReady = true;
+        this._updateStarshipModelMatrix();
+        this.viewer?.scene?.requestRender();
+        window.__DBG__.SHARED_WEBGL_STARSHIP = {
+          url: this.starshipModelUrl,
+          ready: true,
+          renderer: 'cesium-model',
+        };
+      };
+      if (model.ready) playAnimations();
+      else model.readyEvent.addEventListener(playAnimations);
+      getDashboardDebug('globe').starshipMode = 'shared-cesium-webgl';
+    } catch (error) {
+      getDashboardDebug('globe').starshipError = String(error?.message || error);
+      window.__DBG__.SHARED_WEBGL_STARSHIP_ERROR = String(error?.message || error);
+      console.warn('[CesiumGlobe] shared-webgl starship load failed', error);
+    }
+  }
+
+  _updateStarshipModelMatrix() {
+    const model = this._starshipModel;
+    const viewer = this.viewer;
+    if (!model || !viewer || this._destroyed || !model.ready) return;
+    const camera = viewer.camera;
+    const height = camera.positionCartographic?.height || HOME_HEIGHT;
+    const forwardDist = Cesium.Math.clamp(
+      height * STARSHIP_FORWARD_HEIGHT_RATIO,
+      STARSHIP_FORWARD_MIN_M,
+      STARSHIP_FORWARD_MAX_M,
+    );
+    const s = this._starshipScratch;
+
+    Cesium.Cartesian3.clone(camera.positionWC, s.position);
+    Cesium.Cartesian3.clone(camera.rightWC, s.right);
+    Cesium.Cartesian3.clone(camera.upWC, s.up);
+    Cesium.Cartesian3.clone(camera.directionWC, s.direction);
+
+    Cesium.Cartesian3.multiplyByScalar(s.direction, forwardDist, s.forward);
+    Cesium.Cartesian3.add(s.position, s.forward, s.position);
+    Cesium.Cartesian3.multiplyByScalar(s.right, forwardDist * STARSHIP_RIGHT_RATIO, s.tmp);
+    Cesium.Cartesian3.add(s.position, s.tmp, s.position);
+    Cesium.Cartesian3.multiplyByScalar(s.up, forwardDist * STARSHIP_UP_RATIO, s.tmp);
+    Cesium.Cartesian3.add(s.position, s.tmp, s.position);
+
+    // Orientation: model +X toward screen-left, +Y camera-up, +Z into the scene.
+    Cesium.Cartesian3.negate(s.right, s.tmp);
+    Cesium.Matrix3.fromColumnMajorArray([
+      s.tmp.x, s.tmp.y, s.tmp.z,
+      s.up.x, s.up.y, s.up.z,
+      s.direction.x, s.direction.y, s.direction.z,
+    ], s.rot);
+
+    // Cache native model radius once. Cesium boundingSphere can become world-scaled after modelMatrix updates.
+    if (!Number.isFinite(this._starshipNativeRadius) || this._starshipNativeRadius <= 0) {
+      const rawRadius = model.boundingSphere?.radius;
+      // Prefer a stable native radius by undoing current model.scale when available.
+      const currentScale = Number(model.scale) > 0 ? Number(model.scale) : 1;
+      this._starshipNativeRadius = Math.max((rawRadius || 1) / currentScale, 1e-3);
+    }
+    const modelRadius = this._starshipNativeRadius;
+    const targetRadius = forwardDist * STARSHIP_TARGET_RADIUS_RATIO;
+    const scale = Math.max(0.05, targetRadius / modelRadius);
+
+    Cesium.Matrix4.fromRotationTranslation(s.rot, s.position, s.modelMatrix);
+    model.modelMatrix = Cesium.Matrix4.clone(s.modelMatrix, model.modelMatrix || new Cesium.Matrix4());
+    model.scale = scale;
+    model.show = !isMobileGlobe();
+
+    window.__DBG__.SHARED_WEBGL_STARSHIP = {
+      ...(window.__DBG__.SHARED_WEBGL_STARSHIP || {}),
+      ready: true,
+      renderer: 'cesium-model',
+      url: this.starshipModelUrl,
+      forwardDist: Math.round(forwardDist),
+      scale: Number(scale.toFixed(3)),
+      modelRadius: Number(modelRadius.toFixed(3)),
+      show: model.show,
+    };
   }
 
   _hiddenCreditContainer() {
@@ -307,7 +708,7 @@ export class CesiumGlobe {
       const base = layers.addImageryProvider(baseProvider, 0);
       Object.assign(base, { show: true, alpha: 1.0, ...(isMobileGlobe() ? MOBILE_IMAGERY_TONE : DESKTOP_BASE_IMAGERY_TONE) });
       this._baseLayer = base;
-      this.viewer.scene.requestRender();
+      this._safeRequestRender();
 
       // 主图层: ArcGIS World Imagery 真实卫星, 各缩放级别常驻 (Google Earth 观感)
       try {
@@ -337,7 +738,7 @@ export class CesiumGlobe {
 
       getDashboardDebug('globe').imageryMode = 'ArcGIS World Imagery + Blue Marble base + cloud overlay';
       this._onCameraChanged();
-      this.viewer.scene.requestRender();
+      this._safeRequestRender();
     } catch (e) {
       getDashboardDebug('globe').imageryError = String(e?.message || e);
     }
@@ -379,7 +780,7 @@ export class CesiumGlobe {
 
   _buildEntities() {
     rebuildVpsEntities(this);
-    this.viewer.scene.requestRender();
+    this._safeRequestRender();
   }
 
   // ── 自转 ─────────────────────────────────────────────
@@ -460,7 +861,7 @@ export class CesiumGlobe {
       camera.constrainedAxis = undefined;
       this._forceLitGlobe();
       this._updateOverlays();
-      this.viewer.scene.requestRender();
+      this._safeRequestRender();
     };
     this._onPointerDown = (event) => {
       if (!isPlainPrimaryDrag(event)) return;
@@ -537,7 +938,7 @@ export class CesiumGlobe {
       this._freeSpinVelocity = { x: 0, y: 0 };
       this.viewer.camera.constrainedAxis = undefined;
       this._updateOverlays();
-      this.viewer.scene.requestRender();
+      this._safeRequestRender();
       scheduleResume();
     };
     canvas.addEventListener('pointerdown', this._onPointerDown, true);
@@ -567,7 +968,7 @@ export class CesiumGlobe {
         // 绕地球自转轴 (世界 Z 轴) 缓慢旋转相机, 视觉上即地球自西向东自转
         this.viewer.camera.rotate(Cesium.Cartesian3.UNIT_Z, -AUTOROTATE_SPEED);
         this._updateOverlays();
-        this.viewer.scene.requestRender();
+        this._safeRequestRender();
       }
       this._raf = requestAnimationFrame(tick);
     };
@@ -724,7 +1125,7 @@ export class CesiumGlobe {
     }
     this._clusterFanoutOverlay = { anchor: Cesium.Cartesian3.fromDegrees(lon, lat, 180) };
     this._updateClusterFanoutOverlay();
-    this.viewer.scene.requestRender();
+    this._safeRequestRender();
   }
 
   expandClusterFanout({ clusterKey, lat, lon, fanout, onMemberClick }) {
@@ -784,11 +1185,47 @@ export class CesiumGlobe {
     });
   }
 
-  resize() { if (this.viewer) this.viewer.resize(); }
+  resize() {
+    if (!this.viewer || this._destroyed) return;
+    try {
+      const canvas = this.viewer.scene?.canvas;
+      const host = this._cesiumDiv || this.container;
+      const w = Math.max(
+        host?.clientWidth || 0,
+        canvas?.clientWidth || 0,
+        canvas?.width || 0,
+      );
+      const h = Math.max(
+        host?.clientHeight || 0,
+        canvas?.clientHeight || 0,
+        canvas?.height || 0,
+      );
+      // Cesium throws DeveloperError: Expected width to be greater than 0
+      // when resize runs before layout (0×0 container).
+      if (w < 1 || h < 1) return;
+      this.viewer.resize();
+    } catch (error) {
+      console.warn('[CesiumGlobe] resize skipped', error);
+    }
+  }
 
   destroy() {
     this._destroyed = true;
+    if (this._layoutWaitTimer) {
+      clearTimeout(this._layoutWaitTimer);
+      this._layoutWaitTimer = null;
+    }
+    try { this._layoutObserver?.disconnect?.(); } catch (_) {}
+    this._layoutObserver = null;
     this.clearClusterFanout();
+    this._starshipLoadToken += 1;
+    if (this._starshipModel && this.viewer?.scene?.primitives) {
+      try { this.viewer.scene.primitives.remove(this._starshipModel); } catch (_) {}
+    }
+    try { this._starshipModel?.destroy?.(); } catch (_) {}
+    this._starshipModel = null;
+    this._starshipReady = false;
+    this._starshipNativeRadius = null;
     if (this._raf) { try { cancelAnimationFrame(this._raf); } catch (_) {} this._raf = null; }
     if (this._resumeTimer) { try { clearTimeout(this._resumeTimer); } catch (_) {} this._resumeTimer = null; }
     try {
@@ -803,6 +1240,7 @@ export class CesiumGlobe {
     } catch (_) {}
     try { this._removeCameraListener?.(); } catch (_) {}
     try { this._removePostRender?.(); } catch (_) {}
+    try { this._removeRenderError?.(); } catch (_) {}
     try { this._handler?.destroy(); } catch (_) {}
     try { this._nasaParallaxBackground?.destroy(); } catch (_) {}
     this._nasaParallaxBackground = null;

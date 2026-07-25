@@ -27,9 +27,14 @@ export class StarEffectsLayer {
   }
 
   async init() {
+    // PIXI resizeTo a 0×0 host can create invalid framebuffers.
+    const rect = this.container?.getBoundingClientRect?.();
+    const hostW = Math.max(1, Math.floor(this.container?.clientWidth || rect?.width || window.innerWidth || 1));
+    const hostH = Math.max(1, Math.floor(this.container?.clientHeight || rect?.height || window.innerHeight || 1));
     this.app = new PIXI.Application();
     await this.app.init({
-      resizeTo: this.container,
+      width: hostW,
+      height: hostH,
       backgroundAlpha: 0,
       antialias: true,
       autoDensity: true,
@@ -102,8 +107,15 @@ export class StarEffectsLayer {
 
   resize() {
     if (!this.app) return;
-    const w = this.app.renderer.width / this.app.renderer.resolution;
-    const h = this.app.renderer.height / this.app.renderer.resolution;
+    const rect = this.container?.getBoundingClientRect?.();
+    const w = Math.max(1, Math.floor(this.container?.clientWidth || rect?.width || this.app.renderer?.width || window.innerWidth || 1));
+    const h = Math.max(1, Math.floor(this.container?.clientHeight || rect?.height || this.app.renderer?.height || window.innerHeight || 1));
+    try {
+      this.app.renderer.resize(w, h);
+    } catch (error) {
+      console.warn('[StarEffectsLayer] resize skipped', error);
+      return;
+    }
     this.w = w; this.h = h;
     for (const s of this.stars) {
       s.x = s._base.x * w;

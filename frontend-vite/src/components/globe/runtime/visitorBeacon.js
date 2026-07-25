@@ -104,7 +104,8 @@ export function addVisitorBeacon(globe) {
   // 访客信标: 冷青色精致小点, 细白边, 与 VPS 节点同一套精简视觉语言
   const visitorPoint = globe.viewer.entities.add({
     id: 'visitor-beacon-point',
-    position: Cesium.Cartesian3.fromDegrees(lon, lat, 220),
+    // Match VPS behavior: raised enough to avoid a half-clipped point while still depth-tested.
+    position: Cesium.Cartesian3.fromDegrees(lon, lat, 1200),
     point: {
       pixelSize: 10,
       color: Cesium.Color.fromCssColorString('#38e8ff').withAlpha(0.95),
@@ -113,6 +114,8 @@ export function addVisitorBeacon(globe) {
       scaleByDistance: new Cesium.NearFarScalar(220000, 1.3, 3.0e7, 0.8),
       translucencyByDistance: new Cesium.NearFarScalar(220000, 1.0, 3.4e7, 0.85),
       heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+      // Hemisphere visibility is managed per-frame; disable depth clipping so a visible
+      // near-side circle is not cut in half by the terrain surface.
       disableDepthTestDistance: Number.POSITIVE_INFINITY,
     },
     properties: { visitorBeacon: true },
