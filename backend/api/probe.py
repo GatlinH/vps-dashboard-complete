@@ -841,14 +841,17 @@ def public_ping_targets(sid):
 
 
 @probe_bp.post("/public/ping")
-@limiter.limit(PING_LIMIT)
+@admin_required
 def public_ping():
-    """Public TCP / ICMP / HTTP probe for display page."""
+    """Administrative ad-hoc TCP / ICMP probe; public pages read persisted results only."""
     data = request.get_json(silent=True) or {}
     host = (data.get("host") or "").strip()
     protocol = _normalize_probe_protocol(data.get("protocol", "tcp"))
     port_raw = data.get("port", 80 if protocol == "http" else 443)
-    count = min(max(int(data.get("count", 3)), 1), 5)
+    try:
+        count = min(max(int(data.get("count", 3)), 1), 5)
+    except (TypeError, ValueError):
+        return jsonify(msg="count 必须是数字"), 400
     timeout = min(float(current_app.config.get("PROBE_TIMEOUT_S", 5)), 5.0)
 
     if not host:
@@ -883,7 +886,10 @@ def ping():
     host    = data.get("host", "").strip()
     protocol = _normalize_probe_protocol(data.get("protocol", "tcp"))
     port_raw = data.get("port", 80 if protocol == "http" else 443)
-    count   = min(int(data.get("count", 5)), 20)
+    try:
+        count = min(max(int(data.get("count", 5)), 1), 20)
+    except (TypeError, ValueError):
+        return jsonify(msg="count 必须是数字"), 400
     timeout = float(current_app.config.get("PROBE_TIMEOUT_S", 5))
 
     if not host:

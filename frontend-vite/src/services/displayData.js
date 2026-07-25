@@ -154,17 +154,10 @@ export async function fetchPingTargetHistory(serverId, hours = 12, limit = 2000,
   return fetchJson(`${root}/api/v1/probe/public/ping-targets/${serverId}/history?hours=${hours}&limit=${limit}${sourceParam}`, { timeoutMs: 9000 });
 }
 
-export async function fetchPing(resolvedServer) {
-  if (!resolvedServer?.ip) return null;
-  if (pingAbortController) pingAbortController.abort();
-  pingAbortController = new AbortController();
-  return fetchJson(`${API_ROOT}/api/v1/probe/public/ping`, {
-    timeoutMs: 1200,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ host: resolvedServer.ip, port: 443, count: 3 }),
-    signal: pingAbortController.signal,
-  });
+export async function fetchPing(_resolvedServer) {
+  // Public/detail PING is sourced only from persisted, operator-configured
+  // agent ping_targets. Never turn a visitor page view into an outbound probe.
+  return null;
 }
 
 

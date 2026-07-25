@@ -239,6 +239,9 @@ class Config:
     HSTS_INCLUDE_SUBDOMAINS = os.getenv('HSTS_INCLUDE_SUBDOMAINS', '1') == '1'
     HSTS_PRELOAD = os.getenv('HSTS_PRELOAD', '1') == '1'
     AGENT_REQUIRE_TLS = os.getenv('AGENT_REQUIRE_TLS', '1') == '1'
+    # Empty by default deliberately disables automatic public enrollment.
+    # Operators may set a long random value to enable first-install registration.
+    AGENT_ENROLLMENT_KEY = os.getenv('AGENT_ENROLLMENT_KEY', '').strip()
     AGENT_PUSH_RATE_LIMIT = os.getenv('AGENT_PUSH_RATE_LIMIT', '60 per minute')
     AGENT_POLL_RATE_LIMIT = os.getenv('AGENT_POLL_RATE_LIMIT', '120 per minute')
     AGENT_ACK_RATE_LIMIT = os.getenv('AGENT_ACK_RATE_LIMIT', '120 per minute')

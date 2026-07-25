@@ -7,6 +7,7 @@ import ipaddress
 import json
 import logging
 import secrets
+import socket
 import requests
 import threading
 import time
@@ -433,6 +434,13 @@ def _authenticate_agent(payload: dict) -> tuple[Server, str]:
 
 @agent_bp.post("/register")
 def agent_register():
+    """Mint an initial agent credential only for an explicitly enrolled installer."""
+    enrollment_key = str(current_app.config.get("AGENT_ENROLLMENT_KEY") or "")
+    authorization = request.headers.get("Authorization", "")
+    expected = f"Bearer {enrollment_key}" if enrollment_key else ""
+    if not enrollment_key or not hmac.compare_digest(authorization, expected):
+        return jsonify(msg="Agent 注册未启用或 enrollment key 无效"), 403
+
     data = request.get_json(silent=True) or {}
     hostname = (data.get("hostname") or data.get("host") or socket.gethostname() or "auto")[:64]
     import uuid, secrets

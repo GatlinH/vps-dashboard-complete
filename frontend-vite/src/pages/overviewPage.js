@@ -215,13 +215,18 @@ export function renderPublicOverviewPage() {
     const residual = calcResidualValue(s);
     const baseValue = Number(residual.value || 0);
     const displayName = s.name || t('unknownNode');
+    const safeId = Number.isSafeInteger(Number(s.id)) ? String(Number(s.id)) : '';
+    const safeDisplayName = escText(displayName);
+    const safeFlag = escText(s.flag || '🌐');
+    const safeProvider = escText(s.provider_guess || s.provider || t('unknownProvider'));
+    const safeLocation = escText(s.location || s.city || s.region || s.country || t('unknownRegion'));
     return `
-      <article class="public-overview-card" data-id="${s.id}" role="link" tabindex="0" aria-label="${displayName}">
+      <article class="public-overview-card" data-id="${safeId}" role="link" tabindex="0" aria-label="${safeDisplayName}">
         <div class="public-overview-head">
-          <div><span class="public-overview-flag">${s.flag || '🌐'}</span><strong>${displayName}</strong></div>
-          <div class="public-overview-actions"><button class="public-money-btn" type="button" data-id="${s.id}" data-base="${baseValue}" data-name="${escText(displayName)}" aria-label="${escText(displayName)}">¥</button><span class="public-overview-status is-${classifyStatus(s.status)}">${t(classifyStatus(s.status))}</span></div>
+          <div><span class="public-overview-flag">${safeFlag}</span><strong>${safeDisplayName}</strong></div>
+          <div class="public-overview-actions"><button class="public-money-btn" type="button" data-id="${safeId}" data-base="${baseValue}" data-name="${safeDisplayName}" aria-label="${safeDisplayName}">¥</button><span class="public-overview-status is-${classifyStatus(s.status)}">${t(classifyStatus(s.status))}</span></div>
         </div>
-        <div class="public-overview-meta">${s.provider_guess || s.provider || t('unknownProvider')} · ${s.location || s.city || s.region || s.country || t('unknownRegion')} · ${t('residualValue')} ${toDisplay(baseValue)}</div>
+        <div class="public-overview-meta">${safeProvider} · ${safeLocation} · ${t('residualValue')} ${toDisplay(baseValue)}</div>
         <div class="public-overview-grid">
           ${renderOverviewMetric('CPU', cpuValue)}
           ${renderOverviewMetric('RAM', ramValue)}
@@ -230,10 +235,10 @@ export function renderPublicOverviewPage() {
         </div>
       </article>`;
   }).join('');
-  const expSoonItems = summary.expiry.d7.slice(0, 12).map((s) => `<li><b>${s.name}</b><span>${daysUntilExpiry(s.expiry)} 天内到期</span></li>`).join('');
-  const badNodeItems = summary.badNodes.slice(0, 12).map(({ server, pct, cls }) => `<li><b>${server.name}</b><span>${cls === 'offline' ? '离线' : `流量 ${pct.toFixed(0)}%`}</span></li>`).join('');
-  const byRegion = summary.cost.byRegion.map(([k, v]) => `<li><b>${k}</b><span>¥${Math.round(v)}</span></li>`).join('');
-  const byProvider = summary.cost.byProvider.map(([k, v]) => `<li><b>${k}</b><span>¥${Math.round(v)}</span></li>`).join('');
+  const expSoonItems = summary.expiry.d7.slice(0, 12).map((s) => `<li><b>${escText(s.name)}</b><span>${daysUntilExpiry(s.expiry)} 天内到期</span></li>`).join('');
+  const badNodeItems = summary.badNodes.slice(0, 12).map(({ server, pct, cls }) => `<li><b>${escText(server.name)}</b><span>${cls === 'offline' ? '离线' : `流量 ${pct.toFixed(0)}%`}</span></li>`).join('');
+  const byRegion = summary.cost.byRegion.map(([k, v]) => `<li><b>${escText(k)}</b><span>¥${Math.round(v)}</span></li>`).join('');
+  const byProvider = summary.cost.byProvider.map(([k, v]) => `<li><b>${escText(k)}</b><span>¥${Math.round(v)}</span></li>`).join('');
   app.innerHTML = `
     <section class="public-overview-page starship-console-page">
       <div class="public-overview-floating-topbar" aria-label="资产总览导航与显示设置">
