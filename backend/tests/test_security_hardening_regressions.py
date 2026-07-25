@@ -70,10 +70,17 @@ def test_probe_malformed_count_is_a_controlled_bad_request(client, auth_headers)
 
 def test_overview_uses_escaping_for_all_public_server_fields():
     """Source guard: every dynamic card and summary field is escaped before innerHTML."""
-    source = open(
-        "/tmp/vps-dashboard-complete/frontend-vite/src/pages/overviewPage.js",
-        encoding="utf-8",
-    ).read()
+    import os
+
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    overview_path = os.path.join(
+        repo_root, "frontend-vite", "src", "pages", "overviewPage.js"
+    )
+    if not os.path.exists(overview_path):
+        import pytest
+
+        pytest.skip("frontend source not present in this checkout")
+    source = open(overview_path, encoding="utf-8").read()
     forbidden = [
         'aria-label="${displayName}"',
         "${s.flag || '🌐'}",
