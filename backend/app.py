@@ -34,6 +34,28 @@ from services.scheduler import create_scheduler
 logger = logging.getLogger(__name__)
 
 
+def _startup_backfill_server_groups(is_production: bool):
+    """Reconcile server_groups on startup, tolerant of a not-yet-migrated schema.
+
+    A fresh production DB skips create_all() (schema is managed by the schema_init
+    container / migrations), so the server_groups table may not exist yet the first
+    time create_app() runs. A missing table surfaces as different SQLAlchemy
+    exceptions depending on the backend — SQLite raises OperationalError, MySQL
+    raises ProgrammingError(1146). Catch both so production boots gracefully; in
+    non-production, re-raise so a genuine local schema problem is not masked.
+    """
+    from sqlalchemy.exc import OperationalError, ProgrammingError
+    from services.server_groups import backfill_server_groups
+    try:
+        backfill_server_groups()
+    except (OperationalError, ProgrammingError):
+        # Production applies the checked-in migration before reconciliation.
+        if not is_production:
+            raise
+        logger.warning("server_groups schema is not migrated; skipping group backfill")
+        db.session.rollback()
+
+
 def _register_frontend_routes(app: Flask):
     """Serve the bundled Vite app without reserving API or health routes."""
     frontend_dist = Path(os.environ.get("FRONTEND_DIST_DIR", Path(app.root_path).parent / "frontend-dist"))
@@ -248,16 +270,7 @@ def create_app(**config_overrides):
         # 非生产/测试环境保留 create_all 以便快速启动
         if os.getenv("FLASK_ENV") != "production":
             db.create_all()
-        from sqlalchemy.exc import OperationalError
-        from services.server_groups import backfill_server_groups
-        try:
-            backfill_server_groups()
-        except OperationalError:
-            # Production must apply the checked-in migration before reconciliation.
-            if os.getenv("FLASK_ENV") != "production":
-                raise
-            logger.warning("server_groups schema is not migrated; skipping group backfill")
-            db.session.rollback()
+        _startup_backfill_server_groups(is_production=os.getenv("FLASK_ENV") == "production")
 
     # ===== 后台任务调度 =====
     # 测试环境默认不启动后台 scheduler，避免 APScheduler 与 pytest 的
