@@ -13,9 +13,9 @@ assert.match(styleSource, /\.network-chart-surface\{[\s\S]*?flex:1[\s\S]*?min-he
 assert.match(styleSource, /\.network-chart-surface canvas\{[\s\S]*?width:100%[\s\S]*?height:100%/, 'network canvas CSS must fill its chart surface');
 assert.match(chartSource, /responsive:\s*true,[\s\S]*?maintainAspectRatio:\s*false/, 'Chart.js must render into its live container dimensions');
 assert.match(chartSource, /const networkCtx = networkCanvas\?\.getContext\('2d'\)/, 'network renderer must use the canvas context');
-assert.match(chartSource, /const networkHours = detailDays === 0 \? 12 : detailDays \* 24;[\s\S]*?const networkLast = networkPointTimes\.at\(-1\) \|\| networkNow;[\s\S]*?networkAxisBounds = \{ min: networkLast - networkHours \* 60 \* 60 \* 1000, max: networkLast/, 'network axes must use one canonical 12-hour window ending at the last real sample, independent of sample density');
+assert.match(chartSource, /const networkHours = detailDays === 0 \? 12 : detailDays \* 24;[\s\S]*?const networkNow = latestTimelineMs\(probeRows\);[\s\S]*?const networkAxisBounds = adaptiveRollingBounds\([\s\S]*?networkHours\);/, 'network axes must use the canonical duration and anchor their adaptive domain to real network samples, independent of sample density');
 assert.match(chartSource, /min:\s*networkAxisBounds\.min,[\s\S]*?max:\s*networkAxisBounds\.max/, 'x plot scale must use the computed network rendering domain');
-assert.match(chartSource, /min:\s*0,[\s\S]*?max:\s*(?:networkMobileMax|NETWORK_EQUAL_STEP_AXIS\.length - 1)/, 'y plot scale must use data-derived bounds');
+assert.match(chartSource, /const networkRateValues = \[[\s\S]*?const networkYScale = adaptiveRateYScale\(networkRateValues, baseOptions\.scales\.y, fmtRate\);/, 'y plot scale must use real network rates to derive bounds');
 assert.doesNotMatch(chartSource, /viewBox="0 0 [^"]* 238"|viewBox[^\n]*238/, 'network renderer must not retain a stale 238px SVG viewBox');
 assert.doesNotMatch(mainSource, /initNetworkTooltip\(\)/, 'the retired SVG-only network tooltip path must not be invoked for the canvas chart');
 

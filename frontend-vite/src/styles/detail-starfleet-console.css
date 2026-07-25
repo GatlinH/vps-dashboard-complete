@@ -119,6 +119,8 @@
 .fleet-status-bank strong{font-size:12px!important}
 .fleet-panel{padding:8px!important}
 .fleet-title{font-size:10.5px!important;margin-bottom:6px!important;padding-bottom:4px!important}
+.fleet-title-hint{margin-left:6px;font-size:9px;font-weight:500;opacity:.72;letter-spacing:.02em}
+.sm-group-color-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle;border:1px solid rgba(255,255,255,.25)}
 .fleet-info-list{gap:5px!important}
 .fleet-info-list div{padding:5px 6px!important}
 .fleet-info-list span,.fleet-info-list em{font-size:8px!important}

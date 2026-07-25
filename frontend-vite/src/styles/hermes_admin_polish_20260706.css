@@ -162,3 +162,55 @@ html body.komari-admin-shell .acct-session-row small { display:block !important;
   html body.komari-admin-shell .notify-channel-actions,
   html body.komari-admin-shell .acct-session-row { display:grid !important; grid-template-columns:1fr !important; justify-content:stretch !important; }
 }
+
+/* Install command validation */
+html body.komari-admin-shell .komari-install-warn{
+  margin-top:10px;padding:10px 12px;border-radius:10px;
+  border:1px solid rgba(255,93,121,.45);background:rgba(255,40,72,.10);color:#ffb3c0;font-size:12px;line-height:1.55;
+}
+html body.komari-admin-shell .komari-install-warn b{display:block;margin-bottom:4px;color:#ff8ea1}
+html body.komari-admin-shell .komari-install-warn ul{margin:6px 0 0 18px;padding:0}
+html body.komari-admin-shell .komari-install-ok{
+  margin-top:10px;padding:8px 12px;border-radius:10px;
+  border:1px solid rgba(98,240,183,.35);background:rgba(0,255,136,.08);color:#9dffd0;font-size:12px;
+}
+html body.komari-admin-shell .komari-modal{max-width:min(720px,92vw)}
+html body.komari-admin-shell .komari-modal-body{max-height:min(72vh,760px);overflow:auto}
+
+/* Node list filters / status / groups page */
+html body.komari-admin-shell .sm-toolbar-left{display:flex;flex-direction:column;gap:8px;min-width:0}
+html body.komari-admin-shell .sm-view-switch{display:inline-flex;gap:6px;flex-wrap:wrap}
+html body.komari-admin-shell .sm-view-switch button{
+  border:1px solid rgba(102,217,255,.22);background:rgba(255,255,255,.03);color:var(--text2,#9fb6d0);
+  border-radius:999px;padding:6px 12px;font-size:12px;cursor:pointer
+}
+html body.komari-admin-shell .sm-view-switch button.is-active{
+  border-color:rgba(255,180,84,.55);background:rgba(255,180,84,.14);color:#ffd9a8
+}
+html body.komari-admin-shell .sm-filter-bar{
+  display:grid;grid-template-columns:minmax(180px,1.6fr) minmax(120px,.7fr) minmax(120px,.7fr) auto;
+  gap:10px;align-items:center;margin:0 0 12px
+}
+html body.komari-admin-shell .sm-filter-count{
+  font-size:12px;color:var(--text3,#7f97b0);white-space:nowrap;justify-self:end
+}
+html body.komari-admin-shell .sm-status-dot{
+  width:9px;height:9px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 0 3px rgba(255,255,255,.04)
+}
+html body.komari-admin-shell .sm-status-dot.is-online{background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.16)}
+html body.komari-admin-shell .sm-status-dot.is-warn{background:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.16)}
+html body.komari-admin-shell .sm-status-dot.is-offline{background:#ef4444;box-shadow:0 0 0 3px rgba(239,68,68,.16)}
+html body.komari-admin-shell .sm-node-meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+html body.komari-admin-shell .sm-status-text.is-online{color:#4ade80}
+html body.komari-admin-shell .sm-status-text.is-warn{color:#fbbf24}
+html body.komari-admin-shell .sm-status-text.is-offline{color:#f87171}
+html body.komari-admin-shell .sm-heartbeat{opacity:.78}
+html body.komari-admin-shell .sm-groups-layout{
+  display:grid;grid-template-columns:minmax(260px,.9fr) minmax(0,1.4fr);gap:14px;align-items:start
+}
+html body.komari-admin-shell .sm-group-form-panel .komari-action-row{display:flex;gap:8px;flex-wrap:wrap}
+@media (max-width: 980px){
+  html body.komari-admin-shell .sm-filter-bar{grid-template-columns:1fr 1fr}
+  html body.komari-admin-shell .sm-filter-count{justify-self:start}
+  html body.komari-admin-shell .sm-groups-layout{grid-template-columns:1fr}
+}

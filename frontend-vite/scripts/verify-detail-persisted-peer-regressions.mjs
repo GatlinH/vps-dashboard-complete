@@ -18,11 +18,11 @@ assert.match(mainSource, /fetchPingTargetHistory\(resolvedServer\.id, targetHist
 assert.match(mainSource, /fetchPingTargetHistory\(resolvedServer\.id, targetHistoryHours, historyLimit\)/, 'configured-target PING history must remain source=public');
 assert.match(mainSource, /fetchPingTargetHistory\(resolvedServer\.id, targetHistoryHours, historyLimit, 'agent'\)/, 'global VPS probe history must explicitly request agent-reported peers');
 assert.match(detailPageSource, /PING 延迟/, 'detail chart terminology must identify PING latency');
-assert.match(detailPageSource, /延迟监控目标/, 'detail table terminology must identify configured targets');
+assert.match(detailPageSource, /PING 延迟 · \$\{historyLabel\} · 掉线留空[\s\S]*?\$\{targetCount\} 目标/, 'detail PING card must identify configured targets without mixing peer rows');
 assert.match(detailPageSource, /全球 VPS 探针延迟/, 'detail must render the dedicated global VPS probe surface');
-assert.match(mainSource, /未读取到延迟监控目标/, 'configured-target empty state must not refer to VPS peers');
+assert.match(mainSource, /未读取到延迟监测目标/, 'configured-target empty state must not refer to VPS peers');
 assert.match(apiSource, /sourceParam.*source=/s, 'ping history API client must pass an explicit source mode');
-assert.match(chartsSource, /const networkAxisBounds = \{ min: networkLast - networkHours \* 60 \* 60 \* 1000, max: networkLast/, 'network axis must be a full canonical range ending at latest real sample');
+assert.match(chartsSource, /const networkAxisBounds = adaptiveRollingBounds\([\s\S]*?\], networkHours\);/, 'network axis must use the canonical duration with an adaptive real-sample domain');
 assert.match(themeSource, /\.google-earth-node-html-label\.is-vps-node\.is-vps-beacon-node\s*\{[^}]*background:rgba\(8,18,31,\.6\)!important;[^}]*backdrop-filter:blur\(10px\)/s, 'only VPS beacon labels must override the opaque gradient with frosted translucency');
 
 console.log('DETAIL_CONFIGURED_PING_REGRESSIONS_VERIFIED future-persisted=yes public-targets-only=yes traffic-21600=yes canonical-12h=yes beacon-frosted=yes');

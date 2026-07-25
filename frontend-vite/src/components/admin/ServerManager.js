@@ -25,27 +25,178 @@ export class ServerManager {
     this._editingId = null;
     this._selectedIds = new Set();
     this._query = '';
+    this._statusFilter = 'all'; // all | online | warn | offline
+    this._groupFilter = 'all';
+    this._view = 'nodes'; // nodes | groups
     this._serversChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('vps-servers') : null;
     this._render();
     this._bind();
   }
 
-  _groupOptions(selectedId) { return this._groups.map(group => `<option value="${group.id}" ${String(group.id) === String(selectedId) ? 'selected' : ''}>${this._escape(group.name)}</option>`).join(''); }
-  _updateGroupPurposeHint() { const group = this._groups.find(item => String(item.id) === this._val('sm-info-group')); const hint = this._el.querySelector('#sm-info-group-purpose'); if (hint) hint.textContent = group?.purpose || ''; }
-  _openGroupsModal() {
-    this._editingGroupId = null;
-    const rows = this._groups.map(group => `<tr><td>${this._escape(group.name)}</td><td>${this._escape(group.purpose || '')}</td><td><button data-group-edit="${group.id}">编辑</button> <button class="danger" data-group-delete="${group.id}">删除</button></td></tr>`).join('');
-    this._modal('管理分组', `<div class="komari-form-grid one"><label>名称<input class="form-input" id="sm-group-name"></label><label>用途<input class="form-input" id="sm-group-purpose"></label><label>颜色<input class="form-input" id="sm-group-color" placeholder="#RRGGBB（可选）"></label><label>排序<input class="form-input" id="sm-group-sort" type="number" value="0"></label><button class="add-btn" id="sm-group-save">添加分组</button></div><div id="sm-modal-msg" class="komari-msg"></div><table class="komari-node-table"><tbody>${rows}</tbody></table>`);
-    this._el.querySelector('#sm-group-save').addEventListener('click', () => this._saveGroup(this._editingGroupId)); this._el.querySelectorAll('[data-group-edit]').forEach(button => button.addEventListener('click', () => this._editGroup(button.dataset.groupEdit))); this._el.querySelectorAll('[data-group-delete]').forEach(button => button.addEventListener('click', () => this._deleteGroup(button.dataset.groupDelete)));
+  _groupOptions(selectedId) {
+    if (!this._groups.length) {
+      return '<option value="">请先「管理分组」创建</option>';
+    }
+    return this._groups.map(group => {
+      const purpose = group.purpose ? ` · ${group.purpose}` : '';
+      return `<option value="${group.id}" ${String(group.id) === String(selectedId) ? 'selected' : ''}>${this._escape(group.name)}${this._escape(purpose)}</option>`;
+    }).join('');
   }
-  async _saveGroup(id = null) { const payload = { name: this._val('sm-group-name'), purpose: this._val('sm-group-purpose'), color: this._val('sm-group-color'), sort_order: Number(this._val('sm-group-sort') || 0) }; try { id ? await updateServerGroup(id, payload) : await createServerGroup(payload); this._groups = await fetchServerGroups(); this._openGroupsModal(); } catch (error) { this._modalMsg(error.message, 'red'); } }
-  _editGroup(id) { const group = this._groups.find(item => String(item.id) === String(id)); if (!group) return; this._editingGroupId = group.id; this._el.querySelector('#sm-group-name').value = group.name; this._el.querySelector('#sm-group-purpose').value = group.purpose || ''; this._el.querySelector('#sm-group-color').value = group.color || ''; this._el.querySelector('#sm-group-sort').value = group.sort_order || 0; this._el.querySelector('#sm-group-save').textContent = '保存分组'; }
-  async _deleteGroup(id) { try { await deleteServerGroup(id); this._groups = await fetchServerGroups(); this._openGroupsModal(); } catch (error) { this._modalMsg(error.message, 'red'); } }
+  _updateGroupPurposeHint() {
+    const group = this._groups.find(item => String(item.id) === this._val('sm-info-group'));
+    const hint = this._el.querySelector('#sm-info-group-purpose');
+    if (!hint) return;
+    if (!this._groups.length) {
+      hint.textContent = '暂无分组：请点「管理分组」添加（名称/用途/颜色）';
+      return;
+    }
+    const bits = [];
+    if (group?.purpose) bits.push(group.purpose);
+    if (group?.color) bits.push(group.color);
+    hint.textContent = bits.join(' · ') || '分组定义来自后台 server_groups';
+  }
+  _setView(view) {
+    this._view = view === 'groups' ? 'groups' : 'nodes';
+    this._el.querySelectorAll('[data-sm-view]').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.smView === this._view);
+    });
+    const nodes = this._el.querySelector('#sm-nodes-view');
+    const groups = this._el.querySelector('#sm-groups-view');
+    if (nodes) nodes.hidden = this._view !== 'nodes';
+    if (groups) groups.hidden = this._view !== 'groups';
+    if (this._view === 'groups') this._renderGroupsPage();
+    else this._renderTable();
+  }
+
+  _renderGroupsPage() {
+    this._editingGroupId = null;
+    const body = this._el.querySelector('#sm-groups-tbody');
+    const formTitle = this._el.querySelector('#sm-group-form-title');
+    const saveBtn = this._el.querySelector('#sm-group-save');
+    if (!body) return;
+    if (formTitle) formTitle.textContent = '新建分组';
+    if (saveBtn) saveBtn.textContent = '添加分组';
+    ['sm-group-name', 'sm-group-purpose', 'sm-group-color'].forEach((id) => {
+      const el = this._el.querySelector(`#${id}`);
+      if (el) el.value = '';
+    });
+    const sortEl = this._el.querySelector('#sm-group-sort');
+    if (sortEl) sortEl.value = '0';
+    body.innerHTML = this._groups.length
+      ? this._groups.map((group) => {
+          const color = group.color
+            ? `<span class="sm-group-color-dot" style="background:${this._attr(group.color)}"></span>${this._escape(group.color)}`
+            : '—';
+          const members = this._servers.filter((s) => String(s.group_info?.id || s.group_id) === String(group.id)).length;
+          return `<tr>
+            <td><strong>${this._escape(group.name)}</strong></td>
+            <td>${this._escape(group.purpose || '—')}</td>
+            <td>${color}</td>
+            <td>${Number(group.sort_order || 0)}</td>
+            <td>${members}</td>
+            <td class="komari-row-actions">
+              <button type="button" data-group-edit="${group.id}">编辑</button>
+              <button type="button" class="danger" data-group-delete="${group.id}">删除</button>
+            </td>
+          </tr>`;
+        }).join('')
+      : '<tr><td colspan="6" class="komari-empty">暂无分组，请在上方添加（节点下拉 / 资产总览会同步）</td></tr>';
+  }
+
+  async _saveGroup(id = null) {
+    const payload = {
+      name: this._val('sm-group-name'),
+      purpose: this._val('sm-group-purpose'),
+      color: this._val('sm-group-color'),
+      sort_order: Number(this._val('sm-group-sort') || 0),
+    };
+    if (!payload.name.trim()) return this._toast('分组名称不能为空', 'red');
+    try {
+      id ? await updateServerGroup(id, payload) : await createServerGroup(payload);
+      this._groups = await fetchServerGroups();
+      this._fillGroupFilter();
+      this._renderGroupsPage();
+      this._renderTable();
+      this._toast(id ? '分组已更新' : '分组已创建', 'green');
+    } catch (error) {
+      this._toast(error.message, 'red');
+    }
+  }
+
+  _editGroup(id) {
+    const group = this._groups.find((item) => String(item.id) === String(id));
+    if (!group) return;
+    this._setView('groups');
+    this._editingGroupId = group.id;
+    this._el.querySelector('#sm-group-name').value = group.name;
+    this._el.querySelector('#sm-group-purpose').value = group.purpose || '';
+    this._el.querySelector('#sm-group-color').value = group.color || '';
+    this._el.querySelector('#sm-group-sort').value = group.sort_order || 0;
+    const formTitle = this._el.querySelector('#sm-group-form-title');
+    const saveBtn = this._el.querySelector('#sm-group-save');
+    if (formTitle) formTitle.textContent = `编辑分组 · ${group.name}`;
+    if (saveBtn) saveBtn.textContent = '保存分组';
+  }
+
+  async _deleteGroup(id) {
+    if (!confirm('确认删除该分组？节点会回到默认分组逻辑。')) return;
+    try {
+      await deleteServerGroup(id);
+      this._groups = await fetchServerGroups();
+      this._fillGroupFilter();
+      this._renderGroupsPage();
+      this._renderTable();
+      this._toast('分组已删除', 'green');
+    } catch (error) {
+      this._toast(error.message, 'red');
+    }
+  }
+
+  _fillGroupFilter() {
+    const sel = this._el.querySelector('#sm-filter-group');
+    if (!sel) return;
+    const current = this._groupFilter || 'all';
+    sel.innerHTML = [
+      '<option value="all">全部分组</option>',
+      ...this._groups.map((g) => `<option value="${this._attr(g.id)}">${this._escape(g.name)}</option>`),
+      '<option value="none">未分组</option>',
+    ].join('');
+    sel.value = [...sel.options].some((o) => o.value === String(current)) ? String(current) : 'all';
+    this._groupFilter = sel.value;
+  }
+
+  _statusBucket(status) {
+    const s = String(status || '').toLowerCase();
+    if (s === 'online' || s === 'healthy' || s === 'ok' || s === 'up') return 'online';
+    if (s === 'warn' || s === 'warning' || s === 'degraded') return 'warn';
+    return 'offline';
+  }
+
+  _statusLabel(bucket) {
+    return { online: '在线', warn: '波动', offline: '离线' }[bucket] || '离线';
+  }
+
+  _formatHeartbeat(server) {
+    const raw = server.agent_key_last_used || server.updated_at || '';
+    if (!raw) return { text: '无心跳', ageMs: Infinity };
+    const ts = Date.parse(raw);
+    if (!Number.isFinite(ts)) return { text: String(raw).slice(0, 19), ageMs: Infinity };
+    const ageMs = Date.now() - ts;
+    const sec = Math.max(0, Math.round(ageMs / 1000));
+    let text;
+    if (sec < 60) text = `${sec}s 前`;
+    else if (sec < 3600) text = `${Math.floor(sec / 60)}m 前`;
+    else if (sec < 86400) text = `${Math.floor(sec / 3600)}h 前`;
+    else text = `${Math.floor(sec / 86400)}d 前`;
+    return { text, ageMs, iso: new Date(ts).toISOString() };
+  }
 
   async reload() {
     try {
       [this._servers, this._groups] = await Promise.all([fetchServers(), fetchServerGroups()]);
-      this._renderTable();
+      this._fillGroupFilter();
+      if (this._view === 'groups') this._renderGroupsPage();
+      else this._renderTable();
     } catch (e) { this._toast(e.message, 'red'); }
   }
 
@@ -57,41 +208,92 @@ export class ServerManager {
     this._el.innerHTML = /* html */`
       <div class="komari-node-page">
         <div class="komari-node-toolbar">
-          <h2>节点列表</h2>
+          <div class="sm-toolbar-left">
+            <h2>节点管理</h2>
+            <div class="sm-view-switch" role="tablist" aria-label="节点管理视图">
+              <button type="button" class="is-active" data-sm-view="nodes">节点列表</button>
+              <button type="button" data-sm-view="groups">分组管理</button>
+            </div>
+          </div>
           <div class="komari-node-actions">
             <button id="sm-add-node" class="add-btn">＋ 添加节点</button>
-            <button id="sm-manage-groups" type="button">管理分组</button>
+            <button id="sm-goto-groups" type="button">管理分组</button>
           </div>
         </div>
-        <div class="komari-table-wrap">
-          <table class="komari-node-table">
-            <colgroup>
-              <col class="col-drag">
-              <col class="col-check">
-              <col class="col-name">
-              <col class="col-ip">
-              <col class="col-version">
-              <col class="col-package">
-              <col class="col-note">
-              <col class="col-billing">
-              <col class="col-actions">
-            </colgroup>
-            <thead>
-              <tr>
-                <th></th>
-                <th><input id="sm-check-all" type="checkbox"></th>
-                <th>名称</th>
-                <th>IP地址</th>
-                <th>客户端版本</th>
-                <th>包</th>
-                <th>外形备注</th>
-                <th>账单</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody id="sm-existing"></tbody>
-          </table>
+
+        <div id="sm-nodes-view">
+          <div class="sm-filter-bar">
+            <input id="sm-search" class="form-input" type="search" placeholder="搜索名称 / IP / 备注 / 地区 / 标签" autocomplete="off">
+            <select id="sm-filter-status" class="form-input" aria-label="按状态筛选">
+              <option value="all">全部状态</option>
+              <option value="online">在线</option>
+              <option value="warn">波动</option>
+              <option value="offline">离线</option>
+            </select>
+            <select id="sm-filter-group" class="form-input" aria-label="按分组筛选">
+              <option value="all">全部分组</option>
+            </select>
+            <span id="sm-filter-count" class="sm-filter-count">0 台</span>
+          </div>
+          <div class="komari-table-wrap">
+            <table class="komari-node-table">
+              <colgroup>
+                <col class="col-drag">
+                <col class="col-check">
+                <col class="col-name">
+                <col class="col-ip">
+                <col class="col-version">
+                <col class="col-package">
+                <col class="col-note">
+                <col class="col-billing">
+                <col class="col-actions">
+              </colgroup>
+              <thead>
+                <tr>
+                  <th></th>
+                  <th><input id="sm-check-all" type="checkbox"></th>
+                  <th>名称 / 状态</th>
+                  <th>IP地址</th>
+                  <th>客户端版本</th>
+                  <th>分组</th>
+                  <th>外形备注</th>
+                  <th>账单</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="sm-existing"></tbody>
+            </table>
+          </div>
         </div>
+
+        <div id="sm-groups-view" hidden>
+          <p class="komari-note">分组保存在后台 <code>server_groups</code>。节点编辑下拉、资产总览 Tab/分区都读这里；与地球「同地点聚合」无关。</p>
+          <div class="sm-groups-layout">
+            <section class="komari-panel sm-group-form-panel">
+              <div class="komari-panel-title"><span id="sm-group-form-title">新建分组</span><small>名称 / 用途 / 颜色 / 排序</small></div>
+              <div class="komari-form-grid one">
+                <label>名称<input class="form-input" id="sm-group-name" placeholder="如 CN2 / 亚洲 / 测试"></label>
+                <label>用途<input class="form-input" id="sm-group-purpose" placeholder="用途说明（可选）"></label>
+                <label>颜色<input class="form-input" id="sm-group-color" placeholder="#RRGGBB（可选）"></label>
+                <label>排序<input class="form-input" id="sm-group-sort" type="number" value="0"></label>
+                <div class="komari-action-row">
+                  <button class="add-btn" id="sm-group-save" type="button">添加分组</button>
+                  <button class="komari-secondary" id="sm-group-reset" type="button">清空表单</button>
+                </div>
+              </div>
+            </section>
+            <section class="komari-panel sm-group-list-panel">
+              <div class="komari-panel-title"><span>已有分组</span><small>点击编辑 / 删除</small></div>
+              <div class="komari-table-wrap">
+                <table class="komari-node-table">
+                  <thead><tr><th>名称</th><th>用途</th><th>颜色</th><th>排序</th><th>节点</th><th>操作</th></tr></thead>
+                  <tbody id="sm-groups-tbody"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </div>
+
         <div id="sm-msg" class="komari-msg"></div>
       </div>
       <div id="sm-modal-root"></div>`;
@@ -99,14 +301,36 @@ export class ServerManager {
 
   _bind() {
     this._el.querySelector('#sm-add-node').addEventListener('click', () => this._openAddModal());
-    this._el.querySelector('#sm-manage-groups').addEventListener('click', () => this._openGroupsModal());
-    this._el.querySelector('#sm-search')?.addEventListener('input', e => { this._query = e.target.value.trim().toLowerCase(); this._renderTable(); });
-    this._el.querySelector('#sm-check-all').addEventListener('change', e => {
-      const rows = this._filteredServers();
-      this._selectedIds = e.target.checked ? new Set(rows.map(s => String(s.id))) : new Set();
+    this._el.querySelector('#sm-goto-groups')?.addEventListener('click', () => this._setView('groups'));
+    this._el.querySelectorAll('[data-sm-view]').forEach((btn) => {
+      btn.addEventListener('click', () => this._setView(btn.dataset.smView));
+    });
+    this._el.querySelector('#sm-search')?.addEventListener('input', (e) => {
+      this._query = e.target.value.trim().toLowerCase();
       this._renderTable();
     });
-    this._el.querySelector('#sm-existing').addEventListener('click', e => {
+    this._el.querySelector('#sm-filter-status')?.addEventListener('change', (e) => {
+      this._statusFilter = e.target.value || 'all';
+      this._renderTable();
+    });
+    this._el.querySelector('#sm-filter-group')?.addEventListener('change', (e) => {
+      this._groupFilter = e.target.value || 'all';
+      this._renderTable();
+    });
+    this._el.querySelector('#sm-group-save')?.addEventListener('click', () => this._saveGroup(this._editingGroupId));
+    this._el.querySelector('#sm-group-reset')?.addEventListener('click', () => this._renderGroupsPage());
+    this._el.querySelector('#sm-groups-tbody')?.addEventListener('click', (e) => {
+      const edit = e.target.closest('[data-group-edit]');
+      const del = e.target.closest('[data-group-delete]');
+      if (edit) return this._editGroup(edit.dataset.groupEdit);
+      if (del) return this._deleteGroup(del.dataset.groupDelete);
+    });
+    this._el.querySelector('#sm-check-all').addEventListener('change', (e) => {
+      const rows = this._filteredServers();
+      this._selectedIds = e.target.checked ? new Set(rows.map((s) => String(s.id))) : new Set();
+      this._renderTable();
+    });
+    this._el.querySelector('#sm-existing').addEventListener('click', (e) => {
       const btn = e.target.closest('[data-action]');
       const check = e.target.closest('[data-row-check]');
       if (check) {
@@ -123,44 +347,74 @@ export class ServerManager {
       if (action === 'billing') return this._openBillingModal(id);
       if (action === 'delete') return this._delete(id);
     });
-    this._el.querySelector('#sm-modal-root').addEventListener('click', e => {
-      if (e.target.matches('[data-modal-close], .komari-modal-backdrop')) this._closeModal();
+    this._el.querySelector('#sm-modal-root').addEventListener('click', (e) => {
+      // Only the X button closes the dialog. Clicking the dimmed backdrop must NOT
+      // discard edits (Komari-style sticky modal for install/edit cards).
+      if (e.target.matches('[data-modal-close]')) this._closeModal();
     });
   }
 
   _filteredServers() {
-    if (!this._query) return this._servers;
-    return this._servers.filter(s => [s.name, s.ip, s.location, s.note, s.provider, s.bw, (s.tags || []).join(',')]
-      .some(v => String(v || '').toLowerCase().includes(this._query)));
+    return this._servers.filter((s) => {
+      if (this._statusFilter && this._statusFilter !== 'all') {
+        if (this._statusBucket(s.status) !== this._statusFilter) return false;
+      }
+      if (this._groupFilter && this._groupFilter !== 'all') {
+        const gid = String(s.group_info?.id || s.group_id || '');
+        if (this._groupFilter === 'none') {
+          if (gid) return false;
+        } else if (gid !== String(this._groupFilter)) {
+          return false;
+        }
+      }
+      if (!this._query) return true;
+      return [s.name, s.ip, s.location, s.note, s.provider, s.bw, s.group, s.group_name, s.group_info?.name, (s.tags || []).join(',')]
+        .some((v) => String(v || '').toLowerCase().includes(this._query));
+    });
   }
 
   _renderTable() {
     const el = this._el.querySelector('#sm-existing');
+    if (!el) return;
     const rows = this._filteredServers();
+    const countEl = this._el.querySelector('#sm-filter-count');
+    if (countEl) {
+      countEl.textContent = `${rows.length} / ${this._servers.length} 台`;
+    }
     if (!rows.length) {
-      el.innerHTML = `<tr><td colspan="9" class="komari-empty">暂无节点</td></tr>`;
+      el.innerHTML = `<tr><td colspan="9" class="komari-empty">没有匹配的节点</td></tr>`;
       return;
     }
-    el.innerHTML = rows.map(s => {
+    el.innerHTML = rows.map((s) => {
       const id = String(s.id);
       const price = Number(s.price || 0);
       const currency = this._billingCurrency(s);
       const billing = price < 0 ? '免费' : price === 0 ? '—' : `${currency}${price.toFixed(2)} / ${this._periodLabel(s.period)}`;
       const clientVersion = this._agentVersion(s) || '—';
-      const pkg = s.group || s.provider || '—';
+      const pkg = s.group_info?.name || s.group || s.group_name || '默认分组';
+      const purpose = s.group_info?.purpose || '';
+      const bucket = this._statusBucket(s.status);
+      const hb = this._formatHeartbeat(s);
       return /* html */`
-        <tr>
+        <tr data-status="${bucket}">
           <td class="komari-drag" title="拖拽排序" aria-label="拖拽排序"><span class="komari-drag-grip" aria-hidden="true"></span></td>
           <td><input type="checkbox" data-row-check="${id}" ${this._selectedIds.has(id) ? 'checked' : ''}></td>
           <td class="komari-node-name">
             <div class="komari-node-name-inner">
+              <span class="sm-status-dot is-${bucket}" title="${this._escape(this._statusLabel(bucket))}"></span>
               <span class="komari-node-badge">${this._escape((s.flag || 'V').slice(0, 2))}</span>
-              <div><strong>${this._escape(s.name || s.ip || '未命名节点')}</strong><small>${this._escape(s.status || 'unknown')}</small></div>
+              <div>
+                <strong>${this._escape(s.name || s.ip || '未命名节点')}</strong>
+                <small class="sm-node-meta">
+                  <span class="sm-status-text is-${bucket}">${this._escape(this._statusLabel(bucket))}</span>
+                  <span class="sm-heartbeat" title="${this._attr(hb.iso || '')}">心跳 ${this._escape(hb.text)}</span>
+                </small>
+              </div>
             </div>
           </td>
           <td>${this._escape(s.ip || '—')}</td>
           <td>${this._escape(clientVersion)}</td>
-          <td>${this._escape(pkg)}</td>
+          <td title="${this._attr(purpose)}">${this._escape(pkg)}</td>
           <td>${this._escape(s.note || s.location || '—')}</td>
           <td>${this._escape(billing)}<br><small>${this._escape(s.expiry || '长期')}</small></td>
           <td class="komari-row-actions">
@@ -327,22 +581,74 @@ export class ServerManager {
     this._modal('一键配置命令', `<div class="komari-loading">正在生成安装命令...</div>`);
     try {
       const agent = await generateAgentKey(id);
-      let cmd = '';
-      try { const res = await fetchAgentInstallCommand(id, agent.agent_key); cmd = res.install_command || res.command || ''; } catch (_) { cmd = agent.install_command || ''; }
-      this._showInstallPayload(s, { ...agent, install_command: cmd });
+      let payload = { ...agent };
+      try {
+        const res = await fetchAgentInstallCommand(id, agent.agent_key);
+        payload = { ...agent, ...res };
+      } catch (_) {}
+      this._showInstallPayload(s, payload);
     } catch (e) { this._modal('一键配置命令', `<div class="komari-error">${this._escape(e.message)}</div>`); }
   }
 
+  _validateInstallPayload(agent = {}) {
+    const issues = [];
+    const url = String(agent.install_url || agent.api_root || '');
+    const cmd = String(agent.install_command || agent.command || '');
+    const page = window.location || {};
+    const pagePort = String(page.port || (page.protocol === 'https:' ? '443' : '80'));
+    if (!url) issues.push('缺少 Install URL / api_root');
+    if (!cmd) issues.push('安装命令为空');
+    try {
+      const u = new URL(url, page.origin || 'http://localhost');
+      if (page.protocol === 'http:' && u.protocol === 'https:') {
+        issues.push('安装地址是 HTTPS，但当前面板是 HTTP：Agent 容易 TLS 握手超时');
+      }
+      if (page.hostname && u.hostname === page.hostname) {
+        const needPort = pagePort && pagePort !== '80' && pagePort !== '443';
+        if (needPort && !u.port) {
+          issues.push(`安装地址缺少端口 :${pagePort}（会误连 :80）`);
+        }
+        if (needPort && u.port && u.port !== pagePort) {
+          issues.push(`安装端口 :${u.port} 与面板端口 :${pagePort} 不一致`);
+        }
+      }
+      if (u.pathname && !u.pathname.includes('/api/v1/agent/install.sh') && cmd.includes('install.sh') === false) {
+        // soft: ignore
+      }
+    } catch (_) {
+      issues.push('Install URL 无法解析');
+    }
+    if (cmd && !cmd.includes('--api-root')) issues.push('安装命令缺少 --api-root');
+    if (cmd && !cmd.includes('--agent-key')) issues.push('安装命令缺少 --agent-key');
+    if (cmd && !cmd.includes('--uuid')) issues.push('安装命令缺少 --uuid');
+    return issues;
+  }
+
   _showInstallPayload(server, agent) {
+    const cmd = agent?.install_command || agent?.command || '';
+    const url = agent?.install_url || '';
+    const apiRoot = agent?.api_root || '';
+    const issues = this._validateInstallPayload({ ...agent, install_command: cmd, install_url: url || apiRoot });
+    const blocked = issues.length > 0;
+    const warnHtml = blocked
+      ? `<div class="komari-install-warn"><b>安装命令不可直接复制</b><ul>${issues.map((x) => `<li>${this._escape(x)}</li>`).join('')}</ul><p>请确认 PUBLIC_API_ROOT / FRONTEND_URL 含正确端口；纯 HTTP 面板需 AGENT_REQUIRE_TLS=0。</p></div>`
+      : `<div class="komari-install-ok">校验通过：远程 Agent 将回连 <code>${this._escape(apiRoot || url || location.origin)}</code></div>`;
     this._modal('一键配置命令', /* html */`
       <div class="komari-form-grid one">
+        <label>节点<div class="form-input" style="background:transparent">${this._escape(server?.name || '')} · #${this._escape(server?.id || '')}</div></label>
         <label>Agent Key<textarea readonly class="form-input komari-code" id="sm-copy-key">${this._escape(agent?.agent_key || '')}</textarea></label>
-        <label>Install URL<textarea readonly class="form-input komari-code">${this._escape(agent?.install_url || '')}</textarea></label>
-        <label>Install Command<textarea readonly class="form-input komari-code" id="sm-copy-cmd">${this._escape(agent?.install_command || '')}</textarea></label>
+        <label>API Root / Install URL<textarea readonly class="form-input komari-code" id="sm-copy-url">${this._escape(url || apiRoot || '')}</textarea></label>
+        <label>Install Command<textarea readonly class="form-input komari-code" id="sm-copy-cmd">${this._escape(cmd)}</textarea></label>
       </div>
+      ${warnHtml}
       <div id="sm-modal-msg" class="komari-msg"></div>
-      <div class="komari-modal-actions"><button type="button" class="add-btn" id="sm-copy-install">复制命令</button></div>`);
-    this._el.querySelector('#sm-copy-install').addEventListener('click', () => this._copy(this._el.querySelector('#sm-copy-cmd').value));
+      <div class="komari-modal-actions">
+        <button type="button" class="add-btn" id="sm-copy-install" ${blocked ? 'disabled style="opacity:.45;cursor:not-allowed"' : ''}>${blocked ? '已禁止复制' : '复制命令'}</button>
+      </div>`);
+    this._el.querySelector('#sm-copy-install')?.addEventListener('click', () => {
+      if (blocked) return this._modalMsg('请先修复上方标红问题', 'red');
+      this._copy(this._el.querySelector('#sm-copy-cmd').value);
+    });
   }
 
   async _openAgentModal(id) {

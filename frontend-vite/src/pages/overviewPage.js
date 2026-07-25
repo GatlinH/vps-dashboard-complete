@@ -2,6 +2,9 @@ import { state } from '../store/state.js';
 import { LANGUAGE_PACKS, currentLanguage, t } from '../core/preferences.js';
 import { toDisplay, calcResidualValue, getMonthlyPrice, sourceAmountToCny, getSourceCurrency, updateRateDisplay } from '../utils/currency.js';
 import { getTrafficPct } from '../utils/traffic.js';
+import { normalizePublicServer } from '../services/serverGroups.js';
+
+const OVERVIEW_GROUP_FILTER_KEY = 'vps_overview_group_filter';
 
 function escText(value) {
   return String(value ?? '').replace(/[&<>\"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '\"':'&quot;', "'":'&#39;' }[c]));
@@ -166,7 +169,7 @@ function formatOverviewLoss(server) {
   return Number.isFinite(num) ? `${num.toFixed(1)}%` : '—';
 }
 
-function renderOverviewNetworkTable(rows = []) {
+function renderOverviewNetworkTable(rows = [], { collapsed = true } = {}) {
   const tableRows = rows.map((server) => {
     const lossText = formatOverviewLoss(server);
     const lossValue = Number.parseFloat(lossText);
@@ -184,13 +187,14 @@ function renderOverviewNetworkTable(rows = []) {
       </tr>`;
   }).join('');
   return `
-    <section class="overview-network-table" aria-label="${t('nodeNetworkDetails')}">
-      <div class="overview-network-table-head">
+    <section class="overview-network-table ${collapsed ? 'is-collapsed' : ''}" aria-label="${t('nodeNetworkDetails')}">
+      <button class="overview-network-table-toggle" type="button" aria-expanded="${collapsed ? 'false' : 'true'}">
         <div>
           <span class="overview-network-table-kicker">${t('networkDetails')}</span>
           <h2>${t('nodeNetworkDetails')}</h2>
         </div>
-      </div>
+        <span class="public-overview-panel-chevron">${collapsed ? '▸' : '▾'}</span>
+      </button>
       <div class="overview-network-table-scroll">
         <table>
           <thead><tr><th>${t('tableNodeId')}</th><th>IP</th><th>${t('geoLocation')}</th><th>${t('operator')}</th><th>${t('monthlyTraffic')}</th><th>${t('packetLoss')}</th></tr></thead>
@@ -200,47 +204,173 @@ function renderOverviewNetworkTable(rows = []) {
     </section>`;
 }
 
+function renderCompactEmpty(text) {
+  return `<div class="overview-empty-inline">${escText(text)}</div>`;
+}
+
+function isMasterNode(server = {}) {
+  const name = String(server?.name || '');
+  const provider = String(server?.provider || server?.provider_guess || '');
+  const role = String(server?.role || server?.node_role || server?.agent_config?.role || '').toLowerCase();
+  const note = String(server?.note || server?.public_note || '');
+  return (
+    role === 'master' ||
+    role === 'controller' ||
+    /主控|master|controller/i.test(name) ||
+    /local-master|主控/i.test(provider) ||
+    /主控|master/i.test(note) ||
+    Number(server?.id) === 1
+  );
+}
+
+function compareOverviewNodes(a, b) {
+  // Master always first so it stays findable when the fleet grows large.
+  const ma = isMasterNode(a) ? 0 : 1;
+  const mb = isMasterNode(b) ? 0 : 1;
+  if (ma !== mb) return ma - mb;
+
+  const rank = (s) => {
+    const st = classifyStatus(s.status);
+    return st === 'offline' ? 0 : st === 'warn' ? 1 : 2;
+  };
+  const ra = rank(a);
+  const rb = rank(b);
+  if (ra !== rb) return ra - rb;
+
+  const la = String(a.location || a.city || a.region || a.country || '');
+  const lb = String(b.location || b.city || b.region || b.country || '');
+  if (la !== lb) return la.localeCompare(lb, 'zh');
+  return String(a.name || '').localeCompare(String(b.name || ''), 'zh');
+}
+
+function serverGroupMeta(server = {}) {
+  const normalized = normalizePublicServer(server);
+  const info = server.group_info && typeof server.group_info === 'object' ? server.group_info : null;
+  return {
+    id: info?.id != null ? String(info.id) : (server.group_id != null ? String(server.group_id) : ''),
+    name: String(normalized.group || server.group_name || server.group || '默认分组').trim() || '默认分组',
+    purpose: String(normalized.groupPurpose || info?.purpose || '').trim(),
+    color: String(normalized.groupColor || info?.color || '').trim(),
+    sort: Number(info?.sort_order ?? server.group_sort_order ?? 0) || 0,
+  };
+}
+
+function loadOverviewGroupFilter() {
+  try {
+    const raw = localStorage.getItem(OVERVIEW_GROUP_FILTER_KEY);
+    return raw && raw !== 'undefined' ? raw : 'all';
+  } catch (_) {
+    return 'all';
+  }
+}
+
+function saveOverviewGroupFilter(value) {
+  try { localStorage.setItem(OVERVIEW_GROUP_FILTER_KEY, value); } catch (_) {}
+}
+
+function buildBackendGroups(rows = []) {
+  const map = new Map();
+  for (const server of rows) {
+    const meta = serverGroupMeta(server);
+    const key = meta.id || `name:${meta.name}`;
+    if (!map.has(key)) {
+      map.set(key, { key, ...meta, count: 0, servers: [] });
+    }
+    const bucket = map.get(key);
+    bucket.count += 1;
+    bucket.servers.push(server);
+    // keep first non-empty color/purpose/sort from backend
+    if (!bucket.color && meta.color) bucket.color = meta.color;
+    if (!bucket.purpose && meta.purpose) bucket.purpose = meta.purpose;
+    if (!bucket.sort && meta.sort) bucket.sort = meta.sort;
+  }
+  return [...map.values()].sort((a, b) => {
+    if (a.sort !== b.sort) return a.sort - b.sort;
+    return a.name.localeCompare(b.name, 'zh');
+  });
+}
+
+function renderOverviewNodeCard(s) {
+  const cpuValue = overviewMetricValue(s, 'cpu_use');
+  const ramValue = overviewMetricValue(s, 'ram_use');
+  const diskValue = overviewMetricValue(s, 'disk_use');
+  const trafficRaw = getTrafficPct(s);
+  const trafficValue = trafficRaw == null || trafficRaw === '' ? null : Math.max(0, Math.min(100, Number(trafficRaw)));
+  const residual = calcResidualValue(s);
+  const baseValue = Number(residual.value || 0);
+  const displayName = s.name || t('unknownNode');
+  const statusCls = classifyStatus(s.status);
+  const master = isMasterNode(s);
+  const group = serverGroupMeta(s);
+  const groupStyle = group.color ? ` style="--group-color:${escText(group.color)}"` : '';
+  const safeId = Number.isSafeInteger(Number(s.id)) ? String(Number(s.id)) : '';
+  const safeDisplayName = escText(displayName);
+  const safeFlag = escText(s.flag || '🌐');
+  const safeProvider = escText(s.provider_guess || s.provider || t('unknownProvider'));
+  const safeLocation = escText(s.location || s.city || s.region || s.country || t('unknownRegion'));
+  return `
+    <article class="public-overview-card is-dense status-${statusCls}${master ? ' is-master' : ''}" data-id="${safeId}" data-group-key="${escText(group.id || `name:${group.name}`)}" role="link" tabindex="0" aria-label="${safeDisplayName}"${groupStyle}>
+      <div class="public-overview-head">
+        <div><span class="public-overview-flag">${safeFlag}</span><strong>${safeDisplayName}</strong>${master ? '<em class="overview-master-badge">主控</em>' : ''}</div>
+        <div class="public-overview-actions"><button class="public-money-btn" type="button" data-id="${safeId}" data-base="${baseValue}" data-name="${safeDisplayName}" aria-label="${safeDisplayName}">¥</button><span class="public-overview-status is-${statusCls}">${t(statusCls)}</span></div>
+      </div>
+      <div class="public-overview-meta"><span class="overview-group-chip">${escText(group.name)}</span> · ${safeProvider} · ${safeLocation}</div>
+      <div class="public-overview-grid">
+        ${renderOverviewMetric('CPU', cpuValue)}
+        ${renderOverviewMetric('RAM', ramValue)}
+        ${renderOverviewMetric('DISK', diskValue)}
+        ${renderOverviewMetric('TRAF', Number.isFinite(trafficValue) ? trafficValue : null)}
+      </div>
+    </article>`;
+}
+
+function collectFilteredNodes(groups = [], activeKey = 'all') {
+  // Filter tabs own the grouping UX. Always render ONE flat card grid so we
+  // don't double-express groups as both tabs and multi-section card blocks.
+  const visible = activeKey === 'all' ? groups : groups.filter((g) => g.key === activeKey);
+  return visible.flatMap((group) => group.servers || []).sort(compareOverviewNodes);
+}
+
+function renderFlatNodeList(nodes = [], activeMeta = null) {
+  if (!nodes.length) {
+    return `<div class="public-overview-empty">当前筛选下暂无节点</div>`;
+  }
+  const hint = activeMeta && activeMeta.key !== 'all'
+    ? `<div class="overview-filter-hint">当前筛选：<b>${escText(activeMeta.name)}</b>${activeMeta.purpose ? ` · ${escText(activeMeta.purpose)}` : ''} · ${nodes.length} 台</div>`
+    : '';
+  return `${hint}<div class="public-overview-list" id="overviewNodeGrid">${nodes.map(renderOverviewNodeCard).join('')}</div>`;
+}
+
 export function renderPublicOverviewPage() {
   const app = document.getElementById('pageRoot');
   const rows = Array.isArray(state.servers) ? state.servers : [];
   const summary = summarizeMoonPanel(rows);
   const updatedAtText = state.serversUpdatedAt ? new Date(state.serversUpdatedAt).toLocaleString('zh-CN', { hour12: false }) : '未记录';
-  const sourceText = '';
-  const cards = rows.map((s) => {
-    const cpuValue = overviewMetricValue(s, 'cpu_use');
-    const ramValue = overviewMetricValue(s, 'ram_use');
-    const diskValue = overviewMetricValue(s, 'disk_use');
-    const trafficRaw = getTrafficPct(s);
-    const trafficValue = trafficRaw == null || trafficRaw === '' ? null : Math.max(0, Math.min(100, Number(trafficRaw)));
-    const residual = calcResidualValue(s);
-    const baseValue = Number(residual.value || 0);
-    const displayName = s.name || t('unknownNode');
-    const safeId = Number.isSafeInteger(Number(s.id)) ? String(Number(s.id)) : '';
-    const safeDisplayName = escText(displayName);
-    const safeFlag = escText(s.flag || '🌐');
-    const safeProvider = escText(s.provider_guess || s.provider || t('unknownProvider'));
-    const safeLocation = escText(s.location || s.city || s.region || s.country || t('unknownRegion'));
-    return `
-      <article class="public-overview-card" data-id="${safeId}" role="link" tabindex="0" aria-label="${safeDisplayName}">
-        <div class="public-overview-head">
-          <div><span class="public-overview-flag">${safeFlag}</span><strong>${safeDisplayName}</strong></div>
-          <div class="public-overview-actions"><button class="public-money-btn" type="button" data-id="${safeId}" data-base="${baseValue}" data-name="${safeDisplayName}" aria-label="${safeDisplayName}">¥</button><span class="public-overview-status is-${classifyStatus(s.status)}">${t(classifyStatus(s.status))}</span></div>
-        </div>
-        <div class="public-overview-meta">${safeProvider} · ${safeLocation} · ${t('residualValue')} ${toDisplay(baseValue)}</div>
-        <div class="public-overview-grid">
-          ${renderOverviewMetric('CPU', cpuValue)}
-          ${renderOverviewMetric('RAM', ramValue)}
-          ${renderOverviewMetric('DISK', diskValue)}
-          ${renderOverviewMetric('TRAFFIC', Number.isFinite(trafficValue) ? trafficValue : null)}
-        </div>
-      </article>`;
-  }).join('');
+  const backendGroups = buildBackendGroups(rows);
+  let activeGroup = loadOverviewGroupFilter();
+  if (activeGroup !== 'all' && !backendGroups.some((g) => g.key === activeGroup)) {
+    activeGroup = 'all';
+    saveOverviewGroupFilter('all');
+  }
+  const activeMeta = activeGroup === 'all'
+    ? { key: 'all', name: '全部节点', purpose: '', count: rows.length }
+    : (backendGroups.find((g) => g.key === activeGroup) || { key: activeGroup, name: '当前分组', purpose: '', count: 0 });
+  const filteredNodes = collectFilteredNodes(backendGroups, activeGroup);
+  const filteredCount = filteredNodes.length;
+  const groupTabs = [
+    { key: 'all', name: '全部', count: rows.length, color: '' },
+    ...backendGroups.map((g) => ({ key: g.key, name: g.name, count: g.count, color: g.color, purpose: g.purpose })),
+  ];
   const expSoonItems = summary.expiry.d7.slice(0, 12).map((s) => `<li><b>${escText(s.name)}</b><span>${daysUntilExpiry(s.expiry)} 天内到期</span></li>`).join('');
   const badNodeItems = summary.badNodes.slice(0, 12).map(({ server, pct, cls }) => `<li><b>${escText(server.name)}</b><span>${cls === 'offline' ? '离线' : `流量 ${pct.toFixed(0)}%`}</span></li>`).join('');
   const byRegion = summary.cost.byRegion.map(([k, v]) => `<li><b>${escText(k)}</b><span>¥${Math.round(v)}</span></li>`).join('');
   const byProvider = summary.cost.byProvider.map(([k, v]) => `<li><b>${escText(k)}</b><span>¥${Math.round(v)}</span></li>`).join('');
+  const hasExpiry = summary.expiry.d7.length > 0;
+  const hasAbnormal = summary.badNodes.length > 0;
+  const hasCostSplit = summary.cost.byRegion.length > 0 || summary.cost.byProvider.length > 0;
+
   app.innerHTML = `
-    <section class="public-overview-page starship-console-page">
+    <section class="public-overview-page starship-console-page overview-layout-p1">
       <div class="public-overview-floating-topbar" aria-label="资产总览导航与显示设置">
         <a class="public-overview-back" href="/">${t('back')}</a>
         <div class="detail-page-tools public-overview-tools">
@@ -258,74 +388,119 @@ export function renderPublicOverviewPage() {
           <div class="rate-display" id="rateDisplay"></div>
         </div>
       </div>
-      <div class="public-overview-hero">
+
+      <div class="public-overview-hero is-compact">
         <div class="public-overview-hero-copy">
           <div class="public-overview-kicker">${t('overviewKicker')}</div>
           <h1>${t('overviewTitle')}</h1>
           <div class="public-overview-meta-bar">
             <span>${t('dataUpdated')}：${updatedAtText}</span>
-            
+            <span class="overview-hero-count">${summary.status.total} 节点 · ${backendGroups.length} 分组</span>
           </div>
         </div>
-        <figure class="public-overview-visual" aria-label="资产网络主视觉">
+        <figure class="public-overview-visual is-compact" aria-label="资产网络主视觉">
           <img src="/assets/custom/overview-visual-transparent.png" alt="${t('overviewKicker')}" loading="eager" decoding="async" />
         </figure>
       </div>
 
-      <div class="public-overview-stats public-overview-status-bank">
-        <div><span>${t('totalNodes')}</span><strong>${summary.status.total}</strong></div>
-        <div><span>${t('online')}</span><strong>${summary.status.online}</strong></div>
-        <div><span>${t('warn')}</span><strong>${summary.status.warn}</strong></div>
-        <div><span>${t('offline')}</span><strong>${summary.status.offline}</strong></div>
+      <div class="public-overview-kpi-strip" role="group" aria-label="资产关键指标">
+        <div class="kpi-item"><span>${t('totalNodes')}</span><strong>${summary.status.total}</strong></div>
+        <div class="kpi-item is-online"><span>${t('online')}</span><strong>${summary.status.online}</strong></div>
+        <div class="kpi-item is-warn"><span>${t('warn')}</span><strong>${summary.status.warn}</strong></div>
+        <div class="kpi-item is-offline"><span>${t('offline')}</span><strong>${summary.status.offline}</strong></div>
+        <div class="kpi-item"><span>${t('monthlyTotalCost')}</span><strong>${toDisplay(summary.cost.monthlyActual)}</strong></div>
+        <div class="kpi-item ${hasExpiry ? 'is-alert' : ''}"><span>${t('within7Days')}</span><strong>${summary.expiry.d7.length}</strong></div>
       </div>
 
-      <div class="public-overview-stats public-overview-stats-expiry">
-        <div><span>${t('expiresToday')}</span><strong>${summary.expiry.today.length}</strong></div>
-        <div><span>${t('within3Days')}</span><strong>${summary.expiry.d3.length}</strong></div>
-        <div><span>${t('within7Days')}</span><strong>${summary.expiry.d7.length}</strong></div>
+      <div class="overview-group-filter" role="tablist" aria-label="按后台分组筛选节点资产">
+        ${groupTabs.map((tab) => {
+          const active = tab.key === activeGroup;
+          const colorStyle = tab.color ? ` style="--group-color:${escText(tab.color)}"` : '';
+          const title = tab.purpose ? ` title="${escText(tab.purpose)}"` : '';
+          return `<button type="button" class="overview-group-tab ${active ? 'is-active' : ''}" role="tab" aria-selected="${active ? 'true' : 'false'}" data-group-key="${escText(tab.key)}"${colorStyle}${title}><span>${escText(tab.name)}</span><b>${tab.count}</b></button>`;
+        }).join('')}
       </div>
 
-      <div class="public-overview-stats public-overview-stats-cost">
-        <div><span>${t('monthlyTotalCost')}</span><strong>${toDisplay(summary.cost.monthlyActual)}</strong></div>
-        <div><span>${t('yearlyTotalCost')}</span><strong>${toDisplay(summary.cost.yearlyActual)}</strong></div>
-      </div>
-
-      <div class="public-overview-summary-grid">
-        <section class="public-overview-panel public-overview-panel-fold open" data-panel="expiry">
-          <button class="public-overview-panel-toggle" type="button" aria-expanded="true">
-            <span class="public-overview-panel-title">${t('expiringNodes')}</span>
-            <span class="public-overview-panel-chevron">▾</span>
-          </button>
-          <div class="public-overview-panel-body">
-            <ul class="public-overview-mini-list">${expSoonItems || `<li><span>${t('noExpiring')}</span></li>`}</ul>
+      <div class="public-overview-main-grid ${filteredCount >= 4 || rows.length >= 4 ? 'is-many-nodes' : 'is-few-nodes'}">
+        <section class="public-overview-primary" aria-label="节点列表">
+          <div class="public-overview-section-head">
+            <h2>节点资产</h2>
+            <span>${filteredCount} 台 · ${activeGroup === 'all' ? '全部平铺 · 卡片上显示分组' : `筛选：${escText(activeMeta.name)}`} · 主控置顶</span>
+          </div>
+          <div class="public-overview-flat-list" id="overviewGroupedList">
+            ${renderFlatNodeList(filteredNodes, activeMeta)}
           </div>
         </section>
-        <section class="public-overview-panel public-overview-panel-fold open" data-panel="abnormal">
-          <button class="public-overview-panel-toggle" type="button" aria-expanded="true">
-            <span class="public-overview-panel-title">${t('abnormalNodes')}</span>
-            <span class="public-overview-panel-chevron">▾</span>
-          </button>
-          <div class="public-overview-panel-body">
-            <ul class="public-overview-mini-list">${badNodeItems || `<li><span>${t('noAbnormal')}</span></li>`}</ul>
-          </div>
-        </section>
-        <section class="public-overview-panel"><div class="public-overview-panel-title">${t('monthlyByRegion')}</div><div class="public-overview-panel-body always-open"><ul class="public-overview-mini-list">${byRegion || `<li><span>${t('noData')}</span></li>`}</ul></div></section>
-        <section class="public-overview-panel"><div class="public-overview-panel-title">${t('monthlyByProvider')}</div><div class="public-overview-panel-body always-open"><ul class="public-overview-mini-list">${byProvider || `<li><span>${t('noData')}</span></li>`}</ul></div></section>
+
+        <aside class="public-overview-side" aria-label="运营摘要">
+          <section class="public-overview-panel public-overview-panel-fold ${hasExpiry ? 'open is-alert' : 'is-empty'}" data-panel="expiry">
+            <button class="public-overview-panel-toggle" type="button" aria-expanded="${hasExpiry ? 'true' : 'false'}">
+              <span class="public-overview-panel-title">${t('expiringNodes')} · ${summary.expiry.d7.length}</span>
+              <span class="public-overview-panel-chevron">${hasExpiry ? '▾' : '▸'}</span>
+            </button>
+            <div class="public-overview-panel-body">
+              ${expSoonItems ? `<ul class="public-overview-mini-list">${expSoonItems}</ul>` : renderCompactEmpty(t('noExpiring'))}
+            </div>
+          </section>
+
+          <section class="public-overview-panel public-overview-panel-fold ${hasAbnormal ? 'open is-alert' : 'is-empty'}" data-panel="abnormal">
+            <button class="public-overview-panel-toggle" type="button" aria-expanded="${hasAbnormal ? 'true' : 'false'}">
+              <span class="public-overview-panel-title">${t('abnormalNodes')} · ${summary.badNodes.length}</span>
+              <span class="public-overview-panel-chevron">${hasAbnormal ? '▾' : '▸'}</span>
+            </button>
+            <div class="public-overview-panel-body">
+              ${badNodeItems ? `<ul class="public-overview-mini-list">${badNodeItems}</ul>` : renderCompactEmpty(t('noAbnormal'))}
+            </div>
+          </section>
+
+          <section class="public-overview-panel ${hasCostSplit ? '' : 'is-empty'}">
+            <div class="public-overview-panel-title">${t('monthlyByRegion')}</div>
+            <div class="public-overview-panel-body always-open">
+              ${byRegion ? `<ul class="public-overview-mini-list">${byRegion}</ul>` : renderCompactEmpty(t('noData'))}
+            </div>
+          </section>
+
+          <section class="public-overview-panel ${hasCostSplit ? '' : 'is-empty'}">
+            <div class="public-overview-panel-title">${t('monthlyByProvider')}</div>
+            <div class="public-overview-panel-body always-open">
+              ${byProvider ? `<ul class="public-overview-mini-list">${byProvider}</ul>` : renderCompactEmpty(t('noData'))}
+            </div>
+          </section>
+        </aside>
       </div>
 
-      ${renderOverviewNetworkTable(rows)}
-
-      <div class="public-overview-list">${cards || `<div class="public-overview-empty">${t('noAssets')}</div>`}</div>
+      ${renderOverviewNetworkTable(rows, { collapsed: true })}
     </section>`;
 
   updateRateDisplay();
+
+  app.querySelectorAll('.overview-group-tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.getAttribute('data-group-key') || 'all';
+      saveOverviewGroupFilter(key);
+      // re-render keeps page state simple and consistent with 10s refresh
+      renderPublicOverviewPage();
+    });
+  });
 
   app.querySelectorAll('.public-overview-panel-fold').forEach((panel) => {
     const btn = panel.querySelector('.public-overview-panel-toggle');
     btn?.addEventListener('click', () => {
       const open = panel.classList.toggle('open');
       btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      const chevron = btn.querySelector('.public-overview-panel-chevron');
+      if (chevron) chevron.textContent = open ? '▾' : '▸';
     });
+  });
+
+  const networkToggle = app.querySelector('.overview-network-table-toggle');
+  networkToggle?.addEventListener('click', () => {
+    const table = app.querySelector('.overview-network-table');
+    if (!table) return;
+    const open = table.classList.toggle('is-collapsed') === false;
+    networkToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    const chevron = networkToggle.querySelector('.public-overview-panel-chevron');
+    if (chevron) chevron.textContent = open ? '▾' : '▸';
   });
 
   app.querySelectorAll('.public-money-btn').forEach((btn) => {

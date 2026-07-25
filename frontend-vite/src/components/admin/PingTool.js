@@ -2,7 +2,8 @@ import { tcpPing } from '../../api/admin.js';
 import { getIPInfo } from '../../api/public.js';
 import { updateAgentConfig } from '../../api/servers.js';
 
-/** Komari-inspired 延迟监控：结合本项目 agent_config.ping_targets + 后端 TCPing */
+/** Komari-inspired 延迟监测：仅管理 agent_config.ping_targets（external），
+ *  与详情页「全球 VPS 探针」（peer / source=agent）无关。 */
 export class PingTool {
   constructor(mountId) {
     this._el = document.getElementById(mountId);
@@ -25,12 +26,20 @@ export class PingTool {
     this._el.innerHTML = /* html */`
       <div class="komari-settings-page">
         <div class="komari-page-head">
-          <div><h2>延迟监控</h2><p>支持 TCP / ICMP / HTTP 三种探测；目标可写入 VPS 的 Agent 配置 JSON；TCP 需要端口，ICMP 无端口，HTTP 端口选填。</p></div>
-          <button class="komari-primary" id="pt-run">开始探测</button><button class="komari-secondary" id="pt-run-node">探测当前节点 IP</button>
+          <div>
+            <h2>延迟监测</h2>
+            <p>配置详情页 <b>PING 延迟</b> 的 external 目标（<code>agent_config.ping_targets</code>）。支持 TCP / ICMP / HTTP。</p>
+          </div>
+          <button class="komari-primary" id="pt-run">开始探测</button>
+          <button class="komari-secondary" id="pt-run-node">探测当前节点 IP</button>
+        </div>
+        <div class="komari-install-ok" style="margin-bottom:12px">
+          <b>与「全球 VPS 探针」不同：</b>
+          延迟监测 = 你手动配置的公网目标；全球探针 = 当前节点 Agent 互探其它 VPS（自动 peer，不在此页配置）。
         </div>
         <div class="komari-settings-grid two">
           <section class="komari-panel">
-            <div class="komari-panel-title"><span>探测配置</span><small>agent_config.ping_targets</small></div>
+            <div class="komari-panel-title"><span>探测配置</span><small>agent_config.ping_targets · 仅 PING 图</small></div>
             <div class="komari-form-grid one">
               <label><span>绑定节点</span><select class="form-input" id="pt-server-select"></select></label>
             </div>
@@ -45,7 +54,7 @@ export class PingTool {
             </div>
           </section>
           <section class="komari-panel">
-            <div class="komari-panel-title"><span>实时质量</span><small>本轮多协议探测</small></div>
+            <div class="komari-panel-title"><span>实时质量</span><small>本轮多协议探测（不写全球探针）</small></div>
             <div class="komari-metric-strip" id="pt-summary">
               <div><b>—</b><span>平均延迟</span></div><div><b>—</b><span>丢包</span></div><div><b>—</b><span>目标数</span></div>
             </div>

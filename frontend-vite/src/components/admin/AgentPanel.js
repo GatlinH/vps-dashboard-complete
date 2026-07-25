@@ -63,7 +63,9 @@ export class AgentPanel {
           <button type="button" id="ap-install" style="padding:8px 18px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:13px">生成安装命令</button>
           <button type="button" id="ap-copy-install" style="padding:8px 18px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:13px">复制安装命令</button>
         </div>
-        <div id="ap-key" style="margin-top:10px;font-size:12px;color:var(--gold);word-break:break-all"></div><textarea id="ap-install-cmd" readonly class="form-input" style="min-height:92px;margin-top:10px;font-family:var(--mono);resize:vertical" placeholder="生成 Agent Key 后，这里会出现安装命令"></textarea>
+        <div id="ap-key" style="margin-top:10px;font-size:12px;color:var(--gold);word-break:break-all"></div>
+        <div id="ap-install-guard" class="komari-install-ok" style="margin-top:8px">生成命令后会自动校验端口 / HTTPS 是否匹配</div>
+        <textarea id="ap-install-cmd" readonly class="form-input" style="min-height:92px;margin-top:10px;font-family:var(--mono);resize:vertical" placeholder="生成 Agent Key 后，这里会出现安装命令"></textarea>
       </div>
 
       <div class="admin-card">
@@ -165,16 +167,58 @@ export class AgentPanel {
       }
       const data = await fetchAgentInstallCommand(this._selectedId, agentKey);
       const cmd = data.install_command || data.command || '';
+      const issues = this._validateInstallCommand(data);
       this._el.querySelector('#ap-install-cmd').value = cmd;
-      this._msg(cmd ? '安装命令已生成，可点击复制' : '安装命令为空', cmd ? 'green' : 'red');
+      const box = this._el.querySelector('#ap-install-guard');
+      if (box) {
+        box.className = issues.length ? 'komari-install-warn' : 'komari-install-ok';
+        box.innerHTML = issues.length
+          ? `<b>安装命令存在问题（禁止直接复制）</b><ul>${issues.map((x) => `<li>${escapeHtml(x)}</li>`).join('')}</ul>`
+          : `校验通过：API Root = <code>${escapeHtml(data.api_root || data.install_url || '')}</code>`;
+      }
+      const copyBtn = this._el.querySelector('#ap-copy-install');
+      if (copyBtn) {
+        copyBtn.disabled = issues.length > 0;
+        copyBtn.style.opacity = issues.length ? '.45' : '';
+        copyBtn.style.cursor = issues.length ? 'not-allowed' : 'pointer';
+      }
+      this._msg(issues.length ? '安装命令已生成，但校验未通过' : (cmd ? '安装命令已生成，可点击复制' : '安装命令为空'), issues.length || !cmd ? 'red' : 'green');
     } catch (e) {
       this._msg(`生成安装命令失败: ${e.message}`, 'red');
     }
   }
 
+  _validateInstallCommand(data = {}) {
+    const issues = [];
+    const url = String(data.install_url || data.api_root || '');
+    const cmd = String(data.install_command || data.command || '');
+    const page = window.location || {};
+    const pagePort = String(page.port || (page.protocol === 'https:' ? '443' : '80'));
+    if (!url) issues.push('缺少 Install URL / api_root');
+    if (!cmd) issues.push('安装命令为空');
+    try {
+      const u = new URL(url, page.origin || 'http://localhost');
+      if (page.protocol === 'http:' && u.protocol === 'https:') {
+        issues.push('安装地址是 HTTPS，但当前面板是 HTTP：Agent 容易 TLS 握手超时');
+      }
+      if (page.hostname && u.hostname === page.hostname) {
+        const needPort = pagePort && pagePort !== '80' && pagePort !== '443';
+        if (needPort && !u.port) issues.push(`安装地址缺少端口 :${pagePort}`);
+        if (needPort && u.port && u.port !== pagePort) issues.push(`安装端口 :${u.port} 与面板 :${pagePort} 不一致`);
+      }
+    } catch (_) {
+      issues.push('Install URL 无法解析');
+    }
+    if (cmd && !cmd.includes('--api-root')) issues.push('缺少 --api-root');
+    if (cmd && !cmd.includes('--agent-key')) issues.push('缺少 --agent-key');
+    return issues;
+  }
+
   async _copyInstallCommand() {
     const text = this._el.querySelector('#ap-install-cmd')?.value || '';
     if (!text.trim()) { this._msg('没有可复制的安装命令', 'red'); return; }
+    const copyBtn = this._el.querySelector('#ap-copy-install');
+    if (copyBtn?.disabled) { this._msg('请先修复安装命令校验问题', 'red'); return; }
     try {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(text);
