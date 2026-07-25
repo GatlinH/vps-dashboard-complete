@@ -294,7 +294,15 @@ class Server(db.Model):
                 traffic_up_gb=round(self.traffic_up_gb, 4),
                 traffic_down_gb=round(self.traffic_down_gb, 4),
                 traffic_used_gb=round(self.traffic_used_gb, 4),
-                updated_at=self.updated_at.isoformat(),
+                updated_at=self.updated_at.isoformat() if self.updated_at else None,
+            ))
+
+        # Admin node list uses these for heartbeat / agent binding (not public homepage).
+        if not public_only:
+            d.update(dict(
+                agent_key_created_at=self.agent_key_created_at.isoformat() if self.agent_key_created_at else None,
+                agent_key_last_used=self.agent_key_last_used.isoformat() if self.agent_key_last_used else None,
+                has_agent_key=bool(self.agent_key_hash),
             ))
         
         if public_only:

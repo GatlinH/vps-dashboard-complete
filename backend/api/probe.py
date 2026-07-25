@@ -199,27 +199,84 @@ def _is_private_or_loopback_host(host: str) -> bool:
         ip = ipaddress.ip_address(str(host).strip().strip('[]'))
         return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_unspecified or ip.is_multicast
     except Exception:
+        # Hostnames / domains are not treated as private IPs.
         return False
 
 
 def _peer_probe_endpoint(peer: Server):
+    """Pick a publicly reachable endpoint for VPS-to-VPS probing.
+
+    Priority:
+      1) explicit NAT / network public IPv4 + mapped port
+      2) inventory_meta.public_ip / public_ipv4
+      3) public IPv6
+      4) server.ip when it is a public IP or hostname (not RFC1918)
+    Private-only peers return None so the controller never invents fake local pings.
+    """
     cfg = peer.agent_config if isinstance(peer.agent_config, dict) else {}
     network = cfg.get("network") if isinstance(cfg.get("network"), dict) else {}
     nat = cfg.get("nat") if isinstance(cfg.get("nat"), dict) else {}
     mapped = cfg.get("mapped_ports") if isinstance(cfg.get("mapped_ports"), dict) else {}
-    host = str(nat.get("public_ipv4") or network.get("public_ipv4") or cfg.get("public_ipv4") or "").strip()
-    port = nat.get("public_port") or nat.get("mapped_port") or mapped.get("https") or mapped.get("tcp") or cfg.get("public_port") or 80
+    meta = cfg.get("inventory_meta") if isinstance(cfg.get("inventory_meta"), dict) else {}
+
+    def _port(*candidates, default=80):
+        for value in candidates:
+            if value is None or value == "":
+                continue
+            try:
+                return int(value)
+            except Exception:
+                continue
+        return default
+
+    host = str(
+        nat.get("public_ipv4")
+        or network.get("public_ipv4")
+        or cfg.get("public_ipv4")
+        or meta.get("public_ip")
+        or meta.get("public_ipv4")
+        or ""
+    ).strip()
+    port = _port(
+        nat.get("public_port"),
+        nat.get("mapped_port"),
+        mapped.get("https"),
+        mapped.get("tcp"),
+        mapped.get("ssh"),
+        cfg.get("public_port"),
+        cfg.get("probe_port"),
+        meta.get("public_port"),
+        meta.get("probe_port"),
+        default=80,
+    )
     if host and not _is_private_or_loopback_host(host):
-        try: port = int(port)
-        except Exception: port = 80
         return host, port, "tcp", "public_ipv4"
-    ipv6 = str(network.get("public_ipv6") or nat.get("public_ipv6") or cfg.get("public_ipv6") or "").strip()
+
+    ipv6 = str(
+        network.get("public_ipv6")
+        or nat.get("public_ipv6")
+        or cfg.get("public_ipv6")
+        or meta.get("public_ipv6")
+        or ""
+    ).strip()
     if ipv6 and not _is_private_or_loopback_host(ipv6):
-        return ipv6, int(nat.get("port") or mapped.get("https") or mapped.get("tcp") or cfg.get("probe_port") or 22), "tcp", "public_ipv6"
+        return ipv6, _port(nat.get("port"), mapped.get("https"), mapped.get("tcp"), cfg.get("probe_port"), default=22), "tcp", "public_ipv6"
+
+    # Hostname in inventory (e.g. natsg4.bytevirt.net) beats private LAN IP reported by agent.
+    hostname = str(meta.get("hostname") or meta.get("public_host") or cfg.get("public_host") or "").strip()
+    if hostname and "." in hostname and not _is_private_or_loopback_host(hostname):
+        return hostname, port, "tcp", "hostname"
+
     host = str(getattr(peer, "ip", "") or "").strip()
     if host and not _is_private_or_loopback_host(host):
-        return host, 80, "tcp", "server_ip"
+        # Bare public IP defaults to 80; hostnames keep configured/mapped port when present.
+        use_port = port if not host.replace(".", "").isdigit() else 80
+        if host.replace(".", "").isdigit() or ":" in host.strip("[]"):
+            use_port = 80 if port == 80 else port
+        return host, use_port if not _is_private_or_loopback_host(host) else 80, "tcp", "server_ip"
     return None
+
+
 def _server_peer_ping_targets(server: Server):
     """Default global probe targets: current VPS -> other VPS nodes in this dashboard."""
     try:

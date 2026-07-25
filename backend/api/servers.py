@@ -66,8 +66,22 @@ def _shell_quote(value) -> str:
     return shlex.quote(str(value))
 
 
+def _public_api_root() -> str:
+    """Root used by remote agents / install commands.
+
+    Prefer PUBLIC_API_ROOT, then FRONTEND_URL (same origin reverse-proxy), then request host.
+    Always strip trailing slash. For plain HTTP dashboards this must include the public port
+    (e.g. http://IP:4500) or agents will hit the wrong service on :80.
+    """
+    for key in ("PUBLIC_API_ROOT", "FRONTEND_URL"):
+        raw = (current_app.config.get(key) or "").strip()
+        if raw:
+            return raw.rstrip("/")
+    return (request.host_url or "").rstrip("/")
+
+
 def _build_install_payload(server, plain_key: str):
-    api_root = (current_app.config.get("PUBLIC_API_ROOT") or request.host_url.rstrip('/'))
+    api_root = _public_api_root()
     install_url = f"{api_root}/api/v1/agent/install.sh"
     cmd = " ".join([
         "curl", "-fsSL", _shell_quote(install_url), "|", "bash", "-s", "--",
@@ -83,6 +97,7 @@ def _build_install_payload(server, plain_key: str):
         "agent_key": plain_key,
         "install_url": install_url,
         "install_command": cmd,
+        "api_root": api_root,
     }
 
 def _parse_history_pagination():
