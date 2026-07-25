@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request, current_app, send_file, Response
 from middleware.rbac import viewer_or_admin_required, admin_required, owner_required
+from middleware.rate_limit import limiter
 from models.models import db, OpsEvent, Server, TelegramConfig, record_ops_event
 
 import os
@@ -232,11 +233,14 @@ def ops_summary():
 
 
 @ops_bp.post("/security-scan-log")
+@limiter.limit(lambda: current_app.config.get("SECURITY_SCAN_LOG_RATE_LIMIT", "20 per minute"))
 def security_scan_log():
     data = request.get_json(silent=True) or {}
     path = str(data.get("path") or "")[:240]
     method = str(data.get("method") or "GET")[:16]
-    ip = str(data.get("ip") or request.remote_addr or "")[:120]
+    # Source IP is server-derived only; never trust a client-supplied ip field
+    # to avoid forged/poisoned entries in the ops event log.
+    ip = str(request.remote_addr or "")[:120]
     ua = str(data.get("user_agent") or "")[:180]
     lower = path.lower()
     if not any(x in lower for x in ("/.env", "/.git", "wp-admin", "phpmyadmin", "xmlrpc")):

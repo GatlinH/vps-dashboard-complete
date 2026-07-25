@@ -300,6 +300,9 @@ class Config:
     # Default is localhost (development only). Production requires a real HTTPS URL
     # when SMTP_MODE=smtp (enforced by _validate_production_secrets).
     FRONTEND_URL  = os.getenv("FRONTEND_URL",  "http://localhost:5173")
+    # Public origin agents use for install/push (include port for plain HTTP :4500).
+    # Falls back to FRONTEND_URL in install-command builder when empty.
+    PUBLIC_API_ROOT = os.getenv("PUBLIC_API_ROOT", "").strip()
 
     # ── Telegram ─────────────────────────────────────────────────────────────
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
@@ -317,6 +320,9 @@ class Config:
 
     # ── Public IP 查询 ───────────────────────────────────────────────────────
     IP_INFO_RATE_LIMIT = os.getenv("IP_INFO_RATE_LIMIT", "60 per minute")
+    # Anonymous scanner-path anomaly reporter: cap per-source writes so it cannot
+    # be abused to flood the ops event table.
+    SECURITY_SCAN_LOG_RATE_LIMIT = os.getenv("SECURITY_SCAN_LOG_RATE_LIMIT", "20 per minute")
     IP_INFO_CACHE_TTL = int(os.getenv("IP_INFO_CACHE_TTL", "3600"))
 
     # ── API Schema 版本同步 ──────────────────────────────────────────────────
