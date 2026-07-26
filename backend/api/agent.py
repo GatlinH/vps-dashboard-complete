@@ -447,7 +447,9 @@ def agent_register():
     from werkzeug.security import generate_password_hash
     new_uuid = str(uuid.uuid4())
     new_key = secrets.token_urlsafe(32)
-    remote_ip = request.headers.get("X-Forwarded-For", request.remote_addr) or ""
+    # L-5: use the (ProxyFix-normalized) peer address, not a client-spoofable
+    # X-Forwarded-For header, when recording the enrolling agent's IP.
+    remote_ip = request.remote_addr or ""
     srv = Server(
         name=hostname, uuid=new_uuid,
         agent_key_hash=generate_password_hash(new_key),
@@ -565,6 +567,14 @@ def agent_probe_results():
     data = request.get_json(silent=True) or {}
     server, uuid = _authenticate_agent(data)
     results = data.get("results") or []
+    # M-2: bound the batch size so a compromised/rogue agent cannot submit a
+    # multi-million-row batch that blocks the DB connection pool in one txn.
+    max_items = int(current_app.config.get("AGENT_PROBE_RESULTS_MAX_ITEMS", 500))
+    if isinstance(results, list) and len(results) > max_items:
+        return jsonify({
+            "accepted": False,
+            "reason": f"too many results (>{max_items}); split into smaller batches",
+        }), 400
     for r in results:
         if "latency_ms" in r and "stats" not in r:
             r["stats"] = {"avg_ms": r.get("latency_ms"), "loss_pct": r.get("loss_pct", 0), "count": 1}
@@ -786,8 +796,10 @@ import hmac
 import json
 import os
 import platform
+import re
 import shutil
 import socket
+import subprocess
 import time
 import urllib.request
 from datetime import datetime
@@ -968,7 +980,7 @@ def push_once():
     with urllib.request.urlopen(req, timeout=15) as resp:
         return resp.read().decode("utf-8", "ignore")
 
-# ── Peer probe ─────────────────────────────────────────────────
+# ── Peer / external probe ──────────────────────────────────────
 def tcp_probe(host, port, timeout=5):
     try:
         start = time.time()
@@ -980,6 +992,38 @@ def tcp_probe(host, port, timeout=5):
         return round(elapsed, 1) if result == 0 else None
     except Exception:
         return None
+
+
+def icmp_probe(host, timeout=5):
+    """One-shot ICMP echo via system ping. Returns latency_ms or None."""
+    try:
+        # Linux: -c 1 once, -W timeout seconds. BusyBox/mac variants differ;
+        # production agents are Linux systemd hosts.
+        wait_s = max(1, int(timeout))
+        proc = subprocess.run(
+            ["ping", "-c", "1", "-W", str(wait_s), str(host)],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            timeout=timeout + 1,
+        )
+        out = (proc.stdout or "") + "\n" + (proc.stderr or "")
+        if proc.returncode != 0:
+            return None
+        m = re.search(r"time[=<]([0-9.]+)\s*ms", out)
+        if m:
+            return round(float(m.group(1)), 1)
+        return None
+    except Exception:
+        return None
+
+
+def probe_once(host, port=None, protocol="tcp", timeout=5):
+    proto = str(protocol or "tcp").strip().lower()
+    if proto == "icmp":
+        return icmp_probe(host, timeout)
+    # Default / tcp: connect latency (port required; fall back to 443/80).
+    p = int(port or 443)
+    return tcp_probe(host, p, timeout)
+
 
 _probe_targets_cache = {"targets": [], "fetched_at": 0.0}
 _probe_sample_buffer = []
@@ -1028,10 +1072,11 @@ def sample_probe_targets():
     for t in targets:
         host = t.get("host") or t.get("label")
         port = t.get("port") or 80
-        latency = tcp_probe(host, port)
+        protocol = t.get("protocol") or "tcp"
+        latency = probe_once(host, port=port, protocol=protocol)
         _probe_sample_buffer.append({
             "key": t.get("key", str(host)), "host": host, "port": port,
-            "protocol": t.get("protocol", "tcp"),
+            "protocol": protocol,
             "latency_ms": latency, "success": latency is not None,
             "loss_pct": 0 if latency is not None else 100,
             "created_at": created_at,

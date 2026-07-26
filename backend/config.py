@@ -116,6 +116,14 @@ def _validate_production_secrets():
             " CSRF 防护是 httpOnly cookie 认证的必要安全层。"
         )
 
+    # M-5: if Telegram is configured, its DB-stored bot_token must be encrypted.
+    # An empty TELEGRAM_TOKEN_SECRET degrades EncryptedString to plaintext storage.
+    if os.getenv("TELEGRAM_BOT_TOKEN", "").strip() and not os.getenv("TELEGRAM_TOKEN_SECRET", "").strip():
+        errors.append(
+            "TELEGRAM_TOKEN_SECRET 未设置。已配置 Telegram bot token 时必须设置该密钥，"
+            " 否则 bot_token 将以明文存储在数据库中（拖库即泄露）。"
+        )
+
     # JWT_COOKIE_SECURE must not be explicitly disabled in production.
     # Compute the actual value as Config does to catch all cases.
     _force_https = os.getenv("FORCE_HTTPS", "1")
@@ -177,6 +185,13 @@ class Config:
     if REDIS_PASSWORD
     else f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 )
+
+    # ── Request body size limit (M-1: DoS via unbounded body) ────────────────
+    # Global cap on request body size. Endpoints that legitimately need larger
+    # payloads (e.g. site backup restore) validate/read their own bounds.
+    # 4MB leaves headroom for the multipart envelope of the 2MB backup-restore
+    # upload (form fields + boundaries) while still bounding JSON-body DoS.
+    MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH", str(4 * 1024 * 1024)))
 
     # ── JWT ──────────────────────────────────────────────────────────────────
     JWT_SECRET_KEY            = os.getenv("JWT_SECRET_KEY", SECRET_KEY)
@@ -259,6 +274,14 @@ class Config:
         'default-src': "'self'",
         'script-src': [
             "'self'",
+            # M-6: 'unsafe-eval' is REQUIRED by the WebGL stack bundled in the
+            # frontend (CesiumJS / three.js / pixi.js / deck.gl use `new Function`
+            # for runtime shader/template code generation — confirmed 8 call sites
+            # in the built components-*.js chunk). Removing it white-screens the
+            # globe/starship. Scripts are otherwise nonce-governed (see
+            # SECURITY_CSP_NONCE_IN) and 'self'-restricted, so injected inline
+            # scripts still cannot execute. Revisit only if the WebGL deps drop
+            # their eval dependency.
             "'unsafe-eval'",
         ],
         'style-src': [

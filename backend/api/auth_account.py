@@ -381,9 +381,16 @@ def delete_session(session_id):
     current = (get_jwt() or {}).get("jti")
     if session_id == current:
         return jsonify(msg="当前会话不能在这里删除，请使用退出登录"), 400
+    # M-4 (IDOR): verify the target session belongs to the caller before deleting.
+    # list_sessions filters by user_id, but the delete path previously did not,
+    # letting any authenticated user force-logout another user's session by jti.
+    uid = get_jwt_identity()
+    owned = any(str(item.get("id")) == str(session_id) for item in _iter_sessions(uid))
+    if not owned:
+        return jsonify(msg="会话不存在或无权操作"), 404
     extensions.redis_client.delete(_session_key(session_id))
     try:
-        revoke_access_token(session_id, 3600, user_id=get_jwt_identity())
+        revoke_access_token(session_id, 3600, user_id=uid)
     except Exception:
         pass
     return jsonify({"deleted": 1})

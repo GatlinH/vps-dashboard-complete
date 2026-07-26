@@ -86,16 +86,71 @@ html body.komari-admin-shell.admin-day-mode .metric-v {
   text-shadow: none !important;
 }
 
-/* Backend layout: reduce excessive gaps around node list and lower cards. */
-html body.komari-admin-shell .admin-body { padding-top: 10px !important; }
-html body.komari-admin-shell .admin-page.active { display: grid !important; gap: 8px !important; align-content: start !important; }
-html body.komari-admin-shell .komari-node-page { gap: 6px !important; }
-/* Pull the node list up: trim the vertical gaps between toolbar, view-switch and filter row. */
-html body.komari-admin-shell #sm-nodes-view { margin-top: 0 !important; }
-html body.komari-admin-shell .sm-filter-bar { margin-top: 4px !important; margin-bottom: 6px !important; }
-html body.komari-admin-shell .komari-node-toolbar { margin-bottom: 0 !important; }
+/* Backend layout: pull the whole node-management block up; kill the large
+   empty band above 添加节点/管理分组 and 节点列表. Higher specificity +
+   !important so later admin.css hotfixes cannot re-inflate the top padding. */
+html body.komari-admin-shell .admin-body {
+  padding-top: 4px !important;
+  padding-bottom: 12px !important;
+}
+html body.komari-admin-shell .admin-toolbar {
+  margin: 0 0 6px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+html body.komari-admin-shell .admin-page.active {
+  display: grid !important;
+  gap: 4px !important;
+  align-content: start !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+/* .admin-page ships padding:30px; its 30px TOP padding is the remaining empty
+   band above 节点管理. Trim the top specifically while keeping side/bottom
+   padding for the card look. */
+html body.komari-admin-shell .admin-page {
+  padding-top: 10px !important;
+}
+html body.komari-admin-shell .komari-node-page {
+  gap: 4px !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+html body.komari-admin-shell .komari-node-toolbar {
+  margin: 0 0 2px !important;
+  padding: 0 !important;
+  min-height: 0 !important;
+  /* Left block stacks 标题+标签栏 vertically; align the right action buttons to
+     the BOTTOM so they line up with the tab row (节点列表/分组管理) instead of
+     floating up level with the 节点管理 title and looking disconnected. */
+  align-items: flex-end !important;
+}
+html body.komari-admin-shell .komari-node-actions {
+  align-self: flex-end !important;
+}
+html body.komari-admin-shell .komari-node-toolbar h2 {
+  margin: 0 !important;
+  line-height: 1.15 !important;
+  /* admin.css sets `.komari-node-toolbar h2 { flex: 1 1 220px }` for the OLD
+     horizontal toolbar. Here the h2 lives in .sm-toolbar-left, a COLUMN flex
+     container, so a 220-240px flex-basis becomes HEIGHT and inflates the title
+     into a ~240px empty band above the table. Pin it to content height. */
+  flex: 0 0 auto !important;
+  flex-basis: auto !important;
+}
+html body.komari-admin-shell .sm-toolbar-left {
+  align-items: flex-start !important;
+}
+html body.komari-admin-shell .sm-toolbar-left > h2,
+html body.komari-admin-shell .sm-toolbar-left > :first-child {
+  flex: 0 0 auto !important;
+  flex-basis: auto !important;
+}
+html body.komari-admin-shell #sm-nodes-view { margin-top: 0 !important; padding-top: 0 !important; }
+html body.komari-admin-shell .sm-view-switch { margin: 0 !important; }
+html body.komari-admin-shell .sm-filter-bar { margin-top: 2px !important; margin-bottom: 4px !important; }
 html body.komari-admin-shell .komari-table-wrap { margin-top: 0 !important; }
-html body.komari-admin-shell .admin-card { margin-bottom: 12px !important; }
+html body.komari-admin-shell .admin-card { margin-bottom: 8px !important; }
 
 /* Ops event stream dropdown/filter alignment. */
 html body.komari-admin-shell #tab-ops .ops-filter-pro,
@@ -210,6 +265,12 @@ html body.komari-admin-shell .sm-status-text.is-offline{color:#f87171}
 html body.komari-admin-shell .sm-heartbeat{opacity:.78}
 html body.komari-admin-shell .sm-groups-layout{
   display:grid;grid-template-columns:minmax(260px,.9fr) minmax(0,1.4fr);gap:14px;align-items:start
+}
+html body.komari-admin-shell .sm-groups-head{
+  display:flex;align-items:center;margin:0 0 8px
+}
+html body.komari-admin-shell #sm-groups-back{
+  display:inline-flex;align-items:center;gap:6px;cursor:pointer
 }
 html body.komari-admin-shell .sm-group-form-panel .komari-action-row{display:flex;gap:8px;flex-wrap:wrap}
 @media (max-width: 980px){

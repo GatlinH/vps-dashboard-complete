@@ -204,7 +204,7 @@ def create_app(**config_overrides):
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):
         from utils.token_blocklist import is_token_revoked, is_user_force_revoked
-        fail_open = app.config.get("JWT_BLOCKLIST_FAIL_OPEN", True)
+        fail_open = app.config.get("JWT_BLOCKLIST_FAIL_OPEN", False)
         try:
             jti = jwt_payload.get("jti", "")
             user_id = jwt_payload.get("sub")

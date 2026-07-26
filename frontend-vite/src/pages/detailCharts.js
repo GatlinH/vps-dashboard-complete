@@ -13,16 +13,23 @@ function expandSinglePointSeries(points = [], deltaMs = 90 * 1000) {
 }
 
 
+// Shared rate-axis steps (kbps). Keep dense mid-range so a ~10Mbps peak does
+// not jump straight to a 50Mbps ceiling (previous gap was 10240 -> 51200).
+const DETAIL_RATE_STEPS_KBPS = [
+  10, 25, 50, 100, 200, 500,
+  1024, 2048, 5120, 10240, 15360, 20480, 30720, 40960,
+  51200, 102400, 256000, 512000, 1024000,
+];
+
 function detailRateStepCeiling(valueKbps = 0) {
   const v = Math.max(0, Number(valueKbps) || 0);
-  const steps = [10, 25, 50, 100, 200, 500, 1024, 2048, 5120, 10240, 51200, 102400];
-  return steps.find(step => v <= step) || Math.ceil(v / 102400) * 102400;
+  return DETAIL_RATE_STEPS_KBPS.find(step => v <= step) || Math.ceil(v / 102400) * 102400;
 }
 
 
 function detailRateStepTicks(maxKbps = 0) {
   const max = detailRateStepCeiling(maxKbps);
-  const candidates = [10, 25, 50, 100, 200, 500, 1024, 2048, 5120, 10240, 51200, 102400].filter(v => v > 0 && v <= max);
+  const candidates = DETAIL_RATE_STEPS_KBPS.filter(v => v > 0 && v <= max);
   if (!candidates.includes(max)) candidates.push(max);
   const tail = Array.from(new Set(candidates)).sort((a, b) => a - b).slice(-4);
   return [0, ...tail].filter((v, i, arr) => arr.indexOf(v) === i).sort((a, b) => a - b);
@@ -45,6 +52,9 @@ const NETWORK_EQUAL_STEP_AXIS = [
   { value: 200, label: '200K' },
   { value: 500, label: '500K' },
   { value: 1024, label: '1M' },
+  { value: 5120, label: '5M' },
+  { value: 10240, label: '10M' },
+  { value: 20480, label: '20M' },
   { value: 51200, label: '50M' },
   { value: 128000, label: '125M' },
 ];
@@ -205,8 +215,8 @@ function adaptiveRateYScale(values = [], baseY = {}, fmtRateFn) {
   const peak = clean.length ? Math.max(...clean) : 0;
   const max = niceAxisMax(peak, {
     minMax: 10,
-    pad: 1.25,
-    steps: [10, 25, 50, 100, 200, 500, 1024, 2048, 5120, 10240, 51200, 102400, 256000, 512000, 1024000],
+    pad: 1.15,
+    steps: DETAIL_RATE_STEPS_KBPS,
   });
   return {
     ...baseY,

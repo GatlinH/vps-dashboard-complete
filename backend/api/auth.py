@@ -358,6 +358,10 @@ def _issue_login_response(user: User):
     set_refresh_cookies(resp, refresh)
     _store_login_session(user, access)
     try:
+        # L-4: ip_address/user_agent were undefined here, raising NameError and
+        # silently dropping the audit event. Derive them from the request.
+        ip_address = request.remote_addr or ""
+        user_agent = request.user_agent.string if request.user_agent else ""
         record_ops_event("login_success", "登录成功", message=f"{user.username} 登录成功", level="info", payload={"username": user.username, "user_id": user.id, "role": user.role, "ip": ip_address, "user_agent": user_agent[:180]})
         db.session.commit()
     except Exception as e:

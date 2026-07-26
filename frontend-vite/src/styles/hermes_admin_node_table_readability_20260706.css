@@ -6,6 +6,20 @@
    - avoid full page horizontal overflow; allow table-only scroll only when viewport is too narrow
 */
 
+/* Grid ancestors (.komari-node-page, #sm-nodes-view) default to min-width:auto
+   and let the table wrap balloon to content width (~1059px), overflowing the
+   ~935px content area and pushing the actions column off-screen (the ⋯ / edit /
+   delete buttons became unreachable without horizontal scroll). Force the grid
+   track and the intermediate view wrapper to min-width:0 so the wrap shrinks to
+   the container and any overflow scrolls INSIDE the wrap, not the whole page. */
+html body.komari-admin-shell .komari-node-page {
+  grid-template-columns: minmax(0, 1fr) !important;
+  min-width: 0 !important;
+}
+html body.komari-admin-shell #sm-nodes-view {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
 html body.komari-admin-shell .komari-table-wrap {
   width: 100% !important;
   max-width: 100% !important;
@@ -13,22 +27,26 @@ html body.komari-admin-shell .komari-table-wrap {
   overflow-y: visible !important;
   scrollbar-gutter: stable !important;
 }
+/* Fit the table to the visible area instead of forcing a 1000px min-width that
+   overflows. Trimmed column widths total ~840px so all columns — including the
+   actions column — stay in view without horizontal scrolling. */
 html body.komari-admin-shell .komari-node-table {
   width: 100% !important;
-  min-width: 1000px !important;
+  min-width: 0 !important;
   table-layout: fixed !important;
   border-collapse: separate !important;
   border-spacing: 0 !important;
 }
-html body.komari-admin-shell .komari-node-table col.col-drag { width: 36px !important; }
-html body.komari-admin-shell .komari-node-table col.col-check { width: 38px !important; }
-html body.komari-admin-shell .komari-node-table col.col-name { width: 230px !important; }
-html body.komari-admin-shell .komari-node-table col.col-ip { width: 140px !important; }
-html body.komari-admin-shell .komari-node-table col.col-version { width: 96px !important; }
-html body.komari-admin-shell .komari-node-table col.col-package { width: 108px !important; }
-html body.komari-admin-shell .komari-node-table col.col-note { width: 150px !important; }
-html body.komari-admin-shell .komari-node-table col.col-billing { width: 128px !important; }
-html body.komari-admin-shell .komari-node-table col.col-actions { width: 154px !important; }
+html body.komari-admin-shell .komari-node-table col.col-drag { width: 16px !important; }
+html body.komari-admin-shell .komari-node-table col.col-check { width: 34px !important; }
+html body.komari-admin-shell .komari-node-table col.col-name { width: 150px !important; }
+html body.komari-admin-shell .komari-node-table col.col-ip { width: 116px !important; }
+html body.komari-admin-shell .komari-node-table col.col-version { width: 84px !important; }
+html body.komari-admin-shell .komari-node-table col.col-package { width: 92px !important; }
+html body.komari-admin-shell .komari-node-table col.col-note { width: 120px !important; }
+html body.komari-admin-shell .komari-node-table col.col-billing { width: 92px !important; }
+/* Actions column holds a single ⋯ trigger. */
+html body.komari-admin-shell .komari-node-table col.col-actions { width: 52px !important; }
 
 html body.komari-admin-shell .komari-node-table th,
 html body.komari-admin-shell .komari-node-table td {
@@ -80,14 +98,18 @@ html body.komari-admin-shell .komari-drag-grip::after {
 /* Name column: keep TD as table-cell; only the inner wrapper uses grid. */
 html body.komari-admin-shell .komari-node-table td.komari-node-name {
   display: table-cell !important;
-  min-width: 230px !important;
-  max-width: 230px !important;
+  min-width: 0 !important;
+  max-width: 150px !important;
   text-align: left !important;
 }
+/* The name cell inner has THREE children: status dot, badge, and the text div.
+   A 2-column grid pushed the text into the narrow 32px track (wrapping to a new
+   row) and truncated names to ~32px. Use 3 columns matching the 3 children so
+   the text div gets the remaining flexible width. */
 html body.komari-admin-shell .komari-node-name-inner {
   display: grid !important;
-  grid-template-columns: 32px minmax(0, 1fr) !important;
-  column-gap: 10px !important;
+  grid-template-columns: auto auto minmax(0, 1fr) !important;
+  column-gap: 8px !important;
   align-items: center !important;
   min-width: 0 !important;
   max-width: 100% !important;
@@ -126,16 +148,24 @@ html body.komari-admin-shell .komari-node-table td:nth-child(8) small {
   opacity: .72 !important;
 }
 
-/* Action column: complete buttons, enough width, readable contrast. */
+/* Action column: single ⋯ trigger, so keep it narrow and reclaim width for
+   the name column. Overrides admin.css's older 150-168px min-width rules. */
 html body.komari-admin-shell .komari-node-table th:nth-child(9),
 html body.komari-admin-shell .komari-node-table td:nth-child(9) {
   position: static !important;
   right: auto !important;
-  min-width: 154px !important;
-  width: 154px !important;
-  max-width: 154px !important;
-  text-align: right !important;
+  min-width: 64px !important;
+  width: 64px !important;
+  max-width: 64px !important;
+  text-align: center !important;
   box-shadow: none !important;
+}
+/* Neutralize admin.css last-child / row-actions min-widths that would otherwise
+   re-inflate the actions column and squeeze the name column. */
+html body.komari-admin-shell .komari-node-table td:last-child,
+html body.komari-admin-shell .komari-node-table th:last-child,
+html body.komari-admin-shell .komari-row-actions {
+  min-width: 64px !important;
 }
 html body.komari-admin-shell .komari-node-table td.komari-row-actions,
 html body.komari-admin-shell .komari-node-table td:nth-child(9) {
@@ -144,7 +174,11 @@ html body.komari-admin-shell .komari-node-table td:nth-child(9) {
   padding-left: 4px !important;
   padding-right: 8px !important;
 }
-html body.komari-admin-shell .komari-node-table td.komari-row-actions button {
+/* Node-list rows use a single icon ⋯ trigger, so square 26px buttons are right.
+   Scope this to the ⋯ trigger ONLY. The GROUP table reuses .komari-row-actions
+   but its 编辑/删除 are TEXT buttons — a 26px square clips their labels so they
+   look missing. Leave those at natural width (rule below). */
+html body.komari-admin-shell .komari-node-table td.komari-row-actions button.sm-row-menu-btn {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -159,11 +193,108 @@ html body.komari-admin-shell .komari-node-table td.komari-row-actions button {
   vertical-align: middle !important;
   color: #0b2b3c !important;
 }
-html body.komari-admin-shell.admin-bridge-mode .komari-node-table td.komari-row-actions button {
+html body.komari-admin-shell.admin-bridge-mode .komari-node-table td.komari-row-actions button.sm-row-menu-btn {
   color: #e7fbff !important;
 }
-html body.komari-admin-shell .komari-node-table td.komari-row-actions button.danger {
+/* Group table (and any text-label action buttons): readable text buttons. */
+html body.komari-admin-shell #sm-groups-tbody td.komari-row-actions button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  min-width: 52px !important;
+  height: 30px !important;
+  margin-left: 6px !important;
+  padding: 0 12px !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+html body.komari-admin-shell #sm-groups-tbody td.komari-row-actions button.danger {
   color: #d93662 !important;
+}
+
+/* Node row actions collapse into a single "⋯" trigger that opens a floating
+   dropdown menu (matches the approved node-management mockup). */
+html body.komari-admin-shell .komari-node-table td.komari-row-actions .sm-row-menu-btn {
+  width: 30px !important;
+  min-width: 30px !important;
+  height: 30px !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  border-radius: 9px !important;
+  background: rgba(120, 182, 255, 0.10) !important;
+  border: 1px solid rgba(120, 182, 255, 0.22) !important;
+}
+html body.komari-admin-shell .komari-node-table td.komari-row-actions .sm-row-menu-btn:hover {
+  background: rgba(120, 182, 255, 0.20) !important;
+}
+html body.komari-admin-shell .sm-row-menu {
+  z-index: 1200;
+  min-width: 168px;
+  padding: 6px;
+  border-radius: 12px;
+  background: rgba(10, 22, 38, 0.98);
+  border: 1px solid rgba(120, 182, 255, 0.28);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+html body.komari-admin-shell .sm-row-menu .sm-row-menu-item {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 38px !important;
+  margin: 0 !important;
+  padding: 0 12px !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  color: #e7fbff !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  text-align: left !important;
+  cursor: pointer !important;
+}
+html body.komari-admin-shell .sm-row-menu .sm-row-menu-item:hover {
+  background: rgba(120, 182, 255, 0.16) !important;
+}
+html body.komari-admin-shell .sm-row-menu .sm-row-menu-item .sm-row-menu-ico {
+  width: 18px !important;
+  text-align: center !important;
+  font-size: 14px !important;
+  opacity: 0.9 !important;
+}
+html body.komari-admin-shell .sm-row-menu .sm-row-menu-item.danger {
+  color: #ff6b8a !important;
+}
+html body.komari-admin-shell .sm-row-menu .sm-row-menu-item.danger:hover {
+  background: rgba(217, 54, 98, 0.18) !important;
+}
+
+/* Day mode: the ⋯ row menu card must follow the light sky-blue theme instead of
+   staying dark. Menu is appended to document.body, so scope by body.admin-day-mode. */
+html body.komari-admin-shell.admin-day-mode .sm-row-menu {
+  background: #dff3ff !important;
+  border-color: #a9d8ee !important;
+  box-shadow: 0 18px 46px rgba(22, 100, 150, 0.22) !important;
+}
+html body.komari-admin-shell.admin-day-mode .sm-row-menu .sm-row-menu-item {
+  color: #15243a !important;
+}
+html body.komari-admin-shell.admin-day-mode .sm-row-menu .sm-row-menu-item:hover {
+  background: rgba(24, 154, 210, 0.14) !important;
+}
+html body.komari-admin-shell.admin-day-mode .sm-row-menu .sm-row-menu-item.danger {
+  color: #d21f4a !important;
+}
+html body.komari-admin-shell.admin-day-mode .sm-row-menu .sm-row-menu-item.danger:hover {
+  background: rgba(210, 31, 74, 0.12) !important;
 }
 
 @media (min-width: 1380px) {

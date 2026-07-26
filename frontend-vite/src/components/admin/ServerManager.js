@@ -217,13 +217,12 @@ export class ServerManager {
           </div>
           <div class="komari-node-actions">
             <button id="sm-add-node" class="add-btn">＋ 添加节点</button>
-            <button id="sm-goto-groups" type="button" class="add-btn">管理分组</button>
           </div>
         </div>
 
         <div id="sm-nodes-view">
           <div class="sm-filter-bar">
-            <input id="sm-search" class="form-input" type="search" placeholder="搜索名称 / IP / 备注 / 地区 / 标签" autocomplete="off">
+            <input id="sm-search" class="form-input" type="search" placeholder="搜索名称 / IP / 备注 / 地区 / 分组" autocomplete="off">
             <select id="sm-filter-status" class="form-input" aria-label="按状态筛选">
               <option value="all">全部状态</option>
               <option value="online">在线</option>
@@ -256,7 +255,7 @@ export class ServerManager {
                   <th>IP地址</th>
                   <th>客户端版本</th>
                   <th>分组</th>
-                  <th>外形备注</th>
+                  <th>位置 / 地区</th>
                   <th>账单</th>
                   <th>操作</th>
                 </tr>
@@ -267,6 +266,9 @@ export class ServerManager {
         </div>
 
         <div id="sm-groups-view" hidden>
+          <div class="sm-groups-head">
+            <button id="sm-groups-back" type="button" class="komari-secondary">← 返回节点列表</button>
+          </div>
           <p class="komari-note">分组保存在后台 <code>server_groups</code>。节点编辑下拉、资产总览 Tab/分区都读这里；与地球「同地点聚合」无关。</p>
           <div class="sm-groups-layout">
             <section class="komari-panel sm-group-form-panel">
@@ -301,7 +303,7 @@ export class ServerManager {
 
   _bind() {
     this._el.querySelector('#sm-add-node').addEventListener('click', () => this._openAddModal());
-    this._el.querySelector('#sm-goto-groups')?.addEventListener('click', () => this._setView('groups'));
+    this._el.querySelector('#sm-groups-back')?.addEventListener('click', () => this._setView('nodes'));
     this._el.querySelectorAll('[data-sm-view]').forEach((btn) => {
       btn.addEventListener('click', () => this._setView(btn.dataset.smView));
     });
@@ -331,6 +333,7 @@ export class ServerManager {
       this._renderTable();
     });
     this._el.querySelector('#sm-existing').addEventListener('click', (e) => {
+      const trigger = e.target.closest('[data-menu-trigger]');
       const btn = e.target.closest('[data-action]');
       const check = e.target.closest('[data-row-check]');
       if (check) {
@@ -338,9 +341,14 @@ export class ServerManager {
         check.checked ? this._selectedIds.add(id) : this._selectedIds.delete(id);
         return;
       }
+      if (trigger) {
+        e.stopPropagation();
+        return this._toggleRowMenu(trigger);
+      }
       if (!btn) return;
       const id = btn.dataset.id;
       const action = btn.dataset.action;
+      this._closeRowMenu();
       if (action === 'install') return this._openInstallModal(id);
       if (action === 'terminal') return this._openAgentModal(id);
       if (action === 'edit') return this._openInfoModal(id);
@@ -418,14 +426,88 @@ export class ServerManager {
           <td>${this._escape(s.note || s.location || '—')}</td>
           <td>${this._escape(billing)}<br><small>${this._escape(s.expiry || '长期')}</small></td>
           <td class="komari-row-actions">
-            <button title="一键配置命令" data-action="install" data-id="${id}">⬇</button>
-            <button title="Agent 状态" data-action="terminal" data-id="${id}">⌘</button>
-            <button title="编辑信息" data-action="edit" data-id="${id}">✎</button>
-            <button title="账单" data-action="billing" data-id="${id}">¤</button>
-            <button class="danger" title="删除" data-action="delete" data-id="${id}">🗑</button>
+            <button class="sm-row-menu-btn" title="操作" data-menu-trigger data-id="${id}" aria-haspopup="true" aria-expanded="false">⋯</button>
           </td>
         </tr>`;
     }).join('');
+  }
+
+  _rowMenuItems() {
+    return [
+      { action: 'install', icon: '⬇', label: '下载' },
+      { action: 'terminal', icon: '⌘', label: '控制台' },
+      { action: 'edit', icon: '✎', label: '编辑' },
+      { action: 'billing', icon: '¤', label: '账单' },
+      { action: 'delete', icon: '🗑', label: '删除', danger: true },
+    ];
+  }
+
+  _closeRowMenu() {
+    // Menu is appended to document.body so a transformed/positioned ancestor of
+    // this._el cannot break its position:fixed coordinates.
+    document.querySelector('.sm-row-menu')?.remove();
+    this._el.querySelectorAll('[data-menu-trigger][aria-expanded="true"]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+    if (this._rowMenuDismiss) {
+      document.removeEventListener('click', this._rowMenuDismiss, true);
+      window.removeEventListener('resize', this._rowMenuDismiss);
+      this._el.querySelector('.komari-table-wrap')?.removeEventListener('scroll', this._rowMenuDismiss);
+      this._rowMenuDismiss = null;
+    }
+  }
+
+  _toggleRowMenu(trigger) {
+    const id = trigger.dataset.id;
+    const open = trigger.getAttribute('aria-expanded') === 'true';
+    this._closeRowMenu();
+    if (open) return;
+    trigger.setAttribute('aria-expanded', 'true');
+    const menu = document.createElement('div');
+    menu.className = 'sm-row-menu';
+    menu.setAttribute('role', 'menu');
+    menu.innerHTML = this._rowMenuItems().map((it) => `
+      <button type="button" role="menuitem" class="sm-row-menu-item${it.danger ? ' danger' : ''}" data-action="${it.action}" data-id="${id}">
+        <span class="sm-row-menu-ico" aria-hidden="true">${it.icon}</span>${this._escape(it.label)}
+      </button>`).join('');
+    // Append to body (not this._el) so position:fixed coordinates are relative
+    // to the viewport, not to any transformed/positioned admin-shell ancestor.
+    document.body.appendChild(menu);
+    menu.addEventListener('click', (e) => {
+      const item = e.target.closest('[data-action]');
+      if (!item) return;
+      const act = item.dataset.action;
+      const rid = item.dataset.id;
+      this._closeRowMenu();
+      if (act === 'install') return this._openInstallModal(rid);
+      if (act === 'terminal') return this._openAgentModal(rid);
+      if (act === 'edit') return this._openInfoModal(rid);
+      if (act === 'billing') return this._openBillingModal(rid);
+      if (act === 'delete') return this._delete(rid);
+    });
+    // Position under the trigger, right-aligned; flip up if near viewport bottom.
+    // CRITICAL: set position:fixed BEFORE measuring offsetWidth. Appended to
+    // body as a static block, the menu stretches to the full body width (~1265px),
+    // so measuring first gives left = trigger.right - 1265 ≈ 0 (clamped to the
+    // far left). Making it fixed first lets it collapse to its natural ~168px so
+    // the right-aligned math anchors it under the trigger.
+    menu.style.position = 'fixed';
+    menu.style.left = '0px';
+    menu.style.top = '0px';
+    const r = trigger.getBoundingClientRect();
+    const mw = menu.offsetWidth || 168;
+    const mh = menu.offsetHeight || 200;
+    let left = r.right - mw;
+    let top = r.bottom + 6;
+    if (left < 8) left = 8;
+    if (top + mh > window.innerHeight - 8) top = r.top - mh - 6;
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.top = `${Math.round(top)}px`;
+    this._rowMenuDismiss = (ev) => {
+      if (ev && ev.type === 'click' && menu.contains(ev.target)) return;
+      this._closeRowMenu();
+    };
+    document.addEventListener('click', this._rowMenuDismiss, true);
+    window.addEventListener('resize', this._rowMenuDismiss);
+    this._el.querySelector('.komari-table-wrap')?.addEventListener('scroll', this._rowMenuDismiss);
   }
 
   _openAddModal() {

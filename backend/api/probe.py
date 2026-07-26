@@ -19,7 +19,7 @@ import extensions
 from models.models import Server, ProbeResult
 from middleware.rbac import admin_required
 from middleware.rate_limit import limiter, PING_LIMIT
-from utils.validators import validate_port, validate_ip_or_hostname
+from utils.validators import validate_port, validate_ip_or_hostname, resolve_public_host_addresses
 from services.probe_fetcher import fetch_and_parse_probe, _parse_probe_payload_dict
 
 probe_bp = Blueprint("probe", __name__)
@@ -547,22 +547,39 @@ def http_ping(host: str, port: int | None = None, timeout: float = 5.0) -> dict:
         return {"success": False, "latency_ms": None, "error": str(e), "url": url}
 
 
-def run_probe_once(protocol: str, host: str, port: int, timeout: float = 5.0) -> dict:
+def run_probe_once(protocol: str, host: str, port: int, timeout: float = 5.0, connect_host: str | None = None) -> dict:
+    # M-3: connect_host, when provided, is a pre-resolved public IP pinned by the
+    # caller. Connecting to it (instead of re-resolving `host`) closes the DNS
+    # rebinding / TOCTOU window between validation and connect. `host` is still
+    # used for display and, for http, the Host header / URL.
     protocol = _normalize_probe_protocol(protocol)
+    target = connect_host or host
     if protocol == "icmp":
-        r = icmp_ping(host, timeout)
+        r = icmp_ping(target, timeout)
     elif protocol == "http":
         r = http_ping(host, port, timeout)
     else:
-        r = tcp_ping(host, port, timeout)
+        r = tcp_ping(target, port, timeout)
     r["protocol"] = protocol
     return r
 
 
 def _probe_stats(protocol: str, host: str, port: int, count: int, timeout: float, max_workers: int = 5):
     protocol = _normalize_probe_protocol(protocol)
+    # M-3: resolve the hostname ONCE here and pin the resulting public IP, then
+    # have every probe connect to that pinned IP. This closes the DNS rebinding
+    # window where validation resolves a public IP but the per-connect re-resolve
+    # returns an internal/metadata address. http keeps hostname (Host header).
+    connect_host = None
+    if protocol != "http":
+        try:
+            infos = resolve_public_host_addresses(host, port)
+        except Exception:
+            infos = []
+        if infos:
+            connect_host = str(infos[0][4][0])
     def _probe_once(seq):
-        r = run_probe_once(protocol, host, port, timeout)
+        r = run_probe_once(protocol, host, port, timeout, connect_host=connect_host)
         r["seq"] = seq + 1
         return r
     results = []

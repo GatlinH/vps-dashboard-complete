@@ -98,3 +98,43 @@ def test_probe_results_batch_preserves_per_sample_timestamps(client, auth_header
     # Three distinct per-second timestamps must be preserved, not collapsed to one.
     stamps = {str(r["created_at"])[:19] for r in rows}
     assert len(stamps) == 3
+
+
+# ── 3. M-2: batch probe-results enforces a per-request item cap ───────────────
+
+def test_probe_results_batch_rejects_oversized_batch(client, auth_headers, test_server, app):
+    """A compromised/rogue agent must not be able to submit an unbounded batch
+    that would block the DB connection pool in a single transaction."""
+    key_resp = client.post(f"/api/v1/servers/{test_server}/agent-key/generate", headers=auth_headers)
+    agent_key = key_resp.get_json()["agent_key"]
+    agent_uuid = str(uuid.uuid4())
+    claim = client.post("/api/v1/agent/claim", json={"server_id": test_server, "uuid": agent_uuid}, headers=auth_headers)
+    assert claim.status_code == 200
+
+    max_items = int(app.config.get("AGENT_PROBE_RESULTS_MAX_ITEMS", 500))
+    over = max_items + 1
+    batch = {
+        "agent_uuid": agent_uuid,
+        "results": [
+            {"key": "vps-9", "host": "10.0.0.9", "port": 22, "protocol": "tcp",
+             "latency_ms": 12.0, "success": True, "loss_pct": 0}
+            for _ in range(over)
+        ],
+    }
+    raw = json.dumps(batch, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    resp = client.post("/api/v1/agent/probe-results", data=raw, headers=_agent_headers(agent_key, raw, agent_uuid, nonce="nonce-oversized"))
+    assert resp.status_code == 400
+    assert resp.get_json()["accepted"] is False
+
+    # A batch exactly at the cap is still accepted.
+    at_cap = {
+        "agent_uuid": agent_uuid,
+        "results": [
+            {"key": "vps-9", "host": "10.0.0.9", "port": 22, "protocol": "tcp",
+             "latency_ms": 12.0, "success": True, "loss_pct": 0}
+            for _ in range(max_items)
+        ],
+    }
+    raw2 = json.dumps(at_cap, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    resp2 = client.post("/api/v1/agent/probe-results", data=raw2, headers=_agent_headers(agent_key, raw2, agent_uuid, nonce="nonce-atcap"))
+    assert resp2.status_code == 202
