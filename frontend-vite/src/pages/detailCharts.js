@@ -3,10 +3,6 @@ function ensureDenseSeries(series) {
   return (Array.isArray(series) ? series : []).map(Number).filter((v) => Number.isFinite(v));
 }
 
-function visiblePointRadius(points = [], radius = 3.5) {
-  return 0;
-}
-
 function expandSinglePointSeries(points = [], deltaMs = 90 * 1000) {
   // Do not fake a short line for a single sample. Charts start drawing only after the next real agent interval.
   return Array.isArray(points) ? points : [];
@@ -506,8 +502,8 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
       type: 'line',
       data: {
         datasets: [
-          { label: '上行', parsing: false, data: networkUpChartDisplay, borderColor: '#68f6ff', backgroundColor: 'transparent', fill: false, tension: networkMobile ? 0.28 : 0.18, pointRadius: networkMobile ? 0 : visiblePointRadius(networkUpChartDisplay, 4), pointHoverRadius: 5, borderWidth: networkMobile ? 2.2 : 3.2, showLine: true, stepped: false },
-          { label: '下行', parsing: false, data: networkDownChartDisplay, borderColor: '#ffd66b', backgroundColor: 'transparent', fill: false, tension: networkMobile ? 0.28 : 0.18, pointRadius: networkMobile ? 0 : visiblePointRadius(networkDownChartDisplay, 4), pointHoverRadius: 5, borderWidth: networkMobile ? 2.2 : 3.2, showLine: true, stepped: false },
+          { label: '上行', parsing: false, data: networkUpChartDisplay, borderColor: '#68f6ff', backgroundColor: 'transparent', fill: false, tension: networkMobile ? 0.28 : 0.18, pointRadius: 0, pointHoverRadius: 5, borderWidth: networkMobile ? 2.2 : 3.2, showLine: true, stepped: false },
+          { label: '下行', parsing: false, data: networkDownChartDisplay, borderColor: '#ffd66b', backgroundColor: 'transparent', fill: false, tension: networkMobile ? 0.28 : 0.18, pointRadius: 0, pointHoverRadius: 5, borderWidth: networkMobile ? 2.2 : 3.2, showLine: true, stepped: false },
         ]
       },
       options: { ...baseOptions, elements: { line: { borderCapStyle: 'round', borderJoinStyle: 'round' }, point: { radius: networkMobile ? 0 : undefined } }, plugins: { ...baseOptions.plugins, legend: { display: false, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `${item.dataset.label}: ${fmtRate(Number(item.raw.rawY ?? item.raw.y ?? 0))}${Number.isFinite(Number(item.raw.rawMaxY)) ? ` · 峰值 ${fmtRate(Number(item.raw.rawMaxY))}` : ''}${Number(item.raw.samples) > 1 ? ` · ${Number(item.raw.samples)}个采样点聚合` : ''}` } } }, scales: { x: { type: 'linear', min: networkAxisBounds.min, max: networkAxisBounds.max, ticks: { color: '#45676c', stepSize: Math.max(60 * 1000, Math.round((networkAxisBounds.max - networkAxisBounds.min) / (networkMobile ? 3 : 4))), callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: networkMobile, maxTicksLimit: networkMobile ? 4 : undefined, font: { size: networkMobile ? 7 : 9, weight: '700' } }, grid: { color: networkMobile ? 'rgba(55,95,101,0.12)' : 'rgba(55,95,101,0.20)' }, border: { color: 'rgba(55,95,101,.30)' } }, y: networkYScale } }
@@ -526,7 +522,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
           backgroundColor: 'rgba(127,196,255,0.20)',
           fill: true,
           tension: 0.24,
-          pointRadius: visiblePointRadius(cpuDisplaySeries, 3.5),
+          pointRadius: 0,
           pointHoverRadius: 6,
           borderWidth: 3,
         }]
@@ -549,7 +545,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
           backgroundColor: 'rgba(246,201,111,0.22)',
           fill: true,
           tension: 0.24,
-          pointRadius: visiblePointRadius(ramDisplaySeries, 3.5),
+          pointRadius: 0,
           pointHoverRadius: 6,
           borderWidth: 3,
         }]
@@ -564,7 +560,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     const ctx = freshnessCanvas.getContext('2d');
     detailCharts._register('detailFreshnessChart', new Chart(ctx, {
       type: 'line',
-      data: { datasets: [{ label: 'Freshness s', parsing: false, data: freshDisplaySeries, borderColor: '#8dffd0', backgroundColor: 'rgba(125,255,193,0.20)', fill: true, tension: 0.18, pointRadius: visiblePointRadius(freshDisplaySeries, 3.5), pointHoverRadius: 6, borderWidth: 3 }] },
+      data: { datasets: [{ label: 'Freshness s', parsing: false, data: freshDisplaySeries, borderColor: '#8dffd0', backgroundColor: 'rgba(125,255,193,0.20)', fill: true, tension: 0.18, pointRadius: 0, pointHoverRadius: 6, borderWidth: 3 }] },
       plugins: [freshnessEmptyPlugin],
       options: { ...makeHudChartOptions(5, 's'), plugins: { ...makeHudChartOptions(5, 's').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => telemetryTooltipTime(items[0]), label: (item) => `采样间隔 ${Number(item.raw.y || 0).toFixed(1)}s` } } }, scales: { x: smallChartXScale(), y: { ...makeHudChartOptions(5, 's').scales.y, afterFit: (scale) => { fixedSmallY(scale); scale.width = Math.max(scale.width || 0, 36); }, min: 0, max: freshnessMax } } }
     }));

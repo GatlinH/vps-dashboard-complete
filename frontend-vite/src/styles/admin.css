@@ -2353,7 +2353,10 @@ html body.komari-admin-shell .komari-node-toolbar {
   align-items: center !important;
 }
 html body.komari-admin-shell .komari-node-toolbar h2 {
-  flex: 1 1 220px !important;
+  /* h2 now lives in a COLUMN flex container (.sm-toolbar-left); a horizontal
+     flex-basis here becomes HEIGHT and inflates the title into an empty band.
+     Pin to content size. (was: flex: 1 1 220px — legacy horizontal toolbar) */
+  flex: 0 0 auto !important;
   min-width: 0 !important;
 }
 html body.komari-admin-shell .komari-node-actions {
@@ -2457,8 +2460,10 @@ html body.komari-admin-shell .komari-node-toolbar {
   overflow: visible !important;
 }
 html body.komari-admin-shell .komari-node-toolbar h2 {
-  flex: 0 1 240px !important;
-  min-width: 160px !important;
+  /* Legacy horizontal-toolbar sizing (was: flex: 0 1 240px; min-width:160px).
+     In the current column layout this became title HEIGHT — pin to content. */
+  flex: 0 0 auto !important;
+  min-width: 0 !important;
   max-width: 100% !important;
 }
 html body.komari-admin-shell .komari-node-actions {
@@ -2476,7 +2481,7 @@ html body.komari-admin-shell .komari-node-actions .komari-secondary {
 }
 @media (max-width: 1080px) {
   html body.komari-admin-shell .komari-node-toolbar { align-items: stretch !important; }
-  html body.komari-admin-shell .komari-node-toolbar h2 { flex-basis: 100% !important; }
+  html body.komari-admin-shell .komari-node-toolbar h2 { flex: 0 0 auto !important; }
   html body.komari-admin-shell .komari-node-actions { max-width: 100% !important; justify-content: flex-start !important; }
 }
 

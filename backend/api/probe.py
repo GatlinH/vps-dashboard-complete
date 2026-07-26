@@ -422,7 +422,12 @@ def tcp_ping(host: str, port: int, timeout: float = 5.0) -> dict:
     try:
         target = str(host or "").strip().strip("[]")
         if ":" in target:
-            helper = os.getenv("HOST_PROBE_HELPER_URL", "http://172.18.0.1:9117/tcp").strip()
+            # IPv6 targets are probed via an optional on-host helper (the API
+            # container cannot open raw IPv6 sockets in some deployments). The
+            # helper URL must be configured explicitly; there is no hardcoded
+            # docker-bridge default (was: http://172.18.0.1:9117/tcp), which
+            # broke silently whenever the bridge subnet differed.
+            helper = os.getenv("HOST_PROBE_HELPER_URL", "").strip()
             if helper:
                 try:
                     url = helper + "?" + urlencode({"host": target, "port": int(port), "timeout": float(timeout)})
