@@ -8,7 +8,8 @@ body.komari-admin-shell .komari-table-wrap {
 }
 body.komari-admin-shell .komari-node-table {
   width: 100% !important;
-  min-width: 980px !important;
+  /* min-width:980px removed — dead rule, overridden by node_table_readability
+     (#12, loaded later) which sets min-width:0 to fit the content area. */
   table-layout: auto !important;
 }
 body.komari-admin-shell .komari-node-table th:last-child,
