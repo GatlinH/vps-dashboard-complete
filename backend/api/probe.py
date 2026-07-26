@@ -733,14 +733,20 @@ def _fetch_ping_target_history(server_id, hours=12, limit=2000):
     hours = max(1, min(int(hours or 12), 168))
     limit = max(1, min(int(limit or 2000), 10000))
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    # Fetch the MOST RECENT rows within the window, not the oldest. With many
+    # targets sharing one table, `ORDER BY created_at ASC LIMIT N` returns only
+    # the earliest N rows — which can be entirely one target (e.g. a peer that
+    # started sampling earlier), starving other targets (e.g. an external target
+    # that began later) to zero points. Order DESC to take the latest N, then
+    # reverse to ascending so the chart renders left-to-right in time order.
     rows = db.session.execute(db.text("""
         SELECT server_id, target_key, label, host, port, protocol, latency_ms, success, loss_pct, quality, created_at
         FROM ping_target_results
         WHERE server_id = :server_id AND created_at >= :since
-        ORDER BY created_at ASC
+        ORDER BY created_at DESC
         LIMIT :limit
     """), {"server_id": server_id, "since": since.replace(tzinfo=None), "limit": limit}).mappings().all()
-    return [dict(r) for r in rows]
+    return [dict(r) for r in reversed(rows)]
 
 
 
