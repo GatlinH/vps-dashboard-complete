@@ -605,7 +605,14 @@ class TestJobCleanupMySQLPath:
              as mock_drop:
             _job_cleanup(app)
 
-        mock_drop.assert_called_once()
+        # probe_results cleanup must run; ping_target_results (retention=7) may add
+        # a second call. Assert the probe_results (default retention) call happened.
+        assert mock_drop.call_count >= 1
+        probe_results_calls = [
+            c for c in mock_drop.call_args_list
+            if c.kwargs.get("table_name") in (None, "probe_results")
+        ]
+        assert len(probe_results_calls) == 1
 
     def test_cleanup_falls_back_to_delete_on_unpartitioned_mysql(self, app):
         """B-4b: MySQL table with no partitions (pre-migration) must fall back to DELETE."""
@@ -674,7 +681,14 @@ class TestJobProbePartitionMaintain:
              as mock_ensure:
             _job_probe_partition_maintain(app)
 
-        mock_ensure.assert_called_once()
+        # probe_results maintenance must run; ping_target_results may add a
+        # second call. Assert the probe_results (default table) call happened once.
+        assert mock_ensure.call_count >= 1
+        probe_results_calls = [
+            c for c in mock_ensure.call_args_list
+            if c.kwargs.get("table_name") in (None, "probe_results")
+        ]
+        assert len(probe_results_calls) == 1
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

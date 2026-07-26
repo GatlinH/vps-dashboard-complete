@@ -341,7 +341,17 @@ function getGlobe() {
   });
   getGlobeRuntimeDebug().globeMode = 'cesium-earth-independent-starship-showcase';
   const stage = document.getElementById('starship-gltf-stage');
-  if (stage) {
+  // Mobile: skip the 55MB Enterprise GLB + independent Three.js renderer entirely.
+  // It is the single largest homepage cost and the main cause of phone jank; the
+  // Cesium earth alone is enough on small screens.
+  const isMobileViewport = typeof window !== 'undefined' && window.matchMedia
+    && window.matchMedia('(max-width: 720px)').matches;
+  if (isMobileViewport && stage) {
+    stage.style.display = 'none';
+    getGlobeRuntimeDebug().starshipSkipped = 'mobile-viewport';
+    window.__DBG__.starshipRenderer = 'skipped-mobile';
+  }
+  if (stage && !isMobileViewport) {
     try { starshipShowcase?.destroy?.(); } catch (_) {}
     try {
       starshipShowcase = new StarshipShowcase(stage, {

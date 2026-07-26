@@ -723,10 +723,31 @@ def _job_cleanup(app):
     )
 
     retention_days = int(app.config.get("PROBE_RESULT_RETENTION_DAYS", 30))
+    ptr_retention_days = int(app.config.get("PING_TARGET_RESULT_RETENTION_DAYS", 7))
     t0 = _time.perf_counter()
 
     with app.app_context():
         engine = db.engine
+        # ── ping_target_results: DROP PARTITION cleanup on the shorter PTR window.
+        # Only runs when the table is actually partitioned; the DELETE fallback
+        # below handles pre-migration / SQLite via ProbeResult only, so PTR relies
+        # on partitioning (enabled by the maintenance job) for cheap cleanup.
+        try:
+            from services.probe_partition import drop_expired_partitions, is_partitioned
+            if is_partitioned(engine, "ping_target_results"):
+                ptr_dropped = drop_expired_partitions(
+                    engine, retention_days=ptr_retention_days,
+                    table_name="ping_target_results",
+                )
+                if ptr_dropped:
+                    log.info(
+                        "ptr_cleanup: method=drop_partition count=%d partitions=%s "
+                        "retention_days=%d",
+                        len(ptr_dropped), ptr_dropped, ptr_retention_days,
+                    )
+        except Exception as exc:
+            log.error("ptr_cleanup: ping_target_results cleanup failed: %s", exc)
+
         use_partition = False
         if _is_mysql(engine):
             # Only use DROP PARTITION if the table is actually partitioned.
@@ -915,11 +936,14 @@ def _job_probe_partition_maintain(app):
     from services.probe_partition import (
         _is_mysql,
         ensure_future_partitions,
+        initialize_table_partitioning,
+        is_partitioned,
         list_partitions,
     )
 
     days_ahead = int(app.config.get("PROBE_RESULT_PARTITION_DAYS_AHEAD", 30))
     retention_days = int(app.config.get("PROBE_RESULT_RETENTION_DAYS", 30))
+    ptr_retention_days = int(app.config.get("PING_TARGET_RESULT_RETENTION_DAYS", 7))
     with app.app_context():
         if not _is_mysql(db.engine):
             return
@@ -931,18 +955,43 @@ def _job_probe_partition_maintain(app):
                 "probe_partition_maintain: partitioning is not enabled for "
                 "probe_results; skipping maintenance"
             )
-            return
-
-        created = ensure_future_partitions(
-            db.engine, days_ahead=days_ahead, max_backfill_days=retention_days,
-        )
-        if created:
-            log.info(
-                "probe_partition_maintain: created %d partition(s): %s",
-                len(created), created,
-            )
         else:
-            log.info("probe_partition_maintain: all partitions up to date")
+            created = ensure_future_partitions(
+                db.engine, days_ahead=days_ahead, max_backfill_days=retention_days,
+            )
+            if created:
+                log.info(
+                    "probe_partition_maintain: created %d partition(s): %s",
+                    len(created), created,
+                )
+            else:
+                log.info("probe_partition_maintain: all partitions up to date")
+
+        # ── ping_target_results: enable partitioning on first run, then keep
+        # future daily partitions pre-created. Retention is the shorter PTR window.
+        try:
+            if not is_partitioned(db.engine, "ping_target_results"):
+                if initialize_table_partitioning(db.engine, "ping_target_results"):
+                    log.info(
+                        "probe_partition_maintain: enabled partitioning for "
+                        "ping_target_results"
+                    )
+            if is_partitioned(db.engine, "ping_target_results"):
+                ptr_created = ensure_future_partitions(
+                    db.engine, days_ahead=days_ahead,
+                    max_backfill_days=ptr_retention_days,
+                    table_name="ping_target_results",
+                )
+                if ptr_created:
+                    log.info(
+                        "probe_partition_maintain: ping_target_results created "
+                        "%d partition(s): %s", len(ptr_created), ptr_created,
+                    )
+        except Exception as exc:
+            log.error(
+                "probe_partition_maintain: ping_target_results maintenance failed: %s",
+                exc,
+            )
 
 
 def _job_tg_bot_updates(app):

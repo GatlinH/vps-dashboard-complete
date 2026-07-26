@@ -265,6 +265,14 @@ class Config:
             "'self'",
             'https://fonts.googleapis.com',
         ],
+        # Progress-bar fills render via inline `style="width:X%"`. Because
+        # style-src carries a nonce, style-src-attr would otherwise inherit it
+        # and strip every inline style attribute, saturating all meters to
+        # 100%. Allow inline style attributes explicitly while <style>/<link>
+        # elements stay nonce-governed through style-src above.
+        'style-src-attr': [
+            "'unsafe-inline'",
+        ],
         'img-src': [
             "'self'",
             'data:',
@@ -345,6 +353,10 @@ class Config:
     SCHEDULER_ALERT_ON_FAILURE = os.getenv("SCHEDULER_ALERT_ON_FAILURE", "1") == "1"
     SCHEDULER_FAILURE_ALERT_THRESHOLD = int(os.getenv("SCHEDULER_FAILURE_ALERT_THRESHOLD", "3"))
     PROBE_RESULT_RETENTION_DAYS = int(os.getenv("PROBE_RESULT_RETENTION_DAYS", "30"))
+    # ping_target_results (PING/peer latency samples) can grow fast when agents
+    # sample every second. Keep a shorter, independently configurable window and
+    # rely on daily partitioning + DROP PARTITION for bounded, cheap cleanup.
+    PING_TARGET_RESULT_RETENTION_DAYS = int(os.getenv("PING_TARGET_RESULT_RETENTION_DAYS", "7"))
     # Number of future daily partitions to pre-create during the daily maintenance job.
     # Pre-creating partitions ensures data never falls into the pmax catchall partition,
     # which would prevent precise per-partition cleanup.  Only applies to MySQL.

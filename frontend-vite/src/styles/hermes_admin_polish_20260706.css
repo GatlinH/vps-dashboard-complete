@@ -87,9 +87,12 @@ html body.komari-admin-shell.admin-day-mode .metric-v {
 }
 
 /* Backend layout: reduce excessive gaps around node list and lower cards. */
-html body.komari-admin-shell .admin-body { padding-top: 22px !important; }
-html body.komari-admin-shell .admin-page.active { display: grid !important; gap: 14px !important; align-content: start !important; }
-html body.komari-admin-shell .komari-node-page { gap: 10px !important; }
+html body.komari-admin-shell .admin-body { padding-top: 10px !important; }
+html body.komari-admin-shell .admin-page.active { display: grid !important; gap: 8px !important; align-content: start !important; }
+html body.komari-admin-shell .komari-node-page { gap: 6px !important; }
+/* Pull the node list up: trim the vertical gaps between toolbar, view-switch and filter row. */
+html body.komari-admin-shell #sm-nodes-view { margin-top: 0 !important; }
+html body.komari-admin-shell .sm-filter-bar { margin-top: 4px !important; margin-bottom: 6px !important; }
 html body.komari-admin-shell .komari-node-toolbar { margin-bottom: 0 !important; }
 html body.komari-admin-shell .komari-table-wrap { margin-top: 0 !important; }
 html body.komari-admin-shell .admin-card { margin-bottom: 12px !important; }

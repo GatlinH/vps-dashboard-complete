@@ -217,7 +217,7 @@ export class ServerManager {
           </div>
           <div class="komari-node-actions">
             <button id="sm-add-node" class="add-btn">＋ 添加节点</button>
-            <button id="sm-goto-groups" type="button">管理分组</button>
+            <button id="sm-goto-groups" type="button" class="add-btn">管理分组</button>
           </div>
         </div>
 

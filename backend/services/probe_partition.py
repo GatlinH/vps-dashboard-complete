@@ -34,6 +34,23 @@ log = logging.getLogger(__name__)
 TABLE_NAME = "probe_results"
 _PMAX = "pmax"
 
+# Tables allowed to be partitioned/maintained by this module. Any table_name
+# passed to the public API must be in this allowlist before it is interpolated
+# into DDL, as a defense-in-depth guard against SQL injection through the
+# table name (partition names are separately validated by _is_safe_partition_name).
+_ALLOWED_TABLES = frozenset({"probe_results", "ping_target_results"})
+
+
+def _safe_table(table_name: str) -> str:
+    """Return a validated table name or raise ValueError.
+
+    Only tables in the explicit allowlist may be interpolated into DDL.
+    """
+    name = str(table_name or TABLE_NAME)
+    if name not in _ALLOWED_TABLES:
+        raise ValueError(f"probe_partition: table {name!r} is not allowed")
+    return name
+
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -81,8 +98,8 @@ def _is_safe_partition_name(name: str) -> bool:
 
 # ── Public API ───────────────────────────────────────────────────────────────
 
-def list_partitions(engine) -> list[dict]:
-    """List all partitions for probe_results.
+def list_partitions(engine, table_name: str = TABLE_NAME) -> list[dict]:
+    """List all partitions for the given table (default probe_results).
 
     Returns list of dicts with keys:
         partition_name        (str)
@@ -94,6 +111,7 @@ def list_partitions(engine) -> list[dict]:
     if not _is_mysql(engine):
         return []
 
+    table = _safe_table(table_name)
     sql = text("""
         SELECT
             PARTITION_NAME,
@@ -107,7 +125,7 @@ def list_partitions(engine) -> list[dict]:
     """)
     try:
         with engine.connect() as conn:
-            rows = conn.execute(sql, {"table_name": TABLE_NAME}).fetchall()
+            rows = conn.execute(sql, {"table_name": table}).fetchall()
         return [
             {
                 "partition_name":        row[0],
@@ -126,6 +144,7 @@ def ensure_future_partitions(
     days_ahead: int = 30,
     today: Optional[date] = None,
     max_backfill_days: int = 90,
+    table_name: str = TABLE_NAME,
 ) -> list[str]:
     """Pre-create daily partitions to cover today through today + days_ahead.
 
@@ -152,15 +171,16 @@ def ensure_future_partitions(
     if not _is_mysql(engine):
         return []
 
+    table = _safe_table(table_name)
     # Use UTC date so partition names align with UTC-stored created_at values.
     today = today or datetime.now(timezone.utc).date()
-    existing_partitions = list_partitions(engine)
+    existing_partitions = list_partitions(engine, table)
     existing_names = {p["partition_name"] for p in existing_partitions}
     if not existing_partitions or _PMAX not in existing_names:
         log.warning(
             "probe_partition: skipping ensure_future_partitions for table=%s; "
             "table is not partitioned or catchall partition=%s is missing",
-            TABLE_NAME, _PMAX,
+            table, _PMAX,
         )
         return []
 
@@ -214,7 +234,7 @@ def ensure_future_partitions(
             d += timedelta(days=1)
             continue
         ddl = text(
-            f"ALTER TABLE {TABLE_NAME} REORGANIZE PARTITION {_PMAX} INTO ("
+            f"ALTER TABLE {table} REORGANIZE PARTITION {_PMAX} INTO ("
             f"PARTITION {name} VALUES LESS THAN ('{upper}'),"
             f"PARTITION {_PMAX} VALUES LESS THAN (MAXVALUE))"
         )
@@ -243,6 +263,7 @@ def drop_expired_partitions(
     retention_days: int = 30,
     dry_run: bool = False,
     today: Optional[date] = None,
+    table_name: str = TABLE_NAME,
 ) -> list[str]:
     """Drop daily partitions whose date is older than today - retention_days.
 
@@ -259,11 +280,12 @@ def drop_expired_partitions(
     if not _is_mysql(engine):
         return []
 
+    table = _safe_table(table_name)
     # Use UTC date so cutoff aligns with UTC-stored partition boundaries.
     today = today or datetime.now(timezone.utc).date()
     cutoff = today - timedelta(days=retention_days)
 
-    partitions = list_partitions(engine)
+    partitions = list_partitions(engine, table)
     to_drop: list[str] = []
     for p in partitions:
         name = p["partition_name"]
@@ -297,7 +319,7 @@ def drop_expired_partitions(
         t0 = time.perf_counter()
         try:
             with engine.connect() as conn:
-                conn.execute(text(f"ALTER TABLE {TABLE_NAME} DROP PARTITION {name}"))
+                conn.execute(text(f"ALTER TABLE {table} DROP PARTITION {name}"))
                 conn.commit()
             elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
             log.info(
@@ -312,3 +334,69 @@ def drop_expired_partitions(
             )
 
     return dropped
+
+
+def is_partitioned(engine, table_name: str = TABLE_NAME) -> bool:
+    """Return True when the table already has partitions including pmax."""
+    if not _is_mysql(engine):
+        return False
+    table = _safe_table(table_name)
+    partitions = list_partitions(engine, table)
+    return bool(partitions) and any(p["partition_name"] == _PMAX for p in partitions)
+
+
+def initialize_table_partitioning(
+    engine,
+    table_name: str,
+    today: Optional[date] = None,
+) -> bool:
+    """Enable daily RANGE partitioning on an existing unpartitioned table.
+
+    MySQL requires every unique/primary key to contain the partition column.
+    ping_target_results ships with a plain ``id`` PK, so this performs an online
+    migration to a composite ``(id, created_at)`` primary key and then converts
+    the table to ``PARTITION BY RANGE COLUMNS(created_at)`` with one daily
+    partition for today plus the pmax catchall.
+
+    Idempotent: returns False (no-op) on non-MySQL, when the table is already
+    partitioned, or when the table does not exist. Returns True when it just
+    enabled partitioning.
+    """
+    if not _is_mysql(engine):
+        return False
+    table = _safe_table(table_name)
+    if is_partitioned(engine, table):
+        return False
+
+    today = today or datetime.now(timezone.utc).date()
+    part_name = _partition_name(today)
+    upper = (today + timedelta(days=1)).strftime("%Y-%m-%d")
+    if not _is_safe_partition_name(part_name):  # pragma: no cover
+        log.error("probe_partition: unsafe initial partition name=%r", part_name)
+        return False
+
+    try:
+        with engine.connect() as conn:
+            # 1) Composite PK so the partition column is part of the primary key.
+            conn.execute(text(
+                f"ALTER TABLE {table} DROP PRIMARY KEY, "
+                f"ADD PRIMARY KEY (id, created_at)"
+            ))
+            # 2) Convert to daily range partitioning with a pmax catchall.
+            conn.execute(text(
+                f"ALTER TABLE {table} PARTITION BY RANGE COLUMNS(created_at) ("
+                f"PARTITION {part_name} VALUES LESS THAN ('{upper}'),"
+                f"PARTITION {_PMAX} VALUES LESS THAN (MAXVALUE))"
+            ))
+            conn.commit()
+        log.info(
+            "probe_partition: initialized partitioning table=%s first_partition=%s",
+            table, part_name,
+        )
+        return True
+    except Exception as exc:
+        log.error(
+            "probe_partition: failed to initialize partitioning table=%s: %s",
+            table, exc,
+        )
+        return False

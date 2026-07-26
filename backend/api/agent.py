@@ -573,13 +573,34 @@ def agent_probe_results():
         return jsonify({"accepted": False, "reason": "no results"}), 400
     try:
         from datetime import datetime as dt
-        ts = dt.utcnow()
+        # Ensure the target table exists (and is partitioned on MySQL) before
+        # inserting; the endpoint may be the first writer on a fresh install.
+        try:
+            from api.probe import _target_history_table_ready
+            _target_history_table_ready()
+        except Exception:
+            pass
+        default_ts = dt.utcnow()
+
+        def _parse_created_at(raw):
+            # Agents batch per-second samples and stamp each one; honor that
+            # timestamp so chart density reflects real sample times. Fall back to
+            # server receive time for legacy agents that omit created_at.
+            if not raw:
+                return default_ts
+            try:
+                s = str(raw).replace("Z", "").split("+")[0]
+                return dt.fromisoformat(s)
+            except Exception:
+                return default_ts
+
         stored = 0
         for r in results:
             lat = r.get("latency_ms") or (r.get("stats") or {}).get("avg_ms")
+            row_ts = _parse_created_at(r.get("created_at"))
             db.session.execute(db.text(
                 "INSERT INTO ping_target_results (server_id,target_key,label,host,port,protocol,latency_ms,success,loss_pct,quality,created_at) VALUES (:sid,:key,:label,:host,:port,:proto,:lat,:ok,:loss,:qual,:ts)"),
-                {"sid":server.id,"key":str(r.get("key") or r.get("host") or "unknown")[:128],"label":str(r.get("label") or r.get("host") or "")[:255],"host":str(r.get("host") or "")[:255],"port":r.get("port"),"proto":str(r.get("protocol") or "tcp")[:16],"lat":float(lat) if lat is not None else None,"ok":1 if lat is not None else 0,"loss":r.get("loss_pct"),"qual":int(r.get("quality",0)) if isinstance(r.get("quality"),(int,float)) else (100 if (r.get("latency_ms") and r["latency_ms"]<100) else (50 if r.get("latency_ms") and r["latency_ms"]<300 else 0)),"ts":ts})
+                {"sid":server.id,"key":str(r.get("key") or r.get("host") or "unknown")[:128],"label":str(r.get("label") or r.get("host") or "")[:255],"host":str(r.get("host") or "")[:255],"port":r.get("port"),"proto":str(r.get("protocol") or "tcp")[:16],"lat":float(lat) if lat is not None else None,"ok":1 if lat is not None else 0,"loss":r.get("loss_pct"),"qual":int(r.get("quality",0)) if isinstance(r.get("quality"),(int,float)) else (100 if (r.get("latency_ms") and r["latency_ms"]<100) else (50 if r.get("latency_ms") and r["latency_ms"]<300 else 0)),"ts":row_ts})
             stored += 1
         db.session.commit()
         logger.info("agent probe stored", extra={"server_id": server.id, "count": stored})
@@ -776,7 +797,14 @@ AGENT_UUID = os.environ["AGENT_UUID"]
 AGENT_KEY = os.environ["AGENT_KEY"]
 SERVER_ID = os.environ.get("SERVER_ID", "")
 INTERVAL = max(2, int(os.environ.get("INTERVAL", "20")))
-PROBE_INTERVAL = max(10, int(os.environ.get("PROBE_INTERVAL", "60")))
+# Peer/PING sampling: probe locally every PROBE_SAMPLE_INTERVAL seconds and
+# buffer the timestamped samples, then flush them to the controller in one
+# batch every PROBE_PUSH_INTERVAL seconds. This keeps per-second chart density
+# without one signed HTTP request per sample.
+PROBE_SAMPLE_INTERVAL = max(1, int(os.environ.get("PROBE_SAMPLE_INTERVAL", "1")))
+PROBE_PUSH_INTERVAL = max(PROBE_SAMPLE_INTERVAL, int(os.environ.get("PROBE_PUSH_INTERVAL", "15")))
+# How often to refresh the peer target list from the controller (seconds).
+PROBE_TARGET_REFRESH = max(30, int(os.environ.get("PROBE_TARGET_REFRESH", "300")))
 STATE_PATH = os.environ.get("AGENT_STATE_PATH", "/opt/vps-agent/state.json")
 
 
@@ -953,55 +981,120 @@ def tcp_probe(host, port, timeout=5):
     except Exception:
         return None
 
-def probe_targets():
-    try:
-        targets_resp = http_get(f"/api/v1/probe/public/ping-targets/{SERVER_ID}?count=2&source=agent")
-    except Exception:
-        return
-    targets = targets_resp.get("targets", [])
+_probe_targets_cache = {"targets": [], "fetched_at": 0.0}
+_probe_sample_buffer = []
+
+
+def refresh_probe_targets():
+    # Two target families are sampled locally on this VPS:
+    #   1. peer targets (source=agent): this VPS -> every other registered VPS
+    #   2. external latency-monitor targets (agent_config.ping_targets): the
+    #      admin-configured PING targets. These used to be probed by the
+    #      controller on every page view; sampling them here makes the external
+    #      PING chart real source-VPS latency and removes browse-triggered probing.
+    # Keys distinguish them (peer=vps-*, external=configured key); the backend
+    # read path already splits on the vps- prefix.
+    merged = []
+    seen = set()
+    for path in (
+        f"/api/v1/probe/public/ping-targets/{SERVER_ID}?count=2&source=agent",
+        f"/api/v1/probe/public/ping-targets/{SERVER_ID}?count=2&source=external",
+    ):
+        try:
+            resp = http_get(path)
+        except Exception:
+            continue
+        for t in resp.get("targets", []) or []:
+            key = str(t.get("key") or t.get("host") or "")
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            merged.append(t)
+    if merged:
+        _probe_targets_cache["targets"] = merged
+        _probe_targets_cache["fetched_at"] = time.time()
+
+
+def sample_probe_targets():
+    """Probe each configured peer target once and buffer a timestamped sample.
+
+    Runs every PROBE_SAMPLE_INTERVAL seconds; samples accumulate in
+    _probe_sample_buffer and are flushed in one batch by flush_probe_samples.
+    """
+    targets = _probe_targets_cache["targets"]
     if not targets:
         return
-    results = []
+    created_at = datetime.utcnow().isoformat()
     for t in targets:
         host = t.get("host") or t.get("label")
         port = t.get("port") or 80
         latency = tcp_probe(host, port)
-        results.append({
+        _probe_sample_buffer.append({
             "key": t.get("key", str(host)), "host": host, "port": port,
             "protocol": t.get("protocol", "tcp"),
             "latency_ms": latency, "success": latency is not None,
             "loss_pct": 0 if latency is not None else 100,
+            "created_at": created_at,
         })
-    if results:
-        body = json.dumps({"results": results, "agent_uuid": AGENT_UUID}, ensure_ascii=False).encode("utf-8")
-        ts = str(int(time.time()))
-        nonce = str(int(time.time() * 1000))
-        req = urllib.request.Request(API_ROOT + "/api/v1/agent/probe-results", data=body, method="POST")
-        req.add_header("Content-Type", "application/json")
-        req.add_header("X-Agent-UUID", AGENT_UUID)
-        req.add_header("X-Agent-Key", AGENT_KEY)
-        req.add_header("X-Agent-Timestamp", ts)
-        req.add_header("X-Agent-Nonce", nonce)
-        req.add_header("X-Agent-Signature", sign(body, ts, nonce))
-        try:
-            urllib.request.urlopen(req, timeout=15)
-        except Exception:
-            pass
 
-last_probe = 0
-while True:
+
+def flush_probe_samples():
+    """Batch-push all buffered peer samples to the controller in one request."""
+    if not _probe_sample_buffer:
+        return
+    batch = _probe_sample_buffer[:]
+    body = json.dumps({"results": batch, "agent_uuid": AGENT_UUID}, ensure_ascii=False).encode("utf-8")
+    ts = str(int(time.time()))
+    nonce = str(int(time.time() * 1000))
+    req = urllib.request.Request(API_ROOT + "/api/v1/agent/probe-results", data=body, method="POST")
+    req.add_header("Content-Type", "application/json")
+    req.add_header("X-Agent-UUID", AGENT_UUID)
+    req.add_header("X-Agent-Key", AGENT_KEY)
+    req.add_header("X-Agent-Timestamp", ts)
+    req.add_header("X-Agent-Nonce", nonce)
+    req.add_header("X-Agent-Signature", sign(body, ts, nonce))
     try:
-        push_once()
-    except Exception as e:
-        print(f"[{datetime.utcnow().isoformat()}] push failed: {e}", flush=True)
+        urllib.request.urlopen(req, timeout=15)
+        # Only clear the samples we actually sent; keep any that arrived meanwhile.
+        del _probe_sample_buffer[:len(batch)]
+    except Exception:
+        # Keep the buffer for the next flush; cap it so a long outage cannot grow
+        # memory unbounded (drop oldest beyond ~1 hour at 1s cadence per target).
+        if len(_probe_sample_buffer) > 3600 * 8:
+            del _probe_sample_buffer[:len(_probe_sample_buffer) - 3600 * 8]
+
+last_metrics = 0.0
+last_sample = 0.0
+last_flush = 0.0
+last_target_refresh = 0.0
+refresh_probe_targets()
+while True:
     now = time.time()
-    if now - last_probe >= PROBE_INTERVAL:
+    if now - last_metrics >= INTERVAL:
         try:
-            probe_targets()
+            push_once()
+        except Exception as e:
+            print(f"[{datetime.utcnow().isoformat()}] push failed: {e}", flush=True)
+        last_metrics = now
+    if now - last_target_refresh >= PROBE_TARGET_REFRESH:
+        try:
+            refresh_probe_targets()
+        except Exception as e:
+            print(f"[{datetime.utcnow().isoformat()}] target refresh failed: {e}", flush=True)
+        last_target_refresh = now
+    if now - last_sample >= PROBE_SAMPLE_INTERVAL:
+        try:
+            sample_probe_targets()
         except Exception as e:
             print(f"[{datetime.utcnow().isoformat()}] probe failed: {e}", flush=True)
-        last_probe = now
-    time.sleep(INTERVAL)
+        last_sample = now
+    if now - last_flush >= PROBE_PUSH_INTERVAL:
+        try:
+            flush_probe_samples()
+        except Exception as e:
+            print(f"[{datetime.utcnow().isoformat()}] flush failed: {e}", flush=True)
+        last_flush = now
+    time.sleep(PROBE_SAMPLE_INTERVAL)
 PY2
 chmod +x "$INSTALL_DIR/agent.py"
 

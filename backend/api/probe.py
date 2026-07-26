@@ -594,29 +594,83 @@ def _tcp_ping_stats(host: str, port: int, count: int, timeout: float, protocol: 
 
 def _target_history_table_ready():
     try:
-        db.session.execute(db.text("""
-            CREATE TABLE IF NOT EXISTS ping_target_results (
-                id BIGINT AUTO_INCREMENT PRIMARY KEY,
-                server_id INT NOT NULL,
-                target_key VARCHAR(128) NOT NULL,
-                label VARCHAR(255) NOT NULL DEFAULT '',
-                host VARCHAR(255) NOT NULL DEFAULT '',
-                port INT NULL,
-                protocol VARCHAR(16) NOT NULL DEFAULT 'icmp',
-                latency_ms DOUBLE NULL,
-                success TINYINT(1) NOT NULL DEFAULT 0,
-                loss_pct DOUBLE NULL,
-                quality INT NULL,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_ptr_server_created (server_id, created_at),
-                INDEX idx_ptr_server_target_created (server_id, target_key, created_at)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        """))
-        db.session.commit()
+        is_mysql = db.engine.dialect.name in ("mysql", "pymysql", "mariadb")
+        if is_mysql:
+            db.session.execute(db.text("""
+                CREATE TABLE IF NOT EXISTS ping_target_results (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    server_id INT NOT NULL,
+                    target_key VARCHAR(128) NOT NULL,
+                    label VARCHAR(255) NOT NULL DEFAULT '',
+                    host VARCHAR(255) NOT NULL DEFAULT '',
+                    port INT NULL,
+                    protocol VARCHAR(16) NOT NULL DEFAULT 'icmp',
+                    latency_ms DOUBLE NULL,
+                    success TINYINT(1) NOT NULL DEFAULT 0,
+                    loss_pct DOUBLE NULL,
+                    quality INT NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_ptr_server_created (server_id, created_at),
+                    INDEX idx_ptr_server_target_created (server_id, target_key, created_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """))
+            db.session.commit()
+            _ensure_ping_target_partitioning()
+        else:
+            # SQLite (tests) / other dialects: portable DDL without engine/index
+            # inline clauses, then create indexes separately.
+            db.session.execute(db.text("""
+                CREATE TABLE IF NOT EXISTS ping_target_results (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    server_id INTEGER NOT NULL,
+                    target_key VARCHAR(128) NOT NULL,
+                    label VARCHAR(255) NOT NULL DEFAULT '',
+                    host VARCHAR(255) NOT NULL DEFAULT '',
+                    port INTEGER NULL,
+                    protocol VARCHAR(16) NOT NULL DEFAULT 'icmp',
+                    latency_ms DOUBLE NULL,
+                    success SMALLINT NOT NULL DEFAULT 0,
+                    loss_pct DOUBLE NULL,
+                    quality INTEGER NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+            db.session.execute(db.text(
+                "CREATE INDEX IF NOT EXISTS idx_ptr_server_created "
+                "ON ping_target_results (server_id, created_at)"))
+            db.session.execute(db.text(
+                "CREATE INDEX IF NOT EXISTS idx_ptr_server_target_created "
+                "ON ping_target_results (server_id, target_key, created_at)"))
+            db.session.commit()
         return True
     except Exception:
         db.session.rollback()
         return False
+
+
+_PTR_PARTITION_CHECKED = False
+
+
+def _ensure_ping_target_partitioning():
+    """Idempotently enable daily partitioning on ping_target_results (MySQL only).
+
+    Per-second agent sampling makes this table grow fast; daily RANGE partitions
+    let the retention job DROP PARTITION cheaply instead of scanning millions of
+    rows. Runs at most once per process; the scheduler maintenance job keeps
+    future partitions pre-created and drops expired ones thereafter. Failure here
+    must never block writes — the table still works unpartitioned.
+    """
+    global _PTR_PARTITION_CHECKED
+    if _PTR_PARTITION_CHECKED:
+        return
+    _PTR_PARTITION_CHECKED = True
+    try:
+        from services.probe_partition import initialize_table_partitioning, is_partitioned
+        engine = db.engine
+        if not is_partitioned(engine, "ping_target_results"):
+            initialize_table_partitioning(engine, "ping_target_results")
+    except Exception:
+        pass
 
 
 def _persist_ping_target_results(server_id, targets, created_at=None):
@@ -798,6 +852,35 @@ def public_ping_targets(sid):
         resp.headers["X-Ping-Targets-Cache"] = "hit"
         return resp
 
+    # Agent collectors ask for the external latency-monitor target DEFINITIONS to
+    # sample locally (source-VPS latency). Return host/port/key only; never probe
+    # here. The agent probes and reports; the controller stays a read-only store.
+    if source == "external":
+        resolved_targets = [
+            t for t in _resolve_ping_targets_for_server(server)
+            if t.get("type") != "peer" and not str(t.get("key", "")).startswith("vps-")
+        ]
+        targets = [{
+            "key": item["key"],
+            "label": item.get("label") or item["key"],
+            "host": item.get("host", ""),
+            "port": item.get("port", 443),
+            "protocol": item.get("protocol", "tcp"),
+            "type": "external",
+        } for item in resolved_targets]
+        payload = {
+            "server_id": sid,
+            "targets": targets,
+            "derived_from": "configured latency monitor target definitions",
+            "probe_source": "external-definitions",
+            "cache_ttl": PING_TARGETS_CACHE_TTL,
+        }
+        _cache_set_json(cache_key, payload, PING_TARGETS_CACHE_TTL)
+        resp = jsonify(payload)
+        resp.headers["Cache-Control"] = f"public, max-age={PING_TARGETS_CACHE_TTL}"
+        resp.headers["X-Ping-Targets-Cache"] = "miss"
+        return resp
+
     # Agent collectors ask for VPS peer targets explicitly. Keep this separate
     # from the public/detail-page PING view so added VPS nodes never appear as
     # user-facing latency monitor targets. Do NOT probe here from the controller:
@@ -830,7 +913,7 @@ def public_ping_targets(sid):
                 }
                 out["results"] = [{
                     "success": success,
-                    "latency_ms": float(latency) if success else None,
+                    "latency_ms": latency if success else None,
                     "loss_pct": out["stats"]["loss_pct"],
                     "protocol": out["stats"]["protocol"],
                 }]
@@ -869,27 +952,68 @@ def public_ping_targets(sid):
         resp.headers["X-Ping-Targets-Cache"] = "miss"
         return resp
 
+    # Read-only: external latency-monitor targets are sampled by each VPS agent
+    # (source-VPS latency) and reported to the controller. Page views must NOT
+    # trigger controller-side probing or persistence anymore; return the latest
+    # persisted per-target sample instead. This removes browse-triggered probing
+    # for the public/detail PING view, matching the agent (peer) branch.
+    rows = _fetch_ping_target_history(sid, 12, 500)
+    latest_by_key = {}
+    for r in rows:
+        key = str(r.get("target_key") or "")
+        if not key or key.startswith("vps-"):
+            continue
+        latest_by_key[key] = r  # rows are ASC; keep the newest per key
     targets = []
+    has_real_sample = False
     for item in resolved_targets:
-        results, stats = _tcp_ping_stats(item["host"], item.get("port", 443), count, timeout, item.get("protocol", "tcp"))
-        stats = {k: v for k, v in (stats or {}).items() if k not in ("host",)}
-        avg_ms = stats.get("avg_ms")
-        quality = 0 if avg_ms is None else max(0, min(100, round(100 - avg_ms / 4)))
-        targets.append({
+        key = str(item.get("key") or "")
+        sample = latest_by_key.get(key)
+        out = {
             "key": item["key"],
             "label": item["label"],
             "host": item.get("host", ""),
             "port": item.get("port", 443),
             "protocol": item.get("protocol", "tcp"),
-            "results": results,
-            "stats": stats,
-            "quality": quality,
             "type": "external",
-        })
+        }
+        if sample:
+            latency = sample.get("latency_ms")
+            latency = float(latency) if latency is not None else None
+            success = bool(sample.get("success")) and latency is not None
+            loss = sample.get("loss_pct")
+            out["stats"] = {
+                "avg_ms": latency if success else None,
+                "loss_pct": float(loss) if loss is not None else (0 if success else 100),
+                "count": 1,
+                "protocol": sample.get("protocol") or item.get("protocol") or "tcp",
+            }
+            out["results"] = [{
+                "success": success,
+                "latency_ms": latency if success else None,
+                "loss_pct": out["stats"]["loss_pct"],
+                "protocol": out["stats"]["protocol"],
+            }]
+            avg_ms = out["stats"].get("avg_ms")
+            out["quality"] = 0 if avg_ms is None else max(0, min(100, round(100 - avg_ms / 4)))
+            out["sample_source"] = "agent-reported"
+            has_real_sample = True
+        else:
+            out["stats"] = {"avg_ms": None, "loss_pct": None, "count": 0, "protocol": item.get("protocol") or "tcp"}
+            out["results"] = []
+            out["quality"] = None
+            out["sample_source"] = "missing"
+        targets.append(out)
 
     targets.sort(key=lambda t: (t["stats"].get("avg_ms") is None, t["stats"].get("avg_ms") or 1e9))
-    payload = {"server_id": sid, "targets": targets, "derived_from": "configured latency monitor targets", "cache_ttl": PING_TARGETS_CACHE_TTL}
-    _persist_ping_target_results(sid, targets)
+    payload = {
+        "server_id": sid,
+        "targets": targets,
+        "derived_from": "persisted agent-reported latency monitor results",
+        "probe_source": "external",
+        "unavailable": (len(resolved_targets) > 0 and not has_real_sample),
+        "cache_ttl": PING_TARGETS_CACHE_TTL,
+    }
     _cache_set_json(cache_key, payload, PING_TARGETS_CACHE_TTL)
     resp = jsonify(payload)
     resp.headers["Cache-Control"] = f"public, max-age={PING_TARGETS_CACHE_TTL}"
