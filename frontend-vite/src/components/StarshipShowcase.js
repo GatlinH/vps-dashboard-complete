@@ -171,9 +171,26 @@ export class StarshipShowcase {
     this.composer = null;
     this.bloomPass = null;
 
-    // No synthetic studio/atmospheric IBL: retain direct lighting and the original GLB material read.
+    // Limited environment reflection so the metallized hull has something to
+    // reflect (high-metalness materials render near-black with no envMap). A
+    // lightweight procedural RoomEnvironment via PMREM gives soft studio
+    // reflections without shipping an HDR asset. Kept subtle (low intensity) to
+    // preserve the hand-authored GLB look and not wash out warp/Bussard glows.
     this.scene.environment = null;
     this.scene.environmentIntensity = 0;
+    try {
+      const pmrem = new THREE.PMREMGenerator(this.renderer);
+      import('three/examples/jsm/environments/RoomEnvironment.js')
+        .then(({ RoomEnvironment }) => {
+          const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
+          this.scene.environment = envRT.texture;
+          this.scene.environmentIntensity = 0.6;
+          this._dbgSet('starshipEnvConfigured', true);
+        })
+        .catch((e) => this._dbgSet('starshipEnvError', String(e).slice(0, 120)));
+    } catch (e) {
+      this._dbgSet('starshipEnvError', String(e).slice(0, 120));
+    }
     this._dbgSet('starshipDetailProfile', {
       profile: isMobile ? 'mobile-safe' : 'desktop-panel-readable',
       pixelRatio: this.renderer.getPixelRatio(),
@@ -530,20 +547,27 @@ export class StarshipShowcase {
             if ('emissiveIntensity' in mat) mat.emissiveIntensity = Math.max(Number(mat.emissiveIntensity || 0), 0.55);
             mat.toneMapped = false;
           } else {
-            // HULL: keep maps, push darker metal so bright panel maps don't look like white plastic.
+            // HULL: stronger metallization — brushed-steel look. Keep maps intact
+            // (never repaint textured panels), only raise metalness toward full and
+            // drop roughness for sharper specular/reflection. Lift envMapIntensity so
+            // the metal actually catches reflections. Warp/Bussard/nav/registry/window
+            // are handled in their own branches above and stay untouched.
             if (!hasMap) {
               const base = mat.color ? mat.color.getHex() : 0xffffff;
-              if (mat.color && base === 0xffffff) mat.color.set(0xb7c0cc);
+              // Neutral steel tint for untextured hull panels.
+              if (mat.color && base === 0xffffff) mat.color.set(0xc2cad4);
             } else if (mat.color) {
-              // Darken albedo multiplier so contrast-boosted panel maps remain visible.
-              mat.color.set(0xcfd6df);
+              // Keep the panel map readable but let the metal tint show through.
+              mat.color.set(0xdde3ea);
             }
-            if ('metalness' in mat) mat.metalness = Math.max(Number(mat.metalness || 0), hasMap ? 0.72 : 0.62);
+            if ('metalness' in mat) mat.metalness = Math.max(Number(mat.metalness || 0), hasMap ? 0.92 : 0.88);
             if ('roughness' in mat) {
               const r = Number(mat.roughness ?? 0.5);
-              mat.roughness = hasMap ? Math.min(Math.max(r, 0.28), 0.48) : Math.min(Math.max(r, 0.28), 0.48);
+              // Lower ceiling => shinier, more reflective metal; keep a floor so it
+              // is brushed steel, not a chrome mirror.
+              mat.roughness = Math.min(Math.max(r, 0.16), 0.32);
             }
-            mat.envMapIntensity = Math.max(Number(mat.envMapIntensity || 0), hasMap ? 1.15 : 0.95);
+            mat.envMapIntensity = Math.max(Number(mat.envMapIntensity || 0), hasMap ? 1.5 : 1.3);
           }
           obj.castShadow = false;
           obj.receiveShadow = false;
