@@ -83,7 +83,7 @@ jobs:
           echo "✅ 已移除 legacy frontend/ 目录"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: 'npm'
