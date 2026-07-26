@@ -93,6 +93,34 @@ html body.komari-admin-shell .admin-body {
   padding-top: 4px !important;
   padding-bottom: 12px !important;
 }
+
+/* Latency monitor: the global sticky theme/language toolbar occupies the
+   upper-right corner. Keep this page's probe actions as a single group and
+   reserve its height so neither row can cover the other. */
+html body.komari-admin-shell .ping-tool-head {
+  align-items: flex-start !important;
+}
+html body.komari-admin-shell .ping-tool-head .pt-head-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+  flex: 0 0 auto !important;
+  flex-wrap: wrap !important;
+  margin-top: 52px !important;
+  max-width: 100% !important;
+}
+html body.komari-admin-shell .ping-tool-head .pt-head-actions > button {
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+}
+@media (max-width: 980px) {
+  html body.komari-admin-shell .ping-tool-head .pt-head-actions {
+    width: 100% !important;
+    justify-content: flex-start !important;
+    margin-top: 0 !important;
+  }
+}
 html body.komari-admin-shell .admin-toolbar {
   margin: 0 0 6px !important;
   padding-top: 0 !important;

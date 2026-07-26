@@ -24,14 +24,16 @@ export class PingTool {
 
   _render() {
     this._el.innerHTML = /* html */`
-      <div class="komari-settings-page">
-        <div class="komari-page-head">
+      <div class="komari-settings-page ping-tool-page">
+        <div class="komari-page-head ping-tool-head">
           <div>
             <h2>延迟监测</h2>
             <p>配置详情页 <b>PING 延迟</b> 的 external 目标（<code>agent_config.ping_targets</code>）。支持 TCP / ICMP / HTTP。</p>
           </div>
-          <button class="komari-primary" id="pt-run">开始探测</button>
-          <button class="komari-secondary" id="pt-run-node">探测当前节点 IP</button>
+          <div class="pt-head-actions" aria-label="延迟探测操作">
+            <button class="komari-primary" id="pt-run">开始探测</button>
+            <button class="komari-secondary" id="pt-run-node">探测当前节点 IP</button>
+          </div>
         </div>
         <div class="komari-install-ok" style="margin-bottom:12px">
           <b>与「全球 VPS 探针」不同：</b>
