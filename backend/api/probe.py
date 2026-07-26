@@ -466,12 +466,19 @@ def _normalize_probe_protocol(value) -> str:
 
 
 def _http_probe_url(host: str, port: int | None = None) -> str:
+    """Build a valid HTTP URL from a host, including a bare IPv6 literal."""
     raw = (host or "").strip()
     if raw.startswith(("http://", "https://")):
         return raw
+    target = raw.strip("[]")
+    try:
+        is_v6 = ipaddress.ip_address(target).version == 6
+    except ValueError:
+        is_v6 = False
+    authority = f"[{target}]" if is_v6 else target
     if port and port not in (80, 443):
-        return f"http://{raw}:{int(port)}"
-    return f"http://{raw}"
+        return f"http://{authority}:{int(port)}"
+    return f"http://{authority}"
 
 
 def _is_public_probe_hostname(hostname: str) -> bool:
@@ -520,9 +527,15 @@ def _validate_probe_target(protocol: str, host: str) -> bool:
 def icmp_ping(host: str, timeout: float = 5.0) -> dict:
     start = time.perf_counter()
     try:
+        target = str(host or "").strip().strip("[]")
+        try:
+            is_v6 = ipaddress.ip_address(target).version == 6
+        except ValueError:
+            is_v6 = False
+        cmd = ["ping", "-6"] if is_v6 else ["ping"]
+        cmd += ["-c", "1", "-W", str(max(1, int(timeout))), target]
         proc = subprocess.run(
-            ["ping", "-c", "1", "-W", str(max(1, int(timeout))), host],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout + 1,
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout + 1,
         )
         out = (proc.stdout or "") + "\n" + (proc.stderr or "")
         if proc.returncode == 0:

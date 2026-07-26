@@ -981,37 +981,79 @@ def push_once():
         return resp.read().decode("utf-8", "ignore")
 
 # ── Peer / external probe ──────────────────────────────────────
+def _clean_probe_host(host):
+    """Accept bare or URL-bracketed IPv6 literals without changing hostnames."""
+    value = str(host or "").strip()
+    if value.startswith("[") and value.endswith("]"):
+        return value[1:-1]
+    return value
+
+
 def tcp_probe(host, port, timeout=5):
+    """TCP connect latency over IPv4 or IPv6 (first reachable getaddrinfo result)."""
     try:
+        target = _clean_probe_host(host)
         start = time.time()
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(timeout)
-        result = sock.connect_ex((str(host), int(port)))
-        elapsed = (time.time() - start) * 1000
-        sock.close()
-        return round(elapsed, 1) if result == 0 else None
+        # AF_UNSPEC lets IPv6-only DNS/literals work while retaining IPv4 support.
+        for family, socktype, proto, _, sockaddr in socket.getaddrinfo(target, int(port), socket.AF_UNSPEC, socket.SOCK_STREAM):
+            sock = None
+            try:
+                sock = socket.socket(family, socktype, proto)
+                sock.settimeout(timeout)
+                if sock.connect_ex(sockaddr) == 0:
+                    return round((time.time() - start) * 1000, 1)
+            except OSError:
+                pass
+            finally:
+                if sock:
+                    sock.close()
+        return None
     except Exception:
         return None
 
 
-def icmp_probe(host, timeout=5):
-    """One-shot ICMP echo via system ping. Returns latency_ms or None."""
+def _is_ipv6_literal(host):
     try:
-        # Linux: -c 1 once, -W timeout seconds. BusyBox/mac variants differ;
-        # production agents are Linux systemd hosts.
+        return socket.inet_pton(socket.AF_INET6, _clean_probe_host(host)) is not None
+    except OSError:
+        return False
+
+
+def icmp_probe(host, timeout=5):
+    """One-shot ICMP echo via system ping; explicitly select IPv6 for literals."""
+    try:
         wait_s = max(1, int(timeout))
-        proc = subprocess.run(
-            ["ping", "-c", "1", "-W", str(wait_s), str(host)],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-            timeout=timeout + 1,
-        )
+        target = _clean_probe_host(host)
+        cmd = ["ping"]
+        if _is_ipv6_literal(target):
+            cmd.append("-6")
+        cmd += ["-c", "1", "-W", str(wait_s), target]
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout + 1)
         out = (proc.stdout or "") + "\n" + (proc.stderr or "")
         if proc.returncode != 0:
             return None
         m = re.search(r"time[=<]([0-9.]+)\s*ms", out)
-        if m:
-            return round(float(m.group(1)), 1)
+        return round(float(m.group(1)), 1) if m else None
+    except Exception:
         return None
+
+
+def http_probe(host, port=None, timeout=5):
+    """HTTP request latency; bracket a bare IPv6 literal when building its URL."""
+    try:
+        raw = str(host or "").strip()
+        if raw.startswith(("http://", "https://")):
+            url = raw
+        else:
+            target = _clean_probe_host(raw)
+            authority = f"[{target}]" if _is_ipv6_literal(target) else target
+            suffix = f":{int(port)}" if port and int(port) not in (80, 443) else ""
+            url = f"http://{authority}{suffix}"
+        start = time.time()
+        req = urllib.request.Request(url, headers={"User-Agent": "vps-dashboard-agent/1.0"})
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            code = int(getattr(response, "status", response.getcode()))
+        return round((time.time() - start) * 1000, 1) if code < 500 else None
     except Exception:
         return None
 
@@ -1020,9 +1062,9 @@ def probe_once(host, port=None, protocol="tcp", timeout=5):
     proto = str(protocol or "tcp").strip().lower()
     if proto == "icmp":
         return icmp_probe(host, timeout)
-    # Default / tcp: connect latency (port required; fall back to 443/80).
-    p = int(port or 443)
-    return tcp_probe(host, p, timeout)
+    if proto == "http":
+        return http_probe(host, port, timeout)
+    return tcp_probe(host, int(port or 443), timeout)
 
 
 _probe_targets_cache = {"targets": [], "fetched_at": 0.0}
