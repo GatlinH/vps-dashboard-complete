@@ -196,23 +196,17 @@ html body.komari-admin-shell .komari-node-table td.komari-row-actions button.sm-
 html body.komari-admin-shell.admin-bridge-mode .komari-node-table td.komari-row-actions button.sm-row-menu-btn {
   color: #e7fbff !important;
 }
-/* Group table (and any text-label action buttons): readable text buttons. */
-html body.komari-admin-shell #sm-groups-tbody td.komari-row-actions button {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: auto !important;
-  min-width: 52px !important;
-  height: 30px !important;
-  margin-left: 6px !important;
-  padding: 0 12px !important;
-  border-radius: 8px !important;
-  font-size: 13px !important;
-  line-height: 1 !important;
+/* Group rows now use the same ⋯ aggregate trigger as node rows. Keep the
+   actions cell right-aligned with breathing room so the ⋯ button is not clipped
+   by the right edge (was: wide 52px text buttons that overflowed the cell). */
+html body.komari-admin-shell #sm-groups-tbody td.komari-row-actions {
+  text-align: right !important;
+  padding-right: 14px !important;
   white-space: nowrap !important;
 }
-html body.komari-admin-shell #sm-groups-tbody td.komari-row-actions button.danger {
-  color: #d93662 !important;
+html body.komari-admin-shell #sm-groups-tbody td.komari-row-actions .sm-row-menu-btn {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 }
 
 /* Node row actions collapse into a single "⋯" trigger that opens a floating

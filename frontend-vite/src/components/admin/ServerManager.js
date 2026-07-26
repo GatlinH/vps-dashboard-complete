@@ -95,8 +95,7 @@ export class ServerManager {
             <td>${Number(group.sort_order || 0)}</td>
             <td>${members}</td>
             <td class="komari-row-actions">
-              <button type="button" data-group-edit="${group.id}">编辑</button>
-              <button type="button" class="danger" data-group-delete="${group.id}">删除</button>
+              <button class="sm-row-menu-btn" title="操作" data-menu-trigger data-menu-kind="group" data-id="${group.id}" aria-haspopup="true" aria-expanded="false">⋯</button>
             </td>
           </tr>`;
         }).join('')
@@ -322,10 +321,12 @@ export class ServerManager {
     this._el.querySelector('#sm-group-save')?.addEventListener('click', () => this._saveGroup(this._editingGroupId));
     this._el.querySelector('#sm-group-reset')?.addEventListener('click', () => this._renderGroupsPage());
     this._el.querySelector('#sm-groups-tbody')?.addEventListener('click', (e) => {
-      const edit = e.target.closest('[data-group-edit]');
-      const del = e.target.closest('[data-group-delete]');
-      if (edit) return this._editGroup(edit.dataset.groupEdit);
-      if (del) return this._deleteGroup(del.dataset.groupDelete);
+      // Group rows now use the same ⋯ aggregate menu as node rows.
+      const trigger = e.target.closest('[data-menu-trigger]');
+      if (trigger) {
+        e.stopPropagation();
+        return this._toggleRowMenu(trigger);
+      }
     });
     this._el.querySelector('#sm-check-all').addEventListener('change', (e) => {
       const rows = this._filteredServers();
@@ -426,13 +427,19 @@ export class ServerManager {
           <td>${this._escape(s.note || s.location || '—')}</td>
           <td>${this._escape(billing)}<br><small>${this._escape(s.expiry || '长期')}</small></td>
           <td class="komari-row-actions">
-            <button class="sm-row-menu-btn" title="操作" data-menu-trigger data-id="${id}" aria-haspopup="true" aria-expanded="false">⋯</button>
+            <button class="sm-row-menu-btn" title="操作" data-menu-trigger data-menu-kind="node" data-id="${id}" aria-haspopup="true" aria-expanded="false">⋯</button>
           </td>
         </tr>`;
     }).join('');
   }
 
-  _rowMenuItems() {
+  _rowMenuItems(kind = 'node') {
+    if (kind === 'group') {
+      return [
+        { action: 'group-edit', icon: '✎', label: '编辑' },
+        { action: 'group-delete', icon: '🗑', label: '删除', danger: true },
+      ];
+    }
     return [
       { action: 'install', icon: '⬇', label: '下载' },
       { action: 'terminal', icon: '⌘', label: '控制台' },
@@ -457,6 +464,7 @@ export class ServerManager {
 
   _toggleRowMenu(trigger) {
     const id = trigger.dataset.id;
+    const kind = trigger.dataset.menuKind || 'node';
     const open = trigger.getAttribute('aria-expanded') === 'true';
     this._closeRowMenu();
     if (open) return;
@@ -464,7 +472,7 @@ export class ServerManager {
     const menu = document.createElement('div');
     menu.className = 'sm-row-menu';
     menu.setAttribute('role', 'menu');
-    menu.innerHTML = this._rowMenuItems().map((it) => `
+    menu.innerHTML = this._rowMenuItems(kind).map((it) => `
       <button type="button" role="menuitem" class="sm-row-menu-item${it.danger ? ' danger' : ''}" data-action="${it.action}" data-id="${id}">
         <span class="sm-row-menu-ico" aria-hidden="true">${it.icon}</span>${this._escape(it.label)}
       </button>`).join('');
@@ -482,6 +490,8 @@ export class ServerManager {
       if (act === 'edit') return this._openInfoModal(rid);
       if (act === 'billing') return this._openBillingModal(rid);
       if (act === 'delete') return this._delete(rid);
+      if (act === 'group-edit') return this._editGroup(rid);
+      if (act === 'group-delete') return this._deleteGroup(rid);
     });
     // Position under the trigger, right-aligned; flip up if near viewport bottom.
     // CRITICAL: set position:fixed BEFORE measuring offsetWidth. Appended to
