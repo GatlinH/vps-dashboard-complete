@@ -2376,7 +2376,9 @@ html body.komari-admin-shell .komari-table-wrap {
   -webkit-overflow-scrolling: touch !important;
 }
 html body.komari-admin-shell .komari-node-table {
-  min-width: 980px !important;
+  /* min-width:980px removed — dead rule, overridden by node_table_readability
+     (#12, loaded later) which sets min-width:0 to fit the table in the content
+     area. Verified: table now shrinks to container with no horizontal scroll. */
   width: 100% !important;
 }
 html body.komari-admin-shell .komari-node-table th:last-child,
@@ -2445,7 +2447,7 @@ html body.komari-admin-shell.admin-day-mode .komari-panel-title small {
 }
 @media (max-width: 1180px) {
   html body.komari-admin-shell .komari-node-actions { justify-content: flex-start !important; }
-  html body.komari-admin-shell .komari-node-table { min-width: 920px !important; }
+  /* min-width:920px removed — dead rule, overridden by node_table_readability min-width:0. */
 }
 
 
