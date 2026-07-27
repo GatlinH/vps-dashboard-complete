@@ -421,13 +421,14 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   detailDays = [1, 4, 7, 30, 90].includes(requestedDetailDays) ? requestedDetailDays : 1;
   const detailBucketMinutes = ({ 1: 5, 4: 20, 7: 60, 30: 60, 90: 180 })[detailDays] || 60;
   const detailBucketMs = detailBucketMinutes * 60 * 1000;
-  const telemetryHours = detailDays * 24;
-  window.__DBG__.DETAIL_CHART_BUCKET = { days: detailDays, bucketMinutes: detailBucketMinutes, bucketMs: detailBucketMs };
+  const telemetryHours = 1;
+  const pingHours = 6;
+  const networkHours = 6;
+  window.__DBG__.DETAIL_CHART_BUCKET = { days: detailDays, bucketMinutes: detailBucketMinutes, bucketMs: detailBucketMs, telemetryHours, pingHours, networkHours };
   const cpu12hSeries = seriesWindowFromRows(probeRows, 'cpu_use', telemetryHours);
   const ram12hSeries = seriesWindowFromRows(probeRows, 'ram_use', telemetryHours);
   const fresh12hSeries = freshnessWindowFromRows(probeRows, telemetryHours);
   const freshnessMax = Math.max(6, Math.ceil(Math.max(...fresh12hSeries.map(point => Number(point.y) || 0), 0) + 1));
-  const pingHours = detailDays === 0 ? 12 : detailDays * 24;
   const ping24hDatasets = buildPingDatasets(probeRows, pingHours, pingTargetsData, pingTargetHistoryData);
   const pingAxisBounds = accumulatingAxisBoundsFromTimes(ping24hDatasets.flatMap(ds => (ds.data || []).map(p => p.x)), pingHours, 2 * 60 * 1000);
   const axis24h = Array.from({ length: 5 }, (_, i) => pingAxisBounds.min + (i / 4) * (pingAxisBounds.max - pingAxisBounds.min));
@@ -454,7 +455,6 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     border: { color: 'rgba(98,245,238,.18)' }
   });
   const fixedSmallY = (scale) => { scale.width = 28; };
-  const networkHours = detailDays === 0 ? 12 : detailDays * 24;
   const networkNow = latestTimelineMs(probeRows);
   const networkStart = networkNow - networkHours * 60 * 60 * 1000;
   const probeNetworkRows = (Array.isArray(probeRows) ? probeRows : []).map((row) => {

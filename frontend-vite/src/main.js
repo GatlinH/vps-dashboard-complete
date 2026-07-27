@@ -1705,7 +1705,7 @@ async function renderDetailPage(serverId) {
   // Fixed range budgets: 1d/5m=288 points, 4d/20m=288, 7d/1h=168.
   // Never return a full raw one-second day (21,600 rows / multi-MB JSON).
   const historyLimit = getDetailHistoryPointLimit(detailDays);
-  const targetHistoryHours = detailDays * 24;
+  const targetHistoryHours = 6;
   const settleWithin = (promise, timeoutMs, label) => Promise.race([
     promise.then((value) => ({ status: 'fulfilled', value }), (reason) => ({ status: 'rejected', reason })),
     new Promise((resolve) => setTimeout(() => resolve({ status: 'rejected', reason: new Error(`${label || 'detail'} timeout`) }), timeoutMs)),
@@ -1989,7 +1989,7 @@ async function refreshDetailHistoryRange(serverId) {
   const bucketMinutes = getDetailHistoryBucketMinutes(detailDays);
   const historyDays = detailDays;
   const limit = getDetailHistoryPointLimit(detailDays);
-  const targetHours = detailDays * 24;
+  const targetHours = 6;
   const startedAt = performance.now();
   window.__DBG__.DETAIL_RANGE_REFRESH = { serverId: Number(serverId), detailDays, bucketMinutes, status: 'loading' };
   document.querySelector('.history-range-bar')?.setAttribute('aria-busy', 'true');
@@ -2002,8 +2002,8 @@ async function refreshDetailHistoryRange(serverId) {
     // same rows instead of scanning ProbeResult twice per range switch.
     const [probeHistory, externalPingHistory, peerPingHistory] = await Promise.allSettled([
       fetchServerHistory(current.id, historyDays, limit, bucketMinutes),
-      fetchPingTargetHistory(current.id, targetHours, detailDays >= 30 ? 10000 : limit),
-      fetchPingTargetHistory(current.id, targetHours, detailDays >= 30 ? 10000 : limit, 'agent'),
+      fetchPingTargetHistory(current.id, targetHours, limit),
+      fetchPingTargetHistory(current.id, targetHours, limit, 'agent'),
     ]);
     if (probeHistory.status === 'fulfilled') {
       const probeData = probeHistory.value?.data || [];
@@ -2072,9 +2072,9 @@ async function refreshDetailRealtime(serverId) {
     // the network series from the same rows instead of a second ProbeResult scan.
     const [traffic, probeHistory, pingTargets, pingTargetHistory] = await Promise.allSettled([
       fetchJson(`${API_ROOT}/api/v1/traffic/public/${current.id}`, { timeoutMs: 1000 }),
-      fetchServerHistory(current.id, getDetailHistoryDays() === 0 ? 1 : getDetailHistoryDays(), getDetailHistoryDays() === 0 ? 21600 : 2000, getDetailHistoryBucketMinutes(getDetailHistoryDays())),
+      fetchServerHistory(current.id, getDetailHistoryDays(), getDetailHistoryPointLimit(getDetailHistoryDays()), getDetailHistoryBucketMinutes(getDetailHistoryDays())),
       shouldRefreshPingTargets ? fetchPingTargets(current.id, 3) : Promise.resolve(detailCache.pingTargets),
-      shouldRefreshPingTargets ? fetchPingTargetHistory(current.id, 12, getDetailHistoryDays() === 0 ? 21600 : 2000) : Promise.resolve(detailCache.pingTargetHistory),
+      shouldRefreshPingTargets ? fetchPingTargetHistory(current.id, 6, getDetailHistoryPointLimit(getDetailHistoryDays())) : Promise.resolve(detailCache.pingTargetHistory),
     ]);
     detailCache.traffic = traffic.status === 'fulfilled' ? traffic.value : detailCache.traffic;
     const heavyProbeData = probeHistory.status === 'fulfilled' ? probeHistory.value?.data : null;

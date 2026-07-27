@@ -131,6 +131,10 @@ export function renderDetailConsole(ctx) {
   const targetCount = (displayPingTargetsData?.targets || []).length || 0;
   const historyLabel = detailDays === 0 ? '今天' : `${detailDays}天`;
   const sampleLabel = detailBucketMinutes === 0 ? '实时' : `${detailBucketMinutes}分钟采样`;
+  const networkWindowLabel = '6小时';
+  const pingWindowLabel = '6小时';
+  const resourceWindowLabel = '1小时';
+  const resourceSampleLabel = '实时采样';
   return `
     <section class="fleet-detail-console">
       <header class="fleet-console-header">
@@ -155,11 +159,11 @@ export function renderDetailConsole(ctx) {
 
       ${h.renderRealtimeResourcePanels(resolvedServer, trafficData, upSeries, downSeries, displayCpuSeries, displayRamSeries, renderRuntimeEnvironmentCard(resolvedServer))}
       <main class="fleet-chart-matrix">
-        <div class="fleet-chart-card compact-metric-card network-throughput-card"><div class="fleet-chart-head"><span>网络吞吐量 · ${historyLabel} · ${sampleLabel}</span><strong>↑ ${h.detailRateValue(displayUpSeries, resolvedServer.net_up)} · ↓ ${h.detailRateValue(displayDownSeries, resolvedServer.net_down)}</strong></div><div class="network-legend"><i class="up"></i>上行 <i class="down"></i>下行</div><div class="network-chart-surface"><canvas id="detailNetworkChart"></canvas></div></div>
-        <div class="fleet-chart-card compact-metric-card ping-multi-card"><div class="fleet-chart-head"><span>PING 延迟 · ${historyLabel} · 掉线留空</span><strong>${targetCount} 目标</strong></div><canvas id="detailPingChart"></canvas></div>
-        <div class="fleet-chart-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>CPU 使用率 · ${historyLabel} · ${sampleLabel}</span><strong>${h.detailMetricValue(displayCpuSeries, resolvedServer.cpu_use, '%')}</strong></div><canvas id="detailCpuChart"></canvas></div>
-        <div class="fleet-chart-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>内存使用率 · ${historyLabel} · ${sampleLabel}</span><strong>${h.detailMetricValue(displayRamSeries, resolvedServer.ram_use, '%')}</strong></div><canvas id="detailMemoryChart"></canvas></div>
-        <div class="fleet-chart-card pseudo data-freshness-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>${t('dataFreshness')} · ${historyLabel}</span><strong>${freshMeta.ageText}</strong></div><div class="freshness-meta"><span>${t('sampleInterval')}: ${freshMeta.sampleSec ? `${freshMeta.sampleSec}s` : '—'}</span><span class="freshness-latest">${t('latestSample')}: ${freshMeta.ageText}</span></div><canvas id="detailFreshnessChart"></canvas></div>
+        <div class="fleet-chart-card compact-metric-card network-throughput-card"><div class="fleet-chart-head"><span>网络吞吐量 · ${networkWindowLabel} · ${sampleLabel}</span><strong>↑ ${h.detailRateValue(displayUpSeries, resolvedServer.net_up)} · ↓ ${h.detailRateValue(displayDownSeries, resolvedServer.net_down)}</strong></div><div class="network-legend"><i class="up"></i>上行 <i class="down"></i>下行</div><div class="network-chart-surface"><canvas id="detailNetworkChart"></canvas></div></div>
+        <div class="fleet-chart-card compact-metric-card ping-multi-card"><div class="fleet-chart-head"><span>PING 延迟 · ${pingWindowLabel} · 掉线留空</span><strong>${targetCount} 目标</strong></div><canvas id="detailPingChart"></canvas></div>
+        <div class="fleet-chart-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>CPU 使用率 · ${resourceWindowLabel} · ${resourceSampleLabel}</span><strong>${h.detailMetricValue(displayCpuSeries, resolvedServer.cpu_use, '%')}</strong></div><canvas id="detailCpuChart"></canvas></div>
+        <div class="fleet-chart-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>内存使用率 · ${resourceWindowLabel} · ${resourceSampleLabel}</span><strong>${h.detailMetricValue(displayRamSeries, resolvedServer.ram_use, '%')}</strong></div><canvas id="detailMemoryChart"></canvas></div>
+        <div class="fleet-chart-card pseudo data-freshness-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>${t('dataFreshness')} · ${resourceWindowLabel}</span><strong>${freshMeta.ageText}</strong></div><div class="freshness-meta"><span>${t('sampleInterval')}: ${freshMeta.sampleSec ? `${freshMeta.sampleSec}s` : '—'}</span><span class="freshness-latest">${t('latestSample')}: ${freshMeta.ageText}</span></div><canvas id="detailFreshnessChart"></canvas></div>
       </main>
 
       <section class="fleet-right-zone">

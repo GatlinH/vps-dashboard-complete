@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 
 const rangeSource = readFileSync(new URL('../src/detail/historyRange.js', import.meta.url), 'utf8');
 const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+const chartSource = readFileSync(new URL('../src/pages/detailCharts.js', import.meta.url), 'utf8');
 
 // A history-tab interaction must preserve the mounted detail page. It may fetch
 // and redraw charts, but must not invoke the full page renderer / remount map.
@@ -48,5 +49,15 @@ assert.match(mainSource, /peerPingPromise = settleWithin\(\s*fetchPingTargetHist
   'detail first paint must start peer PING history asynchronously without a separate target fetch');
 assert.match(mainSource, /DETAIL_PEER_PING_PROGRESSIVE_ERROR/,
   'peer PING completion must be handled outside the first-paint critical path');
+assert.match(chartSource, /const telemetryHours = 1;/,
+  'CPU, memory, and freshness charts must use a fixed 1-hour realtime window');
+assert.match(chartSource, /const pingHours = 6;/,
+  'PING charts must use a fixed 6-hour realtime window');
+assert.match(chartSource, /const networkHours = 6;/,
+  'network throughput charts must use a fixed 6-hour realtime window');
+assert.match(mainSource, /const targetHistoryHours = 6;/,
+  'initial PING history fetch must request only the realtime 6-hour window');
+assert.match(mainSource, /const targetHours = 6;/,
+  'range-refresh PING history fetch must request only the realtime 6-hour window');
 
 console.log('detail range local-refresh contract: ok');
