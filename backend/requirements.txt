@@ -33,7 +33,7 @@ mistune==3.2.0
 ordered-set==4.1.0
 packaging==26.1
 pluggy==1.6.0
-prometheus-client==0.25.0
+prometheus-client==0.26.0
 pycparser==3.0
 pygments==2.20.0
 pyjwt==2.12.1
@@ -54,5 +54,3 @@ tzlocal==5.3.1
 urllib3==2.6.3
 werkzeug==3.1.8
 wrapt==2.1.2
-
-authlib==1.6.4
