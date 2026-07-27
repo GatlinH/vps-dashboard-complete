@@ -18,14 +18,18 @@ assert.match(mainSource, /DETAIL_RANGE_REFRESH/,
   'range refresh must expose a runtime trace for deployed browser verification');
 assert.match(rangeSource, /30:\s*60/, '30-day range must use bounded hourly telemetry buckets');
 assert.match(rangeSource, /90:\s*180/, '90-day range must use a bounded three-hour display budget');
-assert.match(mainSource, /\[0, 1, 2, 3, 4, 5, 6, 7, 30, 90\]/,
-  'detail runtime must preserve explicitly-supported 30/90-day values');
-assert.match(mainSource, /detailDays >= 30 \? 10000 : limit/,
-  'long-range hourly PING requests must not truncate multi-target series at the general chart limit');
+assert.match(mainSource, /\[1, 4, 7, 30, 90\]/,
+  'detail runtime must preserve the explicitly-supported 1/4/7/30/90-day values');
+assert.match(mainSource, /getDetailHistoryPointLimit\(detailDays\)/,
+  'initial load and range refresh must share a bounded history point budget');
+assert.match(rangeSource, /Math\.ceil\(\(d \* 24 \* 60\) \/ bucketMinutes\)/,
+  'point budget must derive from the selected day range and bucket resolution');
+assert.match(rangeSource, /return Math\.max\(1, Math\.ceil/,
+  'point budget must always remain finite and positive');
 
 // Resolution ladder: every supported window maps to a bounded display bucket.
 // Raw windows (<=7d) use minute buckets; 30/90d use hourly rollups (60/180m).
-for (const [days, bucket] of [[1, 5], [7, 60], [30, 60], [90, 180]]) {
+for (const [days, bucket] of [[1, 5], [4, 20], [7, 60], [30, 60], [90, 180]]) {
   assert.match(rangeSource, new RegExp(`${days}:\\s*${bucket}`),
     `resolution ladder must map ${days}d to a ${bucket}m display bucket`);
 }
@@ -38,5 +42,11 @@ assert.doesNotMatch(mainSource, /traffic\/public\/\$\{current\.id\}\/history/,
 // Local skeleton: the chart matrix pulses in place during a range reload.
 assert.match(mainSource, /is-range-loading/,
   'range refresh must toggle the in-place chart skeleton class');
+assert.match(mainSource, /externalPingPromise = settleWithin\(\s*fetchPingTargetHistory/s,
+  'detail first paint must start external PING history asynchronously without a separate target fetch');
+assert.match(mainSource, /peerPingPromise = settleWithin\(\s*fetchPingTargetHistory/s,
+  'detail first paint must start peer PING history asynchronously without a separate target fetch');
+assert.match(mainSource, /DETAIL_PEER_PING_PROGRESSIVE_ERROR/,
+  'peer PING completion must be handled outside the first-paint critical path');
 
 console.log('detail range local-refresh contract: ok');
