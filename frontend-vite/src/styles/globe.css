@@ -1884,4 +1884,30 @@ html[data-theme="light"]:has(.public-overview-page) .public-overview-page.starsh
 .cluster-screen-fanout-member[data-shape="diamond"] .cluster-screen-fanout-marker { border-radius: 2px; transform: rotate(45deg); }
 .cluster-screen-fanout-member[data-shape="square"] .cluster-screen-fanout-marker { border-radius: 2px; }
 .cluster-screen-fanout-member[data-shape="triangle"] .cluster-screen-fanout-marker { clip-path: polygon(50% 0, 100% 100%, 0 100%); border: 0; }
-.cluster-screen-fanout-name { position: absolute; left: 18px; top: -14px; padding: 4px 7px; border: 1px solid color-mix(in srgb, var(--member-color), white 30%); border-radius: 5px; background: rgba(1, 10, 20, .88); white-space: nowrap; }
+.cluster-screen-fanout-name {
+  position: absolute;
+  left: 18px;
+  top: -14px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  /* Labels float directly over the globe: no opaque black pill behind 主控 / 分组名. */
+  background: transparent;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .92), 0 0 8px rgba(0, 0, 0, .66);
+}
+
+/* Folded same-location VPS labels (e.g. “主控 / 默认分组”) use a different
+   HTML-label path from the expanded fanout above. Keep them equally transparent;
+   visitor beacons retain their own translucent card styling. */
+.google-earth-node-html-label.is-vps-node {
+  padding: 0 !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .96), 0 0 8px rgba(0, 0, 0, .70) !important;
+}
+.google-earth-node-html-label.is-vps-node::after {
+  background: transparent !important;
+  box-shadow: none !important;
+}
