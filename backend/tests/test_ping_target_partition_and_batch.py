@@ -138,3 +138,33 @@ def test_probe_results_batch_rejects_oversized_batch(client, auth_headers, test_
     raw2 = json.dumps(at_cap, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     resp2 = client.post("/api/v1/agent/probe-results", data=raw2, headers=_agent_headers(agent_key, raw2, agent_uuid, nonce="nonce-atcap"))
     assert resp2.status_code == 202
+
+
+# ── 4. batch probe-results must also update hourly ping rollups ──────────────
+
+def test_probe_results_batch_updates_hourly_ping_rollups(client, auth_headers, test_server):
+    """The agent batch INSERT path must maintain ping_target_rollups so 30/90-day
+    charts and rollup-lag monitoring stay accurate; otherwise rollup lag grows
+    unbounded while raw rows keep arriving."""
+    key_resp = client.post(f"/api/v1/servers/{test_server}/agent-key/generate", headers=auth_headers)
+    agent_key = key_resp.get_json()["agent_key"]
+    agent_uuid = str(uuid.uuid4())
+    claim = client.post("/api/v1/agent/claim", json={"server_id": test_server, "uuid": agent_uuid}, headers=auth_headers)
+    assert claim.status_code == 200
+
+    batch = {
+        "agent_uuid": agent_uuid,
+        "results": [
+            {"key": "vps-7", "host": "10.0.0.7", "port": 22, "protocol": "tcp", "latency_ms": 10.0, "success": True, "loss_pct": 0, "created_at": "2026-07-25T10:00:01"},
+            {"key": "vps-7", "host": "10.0.0.7", "port": 22, "protocol": "tcp", "latency_ms": 20.0, "success": True, "loss_pct": 0, "created_at": "2026-07-25T10:00:02"},
+        ],
+    }
+    raw = json.dumps(batch, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    resp = client.post("/api/v1/agent/probe-results", data=raw, headers=_agent_headers(agent_key, raw, agent_uuid, nonce="nonce-rollup"))
+    assert resp.status_code == 202
+
+    from models.models import PingTargetRollup
+    row = PingTargetRollup.query.filter_by(server_id=test_server, target_key="vps-7").one()
+    assert row.sample_count == 2
+    assert row.success_count == 2
+    assert row.latency_sum == 30.0

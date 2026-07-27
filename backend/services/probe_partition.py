@@ -345,6 +345,33 @@ def is_partitioned(engine, table_name: str = TABLE_NAME) -> bool:
     return bool(partitions) and any(p["partition_name"] == _PMAX for p in partitions)
 
 
+def _drop_foreign_keys(conn, table: str) -> list[str]:
+    """Drop all foreign-key constraints on *table* (MySQL only).
+
+    MySQL RANGE partitioning is incompatible with foreign keys, so a table that
+    still carries an FK (e.g. probe_results_ibfk_1 → servers) cannot be
+    converted until the constraint is removed. Orphan cleanup on server delete
+    is handled explicitly in application code, so dropping the DB-level FK does
+    not change delete semantics. Returns the list of dropped constraint names.
+    """
+    rows = conn.execute(text(
+        "SELECT constraint_name FROM information_schema.table_constraints "
+        "WHERE table_schema = DATABASE() AND table_name = :t "
+        "AND constraint_type = 'FOREIGN KEY'"
+    ), {"t": table}).fetchall()
+    dropped: list[str] = []
+    for row in rows:
+        fk = row[0]
+        # Constraint names come from information_schema for our own table; still
+        # guard against unexpected characters before interpolating into DDL.
+        if not fk or not all(c.isalnum() or c in "_$" for c in fk):
+            log.error("probe_partition: skipping unsafe FK name=%r on %s", fk, table)
+            continue
+        conn.execute(text(f"ALTER TABLE {table} DROP FOREIGN KEY {fk}"))
+        dropped.append(fk)
+    return dropped
+
+
 def initialize_table_partitioning(
     engine,
     table_name: str,
@@ -377,6 +404,15 @@ def initialize_table_partitioning(
 
     try:
         with engine.connect() as conn:
+            # 0) MySQL partitioning is incompatible with foreign keys. Drop any
+            # FK constraints first (probe_results ships with an FK to servers);
+            # server-delete orphan cleanup is handled in application code.
+            dropped_fks = _drop_foreign_keys(conn, table)
+            if dropped_fks:
+                log.info(
+                    "probe_partition: dropped FK(s) %s on table=%s before partitioning",
+                    dropped_fks, table,
+                )
             # 1) Composite PK so the partition column is part of the primary key.
             conn.execute(text(
                 f"ALTER TABLE {table} DROP PRIMARY KEY, "

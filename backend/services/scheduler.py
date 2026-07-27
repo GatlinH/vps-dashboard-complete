@@ -264,6 +264,16 @@ def create_scheduler(app):
             name="ProbeResult 分区预创建（每天凌晨 1:30）",
             replace_existing=True,
         )
+        def _run_storage_monitor():
+            from services.storage_monitor import _job_storage_monitor
+            _job_storage_monitor(app)
+        scheduler.add_job(
+            func=_run_storage_monitor,
+            trigger="cron", hour=2, minute=30,
+            id="storage_monitor",
+            name="存储/保留健康检查（每天凌晨 2:30）",
+            replace_existing=True,
+        )
 
     scheduler.add_listener(_build_scheduler_listener(app), EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED)
 
@@ -971,6 +981,17 @@ def _job_probe_partition_maintain(app):
     with app.app_context():
         if not _is_mysql(db.engine):
             return
+
+        # Enable partitioning on first run if probe_results is still a plain
+        # table (older installs). This performs an online migration: drop the FK
+        # to servers, switch to a composite (id, created_at) PK, and convert to
+        # daily RANGE partitions. After this, retention cleanup can use the cheap
+        # DROP PARTITION path instead of a batched DELETE.
+        if not is_partitioned(db.engine):
+            if initialize_table_partitioning(db.engine, "probe_results"):
+                log.info(
+                    "probe_partition_maintain: enabled partitioning for probe_results"
+                )
 
         partitions = list_partitions(db.engine)
         has_pmax = any(p["partition_name"] == "pmax" for p in partitions)

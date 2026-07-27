@@ -1713,9 +1713,11 @@ async function renderDetailPage(serverId) {
   ]);
   const fetchBudgetMs = isMobileDetail ? 3600 : 12000;
   window.__DBG__.DETAIL_TRACE.push('before-fetches');
-  const [traffic, history, ping, probeHistory, pingTargets, pingTargetHistory, vpsProbeTargets, vpsProbeHistory] = await Promise.all([
+  // servers/history returns cpu/ram/disk/net_up/net_down/latency — a superset of
+  // traffic/history. Fetch it once (server-history) and derive the network
+  // series from the same rows instead of scanning ProbeResult twice on load.
+  const [traffic, ping, probeHistory, pingTargets, pingTargetHistory, vpsProbeTargets, vpsProbeHistory] = await Promise.all([
     settleWithin(fetchJson(`${API_ROOT}/api/v1/traffic/public/${resolvedServer.id}`, { timeoutMs: 1200 }), fetchBudgetMs, 'traffic'),
-    settleWithin(fetchJson(`${API_ROOT}/api/v1/traffic/public/${resolvedServer.id}/history?days=${detailDays}&bucket_minutes=${detailBucketMinutes}&limit=${liveLimit}`, { timeoutMs: isMobileDetail ? 2200 : 1200 }), fetchBudgetMs, 'traffic-history'),
     settleWithin(fetchPing(resolvedServer), fetchBudgetMs, 'ping'),
     settleWithin(fetchServerHistory(resolvedServer.id, historyDays, historyLimit, detailBucketMinutes), fetchBudgetMs, 'server-history'),
     settleWithin(fetchPingTargets(resolvedServer.id, 3), fetchBudgetMs, 'ping-targets'),
@@ -1725,9 +1727,10 @@ async function renderDetailPage(serverId) {
   ]);
 
   const trafficData = traffic.status === 'fulfilled' ? traffic.value : null;
-  const historyData = history.status === 'fulfilled' ? history.value : null;
   const pingData = ping.status === 'fulfilled' ? ping.value : null;
   const probeHistoryData = probeHistory.status === 'fulfilled' ? probeHistory.value : null;
+  // Network history is derived from the same server-history response.
+  const historyData = probeHistoryData;
   const pingTargetsData = pingTargets.status === 'fulfilled' ? pingTargets.value : null;
   const pingTargetHistoryData = pingTargetHistory.status === 'fulfilled' ? pingTargetHistory.value : null;
   const vpsProbeTargetsData = vpsProbeTargets.status === 'fulfilled' ? vpsProbeTargets.value : null;
@@ -1955,15 +1958,23 @@ async function refreshDetailHistoryRange(serverId) {
   const startedAt = performance.now();
   window.__DBG__.DETAIL_RANGE_REFRESH = { serverId: Number(serverId), detailDays, bucketMinutes, status: 'loading' };
   document.querySelector('.history-range-bar')?.setAttribute('aria-busy', 'true');
+  // Local skeleton: pulse the existing chart matrix in place instead of
+  // rebuilding the detail shell or star map while history reloads.
+  document.querySelector('.fleet-chart-matrix')?.classList.add('is-range-loading');
   try {
-    const [trafficHistory, probeHistory, externalPingHistory, peerPingHistory] = await Promise.allSettled([
-      fetchJson(`${API_ROOT}/api/v1/traffic/public/${current.id}/history?days=${historyDays}&bucket_minutes=${bucketMinutes}&limit=${limit}`, { timeoutMs: 12000 }),
+    // servers/history returns cpu/ram/disk/net_up/net_down/latency — a superset
+    // of traffic/history. Fetch it once and derive the network series from the
+    // same rows instead of scanning ProbeResult twice per range switch.
+    const [probeHistory, externalPingHistory, peerPingHistory] = await Promise.allSettled([
       fetchServerHistory(current.id, historyDays, limit, bucketMinutes),
       fetchPingTargetHistory(current.id, targetHours, detailDays >= 30 ? 10000 : limit),
       fetchPingTargetHistory(current.id, targetHours, detailDays >= 30 ? 10000 : limit, 'agent'),
     ]);
-    if (trafficHistory.status === 'fulfilled') detailCache.historyRows = normalizeHistory24h(trafficHistory.value?.data || []);
-    if (probeHistory.status === 'fulfilled') detailCache.probeRows = normalizePersistedRows(probeHistory.value?.data || [], historyDays * 24);
+    if (probeHistory.status === 'fulfilled') {
+      const probeData = probeHistory.value?.data || [];
+      detailCache.probeRows = normalizePersistedRows(probeData, historyDays * 24);
+      detailCache.historyRows = normalizeHistory24h(probeData);
+    }
     if (externalPingHistory.status === 'fulfilled') {
       detailCache.pingTargetHistory = externalPingHistory.value;
       if (externalPingHistory.value?.targets?.length) seedPingSamplesFromHistory(externalPingHistory.value, current.id);
@@ -2006,6 +2017,7 @@ async function refreshDetailHistoryRange(serverId) {
     console.warn('[detail] history-range refresh failed', error);
   } finally {
     document.querySelector('.history-range-bar')?.removeAttribute('aria-busy');
+    document.querySelector('.fleet-chart-matrix')?.classList.remove('is-range-loading');
   }
 }
 
@@ -2021,16 +2033,18 @@ async function refreshDetailRealtime(serverId) {
   const doHeavy = now - getDetailHeavyRefreshAt() > 60000;
   if (doHeavy) {
     const shouldRefreshPingTargets = !detailCache.pingTargets?.targets?.length || now - getDetailPingTargetsFetchedAt() > 15000;
-    const [traffic, history, probeHistory, pingTargets, pingTargetHistory] = await Promise.allSettled([
+    // server-history is a superset of traffic/history; fetch it once and derive
+    // the network series from the same rows instead of a second ProbeResult scan.
+    const [traffic, probeHistory, pingTargets, pingTargetHistory] = await Promise.allSettled([
       fetchJson(`${API_ROOT}/api/v1/traffic/public/${current.id}`, { timeoutMs: 1000 }),
-      fetchJson(`${API_ROOT}/api/v1/traffic/public/${current.id}/history?days=${getDetailHistoryDays()}&bucket_minutes=${getDetailHistoryBucketMinutes(getDetailHistoryDays())}&limit=${getDetailHistoryDays() === 0 ? 21600 : 2000}`, { timeoutMs: 3000 }),
       fetchServerHistory(current.id, getDetailHistoryDays() === 0 ? 1 : getDetailHistoryDays(), getDetailHistoryDays() === 0 ? 21600 : 2000, getDetailHistoryBucketMinutes(getDetailHistoryDays())),
       shouldRefreshPingTargets ? fetchPingTargets(current.id, 3) : Promise.resolve(detailCache.pingTargets),
       shouldRefreshPingTargets ? fetchPingTargetHistory(current.id, 12, getDetailHistoryDays() === 0 ? 21600 : 2000) : Promise.resolve(detailCache.pingTargetHistory),
     ]);
     detailCache.traffic = traffic.status === 'fulfilled' ? traffic.value : detailCache.traffic;
-    detailCache.historyRows = normalizeHistory24h((history.status === 'fulfilled' ? history.value?.data : detailCache.historyRows) || []);
-    detailCache.probeRows = normalizePersistedRows((probeHistory.status === 'fulfilled' ? probeHistory.value?.data : detailCache.probeRows) || [], Math.max(1, getDetailHistoryDays()) * 24);
+    const heavyProbeData = probeHistory.status === 'fulfilled' ? probeHistory.value?.data : null;
+    detailCache.historyRows = normalizeHistory24h(heavyProbeData || detailCache.historyRows || []);
+    detailCache.probeRows = normalizePersistedRows(heavyProbeData || detailCache.probeRows || [], Math.max(1, getDetailHistoryDays()) * 24);
     if (pingTargets.status === 'fulfilled' && (pingTargets.value?.targets?.length || pingTargets.value?.unavailable)) {
       detailCache.pingTargets = pingTargets.value;
       setDetailPingTargetsFetchedAt(now);

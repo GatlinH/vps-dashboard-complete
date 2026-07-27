@@ -611,6 +611,19 @@ def agent_probe_results():
             db.session.execute(db.text(
                 "INSERT INTO ping_target_results (server_id,target_key,label,host,port,protocol,latency_ms,success,loss_pct,quality,created_at) VALUES (:sid,:key,:label,:host,:port,:proto,:lat,:ok,:loss,:qual,:ts)"),
                 {"sid":server.id,"key":str(r.get("key") or r.get("host") or "unknown")[:128],"label":str(r.get("label") or r.get("host") or "")[:255],"host":str(r.get("host") or "")[:255],"port":r.get("port"),"proto":str(r.get("protocol") or "tcp")[:16],"lat":float(lat) if lat is not None else None,"ok":1 if lat is not None else 0,"loss":r.get("loss_pct"),"qual":int(r.get("quality",0)) if isinstance(r.get("quality"),(int,float)) else (100 if (r.get("latency_ms") and r["latency_ms"]<100) else (50 if r.get("latency_ms") and r["latency_ms"]<300 else 0)),"ts":row_ts})
+            # Maintain the hourly rollup for this raw sample so 30/90-day PING
+            # history and rollup-lag monitoring stay accurate. Without this the
+            # high-volume agent batch path leaves rollups permanently behind.
+            try:
+                from services.ping_rollups import record_ping_rollup
+                record_ping_rollup(server.id, {
+                    "key": r.get("key") or r.get("host") or "unknown",
+                    "label": r.get("label") or r.get("host") or "",
+                    "protocol": r.get("protocol") or "tcp",
+                    "stats": {"avg_ms": lat, "loss_pct": r.get("loss_pct")},
+                }, row_ts)
+            except Exception:
+                logger.exception("agent probe rollup write failed", extra={"server_id": server.id})
             stored += 1
         db.session.commit()
         logger.info("agent probe stored", extra={"server_id": server.id, "count": stored})

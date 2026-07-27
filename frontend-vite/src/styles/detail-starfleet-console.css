@@ -3364,3 +3364,23 @@ body.admin-bridge-mode {
   .detail-loading-status-bank { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
   .detail-loading-chart { min-height: 145px; }
 }
+
+/* Range-switch局部loading: 只脉冲现有图表矩阵，不重建DOM/星图。
+   由 refreshDetailHistoryRange 在 .history-range-bar[aria-busy] 期间套用。 */
+.history-range-bar[aria-busy="true"] { position: relative; }
+.history-range-bar[aria-busy="true"]::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, rgba(98,245,238,.85), transparent);
+  background-size: 220% 100%;
+  animation: detail-loading-shimmer 1.1s linear infinite;
+}
+.fleet-chart-matrix.is-range-loading { position: relative; transition: opacity .18s ease; }
+.fleet-chart-matrix.is-range-loading .fleet-chart-card {
+  opacity: .55; animation: detail-range-refresh-pulse 1.1s ease-in-out infinite;
+}
+@keyframes detail-range-refresh-pulse { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) {
+  .history-range-bar[aria-busy="true"]::after,
+  .fleet-chart-matrix.is-range-loading .fleet-chart-card { animation: none; }
+}

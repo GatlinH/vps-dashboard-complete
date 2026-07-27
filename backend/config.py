@@ -406,6 +406,12 @@ class Config:
     # Batch size for the ProbeResult cleanup loop inside delete_server and the
     # fallback batched DELETE in _job_cleanup.  Tune via .env if row density changes.
     PROBE_RESULT_DELETE_BATCH = int(os.getenv("PROBE_RESULT_DELETE_BATCH", "1000"))
+    # ── Storage / retention monitoring ───────────────────────────────────────
+    # Daily storage health job alert thresholds. The disk threshold exists to
+    # catch the failure mode that crash-looped MySQL (root disk at 100%).
+    STORAGE_DISK_ALERT_PCT = int(os.getenv("STORAGE_DISK_ALERT_PCT", "85"))
+    STORAGE_ROLLUP_LAG_ALERT_HOURS = int(os.getenv("STORAGE_ROLLUP_LAG_ALERT_HOURS", "6"))
+    STORAGE_PMAX_ALERT_ROWS = int(os.getenv("STORAGE_PMAX_ALERT_ROWS", "1"))
     AGENT_COMMAND_RETENTION_DAYS = int(os.getenv("AGENT_COMMAND_RETENTION_DAYS", "7"))
 
     # ── Alert Cooldown (P3-8) ────────────────────────────────────────────────
