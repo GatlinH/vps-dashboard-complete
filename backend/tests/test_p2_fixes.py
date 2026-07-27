@@ -164,9 +164,13 @@ def test_agent_ack_structured_logging_does_not_raise(client, auth_headers, test_
 
 
 def test_probe_result_retention_days_config_default(client):
-    """默认 PROBE_RESULT_RETENTION_DAYS 应为 30。"""
-    assert client.application.config.get("PROBE_RESULT_RETENTION_DAYS") == 30, (
-        "默认保留天数应为 30"
+    """默认 PROBE_RESULT_RETENTION_DAYS 应为 7。
+
+    长范围（30/90 天）图表已由 telemetry_rollups / ping_target_rollups 小时聚合
+    表提供，原始 probe_results 仅作短窗诊断源，默认保留 7 天以约束磁盘占用。
+    """
+    assert client.application.config.get("PROBE_RESULT_RETENTION_DAYS") == 7, (
+        "默认原始保留天数应为 7（长范围由小时 rollup 覆盖）"
     )
 
 

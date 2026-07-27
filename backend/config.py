@@ -388,10 +388,11 @@ class Config:
     SCHEDULER_TIMEZONE = os.getenv("SCHEDULER_TIMEZONE", "Asia/Shanghai")
     SCHEDULER_ALERT_ON_FAILURE = os.getenv("SCHEDULER_ALERT_ON_FAILURE", "1") == "1"
     SCHEDULER_FAILURE_ALERT_THRESHOLD = int(os.getenv("SCHEDULER_FAILURE_ALERT_THRESHOLD", "3"))
-    # Keep the established raw window during the rollup rollout. Operators may
-    # explicitly lower this to 7 after the hourly backfill is verified; never
-    # silently delete existing diagnostics just because a release adds rollups.
-    PROBE_RESULT_RETENTION_DAYS = int(os.getenv("PROBE_RESULT_RETENTION_DAYS", "30"))
+    # Raw telemetry is a short-window diagnostic source only. 30/90-day charts
+    # read bounded hourly telemetry_rollups / ping_target_rollups instead, so the
+    # raw window can stay short to keep disk usage bounded. Operators can raise
+    # this via env if they need a longer raw diagnostic window.
+    PROBE_RESULT_RETENTION_DAYS = int(os.getenv("PROBE_RESULT_RETENTION_DAYS", "7"))
     TELEMETRY_ROLLUP_RETENTION_DAYS = int(os.getenv("TELEMETRY_ROLLUP_RETENTION_DAYS", "180"))
     PING_ROLLUP_RETENTION_DAYS = int(os.getenv("PING_ROLLUP_RETENTION_DAYS", "180"))
     # ping_target_results (PING/peer latency samples) can grow fast when agents
