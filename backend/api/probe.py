@@ -628,6 +628,15 @@ def _tcp_ping_stats(host: str, port: int, count: int, timeout: float, protocol: 
 
 
 def _target_history_table_ready():
+    """Ensure PING history storage once per process, never once per request.
+
+    The table is normally created by schema_init. This fallback is retained for
+    older installs, but repeated CREATE TABLE DDL under concurrent detail/agent
+    requests can block InnoDB commits and must be avoided.
+    """
+    global _PTR_HISTORY_TABLE_READY
+    if _PTR_HISTORY_TABLE_READY:
+        return True
     try:
         is_mysql = db.engine.dialect.name in ("mysql", "pymysql", "mariadb")
         if is_mysql:
@@ -677,6 +686,7 @@ def _target_history_table_ready():
                 "CREATE INDEX IF NOT EXISTS idx_ptr_server_target_created "
                 "ON ping_target_results (server_id, target_key, created_at)"))
             db.session.commit()
+        _PTR_HISTORY_TABLE_READY = True
         return True
     except Exception:
         db.session.rollback()
@@ -684,6 +694,7 @@ def _target_history_table_ready():
 
 
 _PTR_PARTITION_CHECKED = False
+_PTR_HISTORY_TABLE_READY = False
 
 
 def _ensure_ping_target_partitioning():
@@ -735,6 +746,14 @@ def _persist_ping_target_results(server_id, targets, created_at=None):
                 "quality": t.get("quality"),
                 "created_at": created_at.replace(tzinfo=None) if hasattr(created_at, "replace") else created_at,
             })
+            # Long-range charts read one aggregate per target/hour rather than
+            # scanning raw per-second samples. It shares this transaction with
+            # the raw insert so a successful sample is represented consistently.
+            try:
+                from services.ping_rollups import record_ping_rollup
+                record_ping_rollup(server_id, t, created_at)
+            except Exception:
+                current_app.logger.exception("ping rollup write failed", extra={"server_id": server_id})
         db.session.commit()
     except Exception:
         db.session.rollback()
@@ -825,7 +844,9 @@ def _backend_fallback_probe_peer_targets(server_id, targets):
 @probe_bp.get("/public/ping-targets/<int:sid>/history")
 def public_ping_targets_history(sid):
     server = Server.query.get(sid)
-    hours = max(1, min(int(request.args.get("hours", 12)), 168))
+    # Long views are served from hourly aggregates and may span 90 days. Raw
+    # target samples remain capped at one week for bounded storage/query cost.
+    hours = max(1, min(int(request.args.get("hours", 12)), 2160))
     limit = max(1, min(int(request.args.get("limit", 2000)), 10000))
     source = str(request.args.get("source") or "public").strip().lower()
     if not server:
@@ -834,6 +855,20 @@ def public_ping_targets_history(sid):
         return resp
 
     configured = _server_peer_ping_targets(server)[0] if source == "agent" else _resolve_ping_targets_for_server(server)
+    if hours > 168:
+        try:
+            from services.ping_rollups import query_ping_rollups, serialize_ping_rollups
+            since = datetime.now(timezone.utc) - timedelta(hours=hours)
+            targets = serialize_ping_rollups(query_ping_rollups(sid, since, limit))
+            return jsonify({
+                "server_id": sid, "hours": hours, "targets": targets,
+                "derived_from": "hourly ping target rollups", "probe_source": source,
+                "history_source": "rollup", "bucket_minutes": 60,
+            })
+        except Exception as exc:
+            current_app.logger.error("ping rollup history failed: %s", exc)
+            return jsonify({"server_id": sid, "hours": hours, "targets": [], "derived_from": "rollup unavailable", "probe_source": source, "history_source": "rollup"}), 503
+
     if source == "agent" or _ping_targets_are_peer_targets(server, configured):
         # Peer latency history must come from agent reports only; never synthesize
         # controller/API-side fallback samples.

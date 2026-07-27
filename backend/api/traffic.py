@@ -11,6 +11,7 @@ from sqlalchemy.orm import load_only
 from sqlalchemy import func
 from extensions import db, redis_client
 from models.models import Server, ProbeResult
+from services.telemetry_rollups import query_hourly_telemetry_rollups, serialize_hourly_telemetry_rollup
 from middleware.rbac import admin_required, viewer_or_admin_required
 from werkzeug.exceptions import HTTPException
 from utils.errors import ValidationError, InternalServerError
@@ -67,13 +68,29 @@ def get_public_server_traffic(sid):
 def get_public_traffic_history(sid):
     """Public traffic history for display page."""
     try:
-        days = min(max(1, int(request.args.get('days', 7))), 30)
+        days = min(max(1, int(request.args.get('days', 7))), 90)
         limit = min(max(1, int(request.args.get('limit', 1000))), 21600)
         offset = max(0, int(request.args.get('offset', 0)))
         bucket_minutes = request.args.get('bucket_minutes', type=int)
 
         Server.query.get_or_404(sid)
         start_date = datetime.now(timezone.utc) - timedelta(days=days)
+        # 30/90-day traffic charts share the bounded hourly telemetry tier with
+        # CPU/RAM history. Never scan raw ProbeResult for a long view.
+        if days > 7 and bucket_minutes and int(bucket_minutes) >= 60:
+            rollups = query_hourly_telemetry_rollups(sid, start_date, limit)
+            if rollups:
+                data = []
+                for row in rollups:
+                    item = serialize_hourly_telemetry_rollup(row)
+                    data.append({
+                        'timestamp': item['created_at'],
+                        'net_up': item['net_up'],
+                        'net_down': item['net_down'],
+                        'samples': item['samples'],
+                        'bucket_minutes': 60,
+                    })
+                return jsonify(server_id=sid, days=days, total=len(data), limit=limit, offset=offset, data=data, count=len(data), bucketed=True, bucket_minutes=60, history_source='rollup')
         base_query = ProbeResult.query.filter(
             ProbeResult.server_id == sid,
             ProbeResult.created_at >= start_date

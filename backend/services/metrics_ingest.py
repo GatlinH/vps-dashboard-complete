@@ -172,18 +172,29 @@ def ingest_metrics(
         except (TypeError, ValueError):
             pass
 
+    snapshot = {
+        "cpu_use": applied.get("cpu_use", server.cpu_use),
+        "ram_use": applied.get("ram_use", server.ram_use),
+        "disk_use": applied.get("disk_use", server.disk_use),
+        "net_up": applied.get("net_up", server.net_up),
+        "net_down": applied.get("net_down", server.net_down),
+    }
     db.session.add(
         ProbeResult(
             server_id=server.id,
-            cpu_use=applied.get("cpu_use", server.cpu_use),
-            ram_use=applied.get("ram_use", server.ram_use),
-            disk_use=applied.get("disk_use", server.disk_use),
-            net_up=applied.get("net_up", server.net_up),
-            net_down=applied.get("net_down", server.net_down),
+            **snapshot,
             status=applied.get("status", server.status),
             latency_ms=latency_ms_validated,
         )
     )
+    # Hourly materialization bounds long-range storage/query cost. Failure must
+    # not reject a valid agent push, so the raw short-window ProbeResult remains
+    # authoritative until the next accepted sample repairs the rollup.
+    try:
+        from services.telemetry_rollups import record_telemetry_rollup
+        record_telemetry_rollup(server.id, snapshot)
+    except Exception:
+        logger.exception("ingest_metrics: telemetry rollup write failed", extra={"server_id": server.id, "source": source})
 
     logger.info(
         "ingest_metrics: applied fields=%s",

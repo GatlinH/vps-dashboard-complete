@@ -475,6 +475,57 @@ class ProbeResult(db.Model):
         )
 
 
+class TelemetryRollup(db.Model):
+    """Materialized telemetry summaries for long-range detail charts.
+
+    Raw ProbeResult rows remain the short-window diagnostic source. This table
+    contains one bounded aggregate per server/resolution/time bucket so 30/90-day
+    charts never scan or return second-level raw history.
+    """
+    __tablename__ = "telemetry_rollups"
+
+    id = db.Column(db.BigInteger().with_variant(db.Integer, 'sqlite'), primary_key=True, autoincrement=True)
+    server_id = db.Column(db.Integer, db.ForeignKey("servers.id", ondelete="CASCADE"), nullable=False, index=True)
+    resolution_minutes = db.Column(db.SmallInteger, nullable=False, default=60)
+    bucket_start = db.Column(db.DateTime, nullable=False, index=True)
+    sample_count = db.Column(db.Integer, nullable=False, default=0)
+    cpu_sum = db.Column(db.Float, nullable=False, default=0.0)
+    ram_sum = db.Column(db.Float, nullable=False, default=0.0)
+    disk_sum = db.Column(db.Float, nullable=False, default=0.0)
+    net_up_sum = db.Column(db.Float, nullable=False, default=0.0)
+    net_down_sum = db.Column(db.Float, nullable=False, default=0.0)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint('server_id', 'resolution_minutes', 'bucket_start', name='uq_telemetry_rollup_bucket'),
+        db.Index('idx_telemetry_rollup_range', 'server_id', 'resolution_minutes', 'bucket_start'),
+    )
+
+
+class PingTargetRollup(db.Model):
+    """Per-target hourly PING aggregates used by long-range chart requests."""
+    __tablename__ = "ping_target_rollups"
+
+    id = db.Column(db.BigInteger().with_variant(db.Integer, 'sqlite'), primary_key=True, autoincrement=True)
+    server_id = db.Column(db.Integer, db.ForeignKey("servers.id", ondelete="CASCADE"), nullable=False, index=True)
+    target_key = db.Column(db.String(128), nullable=False)
+    label = db.Column(db.String(255), nullable=False, default="")
+    protocol = db.Column(db.String(16), nullable=False, default="icmp")
+    bucket_start = db.Column(db.DateTime, nullable=False, index=True)
+    sample_count = db.Column(db.Integer, nullable=False, default=0)
+    success_count = db.Column(db.Integer, nullable=False, default=0)
+    latency_sum = db.Column(db.Float, nullable=False, default=0.0)
+    loss_sum = db.Column(db.Float, nullable=False, default=0.0)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint('server_id', 'target_key', 'bucket_start', name='uq_ping_target_rollup_bucket'),
+        db.Index('idx_ping_target_rollup_range', 'server_id', 'target_key', 'bucket_start'),
+    )
+
+
 class AlertRule(db.Model):
     __tablename__ = "alert_rules"
     

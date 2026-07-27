@@ -417,8 +417,9 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   chartLabels = chartLabels.length ? chartLabels : upSeries.map((_, i) => `T${String(i + 1).padStart(2, '0')}`);
   probeLabels = probeLabels.length ? probeLabels : cpuSeries.map((_, i) => `P${String(i + 1).padStart(2, '0')}`);
   const xTickFmt = (v) => formatHourTickWithDate(v);
-  detailDays = Math.max(0, Math.min(7, Number(detailDays ?? window.__DBG__.DETAIL_HISTORY_DAYS ?? 0) || 0));
-  const detailBucketMinutes = detailDays === 0 ? 0 : ({ 1: 5, 2: 10, 3: 15, 4: 20, 5: 30, 6: 30, 7: 60 })[detailDays] || 5;
+  const requestedDetailDays = Number(detailDays ?? window.__DBG__.DETAIL_HISTORY_DAYS ?? 0) || 0;
+  detailDays = [0, 1, 2, 3, 4, 5, 6, 7, 30, 90].includes(requestedDetailDays) ? requestedDetailDays : 0;
+  const detailBucketMinutes = detailDays === 0 ? 0 : ({ 1: 5, 2: 10, 3: 15, 4: 20, 5: 30, 6: 30, 7: 60, 30: 60, 90: 180 })[detailDays] || 60;
   const detailBucketMs = detailDays === 0 ? 1000 : detailBucketMinutes * 60 * 1000;
   const telemetryHours = detailDays === 0 ? 2 : detailDays * 24;
   window.__DBG__.DETAIL_CHART_BUCKET = { days: detailDays, bucketMinutes: detailBucketMinutes, bucketMs: detailBucketMs };

@@ -724,10 +724,34 @@ def _job_cleanup(app):
 
     retention_days = int(app.config.get("PROBE_RESULT_RETENTION_DAYS", 30))
     ptr_retention_days = int(app.config.get("PING_TARGET_RESULT_RETENTION_DAYS", 7))
+    rollup_retention_days = int(app.config.get("TELEMETRY_ROLLUP_RETENTION_DAYS", 180))
+    ping_rollup_retention_days = int(app.config.get("PING_ROLLUP_RETENTION_DAYS", 180))
     t0 = _time.perf_counter()
 
     with app.app_context():
         engine = db.engine
+        # Materialized hourly history is cheap but bounded as well. It has a
+        # separate retention window so 90-day detail views never require raw
+        # high-frequency ProbeResult storage.
+        try:
+            from services.telemetry_rollups import compact_telemetry_rollups
+            rollups_deleted = compact_telemetry_rollups(retention_days=rollup_retention_days)
+            if rollups_deleted:
+                db.session.commit()
+            log.info("telemetry_rollup_cleanup: rows=%d retention_days=%d", rollups_deleted, rollup_retention_days)
+        except Exception as exc:
+            db.session.rollback()
+            log.error("telemetry_rollup_cleanup failed: %s", exc)
+        try:
+            from services.ping_rollups import compact_ping_rollups
+            ping_rollups_deleted = compact_ping_rollups(retention_days=ping_rollup_retention_days)
+            if ping_rollups_deleted:
+                db.session.commit()
+            log.info("ping_rollup_cleanup: rows=%d retention_days=%d", ping_rollups_deleted, ping_rollup_retention_days)
+        except Exception as exc:
+            db.session.rollback()
+            log.error("ping_rollup_cleanup failed: %s", exc)
+
         # ── ping_target_results: DROP PARTITION cleanup on the shorter PTR window.
         # Only runs when the table is actually partitioned; the DELETE fallback
         # below handles pre-migration / SQLite via ProbeResult only, so PTR relies

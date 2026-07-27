@@ -17,6 +17,7 @@ from sqlalchemy import func
 from extensions import db
 import extensions
 from models.models import Server, ProbeResult, AgentCommand, record_ops_event
+from services.telemetry_rollups import query_hourly_telemetry_rollups, serialize_hourly_telemetry_rollup
 from services.server_groups import assign_server_group
 from utils.errors import ValidationError, InternalServerError
 from middleware.rbac import admin_required, viewer_or_admin_required, owner_required
@@ -579,6 +580,24 @@ def get_public_history(sid):
     days, limit, offset = _parse_history_pagination()
     bucket_minutes = request.args.get("bucket_minutes", type=int)
     since = datetime.now(timezone.utc) - timedelta(days=days)
+    # Long windows are served from bounded materialized hourly summaries. Raw
+    # ProbeResult remains the source for short diagnostics and for deployments
+    # which have not accumulated rollups yet.
+    if days > 7 and bucket_minutes and int(bucket_minutes) >= 60:
+        bucket_minutes = max(60, min(1440, int(bucket_minutes)))
+        rollups = query_hourly_telemetry_rollups(sid, since, limit)
+        if rollups:
+            data = []
+            for row in rollups:
+                item = serialize_hourly_telemetry_rollup(row)
+                item.update(server_id=sid, timestamp=item['created_at'])
+                data.append(item)
+            return jsonify(
+                data=data, total=len(data), bucketed=True,
+                bucket_minutes=60, days=days, limit=limit, offset=offset,
+                count=len(data), history_source='rollup',
+            )
+
     base_query = ProbeResult.query.filter(ProbeResult.server_id == sid, ProbeResult.created_at >= since)
     total = base_query.count()
     if bucket_minutes:

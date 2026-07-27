@@ -116,7 +116,7 @@ configureLanguageSwitcher({
 let detailHistoryDays = syncDetailHistoryStateFromStorage(0);
 window.__DBG__.DETAIL_HISTORY_DAYS = detailHistoryDays; // debug/read-only compatibility
 function setDetailHistoryDays(days) {
-  detailHistoryDays = setDetailHistoryDaysModule(days, renderDetailPage);
+  detailHistoryDays = setDetailHistoryDaysModule(days, refreshDetailHistoryRange);
 }
 
 function setCurrency(currency) {
@@ -1676,7 +1676,8 @@ function renderErrorLog(server, heartbeatSeries, pingData) {
 async function renderDetailPage(serverId) {
   window.__DBG__.DETAIL_TRACE = ['renderDetailPage:start', String(serverId)];
   loadStoredPingSamples(serverId);
-  const detailDays = Math.max(0, Math.min(7, Number(getDetailHistoryDays() || 0) || 0));
+  const requestedDetailDays = Number(getDetailHistoryDays() || 0) || 0;
+  const detailDays = [0, 1, 2, 3, 4, 5, 6, 7, 30, 90].includes(requestedDetailDays) ? requestedDetailDays : 0;
   const detailBucketMinutes = getDetailHistoryBucketMinutes(detailDays);
   try {
   const requestedId = Number(serverId);
@@ -1938,6 +1939,75 @@ const detailPingSamples = createDetailPingSampleCache({ pingStepValue });
 const DETAIL_PING_SAMPLE_WINDOW_MS = detailPingSamples.windowMs;
 function loadStoredPingSamples(serverId) { detailPingSamples.loadStored(serverId); }
 let overviewRefreshTimer = null;
+
+async function refreshDetailHistoryRange(serverId) {
+  const current = state.servers.find((item) => Number(item.id) === Number(serverId));
+  if (!current || !document.getElementById('detailNetworkChart')) return;
+  const requestedDetailDays = Number(getDetailHistoryDays() || 0) || 0;
+  const detailDays = [0, 1, 2, 3, 4, 5, 6, 7, 30, 90].includes(requestedDetailDays) ? requestedDetailDays : 0;
+  const bucketMinutes = getDetailHistoryBucketMinutes(detailDays);
+  const historyDays = detailDays === 0 ? 1 : detailDays;
+  const isMobile = window.matchMedia?.('(max-width: 720px)').matches;
+  const limit = detailDays === 0 ? 21600 : (isMobile ? 720 : 2000);
+  // Long PING views are sourced from hourly rollups; keep the response point
+  // budget bounded even where a node has many configured targets.
+  const targetHours = detailDays === 0 ? (isMobile ? 2 : 12) : detailDays * 24;
+  const startedAt = performance.now();
+  window.__DBG__.DETAIL_RANGE_REFRESH = { serverId: Number(serverId), detailDays, bucketMinutes, status: 'loading' };
+  document.querySelector('.history-range-bar')?.setAttribute('aria-busy', 'true');
+  try {
+    const [trafficHistory, probeHistory, externalPingHistory, peerPingHistory] = await Promise.allSettled([
+      fetchJson(`${API_ROOT}/api/v1/traffic/public/${current.id}/history?days=${historyDays}&bucket_minutes=${bucketMinutes}&limit=${limit}`, { timeoutMs: 12000 }),
+      fetchServerHistory(current.id, historyDays, limit, bucketMinutes),
+      fetchPingTargetHistory(current.id, targetHours, detailDays >= 30 ? 10000 : limit),
+      fetchPingTargetHistory(current.id, targetHours, detailDays >= 30 ? 10000 : limit, 'agent'),
+    ]);
+    if (trafficHistory.status === 'fulfilled') detailCache.historyRows = normalizeHistory24h(trafficHistory.value?.data || []);
+    if (probeHistory.status === 'fulfilled') detailCache.probeRows = normalizePersistedRows(probeHistory.value?.data || [], historyDays * 24);
+    if (externalPingHistory.status === 'fulfilled') {
+      detailCache.pingTargetHistory = externalPingHistory.value;
+      if (externalPingHistory.value?.targets?.length) seedPingSamplesFromHistory(externalPingHistory.value, current.id);
+    }
+    if (peerPingHistory.status === 'fulfilled') detailCache.vpsProbeHistory = peerPingHistory.value;
+
+    const historyRows = detailCache.historyRows || [];
+    const probeRows = detailCache.probeRows || [];
+    const trafficUpSeries = historyRows.map((row) => Number(row.net_up || 0));
+    const trafficDownSeries = historyRows.map((row) => Number(row.net_down || 0));
+    const probeUpSeries = numericMetricSeries(probeRows, 'net_up');
+    const probeDownSeries = numericMetricSeries(probeRows, 'net_down');
+    const upSeries = probeUpSeries.some((value) => Math.abs(value) > 0.01) ? probeUpSeries : trafficUpSeries;
+    const downSeries = probeDownSeries.some((value) => Math.abs(value) > 0.01) ? probeDownSeries : trafficDownSeries;
+    const chartLabels = historyRows.map((row, index) => row.ts || row.time || row.timestamp || `T${index + 1}`);
+    const probeLabels = probeRows.map((row, index) => row.created_at ? new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `P${index + 1}`);
+    await renderDetailMonitorCharts({
+      chartLabels, upSeries, downSeries, probeLabels,
+      cpuSeries: numericMetricSeries(probeRows, 'cpu_use'),
+      ramSeries: numericMetricSeries(probeRows, 'ram_use'),
+      probeRows,
+      pingTargetsData: detailCache.pingTargets,
+      pingTargetHistoryData: detailCache.pingTargetHistory,
+      vpsProbeTargetsData: detailCache.vpsProbeTargets,
+      vpsProbeHistoryData: detailCache.vpsProbeHistory,
+      detailDays,
+    });
+    document.querySelectorAll('[data-detail-history-days]').forEach((button) => {
+      button.classList.toggle('active', Number(button.dataset.detailHistoryDays) === detailDays);
+    });
+    const label = document.querySelector('.history-range-label');
+    if (label) label.textContent = `${detailDays === 0 ? '今天' : `${detailDays}天`} · ${bucketMinutes === 0 ? '实时' : `${bucketMinutes}分钟采样`}`;
+    window.__DBG__.DETAIL_RANGE_REFRESH = {
+      serverId: Number(serverId), detailDays, bucketMinutes, status: 'ready',
+      elapsedMs: Math.round(performance.now() - startedAt),
+      counts: { telemetry: probeRows.length, externalPingTargets: (detailCache.pingTargetHistory?.targets || []).length, peerPingTargets: (detailCache.vpsProbeHistory?.targets || []).length },
+    };
+  } catch (error) {
+    window.__DBG__.DETAIL_RANGE_REFRESH = { serverId: Number(serverId), detailDays, bucketMinutes, status: 'error', error: String(error?.message || error) };
+    console.warn('[detail] history-range refresh failed', error);
+  } finally {
+    document.querySelector('.history-range-bar')?.removeAttribute('aria-busy');
+  }
+}
 
 async function refreshDetailRealtime(serverId) {
   if (detailRefreshInFlight) return;
