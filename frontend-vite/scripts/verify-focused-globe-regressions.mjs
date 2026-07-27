@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { aggregateClusterStatus } from '../src/components/globe/vpsClusterInteraction.js';
+import { aggregateClusterStatus, buildClusterScreenFanout } from '../src/components/globe/vpsClusterInteraction.js';
 import { STATUS_COLORS } from '../src/components/globe-utils.js';
 
 const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
@@ -19,9 +19,31 @@ assert.match(globeSelection[0], /if \(selection\.type === 'navigate'\) \{ closeC
 assert.match(globeSelection[0], /showClusterFanout\(fanoutCluster, selection\.members\);/, 'a co-located anchor must explicitly expand into group HUD shapes');
 assert.doesNotMatch(globeSelection[0], /showClusterMemberPicker\(/, 'normal co-located anchors and labels must not open the member picker');
 assert.match(fanout[0], /member\.addEventListener\('click', \(event\) => \{ event\.stopPropagation\(\); onMemberClick\?\.\(item\.group\); }\)/, 'only an explicitly-expanded group HUD shape may invoke its picker callback');
+
+// Group IDs are allocated at creation. Fan-out must use four familiar shapes
+// before advancing fallback color, even when only a subset co-locates today.
+const fanoutGroups = Array.from({ length: 5 }, (_, index) => ({
+  id: index + 1,
+  status: 'online',
+  group_info: { id: index + 1, name: `group-${index + 1}`, purpose: '', color: '' },
+}));
+const shapeFirstFanout = buildClusterScreenFanout({ members: fanoutGroups, viewportWidth: 1440, viewportHeight: 900 });
+assert.deepEqual(shapeFirstFanout.slice(0, 4).map((item) => item.appearance.shape), ['circle', 'diamond', 'square', 'triangle'], 'first four created groups must consume common shapes in order');
+assert.equal(new Set(shapeFirstFanout.slice(0, 4).map((item) => item.appearance.color)).size, 1, 'the first shape batch must use one fallback color');
+assert.notEqual(shapeFirstFanout[4].appearance.color, shapeFirstFanout[0].appearance.color, 'only after common shapes are exhausted may the fallback color advance');
+const sparseFanout = buildClusterScreenFanout({ members: [fanoutGroups[1], fanoutGroups[4]], viewportWidth: 1440, viewportHeight: 900 });
+assert.deepEqual(sparseFanout.map((item) => item.appearance.shape), ['diamond', 'circle'], 'a group retains its creation-order shape when earlier groups are absent');
+assert.notEqual(sparseFanout[0].appearance.color, sparseFanout[1].appearance.color, 'a later color batch remains distinct in sparse co-location');
+const explicitColorFanout = buildClusterScreenFanout({ members: [{
+  id: 99,
+  status: 'online',
+  group_info: { id: 5, name: 'manual-color', purpose: '', color: '#123456' },
+}], viewportWidth: 1440, viewportHeight: 900 });
+assert.equal(explicitColorFanout[0].appearance.color, '#123456', 'an explicit server_groups color must override the fallback color batch');
+
 assert.match(stylesSource, /\.cluster-member-picker \{[^}]*background: rgba\(3,20,25,\.74\);[^}]*backdrop-filter: blur\(14px\) saturate\(1\.12\);/, 'member picker must use the translucent frosted beacon-callout treatment');
 assert.doesNotMatch(stylesSource, /\.cluster-member-picker \{[^}]*rgba\(7,12,23,\.96\)/, 'member picker must not use the opaque legacy panel background');
-assert.match(stylesSource, /html body \.google-earth-node-label-layer\.is-far-hidden \.google-earth-node-html-label\.is-vps-node\.is-vps-beacon-node\.is-visible \{[\s\S]*?background: rgba\(8, 18, 31, \.60\) !important;[\s\S]*?backdrop-filter: blur\(10px\)/, 'the final loaded stylesheet must override even the far-hidden starship beacon selector with translucent frosted styling');
+assert.match(stylesSource, /html body \.google-earth-node-label-layer\.is-far-hidden \.google-earth-node-html-label\.is-vps-node\.is-vps-beacon-node\.is-visible \{[\s\S]*?background: transparent !important;[\s\S]*?backdrop-filter: none !important;/, 'the final loaded stylesheet must keep VPS group labels transparent even in the far-hidden starship state');
 assert.match(cesiumSource, /const MOBILE_IMAGERY_TONE = \{ brightness: 0\.96, contrast: 1\.08, saturation: 1\.04, gamma: 1\.0 \};/, 'mobile imagery tone must be conservative and non-clipping');
 assert.match(cesiumSource, /Object\.assign\(base, \{ show: true, alpha: 1\.0, \.\.\.\(isMobileGlobe\(\) \? MOBILE_IMAGERY_TONE : DESKTOP_BASE_IMAGERY_TONE\) }\);/, 'base layer initialization must respect the mobile tone branch');
 assert.match(cesiumSource, /Object\.assign\(sat, \{ show: true, alpha: 1\.0, \.\.\.\(isMobileGlobe\(\) \? MOBILE_IMAGERY_TONE : DESKTOP_SAT_IMAGERY_TONE\) }\);/, 'satellite layer initialization must respect the mobile tone branch');
