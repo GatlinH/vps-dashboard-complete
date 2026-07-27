@@ -746,20 +746,44 @@ def _fetch_ping_target_history(server_id, hours=12, limit=2000):
     hours = max(1, min(int(hours or 12), 168))
     limit = max(1, min(int(limit or 2000), 10000))
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
-    # Fetch the MOST RECENT rows within the window, not the oldest. With many
-    # targets sharing one table, `ORDER BY created_at ASC LIMIT N` returns only
-    # the earliest N rows — which can be entirely one target (e.g. a peer that
-    # started sampling earlier), starving other targets (e.g. an external target
-    # that began later) to zero points. Order DESC to take the latest N, then
-    # reverse to ascending so the chart renders left-to-right in time order.
-    rows = db.session.execute(db.text("""
-        SELECT server_id, target_key, label, host, port, protocol, latency_ms, success, loss_pct, quality, created_at
+    since_naive = since.replace(tzinfo=None)
+    # The agent writes second-level samples. Returning raw rows with a global
+    # LIMIT makes a busy target consume the response and leaves later targets
+    # blank; it also returns only a short tail of a 12h axis. Aggregate by a
+    # dynamic time bucket instead: preserve the whole requested time span while
+    # keeping total points near the caller's chart-safe limit.
+    target_count = db.session.execute(db.text("""
+        SELECT COUNT(DISTINCT target_key)
         FROM ping_target_results
         WHERE server_id = :server_id AND created_at >= :since
-        ORDER BY created_at DESC
+    """), {"server_id": server_id, "since": since_naive}).scalar() or 1
+    points_per_target = max(1, limit // max(1, int(target_count)))
+    bucket_seconds = max(60, int((hours * 3600 + points_per_target - 1) // points_per_target))
+    rows = db.session.execute(db.text("""
+        SELECT
+          :server_id AS server_id,
+          target_key,
+          MAX(label) AS label,
+          MAX(host) AS host,
+          MAX(port) AS port,
+          MAX(protocol) AS protocol,
+          AVG(latency_ms) AS latency_ms,
+          MAX(success) AS success,
+          AVG(loss_pct) AS loss_pct,
+          MAX(quality) AS quality,
+          MAX(created_at) AS created_at
+        FROM ping_target_results
+        WHERE server_id = :server_id AND created_at >= :since
+        GROUP BY target_key, FLOOR(UNIX_TIMESTAMP(created_at) / :bucket_seconds)
+        ORDER BY created_at ASC
         LIMIT :limit
-    """), {"server_id": server_id, "since": since.replace(tzinfo=None), "limit": limit}).mappings().all()
-    return [dict(r) for r in reversed(rows)]
+    """), {
+        "server_id": server_id,
+        "since": since_naive,
+        "bucket_seconds": bucket_seconds,
+        "limit": limit,
+    }).mappings().all()
+    return [dict(r) for r in rows]
 
 
 
