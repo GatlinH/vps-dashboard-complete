@@ -16,15 +16,28 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# ── 弱默认值常量（用于对比检测） ────────────────────────────────────────────
-_WEAK_SECRET_KEY     = "change-me-in-production-32chars!"
-_WEAK_JWT_SECRET_KEY = "change-me-jwt-secret"
+# ── 生产配置缺失 sentinel（绝不提供可用的静态生产 secret） ────────────────
+# 仅用于产生清晰错误：正常生产部署由 install.sh 写入随机值到 secrets.env。
+_MISSING_SECRET_KEY = "__VPS_DASHBOARD_SECRET_KEY_MISSING__"
+_MISSING_JWT_SECRET_KEY = "__VPS_DASHBOARD_JWT_SECRET_KEY_MISSING__"
+_LEGACY_WEAK_SECRET_KEYS = {
+    "change-me-in-production",
+    "change-me-in-production-32chars!",
+    "change-me-jwt-secret",
+}
+_LEGACY_WEAK_MYSQL_PASSWORDS = {"vps_pass", "password", "root"}
 
 
 def _is_strong_password(value: str) -> bool:
-    """用于生产配置校验的最小强密码规则。"""
+    """用于生产配置校验的最小强密码规则。
+
+    安装器用 ``openssl rand -hex`` 生成 32+ 字符随机 hex，虽不含符号/大写，
+    但熵远高于人工复杂口令，必须作为安全值接受。
+    """
     if not value or len(value) < 12:
         return False
+    if len(value) >= 32 and all(ch in "0123456789abcdefABCDEF" for ch in value):
+        return True
     has_upper = any(ch.isupper() for ch in value)
     has_lower = any(ch.islower() for ch in value)
     has_digit = any(ch.isdigit() for ch in value)
@@ -63,22 +76,22 @@ def _validate_production_secrets():
 
     errors = []
 
-    secret_key = os.getenv("SECRET_KEY", _WEAK_SECRET_KEY)
-    if secret_key in (_WEAK_SECRET_KEY, "", "change-me-in-production", "change-me-in-production-32chars!"):
+    secret_key = os.getenv("SECRET_KEY", _MISSING_SECRET_KEY)
+    if secret_key in (_MISSING_SECRET_KEY, "") or secret_key in _LEGACY_WEAK_SECRET_KEYS:
         errors.append(
             "SECRET_KEY 仍为弱默认值。请在 .env 中设置长度 ≥ 32 的随机字符串。"
         )
 
-    jwt_secret = os.getenv("JWT_SECRET_KEY", "")
-    if not jwt_secret or jwt_secret in (_WEAK_JWT_SECRET_KEY, _WEAK_SECRET_KEY, "change-me-in-production"):
+    jwt_secret = os.getenv("JWT_SECRET_KEY", _MISSING_JWT_SECRET_KEY)
+    if jwt_secret in (_MISSING_JWT_SECRET_KEY, "") or jwt_secret in _LEGACY_WEAK_SECRET_KEYS:
         errors.append(
             "JWT_SECRET_KEY 未设置或仍为弱默认值。请在 .env 中设置长度 ≥ 32 的随机字符串。"
         )
 
-    mysql_password = os.getenv("MYSQL_PASSWORD", "vps_pass")
-    if mysql_password in ("vps_pass", "password", "root", ""):
+    mysql_password = os.getenv("MYSQL_PASSWORD", "")
+    if mysql_password in _LEGACY_WEAK_MYSQL_PASSWORDS or not _is_strong_password(mysql_password):
         errors.append(
-            "MYSQL_PASSWORD 仍为弱默认值 (vps_pass)。请在 .env 中设置强密码。"
+            "MYSQL_PASSWORD 缺失或强度不足。请通过安装器自动生成，或在 .env 中设置强随机密码。"
         )
 
     admin_default_password = os.getenv("ADMIN_DEFAULT_PASSWORD", "")
@@ -156,7 +169,7 @@ _validate_production_secrets()
 
 class Config:
     # ── 基本 ────────────────────────────────────────────────────────────────
-    SECRET_KEY              = os.getenv("SECRET_KEY", _WEAK_SECRET_KEY)
+    SECRET_KEY              = os.getenv("SECRET_KEY", _MISSING_SECRET_KEY)
     DEBUG                   = os.getenv("FLASK_DEBUG", "0") == "1"
     ADMIN_DEFAULT_PASSWORD  = os.getenv("ADMIN_DEFAULT_PASSWORD", "")
 
@@ -164,7 +177,7 @@ class Config:
     MYSQL_HOST         = os.getenv("MYSQL_HOST",     "127.0.0.1")
     MYSQL_PORT         = int(os.getenv("MYSQL_PORT", "3306"))
     MYSQL_USER         = os.getenv("MYSQL_USER",     "vps_user")
-    MYSQL_PASSWORD     = os.getenv("MYSQL_PASSWORD", "vps_pass")
+    MYSQL_PASSWORD     = os.getenv("MYSQL_PASSWORD", "")
     MYSQL_DB           = os.getenv("MYSQL_DB",       "vps_dashboard")
     SQLALCHEMY_DATABASE_URI = (
         f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}"

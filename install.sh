@@ -311,6 +311,72 @@ verify_repo() {
 # ─────────────────────────────────────────────────────────────────────────────
 # 管理 Secrets 文件
 # ─────────────────────────────────────────────────────────────────────────────
+# First install must never start with example/weak credentials. Existing strong
+# values are deliberately preserved; only blank, placeholder, legacy-default or
+# too-short values are replaced in-place.
+_secret_env_get() {
+  local key="$1"
+  sed -n "s/^${key}=//p" "${SECRETS_FILE}" | tail -n 1
+}
+
+_secret_env_set() {
+  local key="$1" value="$2"
+  if grep -qE "^${key}=" "${SECRETS_FILE}"; then
+    sed -i "s|^${key}=.*|${key}=${value}|" "${SECRETS_FILE}"
+  else
+    printf '%s=%s\n' "${key}" "${value}" >> "${SECRETS_FILE}"
+  fi
+}
+
+_secret_value_needs_generation() {
+  local value="$2"
+  # Safe to auto-fill only values which are clearly uninitialized placeholders.
+  # Never silently rotate a deployed credential: MySQL/Redis state would need a
+  # coordinated password change too.
+  [[ -z "${value}" || "${value}" == CHANGE_ME* || "${value}" == __VPS_DASHBOARD_* ]]
+}
+
+_ensure_secret_value() {
+  local key="$1" generator="$2" current
+  current="$(_secret_env_get "${key}")"
+  if _secret_value_needs_generation "${key}" "${current}"; then
+    _secret_env_set "${key}" "$(eval "${generator}")"
+    log_warn "已为 ${key} 生成安全随机值（未回显）。"
+  fi
+}
+
+_harden_existing_secrets() {
+  [[ -f "${SECRETS_FILE}" ]] || return 0
+  local changed=0
+  local pair key generator
+  for pair in \
+    'SECRET_KEY:openssl rand -hex 32' \
+    'JWT_SECRET_KEY:openssl rand -hex 32' \
+    'MYSQL_ROOT_PASSWORD:openssl rand -hex 24' \
+    'MYSQL_PASSWORD:openssl rand -hex 24' \
+    'REDIS_PASSWORD:openssl rand -hex 24' \
+    'MASTER_ENCRYPTION_KEY:openssl rand -hex 32' \
+    'WATCHTOWER_HTTP_API_TOKEN:openssl rand -hex 32'; do
+    key="${pair%%:*}"
+    generator="${pair#*:}"
+    if _secret_value_needs_generation "${key}" "$(_secret_env_get "${key}")"; then
+      _ensure_secret_value "${key}" "${generator}"
+      changed=1
+    fi
+  done
+  # Origins are deployment-specific, not random. A local-only first-install
+  # origin is safe; operators must explicitly replace it with their public URL.
+  if _secret_value_needs_generation CORS_ORIGINS "$(_secret_env_get CORS_ORIGINS)"; then
+    _secret_env_set CORS_ORIGINS 'http://127.0.0.1'
+    changed=1
+  fi
+  if _secret_value_needs_generation FRONTEND_URL "$(_secret_env_get FRONTEND_URL)"; then
+    _secret_env_set FRONTEND_URL 'http://127.0.0.1'
+    changed=1
+  fi
+  (( changed )) && log_ok "已补齐/替换不安全 Secrets；现有强值保持不变。"
+}
+
 manage_secrets() {
   log_section "Secrets 管理"
 
@@ -347,6 +413,9 @@ EOF
     log_ok "已自动生成安全 Secrets 文件（权限 600）：${SECRETS_FILE}"
   fi
 
+  # Also harden an existing file copied from .env.example or an old deployment.
+  # Strong existing production values are left untouched.
+  _harden_existing_secrets
   chmod 600 "${SECRETS_FILE}"
   log_ok "Secrets 文件：${SECRETS_FILE}（权限 600）"
 }
@@ -382,12 +451,19 @@ validate_secrets() {
     fi
   done
 
+  # Do not silently rotate legacy live credentials. Reject them so an operator
+  # can perform a coordinated database/cache password rotation instead.
+  case "${MYSQL_PASSWORD:-}" in vps_pass|password|root) missing+=("MYSQL_PASSWORD（弱旧默认值，需显式轮换）");; esac
+  case "${MYSQL_ROOT_PASSWORD:-}" in password|root) missing+=("MYSQL_ROOT_PASSWORD（弱旧默认值，需显式轮换）");; esac
+  case "${SECRET_KEY:-}" in change-me-in-production*|"" ) missing+=("SECRET_KEY（弱旧默认值/未设置）");; esac
+  case "${JWT_SECRET_KEY:-}" in change-me-*|"" ) missing+=("JWT_SECRET_KEY（弱旧默认值/未设置）");; esac
+
   if [[ ${#missing[@]} -gt 0 ]]; then
     log_error "以下必填变量未正确配置，请编辑 ${SECRETS_FILE}："
     for m in "${missing[@]}"; do
       log_error "  ✗ ${m}"
     done
-    die "修正后重新运行 sudo ./install.sh"
+    die "新安装请删除仅含占位符的 secrets.env 后重跑以自动生成；已有部署请先按轮换流程更新密码。"
   fi
 
   for var in "${REQUIRED_VARS[@]}"; do
