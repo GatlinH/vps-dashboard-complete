@@ -265,9 +265,6 @@ export class ServerManager {
         </div>
 
         <div id="sm-groups-view" hidden>
-          <div class="sm-groups-head">
-            <button id="sm-groups-back" type="button" class="komari-secondary">← 返回节点列表</button>
-          </div>
           <p class="komari-note">分组保存在后台 <code>server_groups</code>。节点编辑下拉、资产总览 Tab/分区都读这里；与地球「同地点聚合」无关。</p>
           <div class="sm-groups-layout">
             <section class="komari-panel sm-group-form-panel">
@@ -302,7 +299,6 @@ export class ServerManager {
 
   _bind() {
     this._el.querySelector('#sm-add-node').addEventListener('click', () => this._openAddModal());
-    this._el.querySelector('#sm-groups-back')?.addEventListener('click', () => this._setView('nodes'));
     this._el.querySelectorAll('[data-sm-view]').forEach((btn) => {
       btn.addEventListener('click', () => this._setView(btn.dataset.smView));
     });
