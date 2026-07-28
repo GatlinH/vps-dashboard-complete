@@ -45,6 +45,9 @@ def test_install_script_fetches_only_canonical_runtime_files(client):
     assert "fetch_runtime agent_tasks.py" in script
     assert "/api/v1/agent/runtime/$name" in script
     assert "python3 -m py_compile" in script
+    assert "systemctl enable \"$SERVICE_NAME\"" in script
+    assert "systemctl restart \"$SERVICE_NAME\"" in script
+    assert "systemctl enable --now" not in script
     assert "ExecStart=/usr/bin/python3 $INSTALL_DIR/vps-agent.py" in script
 
 

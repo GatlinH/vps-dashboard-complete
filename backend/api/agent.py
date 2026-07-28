@@ -834,7 +834,10 @@ WorkingDirectory=$INSTALL_DIR
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
-systemctl enable --now "$SERVICE_NAME"
+# enable --now does not restart an already-active unit; explicitly restart so an
+# upgrade cannot leave the old Agent process running against newly installed code.
+systemctl enable "$SERVICE_NAME"
+systemctl restart "$SERVICE_NAME"
 systemctl status "$SERVICE_NAME" --no-pager --full | sed -n "1,20p"
 echo "installed: $SERVICE_NAME"
 '''
