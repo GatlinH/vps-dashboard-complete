@@ -59,5 +59,11 @@ assert.match(mainSource, /const targetHistoryHours = 6;/,
   'initial PING history fetch must request only the realtime 6-hour window');
 assert.match(mainSource, /const targetHours = 6;/,
   'range-refresh PING history fetch must request only the realtime 6-hour window');
+assert.match(mainSource, /const fetchBudgetMs = isMobileDetail \? 1200 : 1800;/,
+  'first paint must have a bounded short telemetry wait budget');
+assert.match(mainSource, /setDetailHeavyRefreshAt\(0\)/,
+  'initial realtime refresh must immediately backfill persisted telemetry');
+assert.match(mainSource, /const settleRealtimePing = \(promise\)/,
+  'slow PING refreshes must be independently bounded from telemetry redraws');
 
 console.log('detail range local-refresh contract: ok');

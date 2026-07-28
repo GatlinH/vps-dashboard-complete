@@ -1710,7 +1710,10 @@ async function renderDetailPage(serverId) {
     promise.then((value) => ({ status: 'fulfilled', value }), (reason) => ({ status: 'rejected', reason })),
     new Promise((resolve) => setTimeout(() => resolve({ status: 'rejected', reason: new Error(`${label || 'detail'} timeout`) }), timeoutMs)),
   ]);
-  const fetchBudgetMs = isMobileDetail ? 3600 : 12000;
+  // First paint must never wait a full detail-history timeout. Render current
+  // server snapshot after a short budget; the immediate background refresh below
+  // backfills persisted series in place without holding cards/charts hostage.
+  const fetchBudgetMs = isMobileDetail ? 1200 : 1800;
   window.__DBG__.DETAIL_TRACE.push('before-fetches');
   // servers/history returns cpu/ram/disk/net_up/net_down/latency — a superset of
   // traffic/history. Fetch it once (server-history) and derive the network
@@ -2068,13 +2071,19 @@ async function refreshDetailRealtime(serverId) {
   const doHeavy = now - getDetailHeavyRefreshAt() > 60000;
   if (doHeavy) {
     const shouldRefreshPingTargets = !detailCache.pingTargets?.targets?.length || now - getDetailPingTargetsFetchedAt() > 15000;
+    // PING is optional for a telemetry redraw. Bound it independently so a slow
+    // target lookup cannot postpone CPU/network/freshness by tens of seconds.
+    const settleRealtimePing = (promise) => Promise.race([
+      promise,
+      new Promise((resolve) => setTimeout(() => resolve(null), 1800)),
+    ]);
     // server-history is a superset of traffic/history; fetch it once and derive
     // the network series from the same rows instead of a second ProbeResult scan.
     const [traffic, probeHistory, pingTargets, pingTargetHistory] = await Promise.allSettled([
       fetchJson(`${API_ROOT}/api/v1/traffic/public/${current.id}`, { timeoutMs: 1000 }),
       fetchServerHistory(current.id, getDetailHistoryDays(), getDetailHistoryPointLimit(getDetailHistoryDays()), getDetailHistoryBucketMinutes(getDetailHistoryDays())),
-      shouldRefreshPingTargets ? fetchPingTargets(current.id, 3) : Promise.resolve(detailCache.pingTargets),
-      shouldRefreshPingTargets ? fetchPingTargetHistory(current.id, 6, getDetailHistoryPointLimit(getDetailHistoryDays())) : Promise.resolve(detailCache.pingTargetHistory),
+      shouldRefreshPingTargets ? settleRealtimePing(fetchPingTargets(current.id, 3)) : Promise.resolve(detailCache.pingTargets),
+      shouldRefreshPingTargets ? settleRealtimePing(fetchPingTargetHistory(current.id, 6, getDetailHistoryPointLimit(getDetailHistoryDays()))) : Promise.resolve(detailCache.pingTargetHistory),
     ]);
     detailCache.traffic = traffic.status === 'fulfilled' ? traffic.value : detailCache.traffic;
     const heavyProbeData = probeHistory.status === 'fulfilled' ? probeHistory.value?.data : null;
@@ -2137,7 +2146,9 @@ async function refreshDetailRealtime(serverId) {
 
 function startDetailRealtimeRefresh(serverId) {
   stopDetailRealtimeRefresh();
-  setDetailHeavyRefreshAt(Date.now());
+  // Force the initial 5-second refresh invocation to fetch persisted telemetry
+  // immediately; subsequent heavy refreshes remain rate-limited to once/minute.
+  setDetailHeavyRefreshAt(0);
   startDetailRefreshTimer(() => refreshDetailRealtime(serverId).catch((error) => {
     window.__DBG__.DETAIL_REFRESH_ERROR = String(error?.stack || error);
     console.warn('[detail] realtime refresh failed', error);
