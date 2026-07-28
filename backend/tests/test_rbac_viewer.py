@@ -9,7 +9,7 @@ RBAC viewer 角色测试 — 覆盖 P2 "多用户权限体系" 中 viewer 只读
 """
 import pytest
 from werkzeug.security import generate_password_hash
-from models.models import User, Server
+from models.models import User, Server, OpsEvent
 from extensions import db as _db
 
 
@@ -309,7 +309,48 @@ class TestPlainUserDenied:
         assert resp.status_code == 403
 
 
-# ── 6. /api/auth/me 返回正确角色 ─────────────────────────────────────────────
+# ── 6. viewer Ops 事件必须脱敏节点网络标识 ───────────────────────────────────
+
+
+def test_viewer_ops_events_masks_network_payload_but_admin_keeps_detail(app, client, viewer_headers, admin_headers):
+    with app.app_context():
+        event = OpsEvent(
+            event_type='agent_push_ok',
+            title='Agent 上报成功',
+            payload={
+                'ip': '203.0.113.42',
+                'remote_addr': '2001:db8:abcd::42',
+                'uuid': 'agent-internal-uuid',
+                'status': 'online',
+            },
+        )
+        _db.session.add(event)
+        _db.session.commit()
+        event_id = event.id
+
+    try:
+        viewer = client.get('/api/v1/ops/events?limit=200', headers=viewer_headers)
+        assert viewer.status_code == 200
+        viewer_event = next(item for item in viewer.get_json()['events'] if item['id'] == event_id)
+        assert viewer_event['payload']['ip'] == '203.0.*.*'
+        assert viewer_event['payload']['remote_addr'] == '2001:db8:*'
+        assert 'uuid' not in viewer_event['payload']
+        assert viewer_event['payload']['status'] == 'online'
+
+        admin = client.get('/api/v1/ops/events?limit=200', headers=admin_headers)
+        assert admin.status_code == 200
+        admin_event = next(item for item in admin.get_json()['events'] if item['id'] == event_id)
+        assert admin_event['payload']['ip'] == '203.0.113.42'
+        assert admin_event['payload']['uuid'] == 'agent-internal-uuid'
+    finally:
+        with app.app_context():
+            row = _db.session.get(OpsEvent, event_id)
+            if row:
+                _db.session.delete(row)
+                _db.session.commit()
+
+
+# ── 7. /api/auth/me 返回正确角色 ─────────────────────────────────────────────
 
 
 class TestMeEndpointRole:

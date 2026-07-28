@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify, request, current_app, send_file, Response
+from flask_jwt_extended import get_jwt
 from middleware.rbac import viewer_or_admin_required, admin_required, owner_required
 from middleware.rate_limit import limiter
 from models.models import db, OpsEvent, Server, TelegramConfig, record_ops_event
@@ -200,6 +201,43 @@ def updates_apply():
     ), 202 if ok else 502
 
 
+def _mask_ip(value) -> str:
+    """Mask an IP for read-only collaborators without exposing host addresses."""
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    if "." in raw:
+        parts = raw.split(".")
+        if len(parts) == 4:
+            return ".".join(parts[:2] + ["*", "*"])
+    if ":" in raw:
+        chunks = raw.split(":")
+        return ":".join(chunks[:2] + ["*"])
+    return "***"
+
+
+def _serialize_ops_event(event: OpsEvent, redact_network: bool) -> dict:
+    data = event.to_dict()
+    if not redact_network:
+        return data
+    payload = dict(data.get("payload") or {})
+    for key in ("ip", "remote_addr", "client_ip", "agent_ip", "local_ipv4", "local_ipv6"):
+        if key in payload:
+            value = payload[key]
+            if isinstance(value, list):
+                payload[key] = [_mask_ip(item) for item in value]
+            else:
+                payload[key] = _mask_ip(value)
+    # Agent UUIDs are operational identifiers, not useful for a viewer timeline.
+    payload.pop("uuid", None)
+    data["payload"] = payload
+    return data
+
+
+def _viewer_network_redaction() -> bool:
+    return str((get_jwt() or {}).get("role") or "") == "viewer"
+
+
 @ops_bp.get("/events")
 @viewer_or_admin_required
 def list_ops_events():
@@ -212,16 +250,18 @@ def list_ops_events():
     if server_id:
         query = query.filter(OpsEvent.server_id == server_id)
     items = query.limit(limit).all()
-    return jsonify(events=[i.to_dict() for i in items], total=len(items)), 200
+    redact_network = _viewer_network_redaction()
+    return jsonify(events=[_serialize_ops_event(i, redact_network) for i in items], total=len(items)), 200
 
 
 @ops_bp.get("/summary")
 @viewer_or_admin_required
 def ops_summary():
     rows = OpsEvent.query.order_by(OpsEvent.created_at.desc()).limit(240).all()
+    redact_network = _viewer_network_redaction()
 
     def pick(types):
-        return [r.to_dict() for r in rows if r.event_type in types][:12]
+        return [_serialize_ops_event(r, redact_network) for r in rows if r.event_type in types][:12]
 
     return jsonify(
         recent_agent_failures=pick(["agent_register_failed", "agent_push_failed"]),
