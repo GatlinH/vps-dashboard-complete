@@ -64,10 +64,13 @@ assert.ok(arcGisAwaitIndex < cloudAwaitIndex, 'cloud initialization must remain 
 assert.match(imagerySource.slice(arcGisAwaitIndex, cloudAwaitIndex), /\} catch \(e\) \{[\s\S]*?imageryError/, 'ArcGIS initialization must handle its own failure before cloud initialization');
 assert.match(imagerySource.slice(cloudAwaitIndex), /\} catch \(e\) \{[\s\S]*?imageryError/, 'cloud initialization must handle its own failure');
 
-assert.match(mainSource, /new StarshipShowcase\(stage, \{[\s\S]*?modelUrl: '\/globe\/xinjian1\.glb'[\s\S]*?fallbackModelUrl: '\/globe\/star_trek_dsc_enterprise_user\.glb'/, 'homepage mounts independent original-model StarshipShowcase');
+assert.match(mainSource, /new StarshipShowcase\(stage, \{[\s\S]*?modelUrl: '\/globe\/xinjian1\.glb\?v=20260728'[\s\S]*?fallbackModelUrl: ''[\s\S]*?deferMs: 1200/, 'homepage must defer the versioned original model and fail-soft instead of downloading a duplicate GLB');
+assert.doesNotMatch(mainSource, /star_trek_dsc_enterprise_user\.glb/, 'homepage must not request the duplicate legacy Enterprise asset');
 assert.match(mainSource, /enableStarship: false/, 'Cesium embedded starship must stay disabled on home');
 assert.match(showcaseSource, /_installInteractionHandlers/, 'independent showcase must keep interaction handlers');
+assert.match(showcaseSource, /_makeGlowTexture\(r, g, b\)/, 'Bussard collector fidelity must define its glow texture helper before use');
 assert.match(showcaseSource, /camera\.position\.set\(0\.0, 0\.06, 9\.35\)/, 'original-model complete-silhouette camera baseline');
+assert.match(showcaseSource, /basePosition = new THREE\.Vector3\(2\.15, -0\.16, 0\.0\)/, 'Enterprise hero must be pulled inside the desktop right viewport boundary');
 const clusterAnchorSource = vpsEntitiesSource.match(/const anchorEntity = globe\.viewer\.entities\.add\(\{[\s\S]*?globe\._nodeEntities\.push\(anchorEntity\);/);
 assert.ok(clusterAnchorSource, 'cluster VPS markers must create one anchor point');
 assert.match(clusterAnchorSource[0], /position: Cesium\.Cartesian3\.fromDegrees\(lon, lat, 1200\),[\s\S]*?point: anchorPoint/, 'cluster anchors must lift complete health-colored points above terrain depth clipping');

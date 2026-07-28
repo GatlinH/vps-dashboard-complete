@@ -355,10 +355,11 @@ function getGlobe() {
     try { starshipShowcase?.destroy?.(); } catch (_) {}
     try {
       starshipShowcase = new StarshipShowcase(stage, {
-        // Full original xinjian1 (textures + denser meshes) from /root/xinjian1.glb
-        modelUrl: '/globe/xinjian1.glb',
-        fallbackModelUrl: '/globe/star_trek_dsc_enterprise_user.glb',
-        deferMs: 180,
+        // Full original xinjian1 (textures + denser meshes) from /root/xinjian1.glb.
+        // Keep fail-soft behavior rather than fetching a duplicate 55MB legacy URL.
+        modelUrl: '/globe/xinjian1.glb?v=20260728',
+        fallbackModelUrl: '',
+        deferMs: 1200,
       });
       window.__starshipShowcase = starshipShowcase;
       window.__DBG__.starshipShowcase = starshipShowcase;

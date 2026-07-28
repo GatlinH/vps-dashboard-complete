@@ -67,7 +67,10 @@ def _register_frontend_routes(app: Flask):
         response = send_from_directory(frontend_dist, path)
         if path in {"sw.js", "manifest.webmanifest"}:
             response.headers["Cache-Control"] = "no-cache"
-        elif "/assets/" in f"/{path}" or path.endswith((".js", ".css", ".woff", ".woff2")):
+        elif "/assets/" in f"/{path}" or path.endswith((".js", ".css", ".woff", ".woff2", ".glb", ".gltf", ".bin")):
+            # Hero GLBs are immutable release assets. Keep their bytes in the
+            # browser cache instead of revalidating/downloading 55MB on every
+            # homepage navigation.
             response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         return response
 

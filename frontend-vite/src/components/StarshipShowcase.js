@@ -5,10 +5,11 @@ export class StarshipShowcase {
   constructor(selector = '#starship-gltf-stage', options = {}) {
     this.container = typeof selector === 'string' ? document.querySelector(selector) : selector;
     this.options = {
-      // Full original xinjian1 (textures + denser meshes). Keep legacy filename as fallback.
-      modelUrl: '/globe/xinjian1.glb',
-      // Lightweight fallback if the hero GLB OOMs low-end GPUs.
-      fallbackModelUrl: '/globe/star_trek_dsc_enterprise_user.glb',
+      // Full original xinjian1 (textures + denser meshes).
+      modelUrl: '/globe/xinjian1.glb?v=20260728',
+      // A model setup failure must fail-soft; never download a second copy of the
+      // same 55MB asset as a supposed fallback.
+      fallbackModelUrl: '',
       deferMs: 120,
       ...options,
     };
@@ -29,7 +30,8 @@ export class StarshipShowcase {
     // but still leaves the globe and node callouts readable.
     // Keep the saucer registry readable at the normal desktop viewport while
     // preserving the right-side globe composition and label safe area.
-    this.userScale = 0.98;
+    // Keep the complete Enterprise silhouette inside the desktop hero frame.
+    this.userScale = 0.86;
     this.userYaw = 0;
     this.userRoll = 0;
     this.userFlip = 1;
@@ -231,7 +233,8 @@ export class StarshipShowcase {
 
     this.anchor = new THREE.Group();
     // Closer to 172's right-side hero pose.
-    this.basePosition = new THREE.Vector3(3.00, -0.16, 0.0);
+    // Full Enterprise silhouette stays inside a 1280px desktop hero frame.
+    this.basePosition = new THREE.Vector3(2.15, -0.16, 0.0);
     this.baseRotation = new THREE.Euler(0.62, -0.72, 0.18);
     this.anchor.position.copy(this.basePosition);
     this.anchor.rotation.copy(this.baseRotation);
@@ -615,6 +618,24 @@ export class StarshipShowcase {
     this._modelInfo = { size: size.toArray(), center: center.toArray(), scale, centeredPosition: ship.position.toArray() };
   }
 
+
+  _makeGlowTexture(r, g, b) {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 96;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    const gradient = ctx.createRadialGradient(48, 48, 0, 48, 48, 48);
+    gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 1)`);
+    gradient.addColorStop(0.24, `rgba(${r}, ${g}, ${b}, .92)`);
+    gradient.addColorStop(0.58, `rgba(${r}, ${g}, ${b}, .28)`);
+    gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 96, 96);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.needsUpdate = true;
+    return texture;
+  }
 
   _addBussardCollectorFidelity() {
     if (!this.ship || this.bussardCollectorEffects) return;
