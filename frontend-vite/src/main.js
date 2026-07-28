@@ -1628,6 +1628,16 @@ function probeLinkBar(ms, loss = null) {
   return `<div class="probe-link-bar ${cls}" title="${latency.toFixed(0)}ms / loss ${lossPct.toFixed(0)}%"><i style="width:${score.toFixed(0)}%"></i><b></b></div>`;
 }
 
+function updateDetailPingTargetCount(pingTargetsData) {
+  const count = Array.isArray(pingTargetsData?.targets) ? pingTargetsData.targets.length : 0;
+  const countNode = document.querySelector('.detail-ping-target-count');
+  if (countNode) countNode.textContent = `${count} 目标`;
+  const healthLink = document.querySelector('.detail-health-summary > div:last-child em');
+  if (healthLink) healthLink.textContent = pingTargetsData?.unavailable
+    ? '暂无真实节点侧互探采样'
+    : `${count} 个探测目标`;
+}
+
 function renderGlobalVpsProbeRows(vpsProbeTargetsData) {
   const raw = Array.isArray(vpsProbeTargetsData?.targets) ? vpsProbeTargetsData.targets : [];
   // Peer probes only: key vps-* / type peer / peer_server_id. Never mix external ping_targets.
@@ -1922,6 +1932,7 @@ async function renderDetailPage(serverId) {
     detailCache.pingTargets = historyData?.targets?.length ? historyData : detailCache.pingTargets;
     window.__DBG__.DETAIL_PING_TARGETS = detailCache.pingTargets;
     window.__DBG__.DETAIL_PING_TARGET_HISTORY = detailCache.pingTargetHistory;
+    updateDetailPingTargetCount(detailCache.pingTargets || historyData);
     await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, vpsProbeTargetsData: detailCache.vpsProbeTargets, vpsProbeHistoryData: detailCache.vpsProbeHistory, detailDays });
   }).catch((error) => { window.__DBG__.DETAIL_PING_PROGRESSIVE_ERROR = String(error?.message || error); });
 

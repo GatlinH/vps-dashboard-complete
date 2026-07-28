@@ -608,10 +608,17 @@ def get_public_history(sid):
     metric = str(request.args.get("metric") or "").strip().lower()
     if metric == "process_count":
         since = datetime.now(timezone.utc) - timedelta(hours=1)
+        # ProbeResult also contains scheduler and network-probe rows, which do
+        # not carry a host process total. Keep those null rows out of this
+        # dedicated monitor so they cannot mask the last real Agent sample.
         rows = (ProbeResult.query
-                .filter(ProbeResult.server_id == sid, ProbeResult.created_at >= since)
+                .filter(
+                    ProbeResult.server_id == sid,
+                    ProbeResult.created_at >= since,
+                    ProbeResult.process_count.isnot(None),
+                )
                 .order_by(ProbeResult.created_at.asc()).limit(min(limit, 720)).all())
-        data = [{"server_id": sid, "created_at": row.created_at.isoformat(), "timestamp": row.created_at.isoformat(), "process_count": row.process_count} for row in rows]
+        data = [{"server_id": sid, "created_at": row.created_at.isoformat(), "timestamp": row.created_at.isoformat(), "process_count": int(row.process_count)} for row in rows]
         return jsonify(data=data, total=len(data), count=len(data), metric="process_count", hours=1, history_source="raw")
     since = datetime.now(timezone.utc) - timedelta(days=days)
     # Long windows are served from bounded materialized hourly summaries. Raw

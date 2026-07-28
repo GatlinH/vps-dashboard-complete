@@ -10,6 +10,9 @@ def test_public_process_count_history_is_fixed_one_hour(app, test_server):
     with app.app_context():
         db.session.add_all([
             ProbeResult(server_id=test_server, process_count=101, created_at=now - timedelta(minutes=30)),
+            # A non-Agent probe row after the real sample must not make the
+            # process chart appear to stop at the prior sample.
+            ProbeResult(server_id=test_server, cpu_use=25, created_at=now - timedelta(minutes=5)),
             ProbeResult(server_id=test_server, process_count=999, created_at=now - timedelta(hours=2)),
         ])
         db.session.commit()

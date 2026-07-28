@@ -1,6 +1,8 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import GlobeStarmap from "./GlobeStarmap.jsx";
+import { clusterServersByCoordinate } from "./globe/vpsClusters.js";
+import { groupClusterMembers } from "../services/serverGroups.js";
 
 const FLAG_MAP = [
   [/(香港|HK|Hong Kong)/i, "🇭🇰"],
@@ -67,6 +69,7 @@ function coord(s, axis) {
 
 function normalizeServers(servers = []) {
   return (Array.isArray(servers) ? servers : []).map((s, idx) => ({
+    ...s,
     id: s.id ?? idx + 1,
     name: s.name || s.hostname || `NODE-${idx + 1}`,
     flag: flagOf(s),
@@ -82,17 +85,52 @@ function normalizeServers(servers = []) {
   })).filter((s) => Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lon)));
 }
 
+function aggregateClusterStatus(members) {
+  const states = members.map((member) => member.status);
+  if (states.every((state) => state === 'online')) return 'online';
+  if (states.every((state) => state === 'offline')) return 'offline';
+  return 'warn';
+}
+
+/** One visual anchor per overlapping coordinate; names remain available in its tooltip. */
+export function groupStarmapServersByCoordinate(servers = []) {
+  return clusterServersByCoordinate(servers).flatMap((cluster) => {
+    if (!cluster.valid) return cluster.members;
+    const members = cluster.members;
+    if (members.length === 1) return members;
+    const groups = groupClusterMembers(members);
+    const groupNames = groups.map((group) => group.name).join(' · ');
+    return [{
+      ...members[0],
+      id: `cluster:${cluster.key}`,
+      lat: cluster.lat,
+      lon: cluster.lon,
+      name: `${members.length} 台 VPS`,
+      location: members[0].location,
+      status: aggregateClusterStatus(members),
+      isCluster: true,
+      memberCount: members.length,
+      memberGroups: groups,
+      memberNames: members.map((member) => member.name),
+      clusterLabel: groupNames ? `${members.length} 台 · ${groupNames}` : `${members.length} 台 VPS`,
+    }];
+  });
+}
+
 export function mountGlobeStarmap(element, servers, options = {}) {
   if (!element) return null;
   const root = createRoot(element);
   const render = (nextServers = servers) => {
     const normalized = normalizeServers(nextServers);
+    const grouped = groupStarmapServersByCoordinate(normalized);
     window.__DETAIL_STARMAP_SERVER_COUNT__ = normalized.length;
+    window.__DETAIL_STARMAP_MARKER_COUNT__ = grouped.length;
     window.__DETAIL_STARMAP_SERVER_NAMES__ = normalized.map((s) => s.name);
     window.__DETAIL_STARMAP_SERVERS__ = normalized;
+    window.__DETAIL_STARMAP_MARKERS__ = grouped;
     root.render(
       <GlobeStarmap
-        servers={normalized}
+        servers={grouped}
         width={options.width || 760}
         height={options.height || 430}
         baseRadius={options.baseRadius || 180}

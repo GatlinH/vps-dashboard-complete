@@ -550,7 +550,7 @@ export default function GlobeStarmap({
         }
       }
 
-      // Node markers
+      // Node markers. Co-located servers are represented by one grouped anchor.
       ls.forEach(s => {
         const ll  = locationToLatLng(s.location, s);
         if (!ll) return;
@@ -558,7 +558,7 @@ export default function GlobeStarmap({
         if (!p.visible) return;
         const col = STATUS_COLOR[s.status] || "#aaa";
         const isH = S.hovered && S.hovered.loc.id === s.id;
-        const sz  = isH ? 12 : 8.2;
+        const sz  = isH ? 12 : (s.isCluster ? 11 : 8.2);
 
         // Pulse ring
         const pr = sz + 6 + Math.sin(Date.now() * 0.004 + ll.lat) * 3.4;
@@ -575,7 +575,8 @@ export default function GlobeStarmap({
         if (S.zoom > 0.6) {
           ctx.fillStyle = lightMode ? "rgba(18,50,56,0.95)" : "rgba(226,232,240,0.9)";
           ctx.font = `${isH ? 11 : 10}px monospace`;
-          ctx.fillText(s.flag + " " + s.name, p.px + sz + 4, p.py + 4);
+          const label = s.isCluster ? `${s.flag} ${s.clusterLabel || s.name}` : `${s.flag} ${s.name}`;
+          ctx.fillText(label, p.px + sz + 4, p.py + 4);
         }
       });
 
@@ -701,7 +702,7 @@ export default function GlobeStarmap({
             boxShadow: "0 8px 32px rgba(0,0,0,.5)",
           }}>
             <div style={{ fontWeight: 700, color: isLight ? "#1e353a" : "#e2e8f0", fontSize: 13, marginBottom: 3 }}>
-              {tooltip.loc.flag} {tooltip.loc.name}
+              {tooltip.loc.flag} {tooltip.loc.isCluster ? tooltip.loc.clusterLabel : tooltip.loc.name}
             </div>
             <div style={{ fontSize: 12, color: isLight ? "#0b6670" : "#63b3ed", marginBottom: 5 }}>
               {tooltip.loc.location}
@@ -709,11 +710,17 @@ export default function GlobeStarmap({
             <div style={{ color: STATUS_COLOR[tooltip.loc.status], fontSize: 11, marginBottom: 5 }}>
               ● {STATUS_LABEL[tooltip.loc.status]}
             </div>
-            <div style={{ fontSize: 11, color: isLight ? "#2f4e55" : "#94a3b8", lineHeight: 1.9, fontFamily: "monospace" }}>
-              IP: {tooltip.loc.ip}<br />
-              CPU: {tooltip.loc.cpu_use.toFixed(1)}% &nbsp; MEM: {tooltip.loc.ram_use.toFixed(1)}%<br />
-              ↑{tooltip.loc.net_up.toFixed(1)} &nbsp; ↓{tooltip.loc.net_down.toFixed(1)} MB/s
-            </div>
+            {tooltip.loc.isCluster ? (
+              <div style={{ fontSize: 11, color: isLight ? "#2f4e55" : "#94a3b8", lineHeight: 1.7 }}>
+                {tooltip.loc.memberGroups.map((group) => <div key={`${group.name}:${group.purpose}`}><b>{group.name}</b>{group.purpose ? ` · ${group.purpose}` : ''}：{group.members.map((member) => member.name).join('、')}</div>)}
+              </div>
+            ) : (
+              <div style={{ fontSize: 11, color: isLight ? "#2f4e55" : "#94a3b8", lineHeight: 1.9, fontFamily: "monospace" }}>
+                IP: {tooltip.loc.ip}<br />
+                CPU: {tooltip.loc.cpu_use.toFixed(1)}% &nbsp; MEM: {tooltip.loc.ram_use.toFixed(1)}%<br />
+                ↑{tooltip.loc.net_up.toFixed(1)} &nbsp; ↓{tooltip.loc.net_down.toFixed(1)} MB/s
+              </div>
+            )}
           </div>
         )}
       </div>
