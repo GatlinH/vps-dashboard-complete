@@ -71,5 +71,9 @@ assert.match(mainSource, /value != null && value !== ''/,
   'missing legacy process counts must not be rendered as a fabricated zero');
 assert.match(chartSource, /detailProcessCountChart/,
   'detail chart must render the process-count monitor instead of freshness');
+assert.match(chartSource, /Number\.isInteger\(Number\(value\)\).*Math\.round\(Number\(value\)\).*个/s,
+  'process Y-axis must render only integer process-count ticks');
+assert.match(chartSource, /等待 Agent 上报进程数/,
+  'process chart must expose a truthful no-sample state');
 
 console.log('detail range local-refresh contract: ok');

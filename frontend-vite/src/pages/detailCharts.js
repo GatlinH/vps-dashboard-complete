@@ -115,7 +115,7 @@ function isDetailMobileChart() {
   return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
 }
 
-function telemetryEmptyStatePlugin(hasPoints) {
+function telemetryEmptyStatePlugin(hasPoints, message = '暂无已持久化的历史采样') {
   return {
     id: 'detailTelemetryEmptyState',
     afterDraw(chart) {
@@ -126,7 +126,7 @@ function telemetryEmptyStatePlugin(hasPoints) {
       ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('暂无已持久化的历史采样', (area.left + area.right) / 2, (area.top + area.bottom) / 2);
+      ctx.fillText(message, (area.left + area.right) / 2, (area.top + area.bottom) / 2);
       ctx.restore();
     },
   };
@@ -428,7 +428,6 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   const cpu12hSeries = seriesWindowFromRows(probeRows, 'cpu_use', telemetryHours);
   const ram12hSeries = seriesWindowFromRows(probeRows, 'ram_use', telemetryHours);
   const processSeries = seriesWindowFromRows(processRows, 'process_count', telemetryHours);
-  const processMax = Math.max(1, Math.ceil(Math.max(...processSeries.map(point => Number(point.y) || 0), 0) + 1));
   const ping24hDatasets = buildPingDatasets(probeRows, pingHours, pingTargetsData, pingTargetHistoryData);
   const pingAxisBounds = accumulatingAxisBoundsFromTimes(ping24hDatasets.flatMap(ds => (ds.data || []).map(p => p.x)), pingHours, 2 * 60 * 1000);
   const axis24h = Array.from({ length: 5 }, (_, i) => pingAxisBounds.min + (i / 4) * (pingAxisBounds.max - pingAxisBounds.min));
@@ -441,7 +440,26 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   const processDisplaySeries = fitSeriesToRollingAxis(processBuckets, axis12hBounds, 300);
   const cpuEmptyPlugin = telemetryEmptyStatePlugin(cpuDisplaySeries.length > 0);
   const ramEmptyPlugin = telemetryEmptyStatePlugin(ramDisplaySeries.length > 0);
-  const processEmptyPlugin = telemetryEmptyStatePlugin(processDisplaySeries.length > 0);
+  const processEmptyPlugin = telemetryEmptyStatePlugin(processDisplaySeries.length > 0, '等待 Agent 上报进程数');
+  const processValues = processDisplaySeries.map((point) => Number(point?.y)).filter(Number.isFinite);
+  const processMinValue = processValues.length ? Math.min(...processValues) : 0;
+  const processMaxValue = processValues.length ? Math.max(...processValues) : 1;
+  const processPadding = processValues.length > 1 ? Math.max(1, Math.ceil((processMaxValue - processMinValue) * 0.15)) : 1;
+  const processYMin = Math.max(0, Math.floor(processMinValue - processPadding));
+  const processYMax = Math.max(processYMin + 1, Math.ceil(processMaxValue + processPadding));
+  const processYScale = {
+    ...makeHudChartOptions(5, '个').scales.y,
+    min: processYMin,
+    max: processYMax,
+    grace: 0,
+    afterFit: (scale) => { fixedSmallY(scale); scale.width = Math.max(scale.width || 0, 36); },
+    ticks: {
+      ...makeHudChartOptions(5, '个').scales.y.ticks,
+      stepSize: 1,
+      precision: 0,
+      callback: (value) => Number.isInteger(Number(value)) ? `${Math.round(Number(value))} 个` : '',
+    },
+  };
   const label12h = cpuDisplaySeries.map(r => r.x);
   const smallChartXScale = () => ({
     type: 'linear',
@@ -563,7 +581,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
       type: 'line',
       data: { datasets: [{ label: 'Processes', parsing: false, data: processDisplaySeries, borderColor: '#8dffd0', backgroundColor: 'rgba(125,255,193,0.20)', fill: true, tension: 0.18, pointRadius: 0, pointHoverRadius: 6, borderWidth: 3 }] },
       plugins: [processEmptyPlugin],
-      options: { ...makeHudChartOptions(5, '个'), plugins: { ...makeHudChartOptions(5, '个').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => telemetryTooltipTime(items[0]), label: (item) => `运行进程 ${Math.round(Number(item.raw.y || 0))} 个` } } }, scales: { x: smallChartXScale(), y: { ...makeHudChartOptions(5, '个').scales.y, afterFit: (scale) => { fixedSmallY(scale); scale.width = Math.max(scale.width || 0, 36); }, min: 0, max: processMax } } }
+      options: { ...makeHudChartOptions(5, '个'), plugins: { ...makeHudChartOptions(5, '个').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => telemetryTooltipTime(items[0]), label: (item) => `运行进程 ${Math.round(Number(item.raw.y || 0))} 个` } } }, scales: { x: smallChartXScale(), y: processYScale } }
     }));
   }
 
@@ -669,7 +687,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
       displayPoints: { cpu: cpuDisplaySeries.length, ram: ramDisplaySeries.length, process: processDisplaySeries.length, cpuBuckets: cpuBuckets.length, ramBuckets: ramBuckets.length, processBuckets: processBuckets.length },
       axis12hBounds,
       telemetryHours,
-      processMax,
+      processAxis: { min: processYMin, max: processYMax, integerTicks: true },
       latestSampleMs: latestTimelineMs(probeRows, latestServer),
       pingHours,
       pingAxisBounds,
