@@ -26,7 +26,7 @@ def _make_user(username: str) -> int:
 
 
 def _login(client, username: str) -> str:
-    resp = client.post("/api/v1/auth/login", json={
+    resp = client.post("/api/v1/auth/login", headers={"X-Auth-Mode": "bearer"}, json={
         "username": username,
         "password": "Password@123456",
     })

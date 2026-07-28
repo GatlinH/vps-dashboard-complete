@@ -92,15 +92,29 @@ class TestLoginSetsCookies:
             f"csrf_access_token 不应包含 HttpOnly 属性，实际为: {csrf_cookie}"
         )
 
-    def test_login_also_returns_tokens_in_body_for_backward_compat(self, client):
-        """登录响应体中仍保留 access_token 字段，保证现有 Bearer-header 客户端兼容。"""
+    def test_browser_login_does_not_return_tokens_in_body(self, client):
+        """默认浏览器登录只能通过 HttpOnly cookie 获得 JWT。"""
         res = client.post(
             '/api/v1/auth/login',
             json={'username': 'admin', 'password': 'TestAdmin@123456'},
         )
         body = res.get_json()
-        assert 'access_token' in body
-        assert 'refresh_token' in body
+        assert body['authenticated'] is True
+        assert 'access_token' not in body
+        assert 'refresh_token' not in body
+        assert _parse_set_cookie(res, 'access_token_cookie') is not None
+
+    def test_explicit_bearer_mode_returns_tokens_for_api_clients(self, client):
+        """非浏览器客户端必须显式选择 bearer 响应模式。"""
+        res = client.post(
+            '/api/v1/auth/login',
+            headers={'X-Auth-Mode': 'bearer'},
+            json={'username': 'admin', 'password': 'TestAdmin@123456'},
+        )
+        body = res.get_json()
+        assert body['authenticated'] is True
+        assert body['access_token']
+        assert body['refresh_token']
 
 
 # ── CSRF 防护校验 ─────────────────────────────────────────────────────────────
@@ -245,9 +259,10 @@ class TestBearerHeaderBackwardCompat:
         assert res.status_code == 200
 
     def test_bearer_path_not_affected_by_cookie_changes(self, client):
-        """Bearer header 认证路径不受 cookie 设置影响。"""
+        """Bearer header clients explicitly request token response bodies."""
         login_res = client.post(
             '/api/v1/auth/login',
+            headers={'X-Auth-Mode': 'bearer'},
             json={'username': 'admin', 'password': 'TestAdmin@123456'},
         )
         token = login_res.get_json()['access_token']

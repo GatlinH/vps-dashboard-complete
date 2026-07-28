@@ -14,7 +14,7 @@ from extensions import db as _db
 @pytest.fixture
 def admin_headers(client):
     """管理员认证头"""
-    resp = client.post('/api/v1/auth/login', json={
+    resp = client.post('/api/v1/auth/login', headers={'X-Auth-Mode': 'bearer'}, json={
         'username': 'admin',
         'password': 'TestAdmin@123456',
     })
@@ -35,7 +35,7 @@ def viewer_headers(client, app):
         )
         _db.session.add(user)
         _db.session.commit()
-    resp = client.post('/api/v1/auth/login', json={
+    resp = client.post('/api/v1/auth/login', headers={'X-Auth-Mode': 'bearer'}, json={
         'username': 'geo_viewer',
         'password': 'ViewerPass@123456',
     })
@@ -56,7 +56,7 @@ def plain_user_headers(client, app):
         )
         _db.session.add(user)
         _db.session.commit()
-    resp = client.post('/api/v1/auth/login', json={
+    resp = client.post('/api/v1/auth/login', headers={'X-Auth-Mode': 'bearer'}, json={
         'username': 'geo_plain',
         'password': 'PlainPass@123456',
     })

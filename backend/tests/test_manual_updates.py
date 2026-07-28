@@ -18,7 +18,7 @@ class FakeResponse:
 
 
 def _login(client):
-    resp = client.post('/api/v1/auth/login', json={'username': 'admin', 'password': 'TestAdmin@123456'})
+    resp = client.post('/api/v1/auth/login', headers={'X-Auth-Mode': 'bearer'}, json={'username': 'admin', 'password': 'TestAdmin@123456'})
     assert resp.status_code == 200
     return {'Authorization': f"Bearer {resp.get_json()['access_token']}"}
 

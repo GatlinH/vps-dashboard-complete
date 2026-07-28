@@ -23,6 +23,12 @@ account_bp = Blueprint("account", __name__)
 logger = logging.getLogger(__name__)
 
 
+# Browser clients authenticate exclusively through HttpOnly cookies. A non-browser
+# caller must explicitly opt into token response bodies for Bearer compatibility.
+def _bearer_response_requested() -> bool:
+    return request.headers.get("X-Auth-Mode", "").strip().lower() == "bearer"
+
+
 def _session_key(jti: str) -> str:
     return f"auth:session:{jti}"
 
@@ -169,7 +175,10 @@ def login():
         logger.warning("⚠️ LoginGuard 成功记录失败: %s", e)
     access = create_access_token(identity=str(user.id), additional_claims={"role": user.role, "username": user.username})
     refresh = create_refresh_token(identity=str(user.id))
-    resp = jsonify(access_token=access, refresh_token=refresh, user=user.to_dict())
+    body = {"user": user.to_dict(), "authenticated": True}
+    if _bearer_response_requested():
+        body.update(access_token=access, refresh_token=refresh)
+    resp = jsonify(body)
     set_access_cookies(resp, access)
     set_refresh_cookies(resp, refresh)
     _store_session(user, access)
@@ -198,7 +207,10 @@ def refresh():
                 logger.warning("⚠️ 吊销旧 refresh token 失败: %s", e)
     access = create_access_token(identity=uid, additional_claims={"role": user.role, "username": user.username})
     refresh_token = create_refresh_token(identity=uid)
-    resp = jsonify(access_token=access, refresh_token=refresh_token)
+    body = {"refreshed": True}
+    if _bearer_response_requested():
+        body.update(access_token=access, refresh_token=refresh_token)
+    resp = jsonify(body)
     set_access_cookies(resp, access)
     set_refresh_cookies(resp, refresh_token)
     return resp

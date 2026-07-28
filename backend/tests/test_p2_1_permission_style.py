@@ -27,7 +27,7 @@ def viewer_headers(client, app):
             )
             _db.session.add(user)
             _db.session.commit()
-    resp = client.post('/api/v1/auth/login', json={
+    resp = client.post('/api/v1/auth/login', headers={'X-Auth-Mode': 'bearer'}, json={
         'username': 'p21_viewer',
         'password': 'Viewer@123456',
     })
@@ -48,7 +48,7 @@ def user_headers(client, app):
             )
             _db.session.add(u)
             _db.session.commit()
-    resp = client.post('/api/v1/auth/login', json={
+    resp = client.post('/api/v1/auth/login', headers={'X-Auth-Mode': 'bearer'}, json={
         'username': 'p21_user',
         'password': 'User@123456',
     })

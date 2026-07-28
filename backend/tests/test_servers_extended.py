@@ -19,7 +19,7 @@ class TestServersExtended:
             user = User(username='viewer', password_hash=generate_password_hash('Viewer@123456'), role='viewer')
             db.session.add(user)
             db.session.commit()
-        login_resp = client.post('/api/v1/auth/login', json={'username': 'viewer', 'password': 'Viewer@123456'})
+        login_resp = client.post('/api/v1/auth/login', headers={'X-Auth-Mode': 'bearer'}, json={'username': 'viewer', 'password': 'Viewer@123456'})
         token = login_resp.get_json()['access_token']
         viewer_headers = {'Authorization': f'Bearer {token}'}
         forbidden = client.post('/api/v1/servers/', json={'name': 'viewer', 'ip': '1.1.1.2'}, headers=viewer_headers)

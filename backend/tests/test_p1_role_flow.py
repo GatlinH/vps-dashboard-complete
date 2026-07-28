@@ -72,7 +72,8 @@ def viewer_user(app):
 def _login(client, username, password):
     resp = client.post(
         "/api/v1/auth/login",
-        json={"username": username, "password": password},
+        headers={'X-Auth-Mode': 'bearer'},
+            json={"username": username, "password": password},
     )
     assert resp.status_code == 200, f"登录失败: {resp.get_json()}"
     return {"Authorization": f"Bearer {resp.get_json()['access_token']}"}

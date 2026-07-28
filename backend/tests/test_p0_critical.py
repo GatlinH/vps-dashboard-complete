@@ -35,7 +35,7 @@ def viewer_headers(client, app):
         )
         _db.session.add(user)
         _db.session.commit()
-    resp = client.post('/api/v1/auth/login', json={
+    resp = client.post('/api/v1/auth/login', headers={'X-Auth-Mode': 'bearer'}, json={
         'username': 'p0_viewer',
         'password': 'ViewerP0@123456',
     })
@@ -55,7 +55,7 @@ def plain_user_headers(client, app):
         )
         _db.session.add(user)
         _db.session.commit()
-    resp = client.post('/api/v1/auth/login', json={
+    resp = client.post('/api/v1/auth/login', headers={'X-Auth-Mode': 'bearer'}, json={
         'username': 'p0_plain',
         'password': 'PlainP0@123456',
     })
@@ -65,7 +65,7 @@ def plain_user_headers(client, app):
 
 @pytest.fixture
 def admin_headers(client):
-    resp = client.post('/api/v1/auth/login', json={
+    resp = client.post('/api/v1/auth/login', headers={'X-Auth-Mode': 'bearer'}, json={
         'username': 'admin',
         'password': 'TestAdmin@123456',
     })
@@ -245,7 +245,7 @@ class TestRevokeAllUserTokens:
         from utils.token_blocklist import revoke_all_user_tokens, is_user_force_revoked
 
         # 登录获取 token
-        login_res = client.post('/api/v1/auth/login', json={
+        login_res = client.post('/api/v1/auth/login', headers={'X-Auth-Mode': 'bearer'}, json={
             'username': 'admin',
             'password': 'TestAdmin@123456',
         })

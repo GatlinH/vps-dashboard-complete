@@ -45,7 +45,7 @@ def test_viewer_cannot_bulk_delete_servers_or_groups(client, app, test_server):
         viewer = User(username='bulk-viewer', password_hash=generate_password_hash('Viewer@123456'), role='viewer')
         db.session.add(viewer)
         db.session.commit()
-    login = client.post('/api/v1/auth/login', json={'username': 'bulk-viewer', 'password': 'Viewer@123456'})
+    login = client.post('/api/v1/auth/login', headers={'X-Auth-Mode': 'bearer'}, json={'username': 'bulk-viewer', 'password': 'Viewer@123456'})
     headers = {'Authorization': f"Bearer {login.get_json()['access_token']}"}
     assert client.delete('/api/v1/servers/bulk', headers=headers, json={'ids': [test_server]}).status_code == 403
     assert client.delete('/api/v1/server-groups/bulk', headers=headers, json={'ids': [1]}).status_code == 403

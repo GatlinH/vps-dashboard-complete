@@ -8,12 +8,24 @@ from models.models import User
 
 
 class TestLogin:
-    def test_login_success(self, client):
+    def test_browser_login_success_uses_cookies_without_token_body(self, client):
         res = client.post('/api/v1/auth/login', json={'username': 'admin', 'password': 'TestAdmin@123456'})
         assert res.status_code == 200
         body = res.get_json()
-        assert 'access_token' in body
-        assert 'refresh_token' in body
+        assert body['authenticated'] is True
+        assert 'access_token' not in body
+        assert 'refresh_token' not in body
+        assert any(cookie.startswith('access_token_cookie=') for cookie in res.headers.getlist('Set-Cookie'))
+
+    def test_explicit_bearer_login_returns_tokens(self, client):
+        res = client.post(
+            '/api/v1/auth/login',
+            headers={'X-Auth-Mode': 'bearer'},
+            json={'username': 'admin', 'password': 'TestAdmin@123456'},
+        )
+        assert res.status_code == 200
+        assert res.get_json()['access_token']
+        assert res.get_json()['refresh_token']
 
     def test_login_wrong_password(self, client):
         res = client.post('/api/v1/auth/login', json={'username': 'admin', 'password': 'wrong'})
@@ -26,14 +38,29 @@ class TestLogin:
 
 class TestRefresh:
     def test_refresh_success(self, client):
-        login_res = client.post('/api/v1/auth/login', json={'username': 'admin', 'password': 'TestAdmin@123456'})
+        login_res = client.post(
+            '/api/v1/auth/login',
+            headers={'X-Auth-Mode': 'bearer'},
+            json={'username': 'admin', 'password': 'TestAdmin@123456'},
+        )
         refresh_token = login_res.get_json()['refresh_token']
         res = client.post('/api/v1/auth/refresh', headers={'Authorization': f'Bearer {refresh_token}'})
         assert res.status_code == 200
-        assert 'access_token' in res.get_json()
+        assert res.get_json()['refreshed'] is True
+        assert 'access_token' not in res.get_json()
+
+        bearer_res = client.post(
+            '/api/v1/auth/refresh',
+            headers={'Authorization': f'Bearer {refresh_token}', 'X-Auth-Mode': 'bearer'},
+        )
+        assert bearer_res.status_code == 401  # the first refresh rotated this token
 
     def test_refresh_old_token_rejected_after_rotation(self, client):
-        login_res = client.post('/api/v1/auth/login', json={'username': 'admin', 'password': 'TestAdmin@123456'})
+        login_res = client.post(
+            '/api/v1/auth/login',
+            headers={'X-Auth-Mode': 'bearer'},
+            json={'username': 'admin', 'password': 'TestAdmin@123456'},
+        )
         old_refresh = login_res.get_json()['refresh_token']
         assert client.post('/api/v1/auth/refresh', headers={'Authorization': f'Bearer {old_refresh}'}).status_code == 200
         assert client.post('/api/v1/auth/refresh', headers={'Authorization': f'Bearer {old_refresh}'}).status_code == 401

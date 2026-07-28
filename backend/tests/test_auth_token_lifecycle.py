@@ -16,6 +16,7 @@ class TestTokenLifecycle:
     def test_refresh_token_rotation_and_blacklist(self, client):
         login_res = client.post(
             '/api/v1/auth/login',
+            headers={'X-Auth-Mode': 'bearer'},
             json={'username': 'admin', 'password': 'TestAdmin@123456'},
         )
         assert login_res.status_code == 200
@@ -27,7 +28,7 @@ class TestTokenLifecycle:
 
         refresh_res = client.post(
             '/api/v1/auth/refresh',
-            headers={'Authorization': f'Bearer {old_refresh}'},
+            headers={'Authorization': f'Bearer {old_refresh}', 'X-Auth-Mode': 'bearer'},
         )
         assert refresh_res.status_code == 200
 
@@ -54,6 +55,7 @@ class TestTokenLifecycle:
     def test_logout_only_revokes_current_access_token(self, client):
         login_res = client.post(
             '/api/v1/auth/login',
+            headers={'X-Auth-Mode': 'bearer'},
             json={'username': 'admin', 'password': 'TestAdmin@123456'},
         )
         assert login_res.status_code == 200
