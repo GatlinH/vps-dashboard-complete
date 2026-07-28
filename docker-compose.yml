@@ -111,7 +111,9 @@ services:
       # Telegram secrets are loaded from /etc/vps-dashboard/secrets.env via env_file.
       # Do not redeclare them here with ${VAR:-}; compose interpolation would override env_file with blank values.
       PROBE_TIMEOUT_S: ${PROBE_TIMEOUT_S:-5}
+      # Telemetry snapshots and latency-target definitions intentionally use separate TTLs.
       PROBE_CACHE_TTL: ${PROBE_CACHE_TTL:-15}
+      PING_TARGETS_CACHE_TTL: ${PING_TARGETS_CACHE_TTL:-15}
       # Empty by default: fresh installs should not ping external preset targets unless explicitly configured.
       PING_TARGETS_JSON: ${PING_TARGETS_JSON:-}
       TILE_CACHE_TTL: ${TILE_CACHE_TTL:-86400}

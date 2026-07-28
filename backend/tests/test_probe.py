@@ -53,6 +53,15 @@ def test_ping_batch_requires_auth(client):
     assert resp.status_code == 401
 
 
+def test_ping_target_cache_uses_its_own_configured_ttl(app):
+    import api.probe as probe
+
+    app.config['PROBE_CACHE_TTL'] = 3
+    app.config['PING_TARGETS_CACHE_TTL'] = 47
+    with app.app_context():
+        assert probe._ping_targets_cache_ttl() == 47
+
+
 def test_http_ping_connects_to_pinned_ip_and_keeps_https_hostname(monkeypatch):
     import api.probe as probe
 

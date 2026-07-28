@@ -356,7 +356,9 @@ class Config:
 
     # ── Probe ────────────────────────────────────────────────────────────────
     PROBE_TIMEOUT_S    = int(os.getenv("PROBE_TIMEOUT_S", "5"))
+    # Metric snapshot cache; distinct from configured latency-target definitions.
     PROBE_CACHE_TTL    = int(os.getenv("PROBE_CACHE_TTL", "15"))   # seconds
+    PING_TARGETS_CACHE_TTL = int(os.getenv("PING_TARGETS_CACHE_TTL", "15"))  # seconds
     PROBE_BATCH_MAX_ITEMS = int(os.getenv("PROBE_BATCH_MAX_ITEMS", "50"))
     PROBE_BATCH_MIN_INTERVAL_S = float(os.getenv("PROBE_BATCH_MIN_INTERVAL_S", "3"))
     PROBE_BATCH_RATE_LIMIT = os.getenv("PROBE_BATCH_RATE_LIMIT", "6 per minute")

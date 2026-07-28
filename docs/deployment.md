@@ -190,10 +190,12 @@ curl http://localhost:5000/health
 2. **执行预检查**
    - 运行 `backend/scripts/pre-deploy.sh --env-file backend/.env`，提前发现缺失/弱默认值。
    - 支持从指定文件读取：`--env-file /etc/vps-dashboard/secrets.env`（默认路径）。
-3. **拉起服务**
-   - `cd backend && docker compose up -d`
+3. **拉起服务（默认一体化直连）**
+   - 在仓库根目录执行：`docker compose --env-file /etc/vps-dashboard/secrets.env up -d`
+   - 默认公开入口是 `http://<控制端地址>:4500`；API 与已构建的前端同由 `api` 容器提供。
+   - 域名、反向代理、HTTPS、IPv6/双栈均是可选部署层，项目不会自动安装或要求它们。
 4. **健康检查**
-   - `curl http://127.0.0.1:5000/health`
+   - `curl http://127.0.0.1:4500/health`
    - 检查 `docker compose logs -f api` 无 FATAL/Traceback。
 5. **上线后观测**
    - 若已配置 `SENTRY_DSN`，确认 Sentry 能接收到错误事件。
@@ -214,7 +216,9 @@ npm ci
 npm run build
 ```
 
-构建完成后会生成 `frontend-dist/`，并由 `backend/docker-compose.yml` 的 Nginx 挂载到 `/usr/share/nginx/html`。
+构建完成后会生成 `frontend-dist/`。默认一体化镜像在构建时将其复制到 `/app/frontend-dist`，并由 `api` 容器在 `:4500` 提供静态文件和 API。
+
+如需将前端与 API 分离，使用根目录的可选 Compose 覆盖文件（例如 `docker-compose.frontend.yml`）；如使用 `frontend-dist-live` bind mount，必须原地替换目录内容以保留 mount inode。反向代理/Nginx 仅是使用者可选的部署层，参见 `docs/optional-reverse-proxy.md`。
 
 ### 上线前核对
 

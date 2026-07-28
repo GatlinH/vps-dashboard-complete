@@ -147,8 +147,16 @@ DEFAULT_PING_TARGET_PRESETS = [
     {"key": "us", "label": "美国纽约 OVH", "host": "51.81.22.44", "port": 443, "protocol": "tcp"},
 ]
 
-PING_TARGETS_CACHE_TTL = 15
+_DEFAULT_PING_TARGETS_CACHE_TTL = 15
 _ping_targets_memory_cache = {}
+
+
+def _ping_targets_cache_ttl() -> int:
+    """Return the configured TTL for latency-target definitions, independently of metric snapshots."""
+    try:
+        return max(0, int(current_app.config.get("PING_TARGETS_CACHE_TTL", _DEFAULT_PING_TARGETS_CACHE_TTL)))
+    except (TypeError, ValueError):
+        return _DEFAULT_PING_TARGETS_CACHE_TTL
 
 
 def _cache_get_json(key):
@@ -168,7 +176,9 @@ def _cache_get_json(key):
     return None
 
 
-def _cache_set_json(key, value, ttl=PING_TARGETS_CACHE_TTL):
+def _cache_set_json(key, value, ttl=None):
+    if ttl is None:
+        ttl = _ping_targets_cache_ttl()
     try:
         client = getattr(extensions, "redis_client", None)
         if client:
@@ -981,7 +991,7 @@ def public_ping_targets(sid):
     timeout = min(float(current_app.config.get("PROBE_TIMEOUT_S", 5)), 5.0)
     source = str(request.args.get("source") or "public").strip().lower()
     if not server:
-        payload = {"server_id": sid, "targets": [], "derived_from": "server not found", "configured": False, "not_configured": True, "cache_ttl": PING_TARGETS_CACHE_TTL}
+        payload = {"server_id": sid, "targets": [], "derived_from": "server not found", "configured": False, "not_configured": True, "cache_ttl": _ping_targets_cache_ttl()}
         resp = jsonify(payload)
         resp.headers["Cache-Control"] = "no-store"
         resp.headers["X-Ping-Targets-Cache"] = "bypass"
@@ -990,7 +1000,7 @@ def public_ping_targets(sid):
     cached = _cache_get_json(cache_key)
     if cached:
         resp = jsonify(cached)
-        resp.headers["Cache-Control"] = f"public, max-age={PING_TARGETS_CACHE_TTL}"
+        resp.headers["Cache-Control"] = f"public, max-age={_ping_targets_cache_ttl()}"
         resp.headers["X-Ping-Targets-Cache"] = "hit"
         return resp
 
@@ -1015,11 +1025,11 @@ def public_ping_targets(sid):
             "targets": targets,
             "derived_from": "configured latency monitor target definitions",
             "probe_source": "external-definitions",
-            "cache_ttl": PING_TARGETS_CACHE_TTL,
+            "cache_ttl": _ping_targets_cache_ttl(),
         }
-        _cache_set_json(cache_key, payload, PING_TARGETS_CACHE_TTL)
+        _cache_set_json(cache_key, payload, _ping_targets_cache_ttl())
         resp = jsonify(payload)
-        resp.headers["Cache-Control"] = f"public, max-age={PING_TARGETS_CACHE_TTL}"
+        resp.headers["Cache-Control"] = f"public, max-age={_ping_targets_cache_ttl()}"
         resp.headers["X-Ping-Targets-Cache"] = "miss"
         return resp
 
@@ -1075,11 +1085,11 @@ def public_ping_targets(sid):
             "derived_from": "agent-reported peer results",
             "probe_source": "agent",
             "unavailable": (len(peer_only) > 0 and not has_real_sample),
-            "cache_ttl": PING_TARGETS_CACHE_TTL,
+            "cache_ttl": _ping_targets_cache_ttl(),
         }
-        _cache_set_json(cache_key, payload, PING_TARGETS_CACHE_TTL)
+        _cache_set_json(cache_key, payload, _ping_targets_cache_ttl())
         resp = jsonify(payload)
-        resp.headers["Cache-Control"] = f"public, max-age={PING_TARGETS_CACHE_TTL}"
+        resp.headers["Cache-Control"] = f"public, max-age={_ping_targets_cache_ttl()}"
         resp.headers["X-Ping-Targets-Cache"] = "miss"
         return resp
 
@@ -1087,10 +1097,10 @@ def public_ping_targets(sid):
     # (agent_config.ping_targets or global default presets). No VPS peers.
     resolved_targets = [t for t in _resolve_ping_targets_for_server(server) if t.get("type") != "peer" and not str(t.get("key", "")).startswith("vps-")]
     if not resolved_targets:
-        payload = {"server_id": sid, "targets": [], "derived_from": "not configured", "configured": False, "not_configured": True, "cache_ttl": PING_TARGETS_CACHE_TTL}
-        _cache_set_json(cache_key, payload, PING_TARGETS_CACHE_TTL)
+        payload = {"server_id": sid, "targets": [], "derived_from": "not configured", "configured": False, "not_configured": True, "cache_ttl": _ping_targets_cache_ttl()}
+        _cache_set_json(cache_key, payload, _ping_targets_cache_ttl())
         resp = jsonify(payload)
-        resp.headers["Cache-Control"] = f"public, max-age={PING_TARGETS_CACHE_TTL}"
+        resp.headers["Cache-Control"] = f"public, max-age={_ping_targets_cache_ttl()}"
         resp.headers["X-Ping-Targets-Cache"] = "miss"
         return resp
 
@@ -1154,11 +1164,11 @@ def public_ping_targets(sid):
         "derived_from": "persisted agent-reported latency monitor results",
         "probe_source": "external",
         "unavailable": (len(resolved_targets) > 0 and not has_real_sample),
-        "cache_ttl": PING_TARGETS_CACHE_TTL,
+        "cache_ttl": _ping_targets_cache_ttl(),
     }
-    _cache_set_json(cache_key, payload, PING_TARGETS_CACHE_TTL)
+    _cache_set_json(cache_key, payload, _ping_targets_cache_ttl())
     resp = jsonify(payload)
-    resp.headers["Cache-Control"] = f"public, max-age={PING_TARGETS_CACHE_TTL}"
+    resp.headers["Cache-Control"] = f"public, max-age={_ping_targets_cache_ttl()}"
     resp.headers["X-Ping-Targets-Cache"] = "miss"
     return resp
 
