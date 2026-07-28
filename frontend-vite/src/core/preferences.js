@@ -36,7 +36,8 @@ let languageSwitcherCallbacks = {
   isOverviewMode: () => false,
   getSelectedServerId: () => null,
   renderOverview: () => {},
-  renderDetail: () => {},
+  // Detail language changes must preserve mounted charts and the star map.
+  refreshDetailPresentation: () => {},
 };
 
 export function configureLanguageSwitcher(callbacks = {}) {
@@ -50,7 +51,7 @@ export function setLanguage(lang) {
   if (languageSwitcherCallbacks.isOverviewMode()) languageSwitcherCallbacks.renderOverview();
   else {
     const serverId = languageSwitcherCallbacks.getSelectedServerId();
-    if (serverId) languageSwitcherCallbacks.renderDetail(serverId);
+    if (serverId) languageSwitcherCallbacks.refreshDetailPresentation({ languageChanged: true });
   }
 }
 

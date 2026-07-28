@@ -23,13 +23,26 @@ function normalizeOsLabel(value) {
     .trim();
 }
 
+function normalizeArchitectureLabel(value) {
+  const text = firstText(value);
+  if (text === '—') return text;
+  const normalized = text.toLowerCase().replace(/[\s_-]/g, '');
+  // Keep the kernel-reported architecture visible. AMD64/ARM64 are familiar
+  // platform aliases, not a replacement for the actual reported value.
+  if (normalized === 'x8664' || normalized === 'amd64') return 'x86_64 (AMD64)';
+  if (normalized === 'aarch64' || normalized === 'arm64') return 'aarch64 (ARM64)';
+  if (normalized === 'armv7' || normalized === 'armv7l') return 'ARMv7';
+  if (normalized === 'i386' || normalized === 'i686' || normalized === 'x86') return 'x86';
+  return text;
+}
+
 function renderRuntimeEnvironmentCard(server) {
   const cfg = server?.agent_config || {};
   const meta = cfg?.inventory_meta || {};
   const fields = [
     ['操作系统', normalizeOsLabel(server?.os || meta.os || cfg.os)],
     ['内核版本', firstText(server?.kernel_version, server?.kernel, meta.kernel_version, meta.kernel, cfg.kernel_version, cfg.kernel)],
-    ['硬件架构', firstText(server?.arch, meta.arch, cfg.arch)],
+    ['硬件架构', normalizeArchitectureLabel(server?.arch || meta.arch || cfg.arch)],
     ['CPU 型号', firstText(server?.cpu_model, server?.cpu_name, meta.cpu_model, meta.cpu_name, cfg.cpu_model, cfg.cpu_name)],
   ];
   return `<section class="probe-card runtime-env-card" aria-label="运行环境">

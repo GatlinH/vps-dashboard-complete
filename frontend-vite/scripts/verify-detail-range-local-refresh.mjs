@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 const rangeSource = readFileSync(new URL('../src/detail/historyRange.js', import.meta.url), 'utf8');
 const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
 const chartSource = readFileSync(new URL('../src/pages/detailCharts.js', import.meta.url), 'utf8');
+const preferencesSource = readFileSync(new URL('../src/core/preferences.js', import.meta.url), 'utf8');
+const detailPageSource = readFileSync(new URL('../src/pages/detailPage.js', import.meta.url), 'utf8');
 
 // A history-tab interaction must preserve the mounted detail page. It may fetch
 // and redraw charts, but must not invoke the full page renderer / remount map.
@@ -75,5 +77,27 @@ assert.match(chartSource, /Number\.isInteger\(Number\(value\)\).*Math\.round\(Nu
   'process Y-axis must render only integer process-count ticks');
 assert.match(chartSource, /等待 Agent 上报进程数/,
   'process chart must expose a truthful no-sample state');
+
+// Language and currency are presentation preferences. On detail they must not
+// replace the mounted grid, charts, or star-map just to update controls.
+assert.match(mainSource, /function refreshDetailPresentation\(/,
+  'main entry must expose an in-place detail presentation refresh');
+assert.match(mainSource, /DETAIL_PRESENTATION_REFRESH/,
+  'presentation refresh must expose a runtime trace for browser verification');
+assert.match(preferencesSource, /refreshDetailPresentation\(\{ languageChanged: true \}\)/,
+  'language switching must use the in-place detail presentation refresh');
+assert.doesNotMatch(preferencesSource, /renderDetail\(serverId\)/,
+  'language switching must not invoke the full detail renderer');
+const setCurrencySource = mainSource.match(/function setCurrency\(currency\) \{[\s\S]*?\n\}/)?.[0] || '';
+assert.match(setCurrencySource, /refreshDetailPresentation\(\{ currencyChanged: true \}\)/,
+  'currency switching must use the in-place detail presentation refresh');
+assert.doesNotMatch(setCurrencySource, /renderDetailPage\(/,
+  'currency switching must not invoke the full detail renderer');
+assert.match(detailPageSource, /function normalizeArchitectureLabel\(/,
+  'detail runtime card must normalize architecture labels');
+assert.match(detailPageSource, /normalized === 'x8664' \|\| normalized === 'amd64'.*return 'x86_64 \(AMD64\)'/s,
+  'x86_64 and amd64 must keep the actual kernel architecture with its AMD64 alias');
+assert.match(detailPageSource, /normalized === 'aarch64' \|\| normalized === 'arm64'.*return 'aarch64 \(ARM64\)'/s,
+  'aarch64 and arm64 must keep the actual kernel architecture with its ARM64 alias');
 
 console.log('detail range local-refresh contract: ok');

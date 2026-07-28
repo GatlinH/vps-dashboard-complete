@@ -110,7 +110,7 @@ configureLanguageSwitcher({
   isOverviewMode: () => overviewMode,
   getSelectedServerId: () => selectedServerId,
   renderOverview: () => renderPublicOverviewPage(),
-  renderDetail: (serverId) => renderDetailPage(serverId),
+  refreshDetailPresentation,
 });
 
 let detailHistoryDays = syncDetailHistoryStateFromStorage(1);
@@ -125,8 +125,25 @@ function setCurrency(currency) {
     btn.classList.toggle('active', (btn.dataset.currency || btn.textContent.trim()) === currency);
   });
   updateRateDisplay();
-  if (selectedServerId) renderDetailPage(selectedServerId);
+  if (selectedServerId) refreshDetailPresentation({ currencyChanged: true });
   else if (overviewMode) renderPublicOverviewPage();
+}
+
+// Preferences are presentation-only on a mounted detail page. Re-running the
+// full renderer would replace the canvas/map nodes and make a simple select
+// change look like a page reload while all history requests are repeated.
+function refreshDetailPresentation({ languageChanged = false, currencyChanged = false } = {}) {
+  const detailGrid = document.getElementById('detailPageGrid');
+  if (!selectedServerId || !detailGrid) return;
+  applyLanguage();
+  updateRateDisplay();
+  window.__DBG__.DETAIL_PRESENTATION_REFRESH = {
+    languageChanged,
+    currencyChanged,
+    language: currentLanguage,
+    currency: state.currency,
+    grid: detailGrid,
+  };
 }
 
 function bindTopbarEvents(root = document) {
