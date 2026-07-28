@@ -73,3 +73,4 @@ def test_public_detail_preserves_exact_agent_reported_cpu_model(app):
         public_detail = server.to_dict(public_only=True)
 
     assert public_detail['cpu_model'] == cpu_model
+    assert public_detail['ip'] == '203.0.*.*'

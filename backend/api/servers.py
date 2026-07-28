@@ -50,8 +50,10 @@ def _audit_high_risk(action, title, sid=None, extra=None):
 servers_bp = Blueprint("servers", __name__)
 logger = logging.getLogger(__name__)
 
-_CACHE_KEY_ADMIN  = "vps:servers:admin"   # 全量字段（含 IP、价格等）
-_CACHE_KEY_PUBLIC = "vps:servers:public"  # 公开字段
+_CACHE_KEY_ADMIN  = "vps:servers:admin"      # 全量字段（含 IP、价格等）
+# Version public cache whenever anonymous serialization/privacy rules change;
+# otherwise a pre-mask Redis entry can outlive the code rollout briefly.
+_CACHE_KEY_PUBLIC = "vps:servers:public:v2"  # 公开字段（IP 已脱敏）
 _CACHE_TTL = 30  # seconds
 
 FIELD_MAX_LEN = {
