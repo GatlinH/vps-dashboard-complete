@@ -6,6 +6,7 @@ import ipaddress
 import json
 import os
 import platform
+import re
 import shutil
 import socket
 import subprocess
@@ -239,28 +240,96 @@ def push_once():
     return _request("/api/v1/agent/push", json.dumps(payload(), ensure_ascii=False, separators=(",", ":")).encode())
 
 
+def _clean_probe_host(host):
+    value = str(host or '').strip()
+    return value[1:-1] if value.startswith('[') and value.endswith(']') else value
+
+
+def _is_ipv6_literal(host):
+    try:
+        socket.inet_pton(socket.AF_INET6, _clean_probe_host(host))
+        return True
+    except OSError:
+        return False
+
+
 def tcp_probe(host, port, timeout=5):
     try:
-        started = time.time(); sock = socket.create_connection((str(host), int(port)), timeout=timeout); sock.close(); return round((time.time() - started) * 1000, 1)
-    except OSError:
+        started = time.time()
+        for family, socktype, proto, _, sockaddr in socket.getaddrinfo(_clean_probe_host(host), int(port), socket.AF_UNSPEC, socket.SOCK_STREAM):
+            sock = None
+            try:
+                sock = socket.socket(family, socktype, proto); sock.settimeout(timeout)
+                if sock.connect_ex(sockaddr) == 0: return round((time.time() - started) * 1000, 1)
+            except OSError:
+                pass
+            finally:
+                if sock: sock.close()
+        return None
+    except Exception:
         return None
 
 
-def probe_targets(allowed_keys=None):
-    if not SERVER_ID: return
+def icmp_probe(host, timeout=5):
     try:
-        request = urllib.request.Request(f"{API_ROOT}/api/v1/probe/public/ping-targets/{SERVER_ID}?count=2&source=agent")
-        request.add_header("X-Agent-UUID", AGENT_UUID); request.add_header("X-Agent-Key", AGENT_KEY)
-        targets = json.loads(urllib.request.urlopen(request, timeout=10).read()).get("targets", [])
+        target = _clean_probe_host(host)
+        cmd = ['ping'] + (['-6'] if _is_ipv6_literal(target) else []) + ['-c', '1', '-W', str(max(1, int(timeout))), target]
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout + 1)
+        match = re.search(r'time[=<]([0-9.]+)\s*ms', (proc.stdout or '') + '\n' + (proc.stderr or ''))
+        return round(float(match.group(1)), 1) if proc.returncode == 0 and match else None
     except Exception:
-        return
+        return None
+
+
+def http_probe(host, port=None, timeout=5):
+    try:
+        raw = str(host or '').strip()
+        if raw.startswith(('http://', 'https://')): url = raw
+        else:
+            target = _clean_probe_host(raw); authority = f'[{target}]' if _is_ipv6_literal(target) else target
+            suffix = f':{int(port)}' if port and int(port) not in (80, 443) else ''
+            url = f'http://{authority}{suffix}'
+        started = time.time()
+        with urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'vps-dashboard-agent/1.3'}), timeout=timeout) as response:
+            return round((time.time() - started) * 1000, 1) if int(getattr(response, 'status', response.getcode())) < 500 else None
+    except Exception:
+        return None
+
+
+def probe_once(host, port=None, protocol='tcp', timeout=5):
+    proto = str(protocol or 'tcp').lower()
+    if proto == 'icmp': return icmp_probe(host, timeout)
+    if proto == 'http': return http_probe(host, port, timeout)
+    return tcp_probe(host, int(port or 443), timeout)
+
+
+def _probe_target_family(source):
+    if not SERVER_ID: return []
+    try:
+        request = urllib.request.Request(f'{API_ROOT}/api/v1/probe/public/ping-targets/{SERVER_ID}?count=4&source={source}')
+        request.add_header('X-Agent-UUID', AGENT_UUID); request.add_header('X-Agent-Key', AGENT_KEY)
+        return json.loads(urllib.request.urlopen(request, timeout=10).read()).get('targets', [])
+    except Exception:
+        return []
+
+
+def probe_targets(allowed_keys=None):
+    # Persist both distinct products: configured external latency monitors and
+    # peer VPS probes. The detail PING chart reads only external rows; peer rows
+    # remain in the global-probe view.
+    targets, seen = [], set()
+    for source in ('external', 'agent'):
+        for target in _probe_target_family(source):
+            key = str(target.get('key') or target.get('host') or target.get('label') or '')
+            if key and key not in seen:
+                seen.add(key); targets.append(target)
     results = []
     for target in targets:
-        if allowed_keys is not None and target.get("key") not in allowed_keys:
-            continue
-        host, port = target.get("host") or target.get("label"), target.get("port") or 80; latency = tcp_probe(host, port)
-        results.append({"key": target.get("key", str(host)), "host": host, "port": port, "protocol": target.get("protocol", "tcp"), "latency_ms": latency, "success": latency is not None, "loss_pct": 0 if latency is not None else 100})
-    if results: _request("/api/v1/agent/probe-results", json.dumps({"results": results, "agent_uuid": AGENT_UUID}, ensure_ascii=False).encode())
+        if allowed_keys is not None and target.get('key') not in allowed_keys: continue
+        host, port = target.get('host') or target.get('label'), target.get('port') or 80
+        latency = probe_once(host, port, target.get('protocol', 'tcp'))
+        results.append({'key': target.get('key', str(host)), 'host': host, 'port': port, 'protocol': target.get('protocol', 'tcp'), 'latency_ms': latency, 'success': latency is not None, 'loss_pct': 0 if latency is not None else 100, 'created_at': datetime.utcnow().isoformat()})
+    if results: _request('/api/v1/agent/probe-results', json.dumps({'results': results, 'agent_uuid': AGENT_UUID}, ensure_ascii=False).encode())
 
 
 def _load_task_validator():

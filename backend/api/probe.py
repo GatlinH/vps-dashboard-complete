@@ -759,13 +759,27 @@ def _persist_ping_target_results(server_id, targets, created_at=None):
         db.session.rollback()
 
 
-def _fetch_ping_target_history(server_id, hours=12, limit=2000):
+def _fetch_ping_target_history(server_id, hours=12, limit=2000, target_keys=None):
     if not _target_history_table_ready():
         return []
     hours = max(1, min(int(hours or 12), 168))
     limit = max(1, min(int(limit or 2000), 10000))
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
     since_naive = since.replace(tzinfo=None)
+    # Filter the shared raw table before bucket/limit. Otherwise dense peer rows
+    # can consume the aggregate budget and hide a configured external target.
+    keys = sorted({str(key) for key in (target_keys or []) if str(key)})
+    if target_keys is not None and not keys:
+        return []
+    key_clause = ""
+    params = {"server_id": server_id, "since": since_naive}
+    if keys:
+        placeholders = []
+        for index, key in enumerate(keys):
+            name = f"target_key_{index}"
+            placeholders.append(f":{name}")
+            params[name] = key
+        key_clause = f" AND target_key IN ({', '.join(placeholders)})"
     # The agent writes second-level samples. Returning raw rows with a global
     # LIMIT makes a busy target consume the response and leaves later targets
     # blank; it also returns only a short tail of a 12h axis. Aggregate by a
@@ -774,10 +788,11 @@ def _fetch_ping_target_history(server_id, hours=12, limit=2000):
     target_count = db.session.execute(db.text("""
         SELECT COUNT(DISTINCT target_key)
         FROM ping_target_results
-        WHERE server_id = :server_id AND created_at >= :since
-    """), {"server_id": server_id, "since": since_naive}).scalar() or 1
+        WHERE server_id = :server_id AND created_at >= :since""" + key_clause + """
+    """), params).scalar() or 1
     points_per_target = max(1, limit // max(1, int(target_count)))
     bucket_seconds = max(60, int((hours * 3600 + points_per_target - 1) // points_per_target))
+    params.update({"bucket_seconds": bucket_seconds, "limit": limit})
     rows = db.session.execute(db.text("""
         SELECT
           :server_id AS server_id,
@@ -792,16 +807,11 @@ def _fetch_ping_target_history(server_id, hours=12, limit=2000):
           MAX(quality) AS quality,
           MAX(created_at) AS created_at
         FROM ping_target_results
-        WHERE server_id = :server_id AND created_at >= :since
+        WHERE server_id = :server_id AND created_at >= :since""" + key_clause + """
         GROUP BY target_key, FLOOR(UNIX_TIMESTAMP(created_at) / :bucket_seconds)
         ORDER BY created_at ASC
         LIMIT :limit
-    """), {
-        "server_id": server_id,
-        "since": since_naive,
-        "bucket_seconds": bucket_seconds,
-        "limit": limit,
-    }).mappings().all()
+    """), params).mappings().all()
     return [dict(r) for r in rows]
 
 
@@ -869,16 +879,22 @@ def public_ping_targets_history(sid):
             current_app.logger.error("ping rollup history failed: %s", exc)
             return jsonify({"server_id": sid, "hours": hours, "targets": [], "derived_from": "rollup unavailable", "probe_source": source, "history_source": "rollup"}), 503
 
+    target_keys = set()
+    for index, target in enumerate(configured):
+        key = str(target.get("key") or target.get("host") or target.get("label") or f"target-{index}")
+        target_keys.add(key)
+        for alias in (target.get("host"), target.get("label")):
+            if alias:
+                target_keys.add(str(alias))
+    rows = _fetch_ping_target_history(sid, hours, limit, target_keys=target_keys)
     if source == "agent" or _ping_targets_are_peer_targets(server, configured):
         # Peer latency history must come from agent reports only; never synthesize
         # controller/API-side fallback samples.
-        stored_rows = _fetch_ping_target_history(sid, hours, limit)
-        if not stored_rows:
+        if not rows:
             payload = _agent_side_unavailable_payload(sid, configured, hours=hours)
             resp = jsonify(payload)
             resp.headers["Cache-Control"] = "no-store"
             return resp
-    rows = _fetch_ping_target_history(sid, hours, limit)
     targets_meta = {}
     for i, t in enumerate(configured):
         primary = str(t.get("key") or t.get("host") or t.get("label") or f"target-{i}")
