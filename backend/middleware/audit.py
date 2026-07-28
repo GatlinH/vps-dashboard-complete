@@ -31,11 +31,18 @@ class AuditMiddleware:
         '/metrics',
     }
 
-    # 常见敏感字段（写入审计日志前会脱敏）
+    # Canonical sensitive names plus semantic fragments. Audit records must never
+    # become a secondary credential store just because an endpoint uses a more
+    # specific field name such as agent_key or old_password.
     SENSITIVE_KEYS = {
         'password', 'password_hash', 'token', 'access_token', 'refresh_token',
         'secret', 'secret_key', 'jwt', 'authorization', 'cookie', 'bot_token',
+        'agent_key', 'old_password', 'new_password', 'api_key', 'apikey',
+        'credential', 'credentials',
     }
+    # Do not match a bare "key" fragment: ordinary payload structures commonly
+    # use it as a map key. Credential key variants belong in SENSITIVE_KEYS.
+    SENSITIVE_KEY_FRAGMENTS = ('password', 'passwd', 'token', 'secret', 'credential', 'authorization', 'cookie')
 
     def __init__(self, app=None):
         self.app = app
@@ -306,12 +313,23 @@ class AuditMiddleware:
             return None
         return self._sanitize_value(data)
 
+    def _is_sensitive_key(self, key) -> bool:
+        """Return true for credential-bearing field names, case-insensitively."""
+        normalized = ''.join(ch for ch in str(key or '').lower() if ch.isalnum())
+        if normalized in {''.join(ch for ch in item if ch.isalnum()) for item in self.SENSITIVE_KEYS}:
+            return True
+        # Preserve non-secret identifiers such as encryption_key_id / key_id;
+        # their values are references, not credentials.
+        if normalized.endswith('keyid') or normalized.endswith('tokenid'):
+            return False
+        return any(fragment in normalized for fragment in self.SENSITIVE_KEY_FRAGMENTS)
+
     def _sanitize_value(self, value):
         """递归脱敏 + 长度限制"""
         if isinstance(value, dict):
             result = {}
             for key, val in value.items():
-                if str(key).lower() in self.SENSITIVE_KEYS:
+                if self._is_sensitive_key(key):
                     result[key] = '***'
                 else:
                     result[key] = self._sanitize_value(val)

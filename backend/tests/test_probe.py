@@ -53,6 +53,61 @@ def test_ping_batch_requires_auth(client):
     assert resp.status_code == 401
 
 
+def test_http_ping_connects_to_pinned_ip_and_keeps_https_hostname(monkeypatch):
+    import api.probe as probe
+
+    captured = {}
+
+    class Response:
+        status = 204
+        def release_conn(self):
+            captured['released'] = True
+
+    class Pool:
+        def __init__(self, host, port=None, **kwargs):
+            captured.update(host=host, port=port, **kwargs)
+        def request(self, method, path, **kwargs):
+            captured.update(method=method, path=path, request_kwargs=kwargs)
+            return Response()
+        def close(self):
+            captured['closed'] = True
+
+    monkeypatch.setattr(probe.urllib3, 'HTTPSConnectionPool', Pool)
+    result = probe.http_ping('https://public.example.test/health?x=1', timeout=1, connect_host='198.51.100.42')
+
+    assert result['success'] is True
+    assert captured['host'] == '198.51.100.42'
+    assert captured['port'] == 443
+    assert captured['server_hostname'] == 'public.example.test'
+    assert captured['assert_hostname'] == 'public.example.test'
+    assert captured['headers']['Host'] == 'public.example.test'
+    assert captured['method'] == 'GET'
+    assert captured['path'] == '/health?x=1'
+    assert captured['request_kwargs']['redirect'] is False
+    assert captured['closed'] is True
+
+
+def test_http_probe_stats_passes_resolved_public_ip_to_runner(monkeypatch):
+    import api.probe as probe
+
+    monkeypatch.setattr(
+        probe,
+        'resolve_public_host_addresses',
+        lambda host, port: [(None, None, None, None, ('198.51.100.42', port))],
+    )
+    calls = []
+    def fake_run(protocol, host, port, timeout, connect_host=None):
+        calls.append((protocol, host, port, connect_host))
+        return {'success': True, 'latency_ms': 10.0}
+    monkeypatch.setattr(probe, 'run_probe_once', fake_run)
+
+    results, stats = probe._probe_stats('http', 'https://public.example.test/health', 443, 1, 1)
+
+    assert calls == [('http', 'https://public.example.test/health', 443, '198.51.100.42')]
+    assert results[0]['success'] is True
+    assert stats['avg_ms'] == 10.0
+
+
 def test_ping_batch_with_admin_auth(client, auth_headers):
     """POST /api/probe/ping/batch 认证后可调用"""
     with patch('api.probe.tcp_ping') as mock_ping:

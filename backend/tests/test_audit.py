@@ -46,3 +46,28 @@ def test_audit_sanitizes_nested_sensitive_payload_values():
     assert sanitized['profile']['token'] == '***'
     assert sanitized['profile']['nested'][0]['secret_key'] == '***'
     assert sanitized['profile']['nested'][1]['safe'] == 'ok'
+
+
+def test_audit_redacts_sensitive_key_variants_recursively():
+    audit = AuditMiddleware()
+    payload = {
+        'agent_key': 'agent-secret',
+        'old_password': 'old-secret',
+        'new_password': 'new-secret',
+        'webhook_url': 'https://safe.example/hook',
+        'nested': {
+            'ApiKey': 'case-insensitive',
+            'customCredential': 'credential-secret',
+            'encryption_key_id': 'not-a-secret-value',
+        },
+    }
+
+    sanitized = audit._sanitize_value(payload)
+
+    assert sanitized['agent_key'] == '***'
+    assert sanitized['old_password'] == '***'
+    assert sanitized['new_password'] == '***'
+    assert sanitized['nested']['ApiKey'] == '***'
+    assert sanitized['nested']['customCredential'] == '***'
+    assert sanitized['webhook_url'] == 'https://safe.example/hook'
+    assert sanitized['nested']['encryption_key_id'] == 'not-a-secret-value'

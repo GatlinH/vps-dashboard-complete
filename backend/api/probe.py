@@ -11,6 +11,7 @@ import re
 import subprocess
 from urllib.parse import urlparse
 import requests
+import urllib3
 from urllib.parse import urlencode
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, request, jsonify, current_app
@@ -551,15 +552,41 @@ def icmp_ping(host: str, timeout: float = 5.0) -> dict:
         return {"success": False, "latency_ms": None, "error": str(e)}
 
 
-def http_ping(host: str, port: int | None = None, timeout: float = 5.0) -> dict:
+def http_ping(host: str, port: int | None = None, timeout: float = 5.0, connect_host: str | None = None) -> dict:
+    """Probe HTTP over a pre-resolved public IP without a second DNS lookup.
+
+    ``connect_host`` is a validated address from ``resolve_public_host_addresses``.
+    The authority remains the original hostname for HTTP Host and HTTPS SNI/cert
+    validation, while the socket itself is pinned to the address we validated.
+    """
     url = _http_probe_url(host, port)
+    parsed = urlparse(url)
+    origin_host = parsed.hostname or str(host or "").strip().strip("[]")
+    connect_ip = str(connect_host or origin_host).strip().strip("[]")
+    scheme = parsed.scheme or "http"
+    target_port = parsed.port or (443 if scheme == "https" else 80)
+    path = (parsed.path or "/") + (f"?{parsed.query}" if parsed.query else "")
     start = time.perf_counter()
     try:
-        resp = requests.get(url, timeout=timeout, allow_redirects=False, headers={"User-Agent": "vps-dashboard-probe/1.0"})
+        headers = {"User-Agent": "vps-dashboard-probe/1.0", "Host": origin_host}
+        pool_cls = urllib3.HTTPSConnectionPool if scheme == "https" else urllib3.HTTPConnectionPool
+        pool_kwargs = {"retries": False, "timeout": urllib3.Timeout(total=timeout), "headers": headers}
+        if scheme == "https":
+            # urllib3 connects to connect_ip but sends original hostname as SNI
+            # and validates the certificate against it.
+            pool_kwargs["server_hostname"] = origin_host
+            pool_kwargs["assert_hostname"] = origin_host
+        pool = pool_cls(connect_ip, port=target_port, **pool_kwargs)
+        try:
+            resp = pool.request("GET", path, redirect=False, preload_content=False)
+            status_code = int(resp.status)
+            resp.release_conn()
+        finally:
+            pool.close()
         elapsed = (time.perf_counter() - start) * 1000
-        ok = 100 <= int(resp.status_code) < 500
-        return {"success": ok, "latency_ms": round(elapsed, 2) if ok else None, "error": None if ok else f"HTTP {resp.status_code}", "status_code": resp.status_code, "url": url}
-    except requests.exceptions.Timeout:
+        ok = 100 <= status_code < 500
+        return {"success": ok, "latency_ms": round(elapsed, 2) if ok else None, "error": None if ok else f"HTTP {status_code}", "status_code": status_code, "url": url}
+    except (urllib3.exceptions.ConnectTimeoutError, urllib3.exceptions.ReadTimeoutError):
         return {"success": False, "latency_ms": None, "error": "timeout", "url": url}
     except Exception as e:
         return {"success": False, "latency_ms": None, "error": str(e), "url": url}
@@ -584,18 +611,17 @@ def run_probe_once(protocol: str, host: str, port: int, timeout: float = 5.0, co
 
 def _probe_stats(protocol: str, host: str, port: int, count: int, timeout: float, max_workers: int = 5):
     protocol = _normalize_probe_protocol(protocol)
-    # M-3: resolve the hostname ONCE here and pin the resulting public IP, then
-    # have every probe connect to that pinned IP. This closes the DNS rebinding
-    # window where validation resolves a public IP but the per-connect re-resolve
-    # returns an internal/metadata address. http keeps hostname (Host header).
+    # Resolve once and pin the public address for every protocol. This closes the
+    # DNS rebinding / TOCTOU window between target validation and socket connect.
+    # HTTP preserves the original host only for Host/SNI/certificate validation.
     connect_host = None
-    if protocol != "http":
-        try:
-            infos = resolve_public_host_addresses(host, port)
-        except Exception:
-            infos = []
-        if infos:
-            connect_host = str(infos[0][4][0])
+    resolution_host = (urlparse(_http_probe_url(host)).hostname or "") if protocol == "http" else host
+    try:
+        infos = resolve_public_host_addresses(resolution_host, port)
+    except Exception:
+        infos = []
+    if infos:
+        connect_host = str(infos[0][4][0])
     def _probe_once(seq):
         r = run_probe_once(protocol, host, port, timeout, connect_host=connect_host)
         r["seq"] = seq + 1
