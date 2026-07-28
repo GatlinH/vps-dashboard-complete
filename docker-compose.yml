@@ -117,6 +117,9 @@ services:
       TILE_CACHE_TTL: ${TILE_CACHE_TTL:-86400}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-1}
       GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
+      # Deployment-neutral direct bind. Default preserves IPv4; operators may set
+      # GUNICORN_BIND='[::]:5000' and PUBLIC_BIND_ADDRESS='[::]' explicitly.
+      GUNICORN_BIND: ${GUNICORN_BIND:-0.0.0.0:5000}
       TRUST_PROXY: ${TRUST_PROXY:-1}
       FORCE_HTTPS: ${FORCE_HTTPS:-0}
       JWT_COOKIE_SECURE: ${JWT_COOKIE_SECURE:-0}
@@ -133,7 +136,9 @@ services:
       WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_HTTP_API_TOKEN:-}
       WATCHTOWER_HTTP_API_URL: http://watchtower:8080/v1/update
     ports:
-      - "0.0.0.0:4500:5000"
+      # Default stays IPv4 direct. Operators explicitly opt into IPv6/direct dual-stack
+      # publishing with PUBLIC_BIND_ADDRESS='[::]' (or their chosen host address).
+      - "${PUBLIC_BIND_ADDRESS:-0.0.0.0}:4500:5000"
     volumes:
       - /var/log/vps-dashboard:/var/log/vps-dashboard
       - /var/lib/vps-dashboard:/var/lib/vps-dashboard

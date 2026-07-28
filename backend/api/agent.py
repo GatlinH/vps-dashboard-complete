@@ -281,7 +281,11 @@ def _apply_agent_inventory(server: Server, data: dict):
     public_ipv4 = str(network_report.get('public_ipv4') or data.get('public_ipv4') or '').strip()
     public_ipv6 = str(network_report.get('public_ipv6') or data.get('public_ipv6') or '').strip()
     local_ipv4 = str(network_report.get('local_ipv4') or inv.get('ip') or data.get('ip') or '').strip()
-    agent_ip = public_ipv4 or local_ipv4 or str(server.ip or '').strip()
+    local_ipv6_values = network_report.get('local_ipv6') if isinstance(network_report.get('local_ipv6'), list) else []
+    local_ipv6 = next((str(value).strip() for value in local_ipv6_values if str(value).strip()), '')
+    # A direct IPv6-only node has no IPv4 fallback; retain its IPv6 identity
+    # rather than overwriting it with an empty/private IPv4 placeholder.
+    agent_ip = public_ipv4 or public_ipv6 or local_ipv4 or local_ipv6 or str(server.ip or '').strip()
 
     if cpu is not None and 0 < cpu <= 1024 and server.cpu_cores != cpu:
         server.cpu_cores = cpu
@@ -806,6 +810,7 @@ umask 077
 cat > "$INSTALL_DIR/agent.py" <<'PY2'
 import hashlib
 import hmac
+import ipaddress
 import json
 import os
 import platform
@@ -868,15 +873,33 @@ def read_cpu_model():
         return ""
 
 
-def get_ip():
+def _usable_ip(value, version=None):
     try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        ip = ipaddress.ip_address(str(value).split("%", 1)[0].strip())
+        if version and ip.version != version:
+            return ""
+        if ip.is_loopback or ip.is_unspecified or ip.is_link_local or ip.is_multicast:
+            return ""
+        return str(ip)
+    except ValueError:
+        return ""
+
+def _route_ip(family, target):
+    try:
+        with socket.socket(family, socket.SOCK_DGRAM) as sock:
             sock.settimeout(2)
-            sock.connect(("8.8.8.8", 80))
-            ip = sock.getsockname()[0]
-        return ip or "127.0.0.1"
+            sock.connect(target)
+            return _usable_ip(sock.getsockname()[0], 4 if family == socket.AF_INET else 6)
     except Exception:
-        return "127.0.0.1"
+        return ""
+
+def network_inventory():
+    local_ipv4 = _route_ip(socket.AF_INET, ("8.8.8.8", 80))
+    local_ipv6 = _route_ip(socket.AF_INET6, ("2001:4860:4860::8888", 80, 0, 0))
+    return {"local_ipv4": local_ipv4, "local_ipv6": [local_ipv6] if local_ipv6 else []}
+
+def get_ip():
+    return network_inventory().get("local_ipv4") or ""
 
 def meminfo():
     vals = {}
@@ -964,12 +987,14 @@ def payload():
     ram_gb, ram_use = meminfo()
     disk_gb, disk_use = diskinfo()
     net_up, net_down = net_rates()
+    network = network_inventory()
     return {
         "uuid": AGENT_UUID, "status": "online", "hostname": socket.gethostname(),
         "os": read_os_name(), "kernel_version": read_kernel_version(),
         "arch": platform.machine(), "cpu_model": read_cpu_model(), "cpu_cores": cores,
         "ram_gb": ram_gb, "disk_gb": disk_gb, "bandwidth": "N/A",
-        "ip": get_ip(), "cpu_use": cpu_use(cores), "ram_use": ram_use,
+        "ip": network.get("local_ipv4") or "", "network": network,
+        "cpu_use": cpu_use(cores), "ram_use": ram_use,
         "disk_use": disk_use, "net_up": net_up, "net_down": net_down,
         "process_count": process_count(), "uptime": uptime_text(),
     }
