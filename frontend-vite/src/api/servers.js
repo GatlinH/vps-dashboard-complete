@@ -88,6 +88,10 @@ export async function deleteServer(id) {
   return request(`/servers/${id}`, { method: 'DELETE' });
 }
 
+export async function deleteServersBulk(ids) {
+  return request('/servers/bulk', { method: 'DELETE', body: JSON.stringify({ ids }) });
+}
+
 export async function generateAgentKey(id) {
   return request(`/servers/${id}/agent-key/generate`, { method: 'POST' });
 }

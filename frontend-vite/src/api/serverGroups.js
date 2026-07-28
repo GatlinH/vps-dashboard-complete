@@ -4,3 +4,4 @@ export async function fetchServerGroups() { return (await request('/server-group
 export async function createServerGroup(payload) { return (await request('/server-groups', { method: 'POST', body: JSON.stringify(payload) })).group; }
 export async function updateServerGroup(id, payload) { return (await request(`/server-groups/${id}`, { method: 'PUT', body: JSON.stringify(payload) })).group; }
 export async function deleteServerGroup(id) { return request(`/server-groups/${id}`, { method: 'DELETE' }); }
+export async function deleteServerGroupsBulk(ids) { return request('/server-groups/bulk', { method: 'DELETE', body: JSON.stringify({ ids }) }); }

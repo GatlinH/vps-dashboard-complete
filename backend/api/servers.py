@@ -363,6 +363,41 @@ def update_server(sid):
     return jsonify(server.to_dict())
 
 
+def _parse_bulk_ids(data, field="ids", limit=100):
+    raw_ids = data.get(field) if isinstance(data, dict) else None
+    if not isinstance(raw_ids, list) or not raw_ids:
+        raise ValidationError(f"{field} 必须是非空数组", field=field)
+    if len(raw_ids) > limit:
+        raise ValidationError(f"一次最多操作 {limit} 项", field=field)
+    try:
+        ids = sorted({int(value) for value in raw_ids})
+    except (TypeError, ValueError):
+        raise ValidationError(f"{field} 必须是整数数组", field=field)
+    if any(value <= 0 for value in ids):
+        raise ValidationError(f"{field} 必须是正整数数组", field=field)
+    return ids
+
+
+def _delete_server_instance(server):
+    """Delete one node and its partitioned ProbeResult rows safely."""
+    sid = server.id
+    # MySQL partitioned tables have no FK cascade; explicitly delete probe results
+    # in bounded batches so row locks are released progressively.
+    batch_size = current_app.config.get("PROBE_RESULT_DELETE_BATCH", 1000)
+    while True:
+        probe_result_ids = [
+            row.id for row in db.session.query(ProbeResult.id)
+            .filter(ProbeResult.server_id == sid).order_by(ProbeResult.id)
+            .limit(batch_size).all()
+        ]
+        if not probe_result_ids:
+            break
+        ProbeResult.query.filter(ProbeResult.id.in_(probe_result_ids)).delete(synchronize_session=False)
+        db.session.commit()
+    db.session.delete(server)
+    db.session.commit()
+
+
 @servers_bp.delete("/<int:sid>")
 @admin_required
 def delete_server(sid):
@@ -373,39 +408,26 @@ def delete_server(sid):
         raise
     except Exception as e:
         raise InternalServerError(error_detail=str(e))
-
-    # MySQL partitioned tables have no FK cascade; explicitly delete probe results
-    # for this server.  Use batched DELETEs to avoid a single large row-lock
-    # window (and slow partition-scan) on tables with many historical rows.
-    # Each batch is committed independently so InnoDB releases row locks
-    # progressively.  Partial deletions on error are acceptable: any remaining
-    # orphaned rows are picked up by the next retention cleanup job run.
-    batch_size = current_app.config.get("PROBE_RESULT_DELETE_BATCH", 1000)
-    while True:
-        # Materialize a batch of ids first so the DELETE does not read from
-        # the same table in a nested subquery, which MySQL rejects.
-        probe_result_ids = [
-            row.id
-            for row in db.session.query(ProbeResult.id)
-            .filter(ProbeResult.server_id == sid)
-            .order_by(ProbeResult.id)
-            .limit(batch_size)
-            .all()
-        ]
-        if not probe_result_ids:
-            break
-        ProbeResult.query.filter(
-            ProbeResult.id.in_(probe_result_ids)
-        ).delete(synchronize_session=False)
-        db.session.commit()
-
-    # Delete the server in its own transaction.  The server object is expired
-    # after the batch commits above, but SQLAlchemy retains the PK in the
-    # identity map so session.delete() does not need to re-query the row.
-    db.session.delete(server)
-    db.session.commit()
+    _delete_server_instance(server)
     _clear_cache()
     return jsonify(msg="已删除")
+
+
+@servers_bp.delete("/bulk")
+@admin_required
+def bulk_delete_servers():
+    """Delete an explicitly selected set of nodes (admin only)."""
+    ids = _parse_bulk_ids(request.get_json(silent=True) or {})
+    servers = Server.query.filter(Server.id.in_(ids)).order_by(Server.id).all()
+    found = {server.id for server in servers}
+    missing = [sid for sid in ids if sid not in found]
+    if missing:
+        raise ValidationError("部分节点不存在，未执行删除", field="ids")
+    for server in servers:
+        _delete_server_instance(server)
+    _clear_cache()
+    _audit_high_risk("bulk_delete_servers", "批量删除节点", extra={"server_ids": ids, "count": len(ids)})
+    return jsonify(deleted=len(ids), ids=ids)
 
 
 @servers_bp.post("/<int:sid>/agent-key/generate")

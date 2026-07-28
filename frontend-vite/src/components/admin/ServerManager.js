@@ -7,13 +7,14 @@ import {
   createServer,
   updateServer,
   deleteServer,
+  deleteServersBulk,
   updateAgentConfig,
   generateAgentKey,
   rotateAgentKey,
   getAgentOverview,
   fetchAgentInstallCommand,
 } from '../../api/servers.js';
-import { createServerGroup, deleteServerGroup, fetchServerGroups, updateServerGroup } from '../../api/serverGroups.js';
+import { createServerGroup, deleteServerGroup, deleteServerGroupsBulk, fetchServerGroups, updateServerGroup } from '../../api/serverGroups.js';
 
 export class ServerManager {
   constructor(mountId) {
@@ -24,6 +25,7 @@ export class ServerManager {
     this._busy = false;
     this._editingId = null;
     this._selectedIds = new Set();
+    this._selectedGroupIds = new Set();
     this._query = '';
     this._statusFilter = 'all'; // all | online | warn | offline
     this._groupFilter = 'all';
@@ -89,6 +91,7 @@ export class ServerManager {
             : '—';
           const members = this._servers.filter((s) => String(s.group_info?.id || s.group_id) === String(group.id)).length;
           return `<tr>
+            <td><input type="checkbox" data-group-row-check="${group.id}" ${this._selectedGroupIds.has(String(group.id)) ? 'checked' : ''} aria-label="选择分组 ${this._attr(group.name)}"></td>
             <td><strong>${this._escape(group.name)}</strong></td>
             <td>${this._escape(group.purpose || '—')}</td>
             <td>${color}</td>
@@ -99,7 +102,34 @@ export class ServerManager {
             </td>
           </tr>`;
         }).join('')
-      : '<tr><td colspan="6" class="komari-empty">暂无分组，请在上方添加（节点下拉 / 资产总览会同步）</td></tr>';
+      : '<tr><td colspan="7" class="komari-empty">暂无分组，请在上方添加（节点下拉 / 资产总览会同步）</td></tr>';
+    this._syncBulkControls();
+  }
+
+  _syncBulkControls() {
+    const selectedNodes = this._selectedIds.size;
+    const nodeButton = this._el.querySelector('#sm-delete-selected');
+    if (nodeButton) {
+      nodeButton.disabled = !selectedNodes || this._busy;
+      nodeButton.textContent = `删除选中（${selectedNodes}）`;
+    }
+    const nodeCheckAll = this._el.querySelector('#sm-check-all');
+    const visibleNodes = this._filteredServers();
+    if (nodeCheckAll) {
+      nodeCheckAll.checked = visibleNodes.length > 0 && visibleNodes.every((server) => this._selectedIds.has(String(server.id)));
+      nodeCheckAll.indeterminate = visibleNodes.some((server) => this._selectedIds.has(String(server.id))) && !nodeCheckAll.checked;
+    }
+    const selectedGroups = this._selectedGroupIds.size;
+    const groupButton = this._el.querySelector('#sm-delete-groups-selected');
+    if (groupButton) {
+      groupButton.disabled = !selectedGroups || this._busy;
+      groupButton.textContent = `删除选中（${selectedGroups}）`;
+    }
+    const groupCheckAll = this._el.querySelector('#sm-group-check-all');
+    if (groupCheckAll) {
+      groupCheckAll.checked = this._groups.length > 0 && this._groups.every((group) => this._selectedGroupIds.has(String(group.id)));
+      groupCheckAll.indeterminate = this._groups.some((group) => this._selectedGroupIds.has(String(group.id))) && !groupCheckAll.checked;
+    }
   }
 
   async _saveGroup(id = null) {
@@ -232,6 +262,7 @@ export class ServerManager {
               <option value="all">全部分组</option>
             </select>
             <span id="sm-filter-count" class="sm-filter-count">0 台</span>
+            <button id="sm-delete-selected" class="komari-secondary sm-bulk-delete" type="button" disabled>删除选中（0）</button>
           </div>
           <div class="komari-table-wrap">
             <table class="komari-node-table">
@@ -281,10 +312,10 @@ export class ServerManager {
               </div>
             </section>
             <section class="komari-panel sm-group-list-panel">
-              <div class="komari-panel-title"><span>已有分组</span><small>点击编辑 / 删除</small></div>
+              <div class="komari-panel-title"><span>已有分组</span><small>勾选后可批量删除；有关联节点的分组会拒绝删除</small><button id="sm-delete-groups-selected" class="komari-secondary sm-bulk-delete" type="button" disabled>删除选中（0）</button></div>
               <div class="komari-table-wrap">
                 <table class="komari-node-table">
-                  <thead><tr><th>名称</th><th>用途</th><th>颜色</th><th>排序</th><th>节点</th><th>操作</th></tr></thead>
+                  <thead><tr><th><input id="sm-group-check-all" type="checkbox" aria-label="选择全部当前分组"></th><th>名称</th><th>用途</th><th>颜色</th><th>排序</th><th>节点</th><th>操作</th></tr></thead>
                   <tbody id="sm-groups-tbody"></tbody>
                 </table>
               </div>
@@ -316,7 +347,20 @@ export class ServerManager {
     });
     this._el.querySelector('#sm-group-save')?.addEventListener('click', () => this._saveGroup(this._editingGroupId));
     this._el.querySelector('#sm-group-reset')?.addEventListener('click', () => this._renderGroupsPage());
+    this._el.querySelector('#sm-delete-selected')?.addEventListener('click', () => this._deleteSelectedNodes());
+    this._el.querySelector('#sm-delete-groups-selected')?.addEventListener('click', () => this._deleteSelectedGroups());
+    this._el.querySelector('#sm-group-check-all')?.addEventListener('change', (e) => {
+      this._selectedGroupIds = e.target.checked ? new Set(this._groups.map((group) => String(group.id))) : new Set();
+      this._renderGroupsPage();
+    });
     this._el.querySelector('#sm-groups-tbody')?.addEventListener('click', (e) => {
+      const check = e.target.closest('[data-group-row-check]');
+      if (check) {
+        const id = check.dataset.groupRowCheck;
+        check.checked ? this._selectedGroupIds.add(id) : this._selectedGroupIds.delete(id);
+        this._syncBulkControls();
+        return;
+      }
       // Group rows now use the same ⋯ aggregate menu as node rows.
       const trigger = e.target.closest('[data-menu-trigger]');
       if (trigger) {
@@ -336,6 +380,7 @@ export class ServerManager {
       if (check) {
         const id = check.dataset.rowCheck;
         check.checked ? this._selectedIds.add(id) : this._selectedIds.delete(id);
+        this._syncBulkControls();
         return;
       }
       if (trigger) {
@@ -388,6 +433,7 @@ export class ServerManager {
     }
     if (!rows.length) {
       el.innerHTML = `<tr><td colspan="9" class="komari-empty">没有匹配的节点</td></tr>`;
+      this._syncBulkControls();
       return;
     }
     el.innerHTML = rows.map((s) => {
@@ -427,6 +473,7 @@ export class ServerManager {
           </td>
         </tr>`;
     }).join('');
+    this._syncBulkControls();
   }
 
   _rowMenuItems(kind = 'node') {
@@ -765,12 +812,48 @@ export class ServerManager {
     try {
       this._busy = true;
       await deleteServer(id);
+      this._selectedIds.delete(String(id));
       this._servers = this._servers.filter(s => String(s.id) !== String(id));
       this._notifyServersChanged('deleted', id);
       this._renderTable();
       this._toast('🗑️ 删除成功', 'blue');
     } catch(e){ this._toast(e.message,'red'); }
-    finally { this._busy=false; }
+    finally { this._busy=false; this._syncBulkControls(); }
+  }
+
+  async _deleteSelectedNodes() {
+    const ids = [...this._selectedIds];
+    if (this._busy || !ids.length) return;
+    if (!confirm(`确认删除选中的 ${ids.length} 个节点？关联的遥测历史也会删除，此操作不可恢复。`)) return;
+    try {
+      this._busy = true;
+      const result = await deleteServersBulk(ids);
+      const deleted = new Set((result.ids || ids).map(String));
+      this._servers = this._servers.filter((server) => !deleted.has(String(server.id)));
+      this._selectedIds.clear();
+      this._notifyServersChanged('bulk-deleted', ids.join(','));
+      this._renderTable();
+      this._toast(`🗑️ 已删除 ${deleted.size} 个节点`, 'blue');
+    } catch (error) { this._toast(error.message, 'red'); }
+    finally { this._busy = false; this._syncBulkControls(); }
+  }
+
+  async _deleteSelectedGroups() {
+    const ids = [...this._selectedGroupIds];
+    if (this._busy || !ids.length) return;
+    if (!confirm(`确认删除选中的 ${ids.length} 个分组？含有关联节点的分组将拒绝删除。`)) return;
+    try {
+      this._busy = true;
+      const result = await deleteServerGroupsBulk(ids);
+      const deleted = new Set((result.ids || ids).map(String));
+      this._groups = this._groups.filter((group) => !deleted.has(String(group.id)));
+      this._selectedGroupIds.clear();
+      this._fillGroupFilter();
+      this._renderGroupsPage();
+      this._renderTable();
+      this._toast(`🗑️ 已删除 ${deleted.size} 个分组`, 'blue');
+    } catch (error) { this._toast(error.message, 'red'); }
+    finally { this._busy = false; this._syncBulkControls(); }
   }
 
   _modal(title, body) {
