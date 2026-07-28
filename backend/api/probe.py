@@ -1437,7 +1437,7 @@ def fetch_probe():
 
         db.session.add(ProbeResult(server_id=s.id, **{
             k: metrics.get(k) for k in
-            ["cpu_use", "ram_use", "disk_use", "net_up", "net_down", "status"]
+            ["cpu_use", "ram_use", "disk_use", "net_up", "net_down", "process_count", "status"]
         }, latency_ms=None))
 
         try:

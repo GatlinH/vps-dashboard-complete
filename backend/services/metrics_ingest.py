@@ -105,7 +105,21 @@ def ingest_metrics(
             setattr(server, field, fval)
             applied[field] = fval
 
-    # ── 3. String / status fields ─────────────────────────────────────────────
+    # ── 3. Privacy-safe host process count ───────────────────────────────────
+    # Store only a bounded total. Never accept process names/args/users.
+    process_raw = data.get("process_count")
+    if process_raw is not None:
+        try:
+            process_count = int(process_raw)
+        except (TypeError, ValueError):
+            process_count = None
+        if process_count is not None and 0 <= process_count <= 1_000_000:
+            server.process_count = process_count
+            applied["process_count"] = process_count
+        elif strict:
+            raise ValidationError("process_count 必须是 0-1000000 的整数", field="process_count")
+
+    # ── 4. String / status fields ─────────────────────────────────────────────
     for field in ("status", "uptime"):
         val = data.get(field)
         if val is None:
@@ -178,6 +192,7 @@ def ingest_metrics(
         "disk_use": applied.get("disk_use", server.disk_use),
         "net_up": applied.get("net_up", server.net_up),
         "net_down": applied.get("net_down", server.net_down),
+        "process_count": applied.get("process_count", server.process_count),
     }
     db.session.add(
         ProbeResult(

@@ -1035,6 +1035,16 @@ function detailFreshnessMeta(rows = [], server = null) {
   return { latestMs, ageSec, ageText, sampleSec, freshClass };
 }
 
+function detailProcessMeta(rows = [], server = null) {
+  const validCount = (value) => value != null && value !== '' && Number.isFinite(Number(value)) && Number(value) >= 0;
+  const ordered = backendTelemetryRows(rows).filter((row) => validCount(row?.process_count));
+  const latest = ordered.length
+    ? Number(ordered[ordered.length - 1].process_count)
+    : (validCount(server?.process_count) ? Number(server.process_count) : null);
+  const count = Number.isFinite(latest) && latest >= 0 ? Math.round(latest) : null;
+  return { count, countText: count == null ? '等待 agent 上报' : `${count} 个` };
+}
+
 function detailHealthStatus(server, probeRows = [], pingTargetsData = null) {
   const cpu = Number(server?.cpu_use || 0);
   const ram = Number(server?.ram_use || 0);
@@ -1734,6 +1744,12 @@ async function renderDetailPage(serverId) {
     fetchBudgetMs,
     'vps-probe-history',
   );
+  // Fixed one-hour process monitor is independent of the selected history range.
+  const processHistoryPromise = settleWithin(
+    fetchServerHistory(resolvedServer.id, 1, 720, 0, 'process_count'),
+    fetchBudgetMs,
+    'process-history',
+  );
   const [traffic, ping, probeHistory] = await Promise.all([
     settleWithin(fetchJson(`${API_ROOT}/api/v1/traffic/public/${resolvedServer.id}`, { timeoutMs: 1200 }), fetchBudgetMs, 'traffic'),
     settleWithin(fetchPing(resolvedServer), fetchBudgetMs, 'ping'),
@@ -1790,6 +1806,7 @@ async function renderDetailPage(serverId) {
   const latencySeries = probeRows.map((row) => row.latency_ms == null ? null : Number(row.latency_ms));
   const heartbeatSeries = probeRows.map((row) => row.status || 'unknown');
   const freshMeta = detailFreshnessMeta(probeRows, resolvedServer);
+  const processMeta = detailProcessMeta(probeRows, resolvedServer);
   const heartbeatUp = heartbeatSeries.filter((s) => s === 'online').length;
   const heartbeatTotal = heartbeatSeries.length || 1;
   const heartbeatPct = ((heartbeatUp / heartbeatTotal) * 100).toFixed(1);
@@ -1822,7 +1839,7 @@ async function renderDetailPage(serverId) {
     displayDownSeries,
     displayCpuSeries,
     displayRamSeries,
-    freshMeta,
+    processMeta,
     stateServers: state.servers,
     detailDays,
     detailBucketMinutes,
@@ -1865,7 +1882,17 @@ async function renderDetailPage(serverId) {
   });
   window.__DBG__.DETAIL_STARMAP_MOUNTED = !!detailStarmapUnmount;
   window.__DBG__.DETAIL_TRACE.push('before-charts');
-  await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows, pingTargetsData: detailCache.pingTargets || pingTargetsData, pingTargetHistoryData: detailCache.pingTargetHistory || pingTargetHistoryData, vpsProbeTargetsData: detailCache.vpsProbeTargets || vpsProbeTargetsData, vpsProbeHistoryData: detailCache.vpsProbeHistory || vpsProbeHistoryData, detailDays });
+  await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows, processRows: detailCache.processRows, pingTargetsData: detailCache.pingTargets || pingTargetsData, pingTargetHistoryData: detailCache.pingTargetHistory || pingTargetHistoryData, vpsProbeTargetsData: detailCache.vpsProbeTargets || vpsProbeTargetsData, vpsProbeHistoryData: detailCache.vpsProbeHistory || vpsProbeHistoryData, detailDays });
+
+  processHistoryPromise.then(async (history) => {
+    const rows = history.status === 'fulfilled' ? normalizePersistedRows(history.value?.data || [], 1) : [];
+    if (!rows.length) return;
+    detailCache.processRows = rows;
+    const meta = detailProcessMeta(rows, resolvedServer);
+    const strong = document.querySelector('.process-count-card .fleet-chart-head strong');
+    if (strong) strong.textContent = meta.countText;
+    await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows, processRows: rows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, vpsProbeTargetsData: detailCache.vpsProbeTargets, vpsProbeHistoryData: detailCache.vpsProbeHistory, detailDays });
+  }).catch((error) => { window.__DBG__.DETAIL_PROCESS_PROGRESSIVE_ERROR = String(error?.message || error); });
 
   externalPingPromise.then(async (history) => {
     const historyData = history.status === 'fulfilled' ? history.value : null;
@@ -1931,7 +1958,6 @@ async function renderDetailMonitorCharts(args) {
     formatTooltipClock,
     telemetryTooltipTime,
     seriesWindowFromRows,
-    freshnessWindowFromRows,
     adaptiveRollingBounds,
     fitSeriesToRollingAxis,
     buildPingDatasets,
@@ -2034,6 +2060,7 @@ async function refreshDetailHistoryRange(serverId) {
       cpuSeries: numericMetricSeries(probeRows, 'cpu_use'),
       ramSeries: numericMetricSeries(probeRows, 'ram_use'),
       probeRows,
+      processRows: detailCache.processRows,
       pingTargetsData: detailCache.pingTargets,
       pingTargetHistoryData: detailCache.pingTargetHistory,
       vpsProbeTargetsData: detailCache.vpsProbeTargets,
@@ -2118,16 +2145,11 @@ async function refreshDetailRealtime(serverId) {
   const runtimeEnvironmentCard = panel?.querySelector('.runtime-env-card')?.outerHTML || '';
   if (panel) panel.outerHTML = renderRealtimeResourcePanels(current, detailCache.traffic, upSeries, downSeries, cpuSeries, ramSeries, runtimeEnvironmentCard);
   applyLanguage();
-  const freshMeta = detailFreshnessMeta(probeRows, current);
-  const latestSampleMs = freshMeta.latestMs;
-  const sourceAge = freshMeta.ageSec;
-  const freshnessStrong = document.querySelector('.data-freshness-card .fleet-chart-head strong');
-  if (freshnessStrong) freshnessStrong.textContent = sourceAge == null ? '—' : `${sourceAge}s`;
-  const freshnessMetaSample = document.querySelector('.data-freshness-card .freshness-meta span:first-child');
-  if (freshnessMetaSample) freshnessMetaSample.textContent = `${t('sampleInterval')}: ${freshMeta.sampleSec ? `${freshMeta.sampleSec}s` : '—'}`;
-  const healthSample = document.querySelector('[aria-label="运行健康摘要"] em');
-  const freshnessLatest = document.querySelector('.data-freshness-card .freshness-latest');
-  if (freshnessLatest) freshnessLatest.textContent = `${t('latestSample')}: ${Number.isFinite(latestSampleMs) ? new Date(latestSampleMs).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' }) : '—'}`;
+  const processMeta = detailProcessMeta(probeRows, current);
+  const processStrong = document.querySelector('.process-count-card .fleet-chart-head strong');
+  if (processStrong) processStrong.textContent = processMeta.countText;
+  const processLatest = document.querySelector('.process-count-card .process-count-latest');
+  if (processLatest) processLatest.textContent = processMeta.count == null ? '等待 agent 上报' : '主机级监控';
   const pingHeadStrong = document.querySelector('.ping-multi-card .fleet-chart-head strong');
   if (pingHeadStrong) pingHeadStrong.textContent = detailCache.pingTargets?.unavailable ? '等待 agent' : `${(detailCache.pingTargets?.targets || []).length || 0} 目标`;
   const currentUpKbs = upSeries.slice(-1)[0] ?? current.net_up ?? null;
@@ -2135,10 +2157,10 @@ async function refreshDetailRealtime(serverId) {
   const networkHeadStrong = document.querySelector(".network-throughput-card .fleet-chart-head strong");
   if (networkHeadStrong) networkHeadStrong.textContent = `↑ ${fmtRate(currentUpKbs)} · ↓ ${fmtRate(currentDownKbs)}`;
   if (doHeavy) {
-    await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData: null, probeLabels, cpuSeries, ramSeries, probeRows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, detailDays: getDetailHistoryDays() });
+    await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData: null, probeLabels, cpuSeries, ramSeries, probeRows, processRows: detailCache.processRows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, detailDays: getDetailHistoryDays() });
     refreshDetailProbeTargetsNow(current.id);
   }
-  window.__DBG__.DETAIL_LAST_REFRESH = { at: new Date().toISOString(), serverId, pollMs: 5000, heavy: doHeavy, sourceSampleMs: window.__DBG__.DETAIL_SOURCE_SAMPLE_MS || null, latestSampleAt: Number.isFinite(latestSampleMs) ? new Date(latestSampleMs).toISOString() : null, sourceAge, upKBs: currentUpKbs, downKBs: currentDownKbs, cpu: cpuSeries.slice(-1)[0] ?? current.cpu_use ?? null, ram: ramSeries.slice(-1)[0] ?? current.ram_use ?? null };
+  window.__DBG__.DETAIL_LAST_REFRESH = { at: new Date().toISOString(), serverId, pollMs: 5000, heavy: doHeavy, processCount: processMeta.count, upKBs: currentUpKbs, downKBs: currentDownKbs, cpu: cpuSeries.slice(-1)[0] ?? current.cpu_use ?? null, ram: ramSeries.slice(-1)[0] ?? current.ram_use ?? null };
   } finally {
     detailRefreshInFlight = false;
   }

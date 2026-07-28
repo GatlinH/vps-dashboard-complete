@@ -206,6 +206,8 @@ class Server(db.Model):
     disk_use = db.Column(db.Float, default=0)
     net_up = db.Column(db.Float, default=0)
     net_down = db.Column(db.Float, default=0)
+    # Host-wide process count only; never stores names, command lines, or users.
+    process_count = db.Column(db.Integer, nullable=True)
     status = db.Column(db.String(16), default="unknown", index=True)
     uptime = db.Column(db.String(64), default="")
     
@@ -287,6 +289,7 @@ class Server(db.Model):
                 disk_use=round(self.disk_use, 2),
                 net_up=round(self.net_up, 2),
                 net_down=round(self.net_down, 2),
+                process_count=self.process_count,
                 status=self.status,
                 uptime=self.uptime,
                 traffic_limit_gb=self.traffic_limit_gb,
@@ -447,6 +450,8 @@ class ProbeResult(db.Model):
     disk_use = db.Column(db.Float)
     net_up = db.Column(db.Float)
     net_down = db.Column(db.Float)
+    # Host-wide process count only; never stores names, command lines, or users.
+    process_count = db.Column(db.Integer, nullable=True)
     latency_ms = db.Column(db.Float)
     status = db.Column(db.String(16))
     
@@ -469,6 +474,7 @@ class ProbeResult(db.Model):
             disk_use=self.disk_use,
             net_up=self.net_up,
             net_down=self.net_down,
+            process_count=self.process_count,
             latency_ms=self.latency_ms,
             status=self.status,
             created_at=self.created_at.isoformat(),

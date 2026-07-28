@@ -161,12 +161,29 @@ def cpu_use(cores):
         return 0.0
 
 
+def process_count():
+    """Return only the host-wide process total; never inspect names/args/users."""
+    psutil = _psutil()
+    if psutil:
+        try:
+            return len(psutil.pids())
+        except Exception:
+            pass
+    try:
+        if os.name == "nt":
+            output = subprocess.check_output(["tasklist", "/NH"], text=True, timeout=5, stderr=subprocess.DEVNULL)
+            return sum(1 for line in output.splitlines() if line.strip() and not line.lstrip().startswith("INFO:"))
+        return sum(1 for entry in Path("/proc").iterdir() if entry.name.isdigit())
+    except Exception:
+        return None
+
+
 def payload():
     cores = os.cpu_count() or 1; ram_gb, ram_use = meminfo(); disk_gb, disk_use = diskinfo(); net_up, net_down = net_rates()
     return {"uuid": AGENT_UUID, "status": "online", "hostname": socket.gethostname(), "agent_version": AGENT_VERSION,
             "os": read_os_name(), "kernel_version": platform.release() or "", "arch": platform.machine(), "cpu_model": read_cpu_model(),
             "cpu_cores": cores, "ram_gb": ram_gb, "disk_gb": disk_gb, "bandwidth": "N/A", "ip": get_ip(),
-            "cpu_use": cpu_use(cores), "ram_use": ram_use, "disk_use": disk_use, "net_up": net_up, "net_down": net_down, "uptime": uptime_text()}
+            "cpu_use": cpu_use(cores), "ram_use": ram_use, "disk_use": disk_use, "net_up": net_up, "net_down": net_down, "process_count": process_count(), "uptime": uptime_text()}
 
 
 def sign(body, timestamp, nonce):

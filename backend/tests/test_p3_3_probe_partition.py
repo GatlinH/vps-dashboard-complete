@@ -784,7 +784,7 @@ class TestProbeResultCompatibility:
             pr = ProbeResult(
                 server_id=s.id,
                 cpu_use=10.0, ram_use=20.0, disk_use=30.0,
-                net_up=1.0, net_down=2.0, latency_ms=5.0,
+                net_up=1.0, net_down=2.0, process_count=42, latency_ms=5.0,
                 status="online",
                 created_at=datetime.now(timezone.utc),
             )
@@ -795,7 +795,7 @@ class TestProbeResultCompatibility:
 
         expected_keys = {
             "id", "server_id", "cpu_use", "ram_use", "disk_use",
-            "net_up", "net_down", "latency_ms", "status", "created_at",
+            "net_up", "net_down", "process_count", "latency_ms", "status", "created_at",
         }
         assert expected_keys == set(d.keys())
         assert isinstance(d["created_at"], str)

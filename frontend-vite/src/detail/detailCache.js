@@ -2,6 +2,7 @@ export const detailCache = {
   traffic: null,
   historyRows: [],
   probeRows: [],
+  processRows: [],
   pingTargets: null,
   pingTargetHistory: null,
   vpsProbeTargets: null,
@@ -12,6 +13,7 @@ export function resetDetailCache() {
   detailCache.traffic = null;
   detailCache.historyRows = [];
   detailCache.probeRows = [];
+  detailCache.processRows = [];
   detailCache.pingTargets = null;
   detailCache.pingTargetHistory = null;
   detailCache.vpsProbeTargets = null;

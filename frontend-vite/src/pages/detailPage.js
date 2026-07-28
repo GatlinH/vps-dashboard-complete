@@ -120,7 +120,7 @@ export function renderDetailConsole(ctx) {
     displayDownSeries = downSeries,
     displayCpuSeries,
     displayRamSeries,
-    freshMeta,
+    processMeta,
     stateServers,
     detailDays = 0,
     detailBucketMinutes = 5,
@@ -163,7 +163,7 @@ export function renderDetailConsole(ctx) {
         <div class="fleet-chart-card compact-metric-card ping-multi-card"><div class="fleet-chart-head"><span>PING 延迟 · ${pingWindowLabel} · 掉线留空</span><strong>${targetCount} 目标</strong></div><canvas id="detailPingChart"></canvas></div>
         <div class="fleet-chart-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>CPU 使用率 · ${resourceWindowLabel} · ${resourceSampleLabel}</span><strong>${h.detailMetricValue(displayCpuSeries, resolvedServer.cpu_use, '%')}</strong></div><canvas id="detailCpuChart"></canvas></div>
         <div class="fleet-chart-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>内存使用率 · ${resourceWindowLabel} · ${resourceSampleLabel}</span><strong>${h.detailMetricValue(displayRamSeries, resolvedServer.ram_use, '%')}</strong></div><canvas id="detailMemoryChart"></canvas></div>
-        <div class="fleet-chart-card pseudo data-freshness-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>${t('dataFreshness')} · ${resourceWindowLabel}</span><strong>${freshMeta.ageText}</strong></div><div class="freshness-meta"><span>${t('sampleInterval')}: ${freshMeta.sampleSec ? `${freshMeta.sampleSec}s` : '—'}</span><span class="freshness-latest">${t('latestSample')}: ${freshMeta.ageText}</span></div><canvas id="detailFreshnessChart"></canvas></div>
+        <div class="fleet-chart-card pseudo process-count-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span>运行进程数 · ${resourceWindowLabel}</span><strong>${processMeta.countText}</strong></div><div class="process-count-meta"><span>仅统计总数，不采集进程名称或命令行</span><span class="process-count-latest">主机级监控</span></div><canvas id="detailProcessCountChart"></canvas></div>
       </main>
 
       <section class="fleet-right-zone">

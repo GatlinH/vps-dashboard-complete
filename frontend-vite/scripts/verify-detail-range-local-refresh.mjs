@@ -65,5 +65,11 @@ assert.match(mainSource, /setDetailHeavyRefreshAt\(0\)/,
   'initial realtime refresh must immediately backfill persisted telemetry');
 assert.match(mainSource, /const settleRealtimePing = \(promise\)/,
   'slow PING refreshes must be independently bounded from telemetry redraws');
+assert.match(mainSource, /fetchServerHistory\(resolvedServer\.id, 1, 720, 0, 'process_count'\)/,
+  'process monitor must have its own fixed one-hour history request');
+assert.match(mainSource, /value != null && value !== ''/,
+  'missing legacy process counts must not be rendered as a fabricated zero');
+assert.match(chartSource, /detailProcessCountChart/,
+  'detail chart must render the process-count monitor instead of freshness');
 
 console.log('detail range local-refresh contract: ok');

@@ -952,6 +952,13 @@ def cpu_use(cpu_cores):
     except Exception:
         return 0.0
 
+def process_count():
+    # Total only: never collect process names, command lines, or users.
+    try:
+        return sum(1 for entry in os.listdir("/proc") if entry.isdigit())
+    except Exception:
+        return None
+
 def payload():
     cores = os.cpu_count() or 1
     ram_gb, ram_use = meminfo()
@@ -964,7 +971,7 @@ def payload():
         "ram_gb": ram_gb, "disk_gb": disk_gb, "bandwidth": "N/A",
         "ip": get_ip(), "cpu_use": cpu_use(cores), "ram_use": ram_use,
         "disk_use": disk_use, "net_up": net_up, "net_down": net_down,
-        "uptime": uptime_text(),
+        "process_count": process_count(), "uptime": uptime_text(),
     }
 
 def sign(body, ts, nonce):

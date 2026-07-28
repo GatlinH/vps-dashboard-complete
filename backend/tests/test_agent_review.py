@@ -75,6 +75,35 @@ class TestIngestMetricsProbeResult:
                 "ProbeResult.cpu_use 应回落为 server 当前值"
             )
 
+    def test_process_count_total_is_persisted_without_process_metadata(self, app, test_server):
+        """Only the bounded host-wide numeric total is persisted."""
+        from extensions import db
+        from models.models import ProbeResult, Server
+        from services.metrics_ingest import ingest_metrics
+
+        with app.app_context():
+            server = db.session.get(Server, test_server)
+            applied = ingest_metrics(server, {"process_count": 123}, strict=False, source="agent")
+            db.session.commit()
+            result = ProbeResult.query.filter_by(server_id=test_server).order_by(ProbeResult.id.desc()).first()
+            assert applied["process_count"] == 123
+            assert server.process_count == 123
+            assert result.process_count == 123
+
+    def test_agent_path_invalid_process_count_is_not_persisted(self, app, test_server):
+        from extensions import db
+        from models.models import ProbeResult, Server
+        from services.metrics_ingest import ingest_metrics
+
+        with app.app_context():
+            server = db.session.get(Server, test_server)
+            server.process_count = 9
+            ingest_metrics(server, {"process_count": -1}, strict=False, source="agent")
+            db.session.commit()
+            result = ProbeResult.query.filter_by(server_id=test_server).order_by(ProbeResult.id.desc()).first()
+            assert server.process_count == 9
+            assert result.process_count == 9
+
     def test_agent_path_valid_cpu_use_stored_in_probe_result(self, app, test_server):
         """agent 路径中合法的 cpu_use 应同步写入 Server 字段和 ProbeResult。"""
         from extensions import db

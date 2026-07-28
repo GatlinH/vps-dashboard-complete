@@ -387,15 +387,15 @@ function aggregateRateRowsForDisplay(rows = [], bucketMs = 60 * 1000) {
   }));
 }
 
-export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [], downSeries = [], pingData = null, probeLabels = [], cpuSeries = [], ramSeries = [], probeRows = [], pingTargetsData = null, pingTargetHistoryData = null, vpsProbeTargetsData = null, vpsProbeHistoryData = null, latestServer = null, detailDays = 0 }, deps) {
-  const { detailCharts, rowTimeMs, formatHourTickWithDate, formatTooltipClock, telemetryTooltipTime, seriesWindowFromRows, freshnessWindowFromRows, adaptiveRollingBounds, fitSeriesToRollingAxis, buildPingDatasets, accumulatingAxisBoundsFromTimes, fmtRate, pingStepLabel, PING_AXIS_STEPS_MS, latestTimelineMs, getDetailPingSampleCache } = deps;
+export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [], downSeries = [], pingData = null, probeLabels = [], cpuSeries = [], ramSeries = [], probeRows = [], processRows = [], pingTargetsData = null, pingTargetHistoryData = null, vpsProbeTargetsData = null, vpsProbeHistoryData = null, latestServer = null, detailDays = 0 }, deps) {
+  const { detailCharts, rowTimeMs, formatHourTickWithDate, formatTooltipClock, telemetryTooltipTime, seriesWindowFromRows, adaptiveRollingBounds, fitSeriesToRollingAxis, buildPingDatasets, accumulatingAxisBoundsFromTimes, fmtRate, pingStepLabel, PING_AXIS_STEPS_MS, latestTimelineMs, getDetailPingSampleCache } = deps;
   const networkCanvas = document.getElementById('detailNetworkChart');
   const cpuCanvas = document.getElementById('detailCpuChart');
   const memoryCanvas = document.getElementById('detailMemoryChart');
-  const freshnessCanvas = document.getElementById('detailFreshnessChart');
+  const processCountCanvas = document.getElementById('detailProcessCountChart');
   const pingCanvas = document.getElementById('detailPingChart');
   const globalVpsProbeCanvas = document.getElementById('detailGlobalVpsProbeChart');
-  if (!networkCanvas && !cpuCanvas && !memoryCanvas && !freshnessCanvas && !pingCanvas && !globalVpsProbeCanvas) return;
+  if (!networkCanvas && !cpuCanvas && !memoryCanvas && !processCountCanvas && !pingCanvas && !globalVpsProbeCanvas) return;
 
   const Chart = await detailCharts.ready();
 
@@ -403,7 +403,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   detailCharts.destroy('detailNetworkChart');
   detailCharts.destroy('detailCpuChart');
   detailCharts.destroy('detailMemoryChart');
-  detailCharts.destroy('detailFreshnessChart');
+  detailCharts.destroy('detailProcessCountChart');
   detailCharts.destroy('detailPingChart');
   detailCharts.destroy('detailGlobalVpsProbeChart');
 
@@ -427,21 +427,21 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   window.__DBG__.DETAIL_CHART_BUCKET = { days: detailDays, bucketMinutes: detailBucketMinutes, bucketMs: detailBucketMs, telemetryHours, pingHours, networkHours };
   const cpu12hSeries = seriesWindowFromRows(probeRows, 'cpu_use', telemetryHours);
   const ram12hSeries = seriesWindowFromRows(probeRows, 'ram_use', telemetryHours);
-  const fresh12hSeries = freshnessWindowFromRows(probeRows, telemetryHours);
-  const freshnessMax = Math.max(6, Math.ceil(Math.max(...fresh12hSeries.map(point => Number(point.y) || 0), 0) + 1));
+  const processSeries = seriesWindowFromRows(processRows, 'process_count', telemetryHours);
+  const processMax = Math.max(1, Math.ceil(Math.max(...processSeries.map(point => Number(point.y) || 0), 0) + 1));
   const ping24hDatasets = buildPingDatasets(probeRows, pingHours, pingTargetsData, pingTargetHistoryData);
   const pingAxisBounds = accumulatingAxisBoundsFromTimes(ping24hDatasets.flatMap(ds => (ds.data || []).map(p => p.x)), pingHours, 2 * 60 * 1000);
   const axis24h = Array.from({ length: 5 }, (_, i) => pingAxisBounds.min + (i / 4) * (pingAxisBounds.max - pingAxisBounds.min));
-  const axis12hBounds = adaptiveRollingBounds([cpu12hSeries, ram12hSeries, fresh12hSeries], telemetryHours);
+  const axis12hBounds = adaptiveRollingBounds([cpu12hSeries, ram12hSeries, processSeries], telemetryHours);
   const cpuBuckets = aggregatePointSeriesForDisplay(cpu12hSeries, detailBucketMs);
   const ramBuckets = aggregatePointSeriesForDisplay(ram12hSeries, detailBucketMs);
-  const freshBuckets = aggregatePointSeriesForDisplay(fresh12hSeries, detailBucketMs);
+  const processBuckets = aggregatePointSeriesForDisplay(processSeries, detailBucketMs);
   const cpuDisplaySeries = fitSeriesToRollingAxis(cpuBuckets, axis12hBounds, 300);
   const ramDisplaySeries = fitSeriesToRollingAxis(ramBuckets, axis12hBounds, 300);
-  const freshDisplaySeries = fitSeriesToRollingAxis(freshBuckets, axis12hBounds, 300);
+  const processDisplaySeries = fitSeriesToRollingAxis(processBuckets, axis12hBounds, 300);
   const cpuEmptyPlugin = telemetryEmptyStatePlugin(cpuDisplaySeries.length > 0);
   const ramEmptyPlugin = telemetryEmptyStatePlugin(ramDisplaySeries.length > 0);
-  const freshnessEmptyPlugin = telemetryEmptyStatePlugin(freshDisplaySeries.length > 0);
+  const processEmptyPlugin = telemetryEmptyStatePlugin(processDisplaySeries.length > 0);
   const label12h = cpuDisplaySeries.map(r => r.x);
   const smallChartXScale = () => ({
     type: 'linear',
@@ -557,13 +557,13 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   }
 
 
-  if (freshnessCanvas) {
-    const ctx = freshnessCanvas.getContext('2d');
-    detailCharts._register('detailFreshnessChart', new Chart(ctx, {
+  if (processCountCanvas) {
+    const ctx = processCountCanvas.getContext('2d');
+    detailCharts._register('detailProcessCountChart', new Chart(ctx, {
       type: 'line',
-      data: { datasets: [{ label: 'Freshness s', parsing: false, data: freshDisplaySeries, borderColor: '#8dffd0', backgroundColor: 'rgba(125,255,193,0.20)', fill: true, tension: 0.18, pointRadius: 0, pointHoverRadius: 6, borderWidth: 3 }] },
-      plugins: [freshnessEmptyPlugin],
-      options: { ...makeHudChartOptions(5, 's'), plugins: { ...makeHudChartOptions(5, 's').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => telemetryTooltipTime(items[0]), label: (item) => `采样间隔 ${Number(item.raw.y || 0).toFixed(1)}s` } } }, scales: { x: smallChartXScale(), y: { ...makeHudChartOptions(5, 's').scales.y, afterFit: (scale) => { fixedSmallY(scale); scale.width = Math.max(scale.width || 0, 36); }, min: 0, max: freshnessMax } } }
+      data: { datasets: [{ label: 'Processes', parsing: false, data: processDisplaySeries, borderColor: '#8dffd0', backgroundColor: 'rgba(125,255,193,0.20)', fill: true, tension: 0.18, pointRadius: 0, pointHoverRadius: 6, borderWidth: 3 }] },
+      plugins: [processEmptyPlugin],
+      options: { ...makeHudChartOptions(5, '个'), plugins: { ...makeHudChartOptions(5, '个').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => telemetryTooltipTime(items[0]), label: (item) => `运行进程 ${Math.round(Number(item.raw.y || 0))} 个` } } }, scales: { x: smallChartXScale(), y: { ...makeHudChartOptions(5, '个').scales.y, afterFit: (scale) => { fixedSmallY(scale); scale.width = Math.max(scale.width || 0, 36); }, min: 0, max: processMax } } }
     }));
   }
 
@@ -652,7 +652,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     window.__DBG__.DETAIL_CHART_DEBUG = {
       cpuPoints: cpu12hSeries.length,
       ramPoints: ram12hSeries.length,
-      freshPoints: fresh12hSeries.length,
+      processPoints: processSeries.length,
       networkSeries: { raw: networkRows.length, source: networkRows[0]?.source || null, latestRaw: networkRows[networkRows.length - 1] || null, buckets: networkBuckets.length, up: networkUpChartDisplay.length, down: networkDownChartDisplay.length, upFirst: networkUpChartDisplay[0] || null, upSecond: networkUpChartDisplay[1] || null, upLast: networkUpChartDisplay[networkUpChartDisplay.length - 1] || null, downFirst: networkDownChartDisplay[0] || null, downSecond: networkDownChartDisplay[1] || null, downLast: networkDownChartDisplay[networkDownChartDisplay.length - 1] || null, axis: networkAxisBounds, yAxisMode: 'adaptive-linear-kbps', yPeak: Math.max(0, ...networkRateValues) },
       pingSeries: ping24hDatasets.map(ds => ({ label: ds.label, points: ds.data.length, first: ds.data[0] || null, last: ds.data[ds.data.length - 1] || null, fill: ds.fill, pointRadius: ds.pointRadius, borderWidth: ds.borderWidth })),
       pingSampleCache: Object.fromEntries(Object.entries(getDetailPingSampleCache ? getDetailPingSampleCache() : {}).map(([k,v]) => [k, v.length])),
@@ -665,10 +665,11 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
       ramLast: ram12hSeries[ram12hSeries.length - 1] || null,
       ramDisplayFirst: ramDisplaySeries[0] || null,
       ramDisplayLast: ramDisplaySeries[ramDisplaySeries.length - 1] || null,
-      displayPoints: { cpu: cpuDisplaySeries.length, ram: ramDisplaySeries.length, fresh: freshDisplaySeries.length, cpuBuckets: cpuBuckets.length, ramBuckets: ramBuckets.length, freshBuckets: freshBuckets.length },
+      processDisplayLast: processDisplaySeries[processDisplaySeries.length - 1] || null,
+      displayPoints: { cpu: cpuDisplaySeries.length, ram: ramDisplaySeries.length, process: processDisplaySeries.length, cpuBuckets: cpuBuckets.length, ramBuckets: ramBuckets.length, processBuckets: processBuckets.length },
       axis12hBounds,
       telemetryHours,
-      freshnessMax,
+      processMax,
       latestSampleMs: latestTimelineMs(probeRows, latestServer),
       pingHours,
       pingAxisBounds,

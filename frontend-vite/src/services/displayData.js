@@ -136,10 +136,11 @@ export async function fetchJson(url, options = {}) {
 }
 
 
-export async function fetchServerHistory(serverId, days = 1, limit = 48, bucketMinutes = null) {
+export async function fetchServerHistory(serverId, days = 1, limit = 720, bucketMinutes = 0, metric = '') {
   const root = window.__DBG__.API_ROOT || (location.port === 5000 ? `${location.protocol}//${location.hostname}:5000` : location.origin);
   const bucketParam = bucketMinutes ? `&bucket_minutes=${encodeURIComponent(bucketMinutes)}` : '';
-  return fetchJson(`${root}/api/v1/servers/public/${serverId}/history?days=${days}${bucketParam}&limit=${limit}`, { timeoutMs: Math.max(1200, limit > 1000 ? 12000 : 1200) });
+  const metricParam = metric ? `&metric=${encodeURIComponent(metric)}` : '';
+  return fetchJson(`${root}/api/v1/servers/public/${serverId}/history?days=${days}${bucketParam}&limit=${limit}${metricParam}`, { timeoutMs: Math.max(1200, limit > 1000 ? 12000 : 1200) });
 }
 
 export async function fetchPingTargets(serverId, count = 1, source = '') {

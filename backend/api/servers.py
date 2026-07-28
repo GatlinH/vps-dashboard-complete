@@ -579,6 +579,16 @@ def get_public_history(sid):
 
     days, limit, offset = _parse_history_pagination()
     bucket_minutes = request.args.get("bucket_minutes", type=int)
+    # The process monitor is a fixed one-hour realtime series, independent of
+    # the selected long-history range/rollup tier.
+    metric = str(request.args.get("metric") or "").strip().lower()
+    if metric == "process_count":
+        since = datetime.now(timezone.utc) - timedelta(hours=1)
+        rows = (ProbeResult.query
+                .filter(ProbeResult.server_id == sid, ProbeResult.created_at >= since)
+                .order_by(ProbeResult.created_at.asc()).limit(min(limit, 720)).all())
+        data = [{"server_id": sid, "created_at": row.created_at.isoformat(), "timestamp": row.created_at.isoformat(), "process_count": row.process_count} for row in rows]
+        return jsonify(data=data, total=len(data), count=len(data), metric="process_count", hours=1, history_source="raw")
     since = datetime.now(timezone.utc) - timedelta(days=days)
     # Long windows are served from bounded materialized hourly summaries. Raw
     # ProbeResult remains the source for short diagnostics and for deployments
@@ -612,6 +622,7 @@ def get_public_history(sid):
                 func.avg(ProbeResult.disk_use).label('disk_use'),
                 func.avg(ProbeResult.net_up).label('net_up'),
                 func.avg(ProbeResult.net_down).label('net_down'),
+                func.avg(ProbeResult.process_count).label('process_count'),
                 func.avg(ProbeResult.latency_ms).label('latency_ms'),
                 func.count(ProbeResult.id).label('samples'),
             )
@@ -634,6 +645,7 @@ def get_public_history(sid):
                 'disk_use': float(r.disk_use) if r.disk_use is not None else None,
                 'net_up': float(r.net_up) if r.net_up is not None else None,
                 'net_down': float(r.net_down) if r.net_down is not None else None,
+                'process_count': round(float(r.process_count)) if r.process_count is not None else None,
                 'latency_ms': float(r.latency_ms) if r.latency_ms is not None else None,
                 'samples': int(r.samples or 0),
                 'bucket_minutes': bucket_minutes,
