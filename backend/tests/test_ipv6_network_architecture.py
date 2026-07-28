@@ -61,9 +61,17 @@ def test_direct_bind_is_operator_configurable_without_proxy_default():
     assert "caddy" not in compose.lower()
 
 
-def test_embedded_linux_installer_reports_separate_ipv4_ipv6():
-    source = (Path(__file__).parents[1] / "api" / "agent.py").read_text()
+def test_canonical_linux_agent_reports_separate_ipv4_ipv6():
+    source = (Path(__file__).parents[2] / "scripts" / "vps-agent.py").read_text()
     assert "def network_inventory():" in source
     assert '"local_ipv6": [local_ipv6] if local_ipv6 else []' in source
     assert '"network": network' in source
-    assert 'public_ipv4' not in source[source.index('def network_inventory():'):source.index('def get_ip():')]
+    inventory = source[source.index('def network_inventory():'):source.index('def get_ip():')]
+    assert '"public_ipv4"' not in inventory
+
+
+def test_installer_fetches_canonical_agent_runtime(client):
+    script = client.get("/api/v1/agent/install.sh").get_data(as_text=True)
+    assert "fetch_runtime vps-agent.py" in script
+    assert "fetch_runtime agent_tasks.py" in script
+    assert "ExecStart=/usr/bin/python3 $INSTALL_DIR/vps-agent.py" in script

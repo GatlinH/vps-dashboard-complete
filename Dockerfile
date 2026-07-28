@@ -14,6 +14,9 @@ COPY backend/requirements.txt ./
 ARG PIP_INDEX_URL=https://pypi.org/simple
 RUN pip install --no-cache-dir -r requirements.txt -i ${PIP_INDEX_URL}
 COPY backend/ ./
+# Canonical Agent runtime: the installer downloads these version-controlled files
+# from the running image rather than maintaining a second heredoc implementation.
+COPY scripts/vps-agent.py scripts/agent_tasks.py /app/agent-runtime/
 COPY --from=frontend-build /build/frontend-dist /app/frontend-dist
 RUN mkdir -p /var/log/vps-dashboard /var/lib/vps-dashboard \
     && useradd -m -u 1000 appuser \

@@ -28,11 +28,14 @@ def test_icmp_ping_keeps_ipv4_command_unchanged():
     assert "-6" not in run.call_args.args[0]
 
 
-def test_install_script_contains_dual_stack_and_real_http_probe(client):
-    response = client.get("/api/v1/agent/install.sh")
+def test_canonical_agent_contains_dual_stack_and_real_http_probe(client):
+    from pathlib import Path
+
+    response = client.get("/api/v1/agent/runtime/vps-agent.py")
     assert response.status_code == 200
-    embedded_agent = response.get_data(as_text=True).split("<<'PY2'\n", 1)[1].split("\nPY2", 1)[0]
-    assert "socket.AF_UNSPEC" in embedded_agent
-    assert "def http_probe(" in embedded_agent
-    assert 'cmd.append("-6")' in embedded_agent
-    assert 'if proto == "http"' in embedded_agent
+    source = response.get_data(as_text=True)
+    assert source == (Path(__file__).parents[2] / "scripts" / "vps-agent.py").read_text(encoding="utf-8")
+    assert "socket.AF_UNSPEC" in source
+    assert "def http_probe(" in source
+    assert "cmd = ['ping'] + (['-6']" in source
+    assert "if proto == 'http'" in source

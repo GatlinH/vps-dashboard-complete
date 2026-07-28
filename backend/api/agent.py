@@ -755,504 +755,87 @@ def agent_ack():
 
     return jsonify({"ok": True, "updated": updated})
 
+_AGENT_RUNTIME_FILES = {
+    "vps-agent.py": "vps-agent.py",
+    "agent_tasks.py": "agent_tasks.py",
+}
+
+
+def _agent_runtime_dir():
+    from pathlib import Path
+    configured = current_app.config.get("AGENT_RUNTIME_DIR", "")
+    if configured:
+        return Path(configured)
+    bundled = Path("/app/agent-runtime")
+    # Local source/test runs intentionally use the same repository scripts.
+    return bundled if bundled.is_dir() else Path(__file__).resolve().parents[2] / "scripts"
+
+
+@agent_bp.get("/runtime/<name>")
+def agent_runtime_source(name):
+    filename = _AGENT_RUNTIME_FILES.get(name)
+    if not filename:
+        return jsonify(msg="agent runtime not found"), 404
+    try:
+        source = (_agent_runtime_dir() / filename).read_text(encoding="utf-8")
+    except OSError:
+        logger.exception("agent runtime source unavailable: %s", name)
+        return jsonify(msg="agent runtime unavailable"), 503
+    response = current_app.response_class(source, mimetype="text/x-python; charset=utf-8")
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @agent_bp.get("/install.sh")
 def agent_install_script():
     script = r'''#!/usr/bin/env bash
 set -euo pipefail
-
-API_ROOT=""
-AGENT_UUID=""
-AGENT_KEY=""
-SERVER_ID=""
-INSTALL_DIR="/opt/vps-agent"
-SERVICE_NAME="vps-agent.service"
-INTERVAL="20"
-
+API_ROOT=""; AGENT_UUID=""; AGENT_KEY=""; SERVER_ID=""; INSTALL_DIR="/opt/vps-agent"; SERVICE_NAME="vps-agent.service"; INTERVAL="20"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --api-root) API_ROOT="$2"; shift 2 ;;
-    --auto-register)
-      AUTO_REGISTER=1
-      shift
-      ;;
-  --uuid) AGENT_UUID="$2"; shift 2 ;;
+    --auto-register) shift ;;
+    --uuid) AGENT_UUID="$2"; shift 2 ;;
     --agent-key) AGENT_KEY="$2"; shift 2 ;;
     --server-id) SERVER_ID="$2"; shift 2 ;;
     --interval) INTERVAL="$2"; shift 2 ;;
     *) echo "Unknown arg: $1" >&2; exit 1 ;;
   esac
 done
-
-if [[ -z "$API_ROOT" || -z "$AGENT_UUID" || -z "$AGENT_KEY" || -z "$SERVER_ID" ]]; then
-  echo "Usage: install.sh --api-root URL --uuid UUID --agent-key KEY --server-id ID [--interval 20]" >&2
-  exit 1
-fi
+if [[ -z "$API_ROOT" || -z "$AGENT_UUID" || -z "$AGENT_KEY" || -z "$SERVER_ID" ]]; then echo "missing required Agent credentials" >&2; exit 1; fi
 case "$API_ROOT" in http://*|https://*) ;; *) echo "Invalid --api-root" >&2; exit 1 ;; esac
-if [[ ! "$SERVER_ID" =~ ^[0-9]+$ ]]; then echo "Invalid --server-id" >&2; exit 1; fi
-if [[ ! "$INTERVAL" =~ ^[0-9]+$ ]]; then echo "Invalid --interval" >&2; exit 1; fi
-if (( INTERVAL < 10 || INTERVAL > 3600 )); then echo "Invalid --interval range" >&2; exit 1; fi
-
-mkdir -p "$INSTALL_DIR"
-umask 077
-{
-  printf 'API_ROOT=%q
-' "$API_ROOT"
-  printf 'AGENT_UUID=%q
-' "$AGENT_UUID"
-  printf 'AGENT_KEY=%q
-' "$AGENT_KEY"
-  printf 'SERVER_ID=%q
-' "$SERVER_ID"
-  printf 'INTERVAL=%q
-' "$INTERVAL"
-} > "$INSTALL_DIR/agent.env"
-
-cat > "$INSTALL_DIR/agent.py" <<'PY2'
-import hashlib
-import hmac
-import ipaddress
-import json
-import os
-import platform
-import re
-import shutil
-import socket
-import subprocess
-import time
-import urllib.request
-from datetime import datetime
-
-API_ROOT = os.environ["API_ROOT"].rstrip("/")
-AGENT_UUID = os.environ["AGENT_UUID"]
-AGENT_KEY = os.environ["AGENT_KEY"]
-SERVER_ID = os.environ.get("SERVER_ID", "")
-INTERVAL = max(2, int(os.environ.get("INTERVAL", "20")))
-# Peer/PING sampling: probe locally every PROBE_SAMPLE_INTERVAL seconds and
-# buffer the timestamped samples, then flush them to the controller in one
-# batch every PROBE_PUSH_INTERVAL seconds. This keeps per-second chart density
-# without one signed HTTP request per sample.
-PROBE_SAMPLE_INTERVAL = max(1, int(os.environ.get("PROBE_SAMPLE_INTERVAL", "1")))
-PROBE_PUSH_INTERVAL = max(PROBE_SAMPLE_INTERVAL, int(os.environ.get("PROBE_PUSH_INTERVAL", "15")))
-# How often to refresh the peer target list from the controller (seconds).
-PROBE_TARGET_REFRESH = max(30, int(os.environ.get("PROBE_TARGET_REFRESH", "300")))
-STATE_PATH = os.environ.get("AGENT_STATE_PATH", "/opt/vps-agent/state.json")
-
-
-def read_os_name():
-    try:
-        data = {}
-        with open("/etc/os-release", "r", encoding="utf-8") as f:
-            for line in f:
-                if "=" in line:
-                    k, v = line.rstrip().split("=", 1)
-                    data[k] = v.strip().strip('"')
-        return data.get("PRETTY_NAME") or data.get("NAME") or platform.platform()
-    except Exception:
-        return platform.platform()
-
-def read_kernel_version():
-    try:
-        return platform.release() or platform.uname().release or ""
-    except Exception:
-        return ""
-
-
-def read_cpu_model():
-    try:
-        with open("/proc/cpuinfo", "r", encoding="utf-8", errors="ignore") as f:
-            for line in f:
-                if line.lower().startswith("model name") and ":" in line:
-                    return line.split(":", 1)[1].strip()
-                if line.lower().startswith("hardware") and ":" in line:
-                    return line.split(":", 1)[1].strip()
-    except Exception:
-        pass
-    try:
-        return platform.processor() or platform.machine() or ""
-    except Exception:
-        return ""
-
-
-def _usable_ip(value, version=None):
-    try:
-        ip = ipaddress.ip_address(str(value).split("%", 1)[0].strip())
-        if version and ip.version != version:
-            return ""
-        if ip.is_loopback or ip.is_unspecified or ip.is_link_local or ip.is_multicast:
-            return ""
-        return str(ip)
-    except ValueError:
-        return ""
-
-def _route_ip(family, target):
-    try:
-        with socket.socket(family, socket.SOCK_DGRAM) as sock:
-            sock.settimeout(2)
-            sock.connect(target)
-            return _usable_ip(sock.getsockname()[0], 4 if family == socket.AF_INET else 6)
-    except Exception:
-        return ""
-
-def network_inventory():
-    local_ipv4 = _route_ip(socket.AF_INET, ("8.8.8.8", 80))
-    local_ipv6 = _route_ip(socket.AF_INET6, ("2001:4860:4860::8888", 80, 0, 0))
-    return {"local_ipv4": local_ipv4, "local_ipv6": [local_ipv6] if local_ipv6 else []}
-
-def get_ip():
-    return network_inventory().get("local_ipv4") or ""
-
-def meminfo():
-    vals = {}
-    with open("/proc/meminfo", "r", encoding="utf-8") as f:
-        for line in f:
-            key, rest = line.split(":", 1)
-            vals[key] = int(rest.strip().split()[0])
-    total = vals.get("MemTotal", 0) / 1024 / 1024
-    avail = vals.get("MemAvailable", 0) / 1024 / 1024
-    used_pct = 0 if total <= 0 else round((1 - avail / total) * 100, 2)
-    return round(total, 2), used_pct
-
-def diskinfo():
-    du = shutil.disk_usage("/")
-    total = du.total / 1024 / 1024 / 1024
-    used_pct = 0 if du.total <= 0 else round((du.used / du.total) * 100, 2)
-    return int(round(total)), used_pct
-
-def uptime_text():
-    try:
-        with open("/proc/uptime", "r", encoding="utf-8") as f:
-            sec = int(float(f.read().split()[0]))
-        days, rem = divmod(sec, 86400)
-        hours, rem = divmod(rem, 3600)
-        mins, _ = divmod(rem, 60)
-        parts = []
-        if days: parts.append(f"{days} days")
-        if hours: parts.append(f"{hours} hours")
-        parts.append(f"{mins} minutes")
-        return ", ".join(parts)
-    except Exception:
-        return ""
-
-def net_totals():
-    rx = tx = 0
-    with open("/proc/net/dev", "r", encoding="utf-8") as f:
-        lines = f.readlines()[2:]
-    for line in lines:
-        iface, rest = line.split(":", 1)
-        iface = iface.strip()
-        if iface == "lo": continue
-        parts = rest.split()
-        rx += int(parts[0])
-        tx += int(parts[8])
-    return rx, tx
-
-def net_rates():
-    now = time.time()
-    rx, tx = net_totals()
-    prev = {}
-    try:
-        with open(STATE_PATH, "r", encoding="utf-8") as f:
-            prev = json.load(f)
-    except Exception:
-        prev = {}
-    prev_t = float(prev.get("t", now))
-    prev_rx = int(prev.get("rx", rx))
-    prev_tx = int(prev.get("tx", tx))
-    dt = max(1e-6, now - prev_t)
-    down = max(0.0, (rx - prev_rx) / 1024 / dt)
-    up = max(0.0, (tx - prev_tx) / 1024 / dt)
-    try:
-        with open(STATE_PATH, "w", encoding="utf-8") as f:
-            json.dump({"t": now, "rx": rx, "tx": tx}, f)
-    except Exception:
-        pass
-    return round(up, 2), round(down, 2)
-
-def cpu_use(cpu_cores):
-    try:
-        load1 = os.getloadavg()[0]
-        return round(min(100.0, max(0.0, load1 / max(cpu_cores, 1) * 100)), 2)
-    except Exception:
-        return 0.0
-
-def process_count():
-    # Total only: never collect process names, command lines, or users.
-    try:
-        return sum(1 for entry in os.listdir("/proc") if entry.isdigit())
-    except Exception:
-        return None
-
-def payload():
-    cores = os.cpu_count() or 1
-    ram_gb, ram_use = meminfo()
-    disk_gb, disk_use = diskinfo()
-    net_up, net_down = net_rates()
-    network = network_inventory()
-    return {
-        "uuid": AGENT_UUID, "status": "online", "hostname": socket.gethostname(),
-        "os": read_os_name(), "kernel_version": read_kernel_version(),
-        "arch": platform.machine(), "cpu_model": read_cpu_model(), "cpu_cores": cores,
-        "ram_gb": ram_gb, "disk_gb": disk_gb, "bandwidth": "N/A",
-        "ip": network.get("local_ipv4") or "", "network": network,
-        "cpu_use": cpu_use(cores), "ram_use": ram_use,
-        "disk_use": disk_use, "net_up": net_up, "net_down": net_down,
-        "process_count": process_count(), "uptime": uptime_text(),
-    }
-
-def sign(body, ts, nonce):
-    msg = f"{ts}.{nonce}.".encode("utf-8") + body
-    return hmac.new(AGENT_KEY.encode("utf-8"), msg, hashlib.sha256).hexdigest()
-
-def http_get(path, timeout=10):
-    req = urllib.request.Request(API_ROOT + path, method="GET")
-    req.add_header("X-Agent-UUID", AGENT_UUID)
-    req.add_header("X-Agent-Key", AGENT_KEY)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8", "ignore"))
-
-def push_once():
-    data = payload()
-    body = json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    ts = str(int(time.time()))
-    nonce = str(int(time.time() * 1000))
-    req = urllib.request.Request(API_ROOT + "/api/v1/agent/push", data=body, method="POST")
-    req.add_header("Content-Type", "application/json")
-    req.add_header("X-Agent-UUID", AGENT_UUID)
-    req.add_header("X-Agent-Key", AGENT_KEY)
-    req.add_header("X-Agent-Timestamp", ts)
-    req.add_header("X-Agent-Nonce", nonce)
-    req.add_header("X-Agent-Signature", sign(body, ts, nonce))
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        return resp.read().decode("utf-8", "ignore")
-
-# ── Peer / external probe ──────────────────────────────────────
-def _clean_probe_host(host):
-    """Accept bare or URL-bracketed IPv6 literals without changing hostnames."""
-    value = str(host or "").strip()
-    if value.startswith("[") and value.endswith("]"):
-        return value[1:-1]
-    return value
-
-
-def tcp_probe(host, port, timeout=5):
-    """TCP connect latency over IPv4 or IPv6 (first reachable getaddrinfo result)."""
-    try:
-        target = _clean_probe_host(host)
-        start = time.time()
-        # AF_UNSPEC lets IPv6-only DNS/literals work while retaining IPv4 support.
-        for family, socktype, proto, _, sockaddr in socket.getaddrinfo(target, int(port), socket.AF_UNSPEC, socket.SOCK_STREAM):
-            sock = None
-            try:
-                sock = socket.socket(family, socktype, proto)
-                sock.settimeout(timeout)
-                if sock.connect_ex(sockaddr) == 0:
-                    return round((time.time() - start) * 1000, 1)
-            except OSError:
-                pass
-            finally:
-                if sock:
-                    sock.close()
-        return None
-    except Exception:
-        return None
-
-
-def _is_ipv6_literal(host):
-    try:
-        return socket.inet_pton(socket.AF_INET6, _clean_probe_host(host)) is not None
-    except OSError:
-        return False
-
-
-def icmp_probe(host, timeout=5):
-    """One-shot ICMP echo via system ping; explicitly select IPv6 for literals."""
-    try:
-        wait_s = max(1, int(timeout))
-        target = _clean_probe_host(host)
-        cmd = ["ping"]
-        if _is_ipv6_literal(target):
-            cmd.append("-6")
-        cmd += ["-c", "1", "-W", str(wait_s), target]
-        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout + 1)
-        out = (proc.stdout or "") + "\n" + (proc.stderr or "")
-        if proc.returncode != 0:
-            return None
-        m = re.search(r"time[=<]([0-9.]+)\s*ms", out)
-        return round(float(m.group(1)), 1) if m else None
-    except Exception:
-        return None
-
-
-def http_probe(host, port=None, timeout=5):
-    """HTTP request latency; bracket a bare IPv6 literal when building its URL."""
-    try:
-        raw = str(host or "").strip()
-        if raw.startswith(("http://", "https://")):
-            url = raw
-        else:
-            target = _clean_probe_host(raw)
-            authority = f"[{target}]" if _is_ipv6_literal(target) else target
-            suffix = f":{int(port)}" if port and int(port) not in (80, 443) else ""
-            url = f"http://{authority}{suffix}"
-        start = time.time()
-        req = urllib.request.Request(url, headers={"User-Agent": "vps-dashboard-agent/1.0"})
-        with urllib.request.urlopen(req, timeout=timeout) as response:
-            code = int(getattr(response, "status", response.getcode()))
-        return round((time.time() - start) * 1000, 1) if code < 500 else None
-    except Exception:
-        return None
-
-
-def probe_once(host, port=None, protocol="tcp", timeout=5):
-    proto = str(protocol or "tcp").strip().lower()
-    if proto == "icmp":
-        return icmp_probe(host, timeout)
-    if proto == "http":
-        return http_probe(host, port, timeout)
-    return tcp_probe(host, int(port or 443), timeout)
-
-
-_probe_targets_cache = {"targets": [], "fetched_at": 0.0}
-_probe_sample_buffer = []
-
-
-def refresh_probe_targets():
-    # Two target families are sampled locally on this VPS:
-    #   1. peer targets (source=agent): this VPS -> every other registered VPS
-    #   2. external latency-monitor targets (agent_config.ping_targets): the
-    #      admin-configured PING targets. These used to be probed by the
-    #      controller on every page view; sampling them here makes the external
-    #      PING chart real source-VPS latency and removes browse-triggered probing.
-    # Keys distinguish them (peer=vps-*, external=configured key); the backend
-    # read path already splits on the vps- prefix.
-    merged = []
-    seen = set()
-    for path in (
-        f"/api/v1/probe/public/ping-targets/{SERVER_ID}?count=2&source=agent",
-        f"/api/v1/probe/public/ping-targets/{SERVER_ID}?count=2&source=external",
-    ):
-        try:
-            resp = http_get(path)
-        except Exception:
-            continue
-        for t in resp.get("targets", []) or []:
-            key = str(t.get("key") or t.get("host") or "")
-            if not key or key in seen:
-                continue
-            seen.add(key)
-            merged.append(t)
-    if merged:
-        _probe_targets_cache["targets"] = merged
-        _probe_targets_cache["fetched_at"] = time.time()
-
-
-def sample_probe_targets():
-    """Probe each configured peer target once and buffer a timestamped sample.
-
-    Runs every PROBE_SAMPLE_INTERVAL seconds; samples accumulate in
-    _probe_sample_buffer and are flushed in one batch by flush_probe_samples.
-    """
-    targets = _probe_targets_cache["targets"]
-    if not targets:
-        return
-    created_at = datetime.utcnow().isoformat()
-    for t in targets:
-        host = t.get("host") or t.get("label")
-        port = t.get("port") or 80
-        protocol = t.get("protocol") or "tcp"
-        latency = probe_once(host, port=port, protocol=protocol)
-        _probe_sample_buffer.append({
-            "key": t.get("key", str(host)), "host": host, "port": port,
-            "protocol": protocol,
-            "latency_ms": latency, "success": latency is not None,
-            "loss_pct": 0 if latency is not None else 100,
-            "created_at": created_at,
-        })
-
-
-def flush_probe_samples():
-    """Batch-push all buffered peer samples to the controller in one request."""
-    if not _probe_sample_buffer:
-        return
-    batch = _probe_sample_buffer[:]
-    body = json.dumps({"results": batch, "agent_uuid": AGENT_UUID}, ensure_ascii=False).encode("utf-8")
-    ts = str(int(time.time()))
-    nonce = str(int(time.time() * 1000))
-    req = urllib.request.Request(API_ROOT + "/api/v1/agent/probe-results", data=body, method="POST")
-    req.add_header("Content-Type", "application/json")
-    req.add_header("X-Agent-UUID", AGENT_UUID)
-    req.add_header("X-Agent-Key", AGENT_KEY)
-    req.add_header("X-Agent-Timestamp", ts)
-    req.add_header("X-Agent-Nonce", nonce)
-    req.add_header("X-Agent-Signature", sign(body, ts, nonce))
-    try:
-        urllib.request.urlopen(req, timeout=15)
-        # Only clear the samples we actually sent; keep any that arrived meanwhile.
-        del _probe_sample_buffer[:len(batch)]
-    except Exception:
-        # Keep the buffer for the next flush; cap it so a long outage cannot grow
-        # memory unbounded (drop oldest beyond ~1 hour at 1s cadence per target).
-        if len(_probe_sample_buffer) > 3600 * 8:
-            del _probe_sample_buffer[:len(_probe_sample_buffer) - 3600 * 8]
-
-last_metrics = 0.0
-last_sample = 0.0
-last_flush = 0.0
-last_target_refresh = 0.0
-refresh_probe_targets()
-while True:
-    now = time.time()
-    if now - last_metrics >= INTERVAL:
-        try:
-            push_once()
-        except Exception as e:
-            print(f"[{datetime.utcnow().isoformat()}] push failed: {e}", flush=True)
-        last_metrics = now
-    if now - last_target_refresh >= PROBE_TARGET_REFRESH:
-        try:
-            refresh_probe_targets()
-        except Exception as e:
-            print(f"[{datetime.utcnow().isoformat()}] target refresh failed: {e}", flush=True)
-        last_target_refresh = now
-    if now - last_sample >= PROBE_SAMPLE_INTERVAL:
-        try:
-            sample_probe_targets()
-        except Exception as e:
-            print(f"[{datetime.utcnow().isoformat()}] probe failed: {e}", flush=True)
-        last_sample = now
-    if now - last_flush >= PROBE_PUSH_INTERVAL:
-        try:
-            flush_probe_samples()
-        except Exception as e:
-            print(f"[{datetime.utcnow().isoformat()}] flush failed: {e}", flush=True)
-        last_flush = now
-    time.sleep(PROBE_SAMPLE_INTERVAL)
-PY2
-chmod +x "$INSTALL_DIR/agent.py"
-
-install -m 0644 /dev/null "/etc/systemd/system/$SERVICE_NAME"
+if [[ ! "$SERVER_ID" =~ ^[0-9]+$ ]] || [[ ! "$INTERVAL" =~ ^[0-9]+$ ]] || (( INTERVAL < 10 || INTERVAL > 3600 )); then echo "invalid server-id or interval" >&2; exit 1; fi
+mkdir -p "$INSTALL_DIR"; umask 077
+printf 'API_ROOT=%q\nAGENT_UUID=%q\nAGENT_KEY=%q\nSERVER_ID=%q\nINTERVAL=%q\n' "$API_ROOT" "$AGENT_UUID" "$AGENT_KEY" "$SERVER_ID" "$INTERVAL" > "$INSTALL_DIR/agent.env"
+fetch_runtime() {
+  local name="$1" target="$INSTALL_DIR/$1" tmp
+  tmp="$(mktemp "$INSTALL_DIR/.${name}.XXXXXX")"
+  trap 'rm -f "$tmp"' RETURN
+  curl --fail --silent --show-error --location --proto '=http,https' "$API_ROOT/api/v1/agent/runtime/$name" -o "$tmp"
+  /usr/bin/python3 -m py_compile "$tmp"
+  install -m 0700 "$tmp" "$target"
+  rm -f "$tmp"; trap - RETURN
+}
+fetch_runtime vps-agent.py; fetch_runtime agent_tasks.py
 cat > "/etc/systemd/system/$SERVICE_NAME" <<EOF
 [Unit]
 Description=VPS Readonly Metrics Agent
 After=network-online.target
 Wants=network-online.target
-
 [Service]
 Type=simple
 EnvironmentFile=$INSTALL_DIR/agent.env
-ExecStart=/usr/bin/python3 $INSTALL_DIR/agent.py
+ExecStart=/usr/bin/python3 $INSTALL_DIR/vps-agent.py
 Restart=always
 RestartSec=5
 User=root
 WorkingDirectory=$INSTALL_DIR
-
 [Install]
 WantedBy=multi-user.target
 EOF
-
 systemctl daemon-reload
 systemctl enable --now "$SERVICE_NAME"
 systemctl status "$SERVICE_NAME" --no-pager --full | sed -n "1,20p"
 echo "installed: $SERVICE_NAME"
 '''
-    return current_app.response_class(script, mimetype='text/plain; charset=utf-8')
+    return current_app.response_class(script, mimetype="text/plain; charset=utf-8")

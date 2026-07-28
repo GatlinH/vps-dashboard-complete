@@ -1,4 +1,3 @@
-import ast
 import hashlib
 import hmac
 import json
@@ -36,27 +35,33 @@ def test_agent_key_and_config_endpoints(client, auth_headers, test_server):
     assert cfg.get_json()["agent_config"]["disable_nat"] is True
 
 
-def test_install_script_embeds_defined_startup_constants(client):
+def test_install_script_fetches_only_canonical_runtime_files(client):
     response = client.get("/api/v1/agent/install.sh")
 
     assert response.status_code == 200
-    embedded_agent = response.get_data(as_text=True).split("<<'PY2'\n", 1)[1].split("\nPY2", 1)[0]
-    module = ast.parse(embedded_agent)
-    assignments = {
-        target.id
-        for node in module.body
-        if isinstance(node, ast.Assign)
-        for target in node.targets
-        if isinstance(target, ast.Name)
-    }
-    references = {
-        node.id
-        for node in ast.walk(module)
-        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
-    }
-    startup_constants = {"API_ROOT", "AGENT_UUID", "AGENT_KEY", "SERVER_ID", "INTERVAL", "PROBE_INTERVAL", "STATE_PATH"}
+    script = response.get_data(as_text=True)
+    assert "<<'PY2'" not in script
+    assert "fetch_runtime vps-agent.py" in script
+    assert "fetch_runtime agent_tasks.py" in script
+    assert "/api/v1/agent/runtime/$name" in script
+    assert "python3 -m py_compile" in script
+    assert "ExecStart=/usr/bin/python3 $INSTALL_DIR/vps-agent.py" in script
 
-    assert references & startup_constants <= assignments
+
+def test_agent_runtime_endpoint_is_allowlisted_and_matches_canonical_source(client):
+    from pathlib import Path
+
+    runtime = client.get("/api/v1/agent/runtime/vps-agent.py")
+    assert runtime.status_code == 200
+    assert runtime.headers["Cache-Control"] == "no-store"
+    assert runtime.get_data(as_text=True) == (Path(__file__).parents[2] / "scripts" / "vps-agent.py").read_text(encoding="utf-8")
+
+    tasks = client.get("/api/v1/agent/runtime/agent_tasks.py")
+    assert tasks.status_code == 200
+    assert tasks.get_data(as_text=True) == (Path(__file__).parents[2] / "scripts" / "agent_tasks.py").read_text(encoding="utf-8")
+
+    assert client.get("/api/v1/agent/runtime/../../config.py").status_code == 404
+    assert client.get("/api/v1/agent/runtime/unknown.py").status_code == 404
 
 
 def test_agent_claim_push_poll(client, auth_headers, test_server):
