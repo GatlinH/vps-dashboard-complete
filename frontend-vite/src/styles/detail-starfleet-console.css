@@ -76,10 +76,12 @@
     linear-gradient(180deg,#020910 0%,#01050a 100%)!important;
 }
 .detail-page-shell:has(.fleet-detail-console) .detail-page-topbar{
+  /* Keep both header ends on the same real layout width. Scaling from the left
+     pulled the right-side preferences cluster inward and broke symmetry. */
   margin-bottom:4px!important;
-  transform:scale(.92);
-  transform-origin:left top;
-  height:34px;
+  transform:none!important;
+  transform-origin:initial;
+  height:auto;
 }
 .detail-page-shell:has(.fleet-detail-console) .detail-back-link,
 .detail-page-shell:has(.fleet-detail-console) .currency-btn,
