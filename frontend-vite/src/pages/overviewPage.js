@@ -311,7 +311,7 @@ function renderOverviewNodeCard(s) {
   return `
     <article class="public-overview-card is-dense status-${statusCls}${master ? ' is-master' : ''}" data-id="${safeId}" data-group-key="${escText(group.id || `name:${group.name}`)}" role="link" tabindex="0" aria-label="${safeDisplayName}"${groupStyle}>
       <div class="public-overview-head">
-        <div><span class="public-overview-flag">${safeFlag}</span><strong>${safeDisplayName}</strong>${master ? '<em class="overview-master-badge">主控</em>' : ''}</div>
+        <div><span class="public-overview-flag">${safeFlag}</span><strong>${safeDisplayName}</strong>${master ? `<em class="overview-master-badge">${t('overviewMaster')}</em>` : ''}</div>
         <div class="public-overview-actions"><button class="public-money-btn" type="button" data-id="${safeId}" data-base="${baseValue}" data-name="${safeDisplayName}" aria-label="${safeDisplayName}">¥</button><span class="public-overview-status is-${statusCls}">${t(statusCls)}</span></div>
       </div>
       <div class="public-overview-meta"><span class="overview-group-chip">${escText(group.name)}</span> · ${safeProvider} · ${safeLocation}</div>
@@ -333,10 +333,10 @@ function collectFilteredNodes(groups = [], activeKey = 'all') {
 
 function renderFlatNodeList(nodes = [], activeMeta = null) {
   if (!nodes.length) {
-    return `<div class="public-overview-empty">当前筛选下暂无节点</div>`;
+    return `<div class="public-overview-empty">${t('overviewNoNodes')}</div>`;
   }
   const hint = activeMeta && activeMeta.key !== 'all'
-    ? `<div class="overview-filter-hint">当前筛选：<b>${escText(activeMeta.name)}</b>${activeMeta.purpose ? ` · ${escText(activeMeta.purpose)}` : ''} · ${nodes.length} 台</div>`
+    ? `<div class="overview-filter-hint">${t('overviewFilter')}：<b>${escText(activeMeta.name)}</b>${activeMeta.purpose ? ` · ${escText(activeMeta.purpose)}` : ''} · ${nodes.length} ${t('overviewNodes')}</div>`
     : '';
   return `${hint}<div class="public-overview-list" id="overviewNodeGrid">${nodes.map(renderOverviewNodeCard).join('')}</div>`;
 }
@@ -345,7 +345,7 @@ export function renderPublicOverviewPage() {
   const app = document.getElementById('pageRoot');
   const rows = Array.isArray(state.servers) ? state.servers : [];
   const summary = summarizeMoonPanel(rows);
-  const updatedAtText = state.serversUpdatedAt ? new Date(state.serversUpdatedAt).toLocaleString('zh-CN', { hour12: false }) : '未记录';
+  const updatedAtText = state.serversUpdatedAt ? new Date(state.serversUpdatedAt).toLocaleString(currentLanguage === 'zh' ? 'zh-CN' : undefined, { hour12: false }) : t('overviewUpdatedMissing');
   const backendGroups = buildBackendGroups(rows);
   let activeGroup = loadOverviewGroupFilter();
   if (activeGroup !== 'all' && !backendGroups.some((g) => g.key === activeGroup)) {
@@ -353,16 +353,16 @@ export function renderPublicOverviewPage() {
     saveOverviewGroupFilter('all');
   }
   const activeMeta = activeGroup === 'all'
-    ? { key: 'all', name: '全部节点', purpose: '', count: rows.length }
-    : (backendGroups.find((g) => g.key === activeGroup) || { key: activeGroup, name: '当前分组', purpose: '', count: 0 });
+    ? { key: 'all', name: t('overviewAllNodes'), purpose: '', count: rows.length }
+    : (backendGroups.find((g) => g.key === activeGroup) || { key: activeGroup, name: t('overviewCurrentGroup'), purpose: '', count: 0 });
   const filteredNodes = collectFilteredNodes(backendGroups, activeGroup);
   const filteredCount = filteredNodes.length;
   const groupTabs = [
-    { key: 'all', name: '全部', count: rows.length, color: '' },
+    { key: 'all', name: t('overviewAll'), count: rows.length, color: '' },
     ...backendGroups.map((g) => ({ key: g.key, name: g.name, count: g.count, color: g.color, purpose: g.purpose })),
   ];
-  const expSoonItems = summary.expiry.d7.slice(0, 12).map((s) => `<li><b>${escText(s.name)}</b><span>${daysUntilExpiry(s.expiry)} 天内到期</span></li>`).join('');
-  const badNodeItems = summary.badNodes.slice(0, 12).map(({ server, pct, cls }) => `<li><b>${escText(server.name)}</b><span>${cls === 'offline' ? '离线' : `流量 ${pct.toFixed(0)}%`}</span></li>`).join('');
+  const expSoonItems = summary.expiry.d7.slice(0, 12).map((s) => `<li><b>${escText(s.name)}</b><span>${daysUntilExpiry(s.expiry)} ${t('overviewExpiryIn')}</span></li>`).join('');
+  const badNodeItems = summary.badNodes.slice(0, 12).map(({ server, pct, cls }) => `<li><b>${escText(server.name)}</b><span>${cls === 'offline' ? t('offline') : `${t('overviewTraffic')} ${pct.toFixed(0)}%`}</span></li>`).join('');
   const byRegion = summary.cost.byRegion.map(([k, v]) => `<li><b>${escText(k)}</b><span>¥${Math.round(v)}</span></li>`).join('');
   const byProvider = summary.cost.byProvider.map(([k, v]) => `<li><b>${escText(k)}</b><span>¥${Math.round(v)}</span></li>`).join('');
   const hasExpiry = summary.expiry.d7.length > 0;
@@ -395,7 +395,7 @@ export function renderPublicOverviewPage() {
           <h1>${t('overviewTitle')}</h1>
           <div class="public-overview-meta-bar">
             <span>${t('dataUpdated')}：${updatedAtText}</span>
-            <span class="overview-hero-count">${summary.status.total} 节点 · ${backendGroups.length} 分组</span>
+            <span class="overview-hero-count">${summary.status.total} ${t('overviewNodes')} · ${backendGroups.length} ${t('overviewGroups')}</span>
           </div>
         </div>
         <figure class="public-overview-visual is-compact" aria-label="资产网络主视觉">
@@ -424,8 +424,8 @@ export function renderPublicOverviewPage() {
       <div class="public-overview-main-grid ${filteredCount >= 4 || rows.length >= 4 ? 'is-many-nodes' : 'is-few-nodes'}">
         <section class="public-overview-primary" aria-label="节点列表">
           <div class="public-overview-section-head">
-            <h2>节点资产</h2>
-            <span>${filteredCount} 台 · ${activeGroup === 'all' ? '全部平铺 · 卡片上显示分组' : `筛选：${escText(activeMeta.name)}`} · 主控置顶</span>
+            <h2>${t('overviewNodeAssets')}</h2>
+            <span>${filteredCount} ${t('overviewNodes')} · ${activeGroup === 'all' ? t('overviewFlatLayout') : `${t('overviewFilter')}：${escText(activeMeta.name)}`} · ${t('overviewMasterTop')}</span>
           </div>
           <div class="public-overview-flat-list" id="overviewGroupedList">
             ${renderFlatNodeList(filteredNodes, activeMeta)}

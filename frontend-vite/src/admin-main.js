@@ -155,7 +155,9 @@ function initAdminToolbar() {
     applyAdminLanguage(localStorage.getItem('admin_lang') || 'zh');
   };
 
-  const lang = localStorage.getItem('admin_lang') || 'zh';
+  // Share the public/overview display language; retain admin_lang as a
+  // compatibility mirror for existing admin-only links.
+  const lang = localStorage.getItem('display_language') || localStorage.getItem('admin_lang') || 'zh';
   if (sel) sel.value = lang;
 
   if (!document.documentElement.dataset.adminToolbarBound) {
@@ -208,12 +210,20 @@ function initAdminToolbar() {
     });
   }
 
-  initAdminTextI18nObserver(() => localStorage.getItem('admin_lang') || 'zh');
+  initAdminTextI18nObserver(() => localStorage.getItem('display_language') || localStorage.getItem('admin_lang') || 'zh');
   applyTheme((localStorage.getItem('vps_default_theme') === 'komari-light') ? 'day' : 'bridge');
+  applyAdminLanguage(lang);
   btn?.addEventListener('click', () => applyTheme(document.body.classList.contains('admin-day-mode') ? 'bridge' : 'day'));
   sel?.addEventListener('change', () => {
-    localStorage.setItem('admin_lang', sel.value || 'zh');
-    applyAdminLanguage(sel.value || 'zh');
+    const next = sel.value || 'zh';
+    localStorage.setItem('admin_lang', next);
+    localStorage.setItem('display_language', next);
+    applyAdminLanguage(next);
+  });
+  window.addEventListener('vps-language-changed', (event) => {
+    const next = event?.detail?.language || localStorage.getItem('display_language') || 'zh';
+    if (sel) sel.value = next;
+    applyAdminLanguage(next);
   });
 }
 

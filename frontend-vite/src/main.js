@@ -132,11 +132,38 @@ function setCurrency(currency) {
 // Preferences are presentation-only on a mounted detail page. Re-running the
 // full renderer would replace the canvas/map nodes and make a simple select
 // change look like a page reload while all history requests are repeated.
+function relocalizeDetailChartTitles(root = document) {
+  // Preserve the current sample label (varies with the selected history range),
+  // which is the trailing segment after the last "·" on the network title.
+  const networkSpan = root.querySelector('[data-i18n-chart="network"]');
+  const sampleLabel = networkSpan ? (networkSpan.textContent.split('·').pop() || '').trim() : '';
+  const titles = {
+    network: `${t('chartNetworkThroughput')} · ${t('chartHours6')}${sampleLabel ? ` · ${sampleLabel}` : ''}`,
+    ping: `${t('chartPingLatency')} · ${t('chartHours6')} · ${t('chartDropLeavesGap')}`,
+    cpu: `${t('chartCpuUsage')} · ${t('chartHours1')} · ${t('chartRealtimeSampling')}`,
+    memory: `${t('chartMemoryUsage')} · ${t('chartHours1')} · ${t('chartRealtimeSampling')}`,
+    process: `${t('chartProcessCount')} · ${t('chartHours1')}`,
+  };
+  for (const [key, text] of Object.entries(titles)) {
+    const span = root.querySelector(`[data-i18n-chart="${key}"]`);
+    if (span) span.textContent = text;
+  }
+  // Target-count strong keeps its numeric prefix; only the unit word is localized.
+  const targetStrong = root.querySelector('.detail-ping-target-count');
+  if (targetStrong) {
+    const count = (targetStrong.textContent.match(/\d+/) || ['0'])[0];
+    targetStrong.textContent = `${count} ${t('chartTargets')}`;
+  }
+}
+
 function refreshDetailPresentation({ languageChanged = false, currencyChanged = false } = {}) {
   const detailGrid = document.getElementById('detailPageGrid');
   if (!selectedServerId || !detailGrid) return;
   applyLanguage();
   updateRateDisplay();
+  // Chart-head titles are JS-composed strings (not data-i18n static nodes), so
+  // re-localize them in place on a language switch without remounting charts.
+  if (languageChanged) relocalizeDetailChartTitles(detailGrid);
   window.__DBG__.DETAIL_PRESENTATION_REFRESH = {
     languageChanged,
     currencyChanged,

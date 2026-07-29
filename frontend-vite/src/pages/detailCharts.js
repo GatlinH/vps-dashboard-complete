@@ -553,12 +553,20 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   const networkRows = probeNetworkRows.length ? probeNetworkRows : historyNetworkRows;
   const networkBuckets = aggregateRateRowsForDisplay(networkRows, detailBucketMs);
   const networkMobile = isDetailMobileChart();
-  // Same cold-start contract as CPU/mem/freshness: X anchors at first real sample,
-  // never at install time / empty window left edge with synthetic zeros.
-  const networkAxisBounds = adaptiveRollingBounds([
-    networkBuckets.map((r) => ({ x: Number(r.rawX || r.x), y: r.up })),
-    networkBuckets.map((r) => ({ x: Number(r.rawX || r.x), y: r.down })),
-  ], networkHours);
+  // Anchor to the chart's own samples (min = max(dataFirst, dataLast-window),
+  // max = dataLast) so the line fills edge-to-edge instead of leaving a blank
+  // tail from a cold-start (dataFirst + full window) upper bound — same contract
+  // as the CPU/memory/process/PING charts.
+  const networkAxisBounds = (() => {
+    const fullSpan = networkHours * 60 * 60 * 1000;
+    const xs = networkBuckets.map((r) => Number(r.rawX || r.x)).filter(Number.isFinite).sort((a, b) => a - b);
+    if (!xs.length) return adaptiveRollingBounds([[], []], networkHours);
+    const dataFirst = xs[0];
+    const dataLast = xs[xs.length - 1];
+    const min = Math.max(dataFirst, dataLast - fullSpan);
+    const max = dataLast > min ? dataLast : min + fullSpan;
+    return { min, max, step: Math.max(60 * 1000, Math.round((max - min) / 4)), mode: 'anchored-to-data', dataFirst, dataLast, fullSpanMs: fullSpan };
+  })();
   const networkUpDisplay = fitSeriesToRollingAxis(networkBuckets.map(r => ({ x: r.rawX || r.x, rawX: r.rawX || r.x, y: r.up, maxY: r.upMax, samples: r.samples })), networkAxisBounds, networkMobile ? 160 : 288);
   const networkDownDisplay = fitSeriesToRollingAxis(networkBuckets.map(r => ({ x: r.rawX || r.x, rawX: r.rawX || r.x, y: r.down, maxY: r.downMax, samples: r.samples })), networkAxisBounds, networkMobile ? 160 : 288);
   // Adaptive linear Y: use real rates (kbps), not fixed equal-step synthetic axis.
