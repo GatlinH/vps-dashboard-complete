@@ -2139,7 +2139,9 @@ async function refreshDetailRealtime(serverId) {
   const current = state.servers.find((item) => Number(item.id) === Number(serverId));
   if (!current) return;
   const now = Date.now();
-  const doHeavy = now - getDetailHeavyRefreshAt() > 60000;
+  // Match the default Agent telemetry interval (20s). This refreshes persisted
+  // CPU/memory/process chart data promptly without increasing PING probe cadence.
+  const doHeavy = now - getDetailHeavyRefreshAt() > 20_000;
   if (doHeavy) {
     const shouldRefreshPingTargets = !detailCache.pingTargets?.targets?.length || now - getDetailPingTargetsFetchedAt() > 15000;
     // PING is optional for a telemetry redraw. Bound it independently so a slow

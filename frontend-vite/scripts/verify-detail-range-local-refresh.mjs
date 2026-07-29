@@ -65,8 +65,14 @@ assert.match(mainSource, /const fetchBudgetMs = isMobileDetail \? 1200 : 1800;/,
   'first paint must have a bounded short telemetry wait budget');
 assert.match(mainSource, /setDetailHeavyRefreshAt\(0\)/,
   'initial realtime refresh must immediately backfill persisted telemetry');
+assert.match(mainSource, /now - getDetailHeavyRefreshAt\(\) > 20_000/,
+  'persisted CPU/memory/process charts must refresh at the default 20-second Agent cadence');
 assert.match(mainSource, /const settleRealtimePing = \(promise\)/,
   'slow PING refreshes must be independently bounded from telemetry redraws');
+assert.match(mainSource, /const shouldRefreshPingTargets = !detailCache\.pingTargets/, 
+  'target metadata refresh must stay independently gated');
+assert.match(mainSource, /now - getDetailPingTargetsFetchedAt\(\) > 15000/,
+  'target metadata refresh stays bounded independently of telemetry redraws');
 assert.match(mainSource, /fetchServerHistory\(resolvedServer\.id, 1, 720, 0, 'process_count'\)/,
   'process monitor must have its own fixed one-hour history request');
 assert.match(mainSource, /value != null && value !== ''/,
