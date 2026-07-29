@@ -6,6 +6,7 @@ export const detailCache = {
   // history remains separately bucketed for the network chart.
   resourceRows: [],
   processRows: [],
+  liveUpdatedAt: 0,
   pingTargets: null,
   pingTargetHistory: null,
   vpsProbeTargets: null,
@@ -18,6 +19,7 @@ export function resetDetailCache() {
   detailCache.probeRows = [];
   detailCache.resourceRows = [];
   detailCache.processRows = [];
+  detailCache.liveUpdatedAt = 0;
   detailCache.pingTargets = null;
   detailCache.pingTargetHistory = null;
   detailCache.vpsProbeTargets = null;

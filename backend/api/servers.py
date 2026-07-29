@@ -589,7 +589,30 @@ def push_metrics(sid):
     return jsonify(metrics=metrics)
 
 
-# ── 历史数据 ──────────────────────────────────────────────────────────────────
+# ── 轻量实时快照 / 历史数据 ───────────────────────────────────────────────────
+
+@servers_bp.get("/public/<int:sid>/live")
+def get_public_live_snapshot(sid):
+    """Uncached, privacy-safe latest metrics for detail-page incremental charts.
+
+    Unlike the public server-list cache this is intentionally a single-row read:
+    the browser polls it every 5s, but only appends when ``updated_at`` advances.
+    """
+    server = db.session.get(Server, sid)
+    if not server:
+        raise ValidationError("服务器不存在", field="server_id")
+    return jsonify(live={
+        "server_id": server.id,
+        "updated_at": server.updated_at.isoformat() if server.updated_at else None,
+        "cpu_use": server.cpu_use,
+        "ram_use": server.ram_use,
+        "disk_use": server.disk_use,
+        "net_up": server.net_up,
+        "net_down": server.net_down,
+        "process_count": server.process_count,
+        "status": server.status,
+    })
+
 
 @servers_bp.get("/public/<int:sid>/history")
 def get_public_history(sid):

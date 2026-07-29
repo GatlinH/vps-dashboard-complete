@@ -65,8 +65,18 @@ assert.match(mainSource, /const fetchBudgetMs = isMobileDetail \? 1200 : 1800;/,
   'first paint must have a bounded short telemetry wait budget');
 assert.match(mainSource, /setDetailHeavyRefreshAt\(0\)/,
   'initial realtime refresh must immediately backfill persisted telemetry');
+assert.match(mainSource, /async function refreshDetailLivePoint\(serverId\)/,
+  'detail must expose a lightweight five-second live-snapshot path');
+assert.match(mainSource, /api\/v1\/servers\/public\/\$\{serverId\}\/live/,
+  'live path must request the single-node uncached snapshot, not full history');
+assert.match(mainSource, /appendDetailLiveMetrics\(live, \{ detailCharts \}\)/,
+  'live snapshot must append into existing Chart.js instances');
 assert.match(mainSource, /now - getDetailHeavyRefreshAt\(\) > 20_000/,
   'persisted CPU/memory/process charts must refresh at the default 20-second Agent cadence');
+assert.match(chartSource, /chart\.update\('none'\)/,
+  'live metric append must redraw without a Chart.js destroy/recreate animation');
+assert.match(chartSource, /detailCpuChart[\s\S]*detailMemoryChart[\s\S]*detailProcessCountChart/s,
+  'live append must cover CPU, memory, and privacy-safe process total');
 assert.match(mainSource, /const settleRealtimePing = \(promise\)/,
   'slow PING refreshes must be independently bounded from telemetry redraws');
 assert.match(mainSource, /const shouldRefreshPingTargets = !detailCache\.pingTargets/, 

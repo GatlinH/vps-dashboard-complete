@@ -2,6 +2,30 @@
 from datetime import datetime, timedelta, timezone
 
 
+def test_public_live_snapshot_is_uncached_and_privacy_safe(app, test_server):
+    from extensions import db
+    from models.models import Server
+
+    with app.app_context():
+        server = db.session.get(Server, test_server)
+        server.cpu_use = 12.5
+        server.ram_use = 34.5
+        server.process_count = 77
+        server.ip = "198.51.100.42"
+        db.session.commit()
+
+        response = app.test_client().get(f"/api/v1/servers/public/{test_server}/live")
+        assert response.status_code == 200
+        live = response.get_json()["live"]
+        assert live["server_id"] == test_server
+        assert live["cpu_use"] == 12.5
+        assert live["ram_use"] == 34.5
+        assert live["process_count"] == 77
+        assert live["updated_at"]
+        assert "ip" not in live
+        assert "processes" not in live
+
+
 def test_public_process_count_history_is_fixed_one_hour(app, test_server):
     from extensions import db
     from models.models import ProbeResult

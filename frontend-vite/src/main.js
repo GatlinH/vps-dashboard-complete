@@ -16,7 +16,7 @@ import { fetchJson, fetchPing, fetchPingTargetHistory, fetchPingTargets, fetchSe
 import { LANGUAGE_PACKS, applyLanguage, configureLanguageSwitcher, currentLanguage, safeStorageGet, safeStorageRemove, safeStorageSet, setLanguage, setTheme, t, toggleTheme } from './core/preferences.js';
 import { renderPublicOverviewPage as renderPublicOverviewPageModule } from './pages/overviewPage.js';
 import { detailLoadingShell, renderDetailConsole, renderDetailNotFound } from './pages/detailPage.js';
-import { renderDetailMonitorCharts as renderDetailMonitorChartsModule } from './pages/detailCharts.js';
+import { appendDetailLiveMetrics, renderDetailMonitorCharts as renderDetailMonitorChartsModule } from './pages/detailCharts.js';
 import { getDetailHistoryDays, getDetailHistoryBucketMinutes, getDetailHistoryPointLimit, setDetailHistoryDays as setDetailHistoryDaysModule, syncDetailHistoryStateFromStorage } from './detail/historyRange.js';
 import { getDetailHeavyRefreshAt, getDetailPingTargetsFetchedAt, setDetailHeavyRefreshAt, setDetailPingTargetsFetchedAt, startDetailRefreshTimer, stopDetailRefreshTimer } from './detail/refreshState.js';
 import { detailCache } from './detail/detailCache.js';
@@ -2130,6 +2130,30 @@ async function refreshDetailHistoryRange(serverId) {
   }
 }
 
+async function refreshDetailLivePoint(serverId) {
+  try {
+    const payload = await fetchJson(`${API_ROOT}/api/v1/servers/public/${serverId}/live`, { timeoutMs: 1200 });
+    const live = payload?.live;
+    const timeMs = Date.parse(live?.updated_at || '');
+    if (!live || !Number.isFinite(timeMs) || timeMs <= Number(detailCache.liveUpdatedAt || 0)) return false;
+    const appended = appendDetailLiveMetrics(live, { detailCharts });
+    detailCache.liveUpdatedAt = timeMs;
+    if (appended) {
+      window.__DBG__.DETAIL_LIVE_APPEND = { at: new Date().toISOString(), sourceAt: live.updated_at, serverId, appended: true };
+      const cpu = document.querySelector('.cpu-chart-card .fleet-chart-head strong');
+      const ram = document.querySelector('.memory-chart-card .fleet-chart-head strong');
+      const process = document.querySelector('.process-count-card .fleet-chart-head strong');
+      if (cpu && Number.isFinite(Number(live.cpu_use))) cpu.textContent = `${Number(live.cpu_use).toFixed(1)}%`;
+      if (ram && Number.isFinite(Number(live.ram_use))) ram.textContent = `${Number(live.ram_use).toFixed(1)}%`;
+      if (process && Number.isFinite(Number(live.process_count))) process.textContent = `${Math.round(Number(live.process_count))} 个`;
+    }
+    return appended;
+  } catch (error) {
+    window.__DBG__.DETAIL_LIVE_APPEND_ERROR = String(error?.message || error);
+    return false;
+  }
+}
+
 async function refreshDetailRealtime(serverId) {
   if (detailRefreshInFlight) return;
   if (!document.getElementById('detailRealtimePanels')) return;
@@ -2138,6 +2162,9 @@ async function refreshDetailRealtime(serverId) {
   // 详情页只刷新当前节点遥测，不再每轮全量重拉服务器列表(避免重复统计/重渲染循环)
   const current = state.servers.find((item) => Number(item.id) === Number(serverId));
   if (!current) return;
+  // 5s lightweight path: append only when the persisted Server snapshot changed.
+  // This avoids a one-hour history scan and Chart.js teardown for an unchanged point.
+  await refreshDetailLivePoint(serverId);
   const now = Date.now();
   // Match the default Agent telemetry interval (20s). This refreshes persisted
   // CPU/memory/process chart data promptly without increasing PING probe cadence.

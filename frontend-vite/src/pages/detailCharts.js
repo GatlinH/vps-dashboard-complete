@@ -389,6 +389,33 @@ function aggregateRateRowsForDisplay(rows = [], bucketMs = 60 * 1000) {
   }));
 }
 
+export function appendDetailLiveMetrics(live, deps) {
+  const { detailCharts } = deps || {};
+  const timestamp = Date.parse(live?.updated_at || '');
+  if (!detailCharts?._instances || !Number.isFinite(timestamp)) return false;
+
+  const append = (id, value, formatter) => {
+    const chart = detailCharts._instances.get(id);
+    const numeric = Number(value);
+    if (!chart || !Number.isFinite(numeric)) return false;
+    const dataset = chart.data?.datasets?.[0];
+    if (!dataset) return false;
+    const points = Array.isArray(dataset.data) ? dataset.data : (dataset.data = []);
+    const last = points[points.length - 1];
+    if (Number(last?.x) >= timestamp) return false;
+    points.push({ x: timestamp, rawX: timestamp, y: formatter(numeric), samples: 1 });
+    const x = chart.options?.scales?.x;
+    if (x) { x.max = timestamp; x.min = Math.max(Number(points[0]?.x) || timestamp, timestamp - 60 * 60 * 1000); }
+    chart.update('none');
+    return true;
+  };
+
+  const cpu = append('detailCpuChart', live.cpu_use, (v) => Math.max(0, Math.min(100, v)));
+  const memory = append('detailMemoryChart', live.ram_use, (v) => Math.max(0, Math.min(100, v)));
+  const process = append('detailProcessCountChart', live.process_count, (v) => Math.max(0, Math.round(v)));
+  return cpu || memory || process;
+}
+
 export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [], downSeries = [], pingData = null, probeLabels = [], cpuSeries = [], ramSeries = [], probeRows = [], processRows = [], pingTargetsData = null, pingTargetHistoryData = null, vpsProbeTargetsData = null, vpsProbeHistoryData = null, latestServer = null, detailDays = 0 }, deps) {
   const { detailCharts, rowTimeMs, formatHourTickWithDate, formatTooltipClock, telemetryTooltipTime, seriesWindowFromRows, adaptiveRollingBounds, fitSeriesToRollingAxis, buildPingDatasets, accumulatingAxisBoundsFromTimes, fmtRate, pingStepLabel, PING_AXIS_STEPS_MS, latestTimelineMs, getDetailPingSampleCache } = deps;
   const networkCanvas = document.getElementById('detailNetworkChart');
