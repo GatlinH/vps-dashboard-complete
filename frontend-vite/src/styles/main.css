@@ -4677,20 +4677,20 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
 .cluster-member-picker button { border: 1px solid rgba(174,246,255,.55); border-radius: 7px; padding: 6px 9px; background: #14263c; color: #fff; cursor: pointer; }
 .cluster-picker-close { position: absolute; top: 14px; right: 14px; }
 
-/* VPS beacon labels (主控 / 默认分组) float directly over the globe.
-   Keep visitor-node cards unchanged; only remove the opaque VPS label pill. */
+/* VPS beacons use the same readable translucent-card language as visitor beacons.
+   This exact late selector previously erased the VPS card background entirely. */
 html body .google-earth-node-html-label.is-vps-node.is-vps-beacon-node,
 html body .google-earth-node-label-layer.is-far-hidden .google-earth-node-html-label.is-vps-node.is-vps-beacon-node.is-visible {
-  padding: 0 !important;
-  background: transparent !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, .96), 0 0 8px rgba(0, 0, 0, .70) !important;
+  padding: 5px 9px 6px !important;
+  background: rgba(3, 20, 25, .74) !important;
+  border-color: rgba(125, 247, 255, .48) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .50) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .75) !important;
 }
 html body .google-earth-node-html-label.is-vps-node.is-vps-beacon-node::after {
-  background: transparent !important;
+  background: rgba(180, 230, 255, .42) !important;
   box-shadow: none !important;
 }
 

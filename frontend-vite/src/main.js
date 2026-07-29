@@ -1082,12 +1082,12 @@ function renderHealthSummary(server, probeRows = [], pingTargetsData = null, cpu
   const cpu = detailMetricValue(cpuSeries, server.cpu_use, '%');
   const mem = detailMetricValue(ramSeries, server.ram_use, '%');
   const disk = `${pctFmt(server.disk_use)}%`;
-  const heartbeat = h.online ? 'Agent 在线' : 'Agent 离线';
-  const statusText = h.state === 'danger' ? '异常' : (h.state === 'warn' ? '需关注' : '健康');
-  const alertText = h.dangerCount ? `${h.dangerCount} 严重` : (h.warnCount ? `${h.warnCount} 提醒` : '0 告警');
-  return `<section class="detail-health-summary is-${h.state}" aria-label="运行健康摘要">
-    <div class="health-main"><span>健康状态</span><strong>${statusText}</strong><em>${heartbeat} · ${alertText}</em></div>
-    <div><span>最新采样</span><strong>${h.latest.ageText}</strong><em>后端采样间隔 ${h.latest.sampleSec ? `${h.latest.sampleSec}s` : '—'}</em></div>
+  const heartbeat = h.online ? t('agentOnline') : t('agentOffline');
+  const statusText = h.state === 'danger' ? t('abnormal') : (h.state === 'warn' ? t('attention') : t('healthy'));
+  const alertText = h.dangerCount ? `${h.dangerCount} ${t('critical')}` : (h.warnCount ? `${h.warnCount} ${t('reminder')}` : `0 ${t('alerts')}`);
+  return `<section class="detail-health-summary is-${h.state}" aria-label="${t('healthStatus')}">
+    <div class="health-main"><span>${t('healthStatus')}</span><strong>${statusText}</strong><em>${heartbeat} · ${alertText}</em></div>
+    <div><span>${t('latestSample')}</span><strong>${h.latest.ageText}</strong><em>${t('backendSampleInterval')} ${h.latest.sampleSec ? `${h.latest.sampleSec}s` : '—'}</em></div>
     <div><span>资源</span><strong>CPU ${cpu}</strong><em>内存 ${mem} · 磁盘 ${disk}</em></div>
     <div><span>链路</span><strong>${pingTargetsData?.unavailable ? '—' : `丢包 ${Number(h.loss || 0).toFixed(0)}%`}</strong><em>${pingTargetsData?.unavailable ? '暂无真实节点侧互探采样' : `${(pingTargetsData?.targets || []).length || 0} 个探测目标`}</em></div>
   </section>`;
@@ -2134,7 +2134,7 @@ async function refreshDetailLivePoint(serverId) {
   try {
     const payload = await fetchJson(`${API_ROOT}/api/v1/servers/public/${serverId}/live`, { timeoutMs: 1200 });
     const live = payload?.live;
-    const timeMs = Date.parse(live?.updated_at || '');
+    const timeMs = rowTimeMs({ created_at: live?.updated_at }, NaN);
     if (!live || !Number.isFinite(timeMs) || timeMs <= Number(detailCache.liveUpdatedAt || 0)) return false;
     const appended = appendDetailLiveMetrics(live, { detailCharts });
     detailCache.liveUpdatedAt = timeMs;
@@ -2146,6 +2146,20 @@ async function refreshDetailLivePoint(serverId) {
       if (cpu && Number.isFinite(Number(live.cpu_use))) cpu.textContent = `${Number(live.cpu_use).toFixed(1)}%`;
       if (ram && Number.isFinite(Number(live.ram_use))) ram.textContent = `${Number(live.ram_use).toFixed(1)}%`;
       if (process && Number.isFinite(Number(live.process_count))) process.textContent = `${Math.round(Number(live.process_count))} 个`;
+      const summary = document.querySelector('.detail-health-summary');
+      if (summary) {
+        const liveServer = { ...state.servers.find((item) => Number(item.id) === Number(serverId)), ...live };
+        const liveHealth = detailHealthStatus(liveServer, [{ created_at: live.updated_at }], detailCache.pingTargets);
+        summary.className = `detail-health-summary is-${liveHealth.state}`;
+        const healthStrong = summary.querySelector('.health-main strong');
+        const healthEm = summary.querySelector('.health-main em');
+        const freshnessStrong = summary.children?.[1]?.querySelector('strong');
+        const freshnessEm = summary.children?.[1]?.querySelector('em');
+        if (healthStrong) healthStrong.textContent = liveHealth.state === 'danger' ? '异常' : (liveHealth.state === 'warn' ? '需关注' : '健康');
+        if (healthEm) healthEm.textContent = `${liveHealth.online ? 'Agent 在线' : 'Agent 离线'} · ${liveHealth.dangerCount ? `${liveHealth.dangerCount} 严重` : (liveHealth.warnCount ? `${liveHealth.warnCount} 提醒` : '0 告警')}`;
+        if (freshnessStrong) freshnessStrong.textContent = liveHealth.latest.ageText;
+        if (freshnessEm) freshnessEm.textContent = `后端采样间隔 ${liveHealth.latest.sampleSec ? `${liveHealth.latest.sampleSec}s` : '—'}`;
+      }
     }
     return appended;
   } catch (error) {

@@ -1,6 +1,7 @@
 import '../../../globals/dashboardGlobals.js';
 import * as Cesium from 'cesium';
 import { escapeHtml } from '../vpsEntities.js';
+import { t } from '../../../core/preferences.js';
 import { getGlobeRuntimeDebug } from '../../../utils/debugState.js';
 
 const VISITOR_FLAG_BY_CODE = {
@@ -151,7 +152,7 @@ export function addVisitorBeacon(globe) {
     const place = [globe._visitorInfo.city, globe._visitorInfo.regionName, globe._visitorInfo.country].filter(Boolean).join(' · ') || '访客位置';
     const flag = globe._visitorInfo.flag || inferVisitorFlag(globe._visitorInfo);
     const flagCode = visitorFlagCode(globe._visitorInfo, flag);
-    el.innerHTML = `<span class="node-place"><span class="node-flag">${renderFlagImg(flag, flagCode)}</span><span class="node-title">访客信标</span></span><span class="node-name">${escapeHtml(place)}</span>`;
+    el.innerHTML = `<span class="node-place"><span class="node-flag">${renderFlagImg(flag, flagCode)}</span><span class="node-title">${escapeHtml(t('visitorBeacon'))}</span></span><span class="node-name">${escapeHtml(place)}</span>`;
     globe._labelLayer.appendChild(el);
     globe._visitorLabel = el;
   }

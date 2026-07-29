@@ -391,7 +391,11 @@ function aggregateRateRowsForDisplay(rows = [], bucketMs = 60 * 1000) {
 
 export function appendDetailLiveMetrics(live, deps) {
   const { detailCharts } = deps || {};
-  const timestamp = Date.parse(live?.updated_at || '');
+  let timestampText = String(live?.updated_at || '').trim();
+  // API timestamps are UTC; Date.parse would interpret a timezone-less ISO value
+  // as browser-local time and make live freshness appear stale in some zones.
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(timestampText)) timestampText += 'Z';
+  const timestamp = Date.parse(timestampText);
   if (!detailCharts?._instances || !Number.isFinite(timestamp)) return false;
 
   const append = (id, value, formatter) => {
