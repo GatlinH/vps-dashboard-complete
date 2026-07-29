@@ -1773,6 +1773,11 @@ async function renderDetailPage(serverId) {
     'vps-probe-history',
   );
   // Fixed one-hour process monitor is independent of the selected history range.
+  const resourceHistoryPromise = settleWithin(
+    fetchServerHistory(resolvedServer.id, 1, 720, 0),
+    fetchBudgetMs,
+    'resource-history',
+  );
   const processHistoryPromise = settleWithin(
     fetchServerHistory(resolvedServer.id, 1, 720, 0, 'process_count'),
     fetchBudgetMs,
@@ -1912,6 +1917,15 @@ async function renderDetailPage(serverId) {
   window.__DBG__.DETAIL_TRACE.push('before-charts');
   await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows, processRows: detailCache.processRows, pingTargetsData: detailCache.pingTargets || pingTargetsData, pingTargetHistoryData: detailCache.pingTargetHistory || pingTargetHistoryData, vpsProbeTargetsData: detailCache.vpsProbeTargets || vpsProbeTargetsData, vpsProbeHistoryData: detailCache.vpsProbeHistory || vpsProbeHistoryData, detailDays });
 
+  resourceHistoryPromise.then(async (history) => {
+    const rows = history.status === 'fulfilled' ? normalizePersistedRows(history.value?.data || [], 1) : [];
+    if (!rows.length) return;
+    detailCache.resourceRows = rows;
+    const resourceCpu = numericMetricSeries(rows, 'cpu_use');
+    const resourceRam = numericMetricSeries(rows, 'ram_use');
+    await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries: resourceCpu, ramSeries: resourceRam, probeRows: rows, processRows: detailCache.processRows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, vpsProbeTargetsData: detailCache.vpsProbeTargets, vpsProbeHistoryData: detailCache.vpsProbeHistory, detailDays });
+  }).catch((error) => { window.__DBG__.DETAIL_RESOURCE_PROGRESSIVE_ERROR = String(error?.message || error); });
+
   processHistoryPromise.then(async (history) => {
     const rows = history.status === 'fulfilled' ? normalizePersistedRows(history.value?.data || [], 1) : [];
     if (!rows.length) return;
@@ -1919,7 +1933,8 @@ async function renderDetailPage(serverId) {
     const meta = detailProcessMeta(rows, resolvedServer);
     const strong = document.querySelector('.process-count-card .fleet-chart-head strong');
     if (strong) strong.textContent = meta.countText;
-    await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows, processRows: rows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, vpsProbeTargetsData: detailCache.vpsProbeTargets, vpsProbeHistoryData: detailCache.vpsProbeHistory, detailDays });
+    const resources = detailCache.resourceRows.length ? detailCache.resourceRows : probeRows;
+    await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries: numericMetricSeries(resources, 'cpu_use'), ramSeries: numericMetricSeries(resources, 'ram_use'), probeRows: resources, processRows: rows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, vpsProbeTargetsData: detailCache.vpsProbeTargets, vpsProbeHistoryData: detailCache.vpsProbeHistory, detailDays });
   }).catch((error) => { window.__DBG__.DETAIL_PROCESS_PROGRESSIVE_ERROR = String(error?.message || error); });
 
   externalPingPromise.then(async (history) => {
@@ -2135,9 +2150,12 @@ async function refreshDetailRealtime(serverId) {
     ]);
     // server-history is a superset of traffic/history; fetch it once and derive
     // the network series from the same rows instead of a second ProbeResult scan.
-    const [traffic, probeHistory, pingTargets, pingTargetHistory] = await Promise.allSettled([
+    const [traffic, probeHistory, resourceHistory, processHistory, pingTargets, pingTargetHistory] = await Promise.allSettled([
       fetchJson(`${API_ROOT}/api/v1/traffic/public/${current.id}`, { timeoutMs: 1000 }),
       fetchServerHistory(current.id, getDetailHistoryDays(), getDetailHistoryPointLimit(getDetailHistoryDays()), getDetailHistoryBucketMinutes(getDetailHistoryDays())),
+      // CPU/memory and process charts use a separate raw one-hour window.
+      fetchServerHistory(current.id, 1, 720, 0),
+      fetchServerHistory(current.id, 1, 720, 0, 'process_count'),
       shouldRefreshPingTargets ? settleRealtimePing(fetchPingTargets(current.id, 3)) : Promise.resolve(detailCache.pingTargets),
       shouldRefreshPingTargets ? settleRealtimePing(fetchPingTargetHistory(current.id, 6, getDetailHistoryPointLimit(getDetailHistoryDays()))) : Promise.resolve(detailCache.pingTargetHistory),
     ]);
@@ -2145,6 +2163,14 @@ async function refreshDetailRealtime(serverId) {
     const heavyProbeData = probeHistory.status === 'fulfilled' ? probeHistory.value?.data : null;
     detailCache.historyRows = normalizeHistory24h(heavyProbeData || detailCache.historyRows || []);
     detailCache.probeRows = normalizePersistedRows(heavyProbeData || detailCache.probeRows || [], Math.max(1, getDetailHistoryDays()) * 24);
+    if (resourceHistory.status === 'fulfilled') {
+      const rows = normalizePersistedRows(resourceHistory.value?.data || [], 1);
+      if (rows.length) detailCache.resourceRows = rows;
+    }
+    if (processHistory.status === 'fulfilled') {
+      const rows = normalizePersistedRows(processHistory.value?.data || [], 1);
+      if (rows.length) detailCache.processRows = rows;
+    }
     if (pingTargets.status === 'fulfilled' && (pingTargets.value?.targets?.length || pingTargets.value?.unavailable)) {
       detailCache.pingTargets = pingTargets.value;
       setDetailPingTargetsFetchedAt(now);
@@ -2160,21 +2186,22 @@ async function refreshDetailRealtime(serverId) {
   }
   const historyRows = detailCache.historyRows;
   const probeRows = detailCache.probeRows;
+  const resourceRows = detailCache.resourceRows.length ? detailCache.resourceRows : probeRows;
   const trafficUpSeries = historyRows.map((row) => Number(row.net_up || 0));
   const trafficDownSeries = historyRows.map((row) => Number(row.net_down || 0));
   const probeUpSeries = numericMetricSeries(probeRows, 'net_up');
   const probeDownSeries = numericMetricSeries(probeRows, 'net_down');
   const upSeries = smoothNumericSeries(probeUpSeries.some((v) => Math.abs(v) > 0.01) ? probeUpSeries : trafficUpSeries, 5);
   const downSeries = smoothNumericSeries(probeDownSeries.some((v) => Math.abs(v) > 0.01) ? probeDownSeries : trafficDownSeries, 5);
-  const cpuSeries = numericMetricSeries(probeRows, 'cpu_use');
-  const ramSeries = numericMetricSeries(probeRows, 'ram_use');
+  const cpuSeries = numericMetricSeries(resourceRows, 'cpu_use');
+  const ramSeries = numericMetricSeries(resourceRows, 'ram_use');
   const chartLabels = historyRows.map((row, idx) => row.ts || row.time || row.timestamp || `T${idx + 1}`);
   const probeLabels = probeRows.map((row, idx) => row.created_at ? new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `P${idx + 1}`);
   const panel = document.getElementById('detailRealtimePanels');
   const runtimeEnvironmentCard = panel?.querySelector('.runtime-env-card')?.outerHTML || '';
   if (panel) panel.outerHTML = renderRealtimeResourcePanels(current, detailCache.traffic, upSeries, downSeries, cpuSeries, ramSeries, runtimeEnvironmentCard);
   applyLanguage();
-  const processMeta = detailProcessMeta(probeRows, current);
+  const processMeta = detailProcessMeta(detailCache.processRows, current);
   const processStrong = document.querySelector('.process-count-card .fleet-chart-head strong');
   if (processStrong) processStrong.textContent = processMeta.countText;
   const processLatest = document.querySelector('.process-count-card .process-count-latest');
@@ -2186,7 +2213,7 @@ async function refreshDetailRealtime(serverId) {
   const networkHeadStrong = document.querySelector(".network-throughput-card .fleet-chart-head strong");
   if (networkHeadStrong) networkHeadStrong.textContent = `↑ ${fmtRate(currentUpKbs)} · ↓ ${fmtRate(currentDownKbs)}`;
   if (doHeavy) {
-    await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData: null, probeLabels, cpuSeries, ramSeries, probeRows, processRows: detailCache.processRows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, detailDays: getDetailHistoryDays() });
+    await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData: null, probeLabels, cpuSeries, ramSeries, probeRows: resourceRows, processRows: detailCache.processRows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, detailDays: getDetailHistoryDays() });
     refreshDetailProbeTargetsNow(current.id);
   }
   window.__DBG__.DETAIL_LAST_REFRESH = { at: new Date().toISOString(), serverId, pollMs: 5000, heavy: doHeavy, processCount: processMeta.count, upKBs: currentUpKbs, downKBs: currentDownKbs, cpu: cpuSeries.slice(-1)[0] ?? current.cpu_use ?? null, ram: ramSeries.slice(-1)[0] ?? current.ram_use ?? null };

@@ -348,7 +348,9 @@ function aggregatePointSeriesForDisplay(points = [], bucketMs = 30 * 1000) {
     buckets.set(bucket, entry);
   }
   return Array.from(buckets.values()).sort((a, b) => a.x - b.x).map(entry => ({
-    x: entry.x,
+    // Draw at the latest real observation in each bucket, not bucket start.
+    // Otherwise a 5-minute bucket always leaves an artificial blank tail.
+    x: entry.rawX,
     rawX: entry.rawX,
     y: entry.count ? entry.sum / entry.count : 0,
     minY: entry.min,
@@ -429,7 +431,19 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   const ram12hSeries = seriesWindowFromRows(probeRows, 'ram_use', telemetryHours);
   const processSeries = seriesWindowFromRows(processRows, 'process_count', telemetryHours);
   const ping24hDatasets = buildPingDatasets(probeRows, pingHours, pingTargetsData, pingTargetHistoryData);
-  const pingAxisBounds = accumulatingAxisBoundsFromTimes(ping24hDatasets.flatMap(ds => (ds.data || []).map(p => p.x)), pingHours, 2 * 60 * 1000);
+  // Anchor the PING axis to its own samples (min = max(first, last-window),
+  // max = last) so the line fills edge-to-edge instead of leaving a blank tail
+  // from a cold-start (dataFirst + full window) upper bound.
+  const pingTimes = ping24hDatasets.flatMap(ds => (ds.data || []).map(p => Number(p.x))).filter(Number.isFinite).sort((a, b) => a - b);
+  const pingAxisBounds = (() => {
+    const fullSpan = pingHours * 60 * 60 * 1000;
+    if (!pingTimes.length) return accumulatingAxisBoundsFromTimes([], pingHours, 2 * 60 * 1000);
+    const dataFirst = pingTimes[0];
+    const dataLast = pingTimes[pingTimes.length - 1];
+    const min = Math.max(dataFirst, dataLast - fullSpan);
+    const max = dataLast > min ? dataLast : min + fullSpan;
+    return { min, max, mode: 'anchored-to-data', dataFirst, dataLast, fullSpanMs: fullSpan };
+  })();
   const axis24h = Array.from({ length: 5 }, (_, i) => pingAxisBounds.min + (i / 4) * (pingAxisBounds.max - pingAxisBounds.min));
   const axis12hBounds = adaptiveRollingBounds([cpu12hSeries, ram12hSeries, processSeries], telemetryHours);
   const cpuBuckets = aggregatePointSeriesForDisplay(cpu12hSeries, detailBucketMs);
@@ -438,6 +452,22 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   const cpuDisplaySeries = fitSeriesToRollingAxis(cpuBuckets, axis12hBounds, 300);
   const ramDisplaySeries = fitSeriesToRollingAxis(ramBuckets, axis12hBounds, 300);
   const processDisplaySeries = fitSeriesToRollingAxis(processBuckets, axis12hBounds, 300);
+  // Each small chart gets its OWN axis anchored to its own samples so the line
+  // fills edge-to-edge and starts at the left. A single shared axis made a chart
+  // whose latest/earliest sample differed from the others look truncated.
+  const seriesOwnBounds = (points = []) => {
+    const fullSpan = telemetryHours * 60 * 60 * 1000;
+    const xs = (Array.isArray(points) ? points : []).map((p) => Number(p?.x)).filter(Number.isFinite).sort((a, b) => a - b);
+    if (!xs.length) return { min: axis12hBounds.min, max: axis12hBounds.max, step: axis12hBounds.step };
+    const dataFirst = xs[0];
+    const dataLast = xs[xs.length - 1];
+    const min = Math.max(dataFirst, dataLast - fullSpan);
+    const max = dataLast > min ? dataLast : min + fullSpan;
+    return { min, max, step: Math.max(60 * 1000, Math.round((max - min) / 4)) };
+  };
+  const cpuAxisBounds = seriesOwnBounds(cpuDisplaySeries);
+  const ramAxisBounds = seriesOwnBounds(ramDisplaySeries);
+  const processAxisBounds = seriesOwnBounds(processDisplaySeries);
   const cpuEmptyPlugin = telemetryEmptyStatePlugin(cpuDisplaySeries.length > 0);
   const ramEmptyPlugin = telemetryEmptyStatePlugin(ramDisplaySeries.length > 0);
   const processEmptyPlugin = telemetryEmptyStatePlugin(processDisplaySeries.length > 0, '等待 Agent 上报进程数');
@@ -461,12 +491,12 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     },
   };
   const label12h = cpuDisplaySeries.map(r => r.x);
-  const smallChartXScale = () => ({
+  const smallChartXScale = (bounds = axis12hBounds) => ({
     type: 'linear',
-    min: axis12hBounds.min,
-    max: axis12hBounds.max,
+    min: bounds.min,
+    max: bounds.max,
     afterFit: (scale) => { scale.paddingLeft = 0; scale.paddingRight = 0; },
-    ticks: { color: '#8ab5bd', stepSize: axis12hBounds.step, callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: false, font: { size: 8 }, padding: 10 },
+    ticks: { color: '#8ab5bd', stepSize: bounds.step, callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: false, font: { size: 8 }, padding: 10 },
     offset: false,
     bounds: 'ticks',
     grid: { color: 'rgba(98,245,238,0.13)' },
@@ -547,7 +577,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
         }]
       },
       plugins: [cpuEmptyPlugin],
-      options: { ...makeHudChartOptions(5, '%'), plugins: { ...makeHudChartOptions(5, '%').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `CPU ${Number(item.raw.y || 0).toFixed(1)}%` } } }, scales: { x: smallChartXScale(), y: adaptivePercentYScale(fixedSmallY) } }
+      options: { ...makeHudChartOptions(5, '%'), plugins: { ...makeHudChartOptions(5, '%').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `CPU ${Number(item.raw.y || 0).toFixed(1)}%` } } }, scales: { x: smallChartXScale(cpuAxisBounds), y: adaptivePercentYScale(fixedSmallY) } }
     }));
   }
 
@@ -570,7 +600,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
         }]
       },
       plugins: [ramEmptyPlugin],
-      options: { ...makeHudChartOptions(5, '%'), plugins: { ...makeHudChartOptions(5, '%').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `内存 ${Number(item.raw.y || 0).toFixed(1)}%` } } }, scales: { x: smallChartXScale(), y: adaptivePercentYScale(fixedSmallY) } }
+      options: { ...makeHudChartOptions(5, '%'), plugins: { ...makeHudChartOptions(5, '%').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `内存 ${Number(item.raw.y || 0).toFixed(1)}%` } } }, scales: { x: smallChartXScale(ramAxisBounds), y: adaptivePercentYScale(fixedSmallY) } }
     }));
   }
 
@@ -581,7 +611,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
       type: 'line',
       data: { datasets: [{ label: 'Processes', parsing: false, data: processDisplaySeries, borderColor: '#8dffd0', backgroundColor: 'rgba(125,255,193,0.20)', fill: true, tension: 0.18, pointRadius: 0, pointHoverRadius: 6, borderWidth: 3 }] },
       plugins: [processEmptyPlugin],
-      options: { ...makeHudChartOptions(5, '个'), plugins: { ...makeHudChartOptions(5, '个').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => telemetryTooltipTime(items[0]), label: (item) => `运行进程 ${Math.round(Number(item.raw.y || 0))} 个` } } }, scales: { x: smallChartXScale(), y: processYScale } }
+      options: { ...makeHudChartOptions(5, '个'), plugins: { ...makeHudChartOptions(5, '个').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => telemetryTooltipTime(items[0]), label: (item) => `运行进程 ${Math.round(Number(item.raw.y || 0))} 个` } } }, scales: { x: smallChartXScale(processAxisBounds), y: processYScale } }
     }));
   }
 
