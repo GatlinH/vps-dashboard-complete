@@ -432,6 +432,61 @@ function aggregatePointSeriesForDisplay(points = [], bucketMs = 30 * 1000) {
   }));
 }
 
+// Bucket means alone hide what happened *inside* each bucket. A 30s bucket over
+// a 5s source cadence averages six samples into one point, so real CPU jitter
+// renders as a smooth ribbon and a flat-looking process count reads as "no
+// data". The network chart kept its spikes only because it plots a
+// representative value rather than a mean.
+//
+// Draw the per-bucket min/max as a translucent envelope *behind* the mean line:
+// the trend stays readable and the peaks/valleys that the mean swallowed become
+// visible again. Returns [] when every bucket holds a single sample (nothing to
+// show), so single-sample cold starts keep the plain filled-line look.
+function envelopeDatasets(points = [], bandColour = 'rgba(255,255,255,0.16)') {
+  const list = Array.isArray(points) ? points : [];
+  const hasSpread = list.some((p) => {
+    const lo = Number(p?.minY);
+    const hi = Number(p?.maxY);
+    return Number.isFinite(lo) && Number.isFinite(hi) && hi - lo > 0;
+  });
+  if (!hasSpread) return [];
+  const band = (key) => list.map((p) => ({
+    ...p,
+    // Keep the mean on the point so the tooltip can still report it.
+    envMean: Number(p?.y),
+    y: Number.isFinite(Number(p?.[key])) ? Number(p[key]) : Number(p?.y) || 0,
+  }));
+  const common = {
+    parsing: false,
+    borderColor: 'transparent',
+    borderWidth: 0,
+    pointRadius: 0,
+    pointHoverRadius: 0,
+    tension: 0.24,
+    // Envelope must never win the z-order fight against the mean line.
+    order: 3,
+  };
+  return [
+    // 'fill: +1' fills toward the next dataset (the min band), producing the
+    // shaded region between per-bucket min and max.
+    { ...common, label: ENVELOPE_LABEL, data: band('maxY'), backgroundColor: bandColour, fill: '+1' },
+    { ...common, label: ENVELOPE_LABEL, data: band('minY'), backgroundColor: 'transparent', fill: false },
+  ];
+}
+
+// Envelope datasets are decoration, not series: keep them out of tooltips.
+const ENVELOPE_LABEL = '__envelope';
+const tooltipSkipsEnvelope = (item) => String(item?.dataset?.label || '') !== ENVELOPE_LABEL;
+
+// "8.4% (6.9–11.3%)" — the parenthesised span needs no translation, so the
+// per-bucket range can be surfaced without adding a key to all 8 locales.
+const spreadSuffix = (raw, fmt) => {
+  const lo = Number(raw?.minY);
+  const hi = Number(raw?.maxY);
+  if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi - lo <= 0) return '';
+  return ` (${fmt(lo)}–${fmt(hi)})`;
+};
+
 function aggregateRateRowsForDisplay(rows = [], bucketMs = 60 * 1000) {
   const buckets = new Map();
   for (const row of (Array.isArray(rows) ? rows : [])) {
@@ -552,7 +607,15 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   window.__DBG__.DETAIL_CHART_BUCKET = { days: detailDays, bucketMinutes: detailBucketMinutes, bucketMs: detailBucketMs, telemetryBucketMs, networkBucketMs, sourceSampleMs, telemetryHours, pingHours, networkHours };
   const cpu12hSeries = seriesWindowFromRows(probeRows, 'cpu_use', telemetryHours);
   const ram12hSeries = seriesWindowFromRows(probeRows, 'ram_use', telemetryHours);
-  const processSeries = seriesWindowFromRows(processRows, 'process_count', telemetryHours);
+  // The dedicated `metric=process_count` request is a *second* round trip, so on
+  // first paint processRows is still empty and this chart rendered blank while
+  // CPU/memory already had data — it looked like the process monitor never
+  // loaded. The default history response already carries process_count on every
+  // row, so fall back to it and let the dedicated response refine later.
+  const processSeriesPrimary = seriesWindowFromRows(processRows, 'process_count', telemetryHours);
+  const processSeries = processSeriesPrimary.length
+    ? processSeriesPrimary
+    : seriesWindowFromRows(probeRows, 'process_count', telemetryHours);
   const ping24hDatasets = buildPingDatasets(probeRows, pingHours, pingTargetsData, pingTargetHistoryData);
   // Anchor the PING axis to its own samples (min = max(first, last-window),
   // max = last) so the line fills edge-to-edge instead of leaving a blank tail
@@ -742,10 +805,13 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
           pointRadius: 0,
           pointHoverRadius: 6,
           borderWidth: 3,
-        }]
+        },
+        // Per-bucket min/max band: the mean line alone smoothed 6 samples per
+        // 30s bucket into a featureless ribbon.
+        ...envelopeDatasets(cpuDisplaySeries, 'rgba(155,211,255,0.20)')]
       },
       plugins: [cpuEmptyPlugin],
-      options: { ...makeHudChartOptions(5, '%'), plugins: { ...makeHudChartOptions(5, '%').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `CPU ${Number(item.raw.y || 0).toFixed(1)}%` } } }, scales: { x: smallChartXScale(cpuAxisBounds), y: adaptivePercentYScale(fixedSmallY) } }
+      options: { ...makeHudChartOptions(5, '%'), plugins: { ...makeHudChartOptions(5, '%').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, filter: tooltipSkipsEnvelope, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `CPU ${Number(item.raw.y || 0).toFixed(1)}%${spreadSuffix(item.raw, (v) => `${v.toFixed(1)}%`)}` } } }, scales: { x: smallChartXScale(cpuAxisBounds), y: adaptivePercentYScale(fixedSmallY) } }
     }));
   }
 
@@ -765,10 +831,11 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
           pointRadius: 0,
           pointHoverRadius: 6,
           borderWidth: 3,
-        }]
+        },
+        ...envelopeDatasets(ramDisplaySeries, 'rgba(255,217,121,0.20)')]
       },
       plugins: [ramEmptyPlugin],
-      options: { ...makeHudChartOptions(5, '%'), plugins: { ...makeHudChartOptions(5, '%').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `${t('memory')} ${Number(item.raw.y || 0).toFixed(1)}%` } } }, scales: { x: smallChartXScale(ramAxisBounds), y: adaptivePercentYScale(fixedSmallY) } }
+      options: { ...makeHudChartOptions(5, '%'), plugins: { ...makeHudChartOptions(5, '%').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, filter: tooltipSkipsEnvelope, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `${t('memory')} ${Number(item.raw.y || 0).toFixed(1)}%${spreadSuffix(item.raw, (v) => `${v.toFixed(1)}%`)}` } } }, scales: { x: smallChartXScale(ramAxisBounds), y: adaptivePercentYScale(fixedSmallY) } }
     }));
   }
 
@@ -777,9 +844,10 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     const ctx = processCountCanvas.getContext('2d');
     detailCharts._register('detailProcessCountChart', new Chart(ctx, {
       type: 'line',
-      data: { datasets: [{ label: 'Processes', parsing: false, data: processDisplaySeries, borderColor: '#8dffd0', backgroundColor: 'rgba(125,255,193,0.20)', fill: true, tension: 0.18, pointRadius: 0, pointHoverRadius: 6, borderWidth: 3 }] },
+      data: { datasets: [{ label: 'Processes', parsing: false, data: processDisplaySeries, borderColor: '#8dffd0', backgroundColor: 'rgba(125,255,193,0.20)', fill: true, tension: 0.18, pointRadius: 0, pointHoverRadius: 6, borderWidth: 3 },
+        ...envelopeDatasets(processDisplaySeries, 'rgba(141,255,208,0.20)')] },
       plugins: [processEmptyPlugin],
-      options: { ...makeHudChartOptions(5, ''), plugins: { ...makeHudChartOptions(5, '').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => telemetryTooltipTime(items[0]), label: (item) => `${t('chartRunningProcesses')} ${Math.round(Number(item.raw.y || 0))}` } } }, scales: { x: smallChartXScale(processAxisBounds), y: processYScale } }
+      options: { ...makeHudChartOptions(5, ''), plugins: { ...makeHudChartOptions(5, '').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, filter: tooltipSkipsEnvelope, callbacks: { title: (items) => telemetryTooltipTime(items[0]), label: (item) => `${t('chartRunningProcesses')} ${Math.round(Number(item.raw.y || 0))}${spreadSuffix(item.raw, (v) => `${Math.round(v)}`)}` } } }, scales: { x: smallChartXScale(processAxisBounds), y: processYScale } }
     }));
   }
 
