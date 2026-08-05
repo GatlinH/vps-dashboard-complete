@@ -619,7 +619,8 @@
   width:auto!important;
   min-width:586px!important;
 }
-.detail-page-shell:has(.fleet-detail-console) .theme-toggle{width:96px!important;min-width:96px!important;}
+/* See main.css: a fixed 96px width wrapped the label onto two lines. */
+.detail-page-shell:has(.fleet-detail-console) .theme-toggle{width:auto!important;min-width:96px!important;white-space:nowrap!important;flex-shrink:0!important;}
 .detail-page-shell:has(.fleet-detail-console) .language-select{width:128px!important;min-width:128px!important;max-width:128px!important;}
 .detail-page-shell:has(.fleet-detail-console) .detail-currency-switch{
   width:176px!important;

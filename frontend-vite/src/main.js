@@ -163,7 +163,13 @@ function refreshDetailPresentation({ languageChanged = false, currencyChanged = 
   updateRateDisplay();
   // Chart-head titles are JS-composed strings (not data-i18n static nodes), so
   // re-localize them in place on a language switch without remounting charts.
-  if (languageChanged) relocalizeDetailChartTitles(detailGrid);
+  if (languageChanged) {
+    relocalizeDetailChartTitles(detailGrid);
+    // The health-summary row and the process card are JS-composed template strings
+    // without data-i18n hooks, so applyLanguage() cannot reach them. Without this
+    // they stay in the previous language until the next full re-render.
+    relocalizeDetailComposedLabels(detailGrid);
+  }
   window.__DBG__.DETAIL_PRESENTATION_REFRESH = {
     languageChanged,
     currencyChanged,
@@ -171,6 +177,71 @@ function refreshDetailPresentation({ languageChanged = false, currencyChanged = 
     currency: state.currency,
     grid: detailGrid,
   };
+}
+
+// Re-localize the JS-composed detail labels that applyLanguage() cannot see
+// (they are template strings without data-i18n hooks). Only label words are
+// rewritten; live numbers are preserved so switching language never disturbs
+// the current readings or waits for the next poll.
+function relocalizeDetailComposedLabels(root = document) {
+  const summary = root.querySelector('.detail-health-summary');
+  if (summary) {
+    const labels = [t('healthStatus'), t('latestSample'), t('healthResources'), t('healthLink')];
+    [...summary.children].forEach((cell, idx) => {
+      const span = cell.querySelector('span');
+      if (span && labels[idx]) span.textContent = labels[idx];
+    });
+    // Health state word + agent/alert line: recompose from the cached live health
+    // snapshot so the values stay correct rather than being string-translated.
+    const lh = detailCache.liveHealth;
+    if (lh) {
+      const stateStrong = summary.children?.[0]?.querySelector('strong');
+      const stateEm = summary.children?.[0]?.querySelector('em');
+      if (stateStrong) stateStrong.textContent = lh.state === 'danger' ? t('abnormal') : (lh.state === 'warn' ? t('attention') : t('healthy'));
+      if (stateEm) stateEm.textContent = `${lh.online ? t('agentOnline') : t('agentOffline')} · ${lh.dangerCount ? `${lh.dangerCount} ${t('critical')}` : (lh.warnCount ? `${lh.warnCount} ${t('reminder')}` : `0 ${t('alerts')}`)}`;
+      const freshEm = summary.children?.[1]?.querySelector('em');
+      if (freshEm) freshEm.textContent = `${t('backendSampleInterval')} ${lh.latest?.sampleSec ? `${lh.latest.sampleSec}s` : '—'}`;
+    }
+    const resourceEm = summary.children?.[2]?.querySelector('em');
+    if (resourceEm) {
+      const nums = resourceEm.textContent.match(/[\d.]+%/g) || [];
+      if (nums.length >= 2) resourceEm.textContent = `${t('memory')} ${nums[0]} · ${t('disk')} ${nums[1]}`;
+    }
+    const linkStrong = summary.children?.[3]?.querySelector('strong');
+    if (linkStrong && linkStrong.textContent.trim() !== '—') {
+      const loss = (linkStrong.textContent.match(/[\d.]+%/) || [])[0];
+      if (loss) linkStrong.textContent = `${t('healthPacketLoss')} ${loss}`;
+    }
+    const linkEm = summary.children?.[3]?.querySelector('em');
+    if (linkEm) {
+      const n = (linkEm.textContent.match(/\d+/) || [])[0];
+      if (n != null) linkEm.textContent = `${n} ${t('probeTargetsCount')}`;
+    }
+  }
+  const pingHead = root.querySelector('.ping-multi-card .fleet-chart-head strong');
+  if (pingHead) {
+    const n = (pingHead.textContent.match(/\d+/) || [])[0];
+    if (n != null) pingHead.textContent = `${n} ${t('chartTargets')}`;
+  }
+  const procHead = root.querySelector('.process-count-card .fleet-chart-head strong');
+  if (procHead) {
+    // Recompose from the cached rows rather than the rendered text: the 20s
+    // persisted pass writes countText here, so a stale unit ("个") would otherwise
+    // survive a language switch until the next process fetch.
+    const meta = detailProcessMeta(detailCache.processRows, detailCache.liveSample?.server);
+    if (meta.count != null) procHead.textContent = meta.countText;
+    else {
+      const n = (procHead.textContent.match(/\d+/) || [])[0];
+      if (n != null) procHead.textContent = `${n} ${t('processUnit')}`.trim();
+    }
+  }
+  const procMeta = root.querySelector('.process-count-meta');
+  if (procMeta) {
+    const spans = procMeta.querySelectorAll('span');
+    const hasCount = !!(procHead && /\d/.test(procHead.textContent || ''));
+    if (spans[0]) spans[0].textContent = hasCount ? t('processTotalsOnly') : t('waitingAgentProcessCount');
+    if (spans[1]) spans[1].textContent = hasCount ? t('hostLevelMonitoring') : t('noSamplesAvailable');
+  }
 }
 
 function bindTopbarEvents(root = document) {
@@ -1011,10 +1082,18 @@ function sparkline(values = [], opts = {}) {
   </svg>`;
 }
 
-function detailMetricValue(series, fallback, suffix = '') {
+// Single source of truth for "latest telemetry sample" across the detail page.
+// The health summary row and the resource cards MUST agree: they describe the
+// same node at the same instant, so any divergence in how they pick the latest
+// sample surfaces as two different CPU numbers on screen.
+function detailLatestSample(series, fallback) {
   const clean = (Array.isArray(series) ? series : []).map(Number).filter(v => Number.isFinite(v) && Math.abs(v) > 0.01);
   const v = clean.length ? clean[clean.length - 1] : Number(fallback || 0);
-  return `${Number.isFinite(v) ? v.toFixed(1) : '0.0'}${suffix}`;
+  return Number.isFinite(v) ? v : 0;
+}
+
+function detailMetricValue(series, fallback, suffix = '') {
+  return `${detailLatestSample(series, fallback).toFixed(1)}${suffix}`;
 }
 
 function detailRateValue(series, fallback) {
@@ -1076,7 +1155,11 @@ function detailFreshnessMeta(rows = [], server = null) {
   const sampleSec = interval.length ? Math.round(interval[interval.length - 1]) : (window.__DBG__.DETAIL_SOURCE_SAMPLE_MS ? Math.round(window.__DBG__.DETAIL_SOURCE_SAMPLE_MS / 1000) : null);
   if (sampleSec) window.__DBG__.DETAIL_SOURCE_SAMPLE_MS = sampleSec * 1000;
   const freshClass = ageSec == null ? 'unknown' : (ageSec <= 30 ? 'ok' : (ageSec <= 180 ? 'warn' : 'danger'));
-  const ageText = ageSec == null ? '无采样' : (ageSec < 60 ? `${ageSec} 秒前` : `${Math.floor(ageSec/60)} 分 ${ageSec%60} 秒前`);
+  // Localized: this string is written into the health row on every 5s poll, so a
+  // Chinese literal here would re-assert itself in every other language.
+  const ageText = ageSec == null
+    ? t('noSample')
+    : (ageSec < 60 ? `${ageSec} ${t('secondsAgo')}` : `${Math.floor(ageSec / 60)} ${t('minutesAgo')} ${ageSec % 60} ${t('secondsAgo')}`);
   return { latestMs, ageSec, ageText, sampleSec, freshClass };
 }
 
@@ -1087,7 +1170,9 @@ function detailProcessMeta(rows = [], server = null) {
     ? Number(ordered[ordered.length - 1].process_count)
     : (validCount(server?.process_count) ? Number(server.process_count) : null);
   const count = Number.isFinite(latest) && latest >= 0 ? Math.round(latest) : null;
-  return { count, countText: count == null ? '等待 agent 上报' : `${count} 个` };
+  // countText is written into the DOM by the live poll (after applyLanguage), so it
+  // must be localized at call time rather than baked as a Chinese literal.
+  return { count, countText: count == null ? t('waitingAgentReport') : `${count} ${t('processUnit')}`.trim() };
 }
 
 function detailHealthStatus(server, probeRows = [], pingTargetsData = null) {
@@ -1115,8 +1200,8 @@ function renderHealthSummary(server, probeRows = [], pingTargetsData = null, cpu
   return `<section class="detail-health-summary is-${h.state}" aria-label="${t('healthStatus')}">
     <div class="health-main"><span>${t('healthStatus')}</span><strong>${statusText}</strong><em>${heartbeat} · ${alertText}</em></div>
     <div><span>${t('latestSample')}</span><strong>${h.latest.ageText}</strong><em>${t('backendSampleInterval')} ${h.latest.sampleSec ? `${h.latest.sampleSec}s` : '—'}</em></div>
-    <div><span>资源</span><strong>CPU ${cpu}</strong><em>内存 ${mem} · 磁盘 ${disk}</em></div>
-    <div><span>链路</span><strong>${pingTargetsData?.unavailable ? '—' : `丢包 ${Number(h.loss || 0).toFixed(0)}%`}</strong><em>${pingTargetsData?.unavailable ? '暂无真实节点侧互探采样' : `${(pingTargetsData?.targets || []).length || 0} 个探测目标`}</em></div>
+    <div><span>${t('healthResources')}</span><strong>CPU ${cpu}</strong><em>${t('memory')} ${mem} · ${t('disk')} ${disk}</em></div>
+    <div><span>${t('healthLink')}</span><strong>${pingTargetsData?.unavailable ? '—' : `${t('healthPacketLoss')} ${Number(h.loss || 0).toFixed(0)}%`}</strong><em>${pingTargetsData?.unavailable ? t('noPeerProbeSamples') : `${(pingTargetsData?.targets || []).length || 0} ${t('probeTargetsCount')}`}</em></div>
   </section>`;
 }
 
@@ -1179,6 +1264,42 @@ function renderResourceLine(label, value, pct, extra = '') {
   </div>`;
 }
 
+// Patch the already-rendered RES card in place from a single sample, without
+// rebuilding the panel (a full re-render on the 5s tick would tear down charts).
+// Keeps the health-summary row and the resource card reporting the same CPU/RAM.
+function syncRealtimeResourceCard({ cpuPct, ramPct, server } = {}) {
+  const card = document.querySelector('.probe-observability-grid .resources-card');
+  if (!card) return;
+  const cpuCores = Number(server?.cpu || server?.cpu_cores || 0);
+  const ramTotal = Number(server?.ram || server?.ram_gb || 0);
+  const setLine = (label, valueText, pct, extraText) => {
+    const line = card.querySelector(`.probe-resource-line[data-resource="${label}"]`);
+    if (!line) return;
+    const valueNode = line.querySelector('strong');
+    const bar = line.querySelector('.probe-resource-track i');
+    const extra = line.querySelector('em');
+    if (valueNode) valueNode.textContent = valueText;
+    if (bar) bar.style.width = `${clampPct(pct)}%`;
+    if (extra && extraText != null) extra.textContent = extraText;
+  };
+  if (Number.isFinite(cpuPct)) {
+    setLine(t('cpu').toUpperCase(), `${pctFmt(cpuPct)}%`, cpuPct, `${cpuCores || '—'} ${t('cores')}`);
+    const load = cpuCores > 0 ? (cpuPct / 100 * cpuCores).toFixed(2) : '—';
+    setLine(t('load').toUpperCase(), load, cpuCores ? clampPct((Number(load) / cpuCores) * 100) : 0, `1m / ${load}`);
+  }
+  if (Number.isFinite(ramPct)) {
+    const ramUsed = resourceUsageFromTotal(ramTotal, ramPct);
+    setLine(t('mem').toUpperCase(), `${pctFmt(ramPct)}%`, ramPct, `${fmtResourceGb(ramUsed)} / ${fmtResourceGb(ramTotal)}`);
+    const memMeter = document.querySelector(`.probe-observability-grid .allocation-card .probe-meter-row[data-meter="${t('memory').toUpperCase()}"]`);
+    if (memMeter) {
+      const top = memMeter.querySelector('.probe-meter-top strong');
+      const bar = memMeter.querySelector('.probe-meter-track i');
+      if (top) top.textContent = `${fmtResourceGb(ramUsed)}${ramTotal ? ` / ${fmtResourceGb(ramTotal)}` : ''}`;
+      if (bar) bar.style.width = `${clampPct(ramTotal ? (ramUsed / ramTotal * 100) : ramPct)}%`;
+    }
+  }
+}
+
 function smoothNumericSeries(values = [], windowSize = 5) {
   const rows = Array.isArray(values) ? values.map(Number).filter(v => Number.isFinite(v) && v >= 0) : [];
   if (!rows.length) return [];
@@ -1199,8 +1320,10 @@ function stableLatestRate(series = [], fallback = 0) {
 }
 
 function renderRealtimeResourcePanels(server, trafficData, upSeries = [], downSeries = [], cpuSeries = [], ramSeries = [], runtimeEnvironmentCard = '') {
-  const cpuPct = Number(cpuSeries?.length ? cpuSeries[cpuSeries.length - 1] : server.cpu_use || 0);
-  const ramPct = Number(ramSeries?.length ? ramSeries[ramSeries.length - 1] : server.ram_use || 0);
+  // Same latest-sample contract as the health summary row (detailMetricValue),
+  // otherwise the two widgets report different CPU/RAM for the same instant.
+  const cpuPct = detailLatestSample(cpuSeries, server.cpu_use);
+  const ramPct = detailLatestSample(ramSeries, server.ram_use);
   const diskPct = Number(server.disk_use || 0);
   const cpuCores = Number(server.cpu || server.cpu_cores || 0);
   const ramTotal = Number(server.ram || server.ram_gb || 0);
@@ -1658,11 +1781,13 @@ function probeLinkBar(ms, loss = null) {
 function updateDetailPingTargetCount(pingTargetsData) {
   const count = Array.isArray(pingTargetsData?.targets) ? pingTargetsData.targets.length : 0;
   const countNode = document.querySelector('.detail-ping-target-count');
-  if (countNode) countNode.textContent = `${count} 目标`;
+  // Called from the live refresh path after applyLanguage(); literals here reverted
+  // the health-summary link cell to Chinese one poll tick after a language switch.
+  if (countNode) countNode.textContent = `${count} ${t('chartTargets')}`;
   const healthLink = document.querySelector('.detail-health-summary > div:last-child em');
   if (healthLink) healthLink.textContent = pingTargetsData?.unavailable
-    ? '暂无真实节点侧互探采样'
-    : `${count} 个探测目标`;
+    ? t('noPeerProbeSamples')
+    : `${count} ${t('probeTargetsCount')}`;
 }
 
 function renderGlobalVpsProbeRows(vpsProbeTargetsData) {
@@ -2172,7 +2297,7 @@ async function refreshDetailLivePoint(serverId) {
       const process = document.querySelector('.process-count-card .fleet-chart-head strong');
       if (cpu && Number.isFinite(Number(live.cpu_use))) cpu.textContent = `${Number(live.cpu_use).toFixed(1)}%`;
       if (ram && Number.isFinite(Number(live.ram_use))) ram.textContent = `${Number(live.ram_use).toFixed(1)}%`;
-      if (process && Number.isFinite(Number(live.process_count))) process.textContent = `${Math.round(Number(live.process_count))} 个`;
+      if (process && Number.isFinite(Number(live.process_count))) process.textContent = `${Math.round(Number(live.process_count))} ${t('processUnit')}`.trim();
       const summary = document.querySelector('.detail-health-summary');
       if (summary) {
         const liveServer = { ...state.servers.find((item) => Number(item.id) === Number(serverId)), ...live };
@@ -2182,10 +2307,33 @@ async function refreshDetailLivePoint(serverId) {
         const healthEm = summary.querySelector('.health-main em');
         const freshnessStrong = summary.children?.[1]?.querySelector('strong');
         const freshnessEm = summary.children?.[1]?.querySelector('em');
-        if (healthStrong) healthStrong.textContent = liveHealth.state === 'danger' ? '异常' : (liveHealth.state === 'warn' ? '需关注' : '健康');
-        if (healthEm) healthEm.textContent = `${liveHealth.online ? 'Agent 在线' : 'Agent 离线'} · ${liveHealth.dangerCount ? `${liveHealth.dangerCount} 严重` : (liveHealth.warnCount ? `${liveHealth.warnCount} 提醒` : '0 告警')}`;
+        // This poll runs every 5s, long after applyLanguage() localized the row.
+        // Every string written here must come from the language pack, otherwise the
+        // UI silently snaps back to Chinese one tick after the user switches language.
+        if (healthStrong) healthStrong.textContent = liveHealth.state === 'danger' ? t('abnormal') : (liveHealth.state === 'warn' ? t('attention') : t('healthy'));
+        if (healthEm) healthEm.textContent = `${liveHealth.online ? t('agentOnline') : t('agentOffline')} · ${liveHealth.dangerCount ? `${liveHealth.dangerCount} ${t('critical')}` : (liveHealth.warnCount ? `${liveHealth.warnCount} ${t('reminder')}` : `0 ${t('alerts')}`)}`;
         if (freshnessStrong) freshnessStrong.textContent = liveHealth.latest.ageText;
-        if (freshnessEm) freshnessEm.textContent = `后端采样间隔 ${liveHealth.latest.sampleSec ? `${liveHealth.latest.sampleSec}s` : '—'}`;
+        if (freshnessEm) freshnessEm.textContent = `${t('backendSampleInterval')} ${liveHealth.latest.sampleSec ? `${liveHealth.latest.sampleSec}s` : '—'}`;
+        // The health row and the RES resource card describe the same node at the
+        // same instant, so they must be driven from the SAME sample. This 5s live
+        // endpoint is the freshest source; the resource card is otherwise only
+        // rebuilt on the 20s persisted-history pass, which is what made the two
+        // widgets disagree (health 1.6% vs card 11.1%). Update both together.
+        const liveCpu = detailLatestSample([Number(live.cpu_use)], liveServer.cpu_use);
+        const liveRam = detailLatestSample([Number(live.ram_use)], liveServer.ram_use);
+        const liveDisk = Number(liveServer.disk_use || 0);
+        const resourceStrong = summary.children?.[2]?.querySelector('strong');
+        const resourceEm = summary.children?.[2]?.querySelector('em');
+        if (resourceStrong) resourceStrong.textContent = `CPU ${liveCpu.toFixed(1)}%`;
+        if (resourceEm) resourceEm.textContent = `${t('memory')} ${liveRam.toFixed(1)}% · ${t('disk')} ${(Number.isFinite(liveDisk) ? liveDisk : 0).toFixed(1)}%`;
+        // Remember the sample so the 20s persisted-history re-render (which rebuilds
+        // the panel from coarser rows) can be re-aligned to it instead of snapping
+        // the card back to a different number than the health row shows.
+        detailCache.liveSample = { cpuPct: liveCpu, ramPct: liveRam, diskPct: liveDisk, server: liveServer };
+        // Cached so a language switch can recompose these labels from live values
+        // instead of translating already-rendered text.
+        detailCache.liveHealth = liveHealth;
+        syncRealtimeResourceCard({ cpuPct: liveCpu, ramPct: liveRam, server: liveServer });
       }
     }
     return appended;
@@ -2271,13 +2419,16 @@ async function refreshDetailRealtime(serverId) {
   const runtimeEnvironmentCard = panel?.querySelector('.runtime-env-card')?.outerHTML || '';
   if (panel) panel.outerHTML = renderRealtimeResourcePanels(current, detailCache.traffic, upSeries, downSeries, cpuSeries, ramSeries, runtimeEnvironmentCard);
   applyLanguage();
+  // The panel was just rebuilt from the coarser persisted rows. Re-apply the newest
+  // live sample so the RES card and the health-summary row keep showing one value.
+  if (detailCache.liveSample) syncRealtimeResourceCard(detailCache.liveSample);
   const processMeta = detailProcessMeta(detailCache.processRows, current);
   const processStrong = document.querySelector('.process-count-card .fleet-chart-head strong');
   if (processStrong) processStrong.textContent = processMeta.countText;
   const processLatest = document.querySelector('.process-count-card .process-count-latest');
-  if (processLatest) processLatest.textContent = processMeta.count == null ? '等待 agent 上报' : '主机级监控';
+  if (processLatest) processLatest.textContent = processMeta.count == null ? t('waitingAgentReport') : t('hostLevelMonitoring');
   const pingHeadStrong = document.querySelector('.ping-multi-card .fleet-chart-head strong');
-  if (pingHeadStrong) pingHeadStrong.textContent = detailCache.pingTargets?.unavailable ? '等待 agent' : `${(detailCache.pingTargets?.targets || []).length || 0} 目标`;
+  if (pingHeadStrong) pingHeadStrong.textContent = detailCache.pingTargets?.unavailable ? t('waitingAgent') : `${(detailCache.pingTargets?.targets || []).length || 0} ${t('chartTargets')}`;
   const currentUpKbs = upSeries.slice(-1)[0] ?? current.net_up ?? null;
   const currentDownKbs = downSeries.slice(-1)[0] ?? current.net_down ?? null;
   const networkHeadStrong = document.querySelector(".network-throughput-card .fleet-chart-head strong");
