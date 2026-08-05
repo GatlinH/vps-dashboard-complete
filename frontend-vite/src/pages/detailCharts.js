@@ -136,7 +136,13 @@ function telemetryEmptyStatePlugin(hasPoints, message = null) {
   return {
     id: 'detailTelemetryEmptyState',
     afterDraw(chart) {
-      if (hasPoints || !chart.chartArea) return;
+      // Emptiness must be judged from what the chart currently holds, not from a
+      // boolean captured when the plugin was built. Persisted history is empty on
+      // first paint, so the captured flag said "empty" forever while the 5s live
+      // append drew a real line underneath — the overlay and the data contradicted
+      // each other on screen. Live-appended points count as data.
+      const live = (chart.data?.datasets || []).some((ds) => Array.isArray(ds?.data) && ds.data.length > 0);
+      if (hasPoints || live || !chart.chartArea) return;
       const { ctx, chartArea: area } = chart;
       ctx.save();
       ctx.fillStyle = 'rgba(235,252,255,.92)';
@@ -438,7 +444,7 @@ export function appendDetailLiveMetrics(live, deps) {
 }
 
 export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [], downSeries = [], pingData = null, probeLabels = [], cpuSeries = [], ramSeries = [], probeRows = [], processRows = [], pingTargetsData = null, pingTargetHistoryData = null, vpsProbeTargetsData = null, vpsProbeHistoryData = null, latestServer = null, detailDays = 0 }, deps) {
-  const { detailCharts, rowTimeMs, formatHourTickWithDate, formatTooltipClock, telemetryTooltipTime, seriesWindowFromRows, adaptiveRollingBounds, fitSeriesToRollingAxis, buildPingDatasets, accumulatingAxisBoundsFromTimes, fmtRate, pingStepLabel, PING_AXIS_STEPS_MS, latestTimelineMs, getDetailPingSampleCache } = deps;
+  const { detailCharts, rowTimeMs, formatHourTick, formatHourTickWithDate, formatTooltipClock, telemetryTooltipTime, seriesWindowFromRows, adaptiveRollingBounds, fitSeriesToRollingAxis, buildPingDatasets, accumulatingAxisBoundsFromTimes, fmtRate, pingStepLabel, PING_AXIS_STEPS_MS, latestTimelineMs, getDetailPingSampleCache } = deps;
   const networkCanvas = document.getElementById('detailNetworkChart');
   const cpuCanvas = document.getElementById('detailCpuChart');
   const memoryCanvas = document.getElementById('detailMemoryChart');
@@ -467,6 +473,11 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   chartLabels = chartLabels.length ? chartLabels : upSeries.map((_, i) => `T${String(i + 1).padStart(2, '0')}`);
   probeLabels = probeLabels.length ? probeLabels : cpuSeries.map((_, i) => `P${String(i + 1).padStart(2, '0')}`);
   const xTickFmt = (v) => formatHourTickWithDate(v);
+  // The 1h telemetry charts never span a date boundary in a way the user needs
+  // spelled out, and they are only ~368px wide. A full "08/05, 09:53 PM" tick is
+  // ~59px in zh but far wider once en switches to a 12-hour clock, which pushed
+  // the terminal label past the card edge. Time-only ticks keep them inside.
+  const smallXTickFmt = (v) => formatHourTick(v);
   const requestedDetailDays = Number(detailDays ?? window.__DBG__.DETAIL_HISTORY_DAYS ?? 1) || 1;
   detailDays = [1, 4, 7, 30, 90].includes(requestedDetailDays) ? requestedDetailDays : 1;
   const detailBucketMinutes = ({ 1: 5, 4: 20, 7: 60, 30: 60, 90: 180 })[detailDays] || 60;
@@ -564,7 +575,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     // full timestamp). Zeroing both paddings removed exactly that room.
     afterFit: (scale) => { scale.paddingLeft = 0; scale.paddingRight = SMALL_X_TICK_EDGE_PAD; },
     ticks: {
-      color: '#8ab5bd', stepSize: bounds.step, callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: false, font: { size: 8 }, padding: 10,
+      color: '#8ab5bd', stepSize: bounds.step, callback: (v) => smallXTickFmt(v), maxRotation: 0, autoSkip: false, font: { size: 8 }, padding: 10,
       // Reserving right-hand padding alone is not enough: the terminal tick is
       // centre-anchored on the last gridline, so half the ~59px timestamp still
       // overhangs the canvas and gets clipped. 'inner' pulls the first/last tick
