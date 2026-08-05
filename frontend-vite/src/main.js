@@ -133,10 +133,14 @@ function setCurrency(currency) {
 // full renderer would replace the canvas/map nodes and make a simple select
 // change look like a page reload while all history requests are repeated.
 function relocalizeDetailChartTitles(root = document) {
-  // Preserve the current sample label (varies with the selected history range),
-  // which is the trailing segment after the last "·" on the network title.
-  const networkSpan = root.querySelector('[data-i18n-chart="network"]');
-  const sampleLabel = networkSpan ? (networkSpan.textContent.split('·').pop() || '').trim() : '';
+  // Recompose the sample label from the current range state. Scraping it out of
+  // the rendered title (the previous approach) inherited whatever language was
+  // already painted there, so the trailing segment stayed in the old language.
+  const detailDays = getDetailHistoryDays();
+  const bucketMinutes = getDetailHistoryBucketMinutes(detailDays);
+  const sampleLabel = bucketMinutes === 0
+    ? t('rangeRealtime')
+    : `${bucketMinutes}${t('rangeMinuteSampling')}`;
   const titles = {
     network: `${t('chartNetworkThroughput')} · ${t('chartHours6')}${sampleLabel ? ` · ${sampleLabel}` : ''}`,
     ping: `${t('chartPingLatency')} · ${t('chartHours6')} · ${t('chartDropLeavesGap')}`,
@@ -148,12 +152,45 @@ function relocalizeDetailChartTitles(root = document) {
     const span = root.querySelector(`[data-i18n-chart="${key}"]`);
     if (span) span.textContent = text;
   }
+  // The history range bar is a JS-composed string too.
+  const rangeLabel = root.querySelector('.history-range-label');
+  if (rangeLabel) {
+    rangeLabel.textContent = `${detailDays === 0 ? t('rangeToday') : `${detailDays}${t('rangeDayUnit')}`} · ${sampleLabel}`;
+  }
+  root.querySelectorAll('.detail-history-btn[data-detail-history-days]').forEach((btn) => {
+    btn.textContent = `${btn.dataset.detailHistoryDays}${t('rangeDayUnit')}`;
+  });
   // Target-count strong keeps its numeric prefix; only the unit word is localized.
   const targetStrong = root.querySelector('.detail-ping-target-count');
   if (targetStrong) {
     const count = (targetStrong.textContent.match(/\d+/) || ['0'])[0];
-    targetStrong.textContent = `${count} ${t('chartTargets')}`;
+    targetStrong.textContent = pingTargetCountText(count);
   }
+  // The status bank (System Core / Runtime / Expiry / online) is composed in JS at
+  // render time, so a language switch left it frozen in the render language. Each
+  // strong carries its raw source value in a data-* attribute; recompute from that
+  // rather than from the painted text, which would inherit the stale language.
+  const scope = root === document ? document : root;
+  const coreStatus = scope.querySelector('[data-i18n-core-status]');
+  if (coreStatus) {
+    coreStatus.textContent = coreStatus.dataset.i18nCoreStatus === 'online' ? t('coreStable') : t('coreAlert');
+  }
+  const uptimeNode = scope.querySelector('[data-i18n-uptime-raw]');
+  if (uptimeNode) {
+    uptimeNode.textContent = formatZhDuration(uptimeNode.dataset.i18nUptimeRaw || '', uptimeNode.dataset.i18nUptimeSince || null);
+  }
+  const expiryNode = scope.querySelector('[data-i18n-expiry-raw]');
+  if (expiryNode) {
+    expiryNode.textContent = formatExpiryCountdown(expiryNode.dataset.i18nExpiryRaw || null);
+  }
+  const statusNode = scope.querySelector('[data-i18n-status-label]');
+  if (statusNode) {
+    statusNode.textContent = statusLabel(statusNode.dataset.i18nStatusLabel || '');
+  }
+  // "Agent / <heartbeat>" mixes a product noun with a translated one, so it is a
+  // composed string too rather than a plain data-i18n node.
+  const heartbeatNode = scope.querySelector('[data-i18n-heartbeat]');
+  if (heartbeatNode) heartbeatNode.textContent = `Agent / ${t('heartbeat')}`;
 }
 
 function refreshDetailPresentation({ languageChanged = false, currencyChanged = false } = {}) {
@@ -169,6 +206,12 @@ function refreshDetailPresentation({ languageChanged = false, currencyChanged = 
     // without data-i18n hooks, so applyLanguage() cannot reach them. Without this
     // they stay in the previous language until the next full re-render.
     relocalizeDetailComposedLabels(detailGrid);
+    // Chart text (axis units, tooltips, empty states) is rasterized into the
+    // canvas, so no DOM pass can retranslate it — the charts have to be rebuilt.
+    // Repaint from detailCache only: refreshDetailHistoryRange would refetch the
+    // coarse 5-min persisted history and overwrite the 1h raw telemetry, which
+    // collapsed the CPU/memory charts from 121 points back to 13 on every switch.
+    repaintDetailChartsFromCache().catch(() => {});
   }
   window.__DBG__.DETAIL_PRESENTATION_REFRESH = {
     languageChanged,
@@ -221,7 +264,7 @@ function relocalizeDetailComposedLabels(root = document) {
   const pingHead = root.querySelector('.ping-multi-card .fleet-chart-head strong');
   if (pingHead) {
     const n = (pingHead.textContent.match(/\d+/) || [])[0];
-    if (n != null) pingHead.textContent = `${n} ${t('chartTargets')}`;
+    if (n != null) pingHead.textContent = pingTargetCountText(n);
   }
   const procHead = root.querySelector('.process-count-card .fleet-chart-head strong');
   if (procHead) {
@@ -526,7 +569,7 @@ function renderFrontLoginPage() {
 
 
 function statusLabel(status) {
-  return status === 'online' ? '在线' : status === 'warn' ? '波动' : '离线';
+  return status === 'online' ? t('online') : status === 'warn' ? t('warn') : t('offline');
 }
 
 function metric(label, value, suffix = '') {
@@ -620,19 +663,47 @@ function normalizeHistory24h(rows = []) {
     .sort((a, b) => a.__timeMs - b.__timeMs);
 }
 
+// BCP-47 tag for the selected UI language. Passing [] to toLocaleTimeString
+// follows the *browser* locale instead, so a zh interface on an en-US browser
+// rendered "07:46 PM" clock ticks where it should show 19:46. Clock format has to
+// track the language the user picked, not the one their browser happens to send.
+const UI_LOCALE_TAGS = {
+  zh: 'zh-CN', en: 'en-US', ja: 'ja-JP', ko: 'ko-KR',
+  es: 'es-ES', fr: 'fr-FR', de: 'de-DE', ru: 'ru-RU',
+};
+
+function uiLocaleTag() {
+  return UI_LOCALE_TAGS[currentLanguage] || 'en-US';
+}
+
+// en-US is the only supported locale that defaults to 12-hour clocks; the rest
+// are 24-hour natively. Pin hour12 explicitly so the axis stays compact and a
+// tick never silently changes width when the language changes.
+function clockOptions(extra = {}) {
+  return { hour12: currentLanguage === 'en', ...extra };
+}
+
+// "1 targets" is wrong in every language that inflects. Four separate sites rewrite
+// this label (initial render, two live-poll paths, persistence repaint), so the
+// plural choice lives in one place.
+function pingTargetCountText(count) {
+  const n = Number(count) || 0;
+  return `${n} ${n === 1 ? t('chartTargetOne') : t('chartTargets')}`;
+}
+
 function formatHourTick(ms) {
   const d = new Date(ms);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString(uiLocaleTag(), clockOptions({ hour: '2-digit', minute: '2-digit' }));
 }
 
 function formatTooltipClock(ms) {
   const d = new Date(ms);
-  return d.toLocaleString([], { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return d.toLocaleString(uiLocaleTag(), clockOptions({ year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }));
 }
 
 function formatHourTickWithDate(ms) {
   const d = new Date(ms);
-  return d.toLocaleString([], { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleString(uiLocaleTag(), clockOptions({ month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }));
 }
 
 function normalizePersistedTimelineRows(rows = [], hours = 2) {
@@ -664,7 +735,11 @@ function seriesWindowFromRows(rows = [], key, hours = 2) {
 
 function latestTimelineMs(rows = []) {
   const points = normalizePersistedTimelineRows(rows, Number.MAX_SAFE_INTEGER / (60 * 60 * 1000)).map(({ t }) => t).filter(Number.isFinite);
-  return points.length ? points[points.length - 1] : NaN;
+  // NaN propagates: the network chart derives its window as latest-6h, so an empty
+  // row set made every comparison false and filtered out the live samples that
+  // arrived moments later — an empty plot beside a live throughput readout. Fall
+  // back to now so the window is real and the first live sample lands inside it.
+  return points.length ? points[points.length - 1] : Date.now();
 }
 
 function freshnessWindowFromRows(rows = [], hours = 2) {
@@ -716,8 +791,12 @@ function adaptiveRollingBounds(pointGroups = [], hours = 12) {
   // Never right-align sparse data (that makes CPU/memory/freshness appear to draw right-to-left).
   const fullSpan = hours * 60 * 60 * 1000;
   const xs = pointGroups.flat().map((point) => Number(point?.x)).filter(Number.isFinite).sort((a, b) => a - b);
-  const dataFirst = xs.length ? xs[0] : 0;
-  const dataLast = xs.length ? xs[xs.length - 1] : dataFirst;
+  // With no samples at all, falling back to 0 anchored the axis at the Unix epoch
+  // and the chart rendered "01/01, 08:00 AM" ticks next to live header values.
+  // An empty chart should show the window that is *about* to be filled: now-span..now.
+  const nowMs = Date.now();
+  const dataFirst = xs.length ? xs[0] : nowMs - fullSpan;
+  const dataLast = xs.length ? xs[xs.length - 1] : nowMs;
   const coldMax = dataFirst + fullSpan;
   const rolling = xs.length > 0 && dataLast >= coldMax;
   const min = rolling ? dataLast - fullSpan : dataFirst;
@@ -1019,7 +1098,7 @@ function dualRateSparkline(upValues = [], downValues = [], opts = {}) {
 function formatSparkTime(label, fallback) {
   if (!label) return fallback;
   const d = new Date(label);
-  if (Number.isFinite(d.getTime())) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (Number.isFinite(d.getTime())) return d.toLocaleTimeString(uiLocaleTag(), clockOptions({ hour: '2-digit', minute: '2-digit' }));
   return String(label).slice(0, 5);
 }
 
@@ -1132,16 +1211,16 @@ function formatZhDuration(raw, fallbackAt = null) {
     const days = Math.floor(diffSec / 86400);
     const hours = Math.floor((diffSec % 86400) / 3600);
     const minutes = Math.floor((diffSec % 3600) / 60);
-    if (days || hours || minutes) return `${days ? `${days} 天` : ""}${hours ? ` ${hours} 小时` : ""}${minutes ? ` ${minutes} 分钟` : ""}`.trim();
-    return diffSec + " 秒";
+    if (days || hours || minutes) return `${days ? `${days} ${t('durDay')}` : ""}${hours ? ` ${hours} ${t('durHour')}` : ""}${minutes ? ` ${minutes} ${t('durMin')}` : ""}`.trim();
+    return `${diffSec} ${t('durSec')}`;
   }
   if (!raw) return "—";
   const text = String(raw);
   const day = text.match(/(\d+)\s*days?/i)?.[1];
   const hour = text.match(/(\d+)\s*hours?/i)?.[1];
   const minute = text.match(/(\d+)\s*minutes?/i)?.[1];
-  if (day || hour || minute) return `${day ? `${day} 天` : ""}${hour ? ` ${hour} 小时` : ""}${minute ? ` ${minute} 分钟` : ""}`.trim();
-  return text.replace(/days?/ig,"天").replace(/hours?/ig,"小时").replace(/minutes?/ig,"分钟");
+  if (day || hour || minute) return `${day ? `${day} ${t('durDay')}` : ""}${hour ? ` ${hour} ${t('durHour')}` : ""}${minute ? ` ${minute} ${t('durMin')}` : ""}`.trim();
+  return text.replace(/days?/ig, t('durDay')).replace(/hours?/ig, t('durHour')).replace(/minutes?/ig, t('durMin'));
 }
 function backendTelemetryRows(rows = []) {
   return (Array.isArray(rows) ? rows : []).filter(row => !row?.__frontendCache);
@@ -1378,15 +1457,15 @@ function renderInventoryRows(rows = []) {
 
 function formatExpiryCountdown(expiry) {
   const d = daysUntilExpiry(expiry);
-  if (d == null) return '未设置到期';
-  if (d < 0) return `已过期 ${Math.abs(d)} 天`;
-  if (d == 0) return '今日到期';
-  return `${d} 天后到期`;
+  if (d == null) return t('expiryNone');
+  if (d < 0) return t('expiryPast').replace('{n}', String(Math.abs(d)));
+  if (d == 0) return t('expiryToday');
+  return t('expiryIn').replace('{n}', String(d));
 }
 
 function renderTagChips(tags) {
   const rows = Array.isArray(tags) ? tags.filter(Boolean) : [];
-  return rows.length ? rows.map(tag => `<span class="detail-tag">${tag}</span>`).join('') : '<span class="detail-tag is-empty">暂无标签</span>';
+  return rows.length ? rows.map(tag => `<span class="detail-tag">${tag}</span>`).join('') : `<span class="detail-tag is-empty">${t('noTags')}</span>`;
 }
 
 function renderSummaryStats() {
@@ -1783,7 +1862,7 @@ function updateDetailPingTargetCount(pingTargetsData) {
   const countNode = document.querySelector('.detail-ping-target-count');
   // Called from the live refresh path after applyLanguage(); literals here reverted
   // the health-summary link cell to Chinese one poll tick after a language switch.
-  if (countNode) countNode.textContent = `${count} ${t('chartTargets')}`;
+  if (countNode) countNode.textContent = pingTargetCountText(count);
   const healthLink = document.querySelector('.detail-health-summary > div:last-child em');
   if (healthLink) healthLink.textContent = pingTargetsData?.unavailable
     ? t('noPeerProbeSamples')
@@ -1981,7 +2060,7 @@ async function renderDetailPage(serverId) {
   const chartLabels = historyRows.map((row, idx) => row.ts || row.time || row.timestamp || `T${idx + 1}`);
   const probeRows = normalizePersistedRows(probeHistoryData?.data || [], historyDays * 24);
   detailCache.probeRows = probeRows;
-  const probeLabels = probeRows.map((row, idx) => row.created_at ? new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `P${idx + 1}`);
+  const probeLabels = probeRows.map((row, idx) => row.created_at ? new Date(row.created_at).toLocaleTimeString(uiLocaleTag(), clockOptions({ hour: '2-digit', minute: '2-digit' })) : `P${idx + 1}`);
   const cpuSeries = numericMetricSeries(probeRows, 'cpu_use');
   const ramSeries = numericMetricSeries(probeRows, 'ram_use');
   const probeUpSeries = numericMetricSeries(probeRows, 'net_up');
@@ -2150,6 +2229,7 @@ async function renderDetailMonitorCharts(args) {
   return renderDetailMonitorChartsModule(args, {
     detailCharts,
     rowTimeMs,
+    formatHourTick,
     formatHourTickWithDate,
     formatTooltipClock,
     telemetryTooltipTime,
@@ -2250,7 +2330,7 @@ async function refreshDetailHistoryRange(serverId) {
     const upSeries = probeUpSeries.some((value) => Math.abs(value) > 0.01) ? probeUpSeries : trafficUpSeries;
     const downSeries = probeDownSeries.some((value) => Math.abs(value) > 0.01) ? probeDownSeries : trafficDownSeries;
     const chartLabels = historyRows.map((row, index) => row.ts || row.time || row.timestamp || `T${index + 1}`);
-    const probeLabels = probeRows.map((row, index) => row.created_at ? new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `P${index + 1}`);
+    const probeLabels = probeRows.map((row, index) => row.created_at ? new Date(row.created_at).toLocaleTimeString(uiLocaleTag(), clockOptions({ hour: '2-digit', minute: '2-digit' })) : `P${index + 1}`);
     await renderDetailMonitorCharts({
       chartLabels, upSeries, downSeries, probeLabels,
       cpuSeries: numericMetricSeries(probeRows, 'cpu_use'),
@@ -2267,7 +2347,7 @@ async function refreshDetailHistoryRange(serverId) {
       button.classList.toggle('active', Number(button.dataset.detailHistoryDays) === detailDays);
     });
     const label = document.querySelector('.history-range-label');
-    if (label) label.textContent = `${detailDays === 0 ? '今天' : `${detailDays}天`} · ${bucketMinutes === 0 ? '实时' : `${bucketMinutes}分钟采样`}`;
+    if (label) label.textContent = `${detailDays === 0 ? t('rangeToday') : `${detailDays}${t('rangeDayUnit')}`} · ${bucketMinutes === 0 ? t('rangeRealtime') : `${bucketMinutes}${t('rangeMinuteSampling')}`}`;
     window.__DBG__.DETAIL_RANGE_REFRESH = {
       serverId: Number(serverId), detailDays, bucketMinutes, status: 'ready',
       elapsedMs: Math.round(performance.now() - startedAt),
@@ -2343,6 +2423,47 @@ async function refreshDetailLivePoint(serverId) {
   }
 }
 
+// Rebuild the detail charts from detailCache WITHOUT refetching. Canvas text
+// (axis units, tooltip labels, empty states) is rasterized into the bitmap, so no
+// DOM pass can retranslate it — a language switch must rebuild the charts. Going
+// through refreshDetailHistoryRange instead would refetch the coarse 5-minute
+// persisted history and overwrite the 1h raw telemetry, collapsing the CPU and
+// memory charts from ~121 points back to 13 on every switch.
+async function repaintDetailChartsFromCache() {
+  if (!selectedServerId) return;
+  const current = state.servers.find((item) => Number(item.id) === Number(selectedServerId));
+  if (!current) return;
+  const historyRows = detailCache.historyRows || [];
+  const probeRows = detailCache.probeRows || [];
+  const resourceRows = detailCache.resourceRows.length ? detailCache.resourceRows : probeRows;
+  const trafficUpSeries = historyRows.map((row) => Number(row.net_up || 0));
+  const trafficDownSeries = historyRows.map((row) => Number(row.net_down || 0));
+  const probeUpSeries = numericMetricSeries(probeRows, 'net_up');
+  const probeDownSeries = numericMetricSeries(probeRows, 'net_down');
+  const upSeries = smoothNumericSeries(probeUpSeries.some((v) => Math.abs(v) > 0.01) ? probeUpSeries : trafficUpSeries, 5);
+  const downSeries = smoothNumericSeries(probeDownSeries.some((v) => Math.abs(v) > 0.01) ? probeDownSeries : trafficDownSeries, 5);
+  const cpuSeries = numericMetricSeries(resourceRows, 'cpu_use');
+  const ramSeries = numericMetricSeries(resourceRows, 'ram_use');
+  const chartLabels = historyRows.map((row, idx) => row.ts || row.time || row.timestamp || `T${idx + 1}`);
+  const probeLabels = probeRows.map((row, idx) => row.created_at ? new Date(row.created_at).toLocaleTimeString(uiLocaleTag(), clockOptions({ hour: '2-digit', minute: '2-digit' })) : `P${idx + 1}`);
+  await renderDetailMonitorCharts({
+    chartLabels, upSeries, downSeries, pingData: null, probeLabels,
+    cpuSeries, ramSeries, probeRows: resourceRows,
+    processRows: detailCache.processRows,
+    pingTargetsData: detailCache.pingTargets,
+    pingTargetHistoryData: detailCache.pingTargetHistory,
+    vpsProbeTargetsData: detailCache.vpsProbeTargets,
+    vpsProbeHistoryData: detailCache.vpsProbeHistory,
+    detailDays: getDetailHistoryDays(),
+  });
+  window.__DBG__.DETAIL_CHART_REPAINT = {
+    at: new Date().toISOString(),
+    language: currentLanguage,
+    cpuRaw: cpuSeries.length,
+    procRaw: (detailCache.processRows || []).length,
+  };
+}
+
 async function refreshDetailRealtime(serverId) {
   if (detailRefreshInFlight) return;
   if (!document.getElementById('detailRealtimePanels')) return;
@@ -2414,7 +2535,7 @@ async function refreshDetailRealtime(serverId) {
   const cpuSeries = numericMetricSeries(resourceRows, 'cpu_use');
   const ramSeries = numericMetricSeries(resourceRows, 'ram_use');
   const chartLabels = historyRows.map((row, idx) => row.ts || row.time || row.timestamp || `T${idx + 1}`);
-  const probeLabels = probeRows.map((row, idx) => row.created_at ? new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `P${idx + 1}`);
+  const probeLabels = probeRows.map((row, idx) => row.created_at ? new Date(row.created_at).toLocaleTimeString(uiLocaleTag(), clockOptions({ hour: '2-digit', minute: '2-digit' })) : `P${idx + 1}`);
   const panel = document.getElementById('detailRealtimePanels');
   const runtimeEnvironmentCard = panel?.querySelector('.runtime-env-card')?.outerHTML || '';
   if (panel) panel.outerHTML = renderRealtimeResourcePanels(current, detailCache.traffic, upSeries, downSeries, cpuSeries, ramSeries, runtimeEnvironmentCard);
@@ -2428,7 +2549,7 @@ async function refreshDetailRealtime(serverId) {
   const processLatest = document.querySelector('.process-count-card .process-count-latest');
   if (processLatest) processLatest.textContent = processMeta.count == null ? t('waitingAgentReport') : t('hostLevelMonitoring');
   const pingHeadStrong = document.querySelector('.ping-multi-card .fleet-chart-head strong');
-  if (pingHeadStrong) pingHeadStrong.textContent = detailCache.pingTargets?.unavailable ? t('waitingAgent') : `${(detailCache.pingTargets?.targets || []).length || 0} ${t('chartTargets')}`;
+  if (pingHeadStrong) pingHeadStrong.textContent = detailCache.pingTargets?.unavailable ? t('waitingAgent') : pingTargetCountText((detailCache.pingTargets?.targets || []).length || 0);
   const currentUpKbs = upSeries.slice(-1)[0] ?? current.net_up ?? null;
   const currentDownKbs = downSeries.slice(-1)[0] ?? current.net_down ?? null;
   const networkHeadStrong = document.querySelector(".network-throughput-card .fleet-chart-head strong");

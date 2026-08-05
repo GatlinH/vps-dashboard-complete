@@ -3387,3 +3387,24 @@ body.admin-bridge-mode {
   .history-range-bar[aria-busy="true"]::after,
   .fleet-chart-matrix.is-range-loading .fleet-chart-card { animation: none; }
 }
+
+
+/* The process card's privacy note is two independent spans (scope note + source
+   note). With no layout rule they ran together as "…command lines collectedHost-level
+   monitoring". Lay them out as separate lines with a visible middot separator so the
+   two statements stay distinguishable in every language. */
+.process-count-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  font-size: 9px;
+  line-height: 1.35;
+  color: #7faab3;
+}
+.process-count-meta > span { display: inline-block; }
+.process-count-meta > span + span::before {
+  content: "·";
+  margin-right: 5px;
+  color: rgba(98, 245, 238, .55);
+}
