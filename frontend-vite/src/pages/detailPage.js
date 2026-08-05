@@ -39,16 +39,18 @@ function normalizeArchitectureLabel(value) {
 function renderRuntimeEnvironmentCard(server) {
   const cfg = server?.agent_config || {};
   const meta = cfg?.inventory_meta || {};
+  // Labels carry their i18n key so a language switch can retranslate them in place.
+  // Hardcoded label strings here stayed frozen in the render language.
   const fields = [
-    ['操作系统', normalizeOsLabel(server?.os || meta.os || cfg.os)],
-    ['内核版本', firstText(server?.kernel_version, server?.kernel, meta.kernel_version, meta.kernel, cfg.kernel_version, cfg.kernel)],
-    ['硬件架构', normalizeArchitectureLabel(server?.arch || meta.arch || cfg.arch)],
-    ['CPU 型号', firstText(server?.cpu_model, server?.cpu_name, meta.cpu_model, meta.cpu_name, cfg.cpu_model, cfg.cpu_name)],
+    ['envOs', normalizeOsLabel(server?.os || meta.os || cfg.os)],
+    ['envKernel', firstText(server?.kernel_version, server?.kernel, meta.kernel_version, meta.kernel, cfg.kernel_version, cfg.kernel)],
+    ['envArch', normalizeArchitectureLabel(server?.arch || meta.arch || cfg.arch)],
+    ['envCpuModel', firstText(server?.cpu_model, server?.cpu_name, meta.cpu_model, meta.cpu_name, cfg.cpu_model, cfg.cpu_name)],
   ];
-  return `<section class="probe-card runtime-env-card" aria-label="运行环境">
-    <div class="probe-card-head"><h2>运行环境</h2><span>ENV • 01</span></div>
+  return `<section class="probe-card runtime-env-card" aria-label="${escapeHtml(t('envRuntime'))}">
+    <div class="probe-card-head"><h2 data-i18n="envRuntime">${t('envRuntime')}</h2><span>ENV • 01</span></div>
     <div class="runtime-env-grid">
-      ${fields.map(([label, value]) => `<div class="runtime-env-field"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}
+      ${fields.map(([key, value]) => `<div class="runtime-env-field"><span data-i18n="${key}">${escapeHtml(t(key))}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}
     </div>
   </section>`;
 }
