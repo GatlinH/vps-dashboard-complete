@@ -560,8 +560,14 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   const processMinValue = processValues.length ? Math.min(...processValues) : 0;
   const processMaxValue = processValues.length ? Math.max(...processValues) : 1;
   const processPadding = processValues.length > 1 ? Math.max(1, Math.ceil((processMaxValue - processMinValue) * 0.15)) : 1;
-  const processYMin = Math.max(0, Math.floor(processMinValue - processPadding));
-  const processYMax = Math.max(processYMin + 1, Math.ceil(processMaxValue + processPadding));
+  const processYMinRaw = Math.max(0, Math.floor(processMinValue - processPadding));
+  const processYMaxRaw = Math.max(processYMinRaw + 1, Math.ceil(processMaxValue + processPadding));
+  // Exactly 5 ticks like every other axis, while staying on whole processes: grow the
+  // span to a multiple of 4 so `span / 4` is an integer step. `stepSize: 1` alone let the
+  // tick count drift with the data range (95..100 rendered 6 labels).
+  const processSpan = Math.max(4, Math.ceil((processYMaxRaw - processYMinRaw) / 4) * 4);
+  const processYMin = Math.max(0, processYMaxRaw - processSpan);
+  const processYMax = processYMin + processSpan;
   const processYScale = {
     ...makeHudChartOptions(5, '').scales.y,
     min: processYMin,
@@ -570,7 +576,8 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     afterFit: (scale) => { fixedSmallY(scale); scale.width = Math.max(scale.width || 0, 36); },
     ticks: {
       ...makeHudChartOptions(5, '').scales.y.ticks,
-      stepSize: 1,
+      stepSize: processSpan / 4,
+      autoSkip: false,
       precision: 0,
       // Plain integers: the unit belongs in the card title, not on every gridline.
       // A unit here is also unlocalizable (canvas text) and just costs axis width.
