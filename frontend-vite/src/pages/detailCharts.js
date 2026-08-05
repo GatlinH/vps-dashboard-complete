@@ -229,40 +229,78 @@ function adaptivePercentYScale(fixedSmallY) {
   };
 }
 
+// Rate axis for the network chart.
+//
+// Two failure modes to avoid, and a linear axis cannot dodge both at once:
+//   * Scale to the absolute peak and a single burst (2.0 MB/s against a 25 KB/s
+//     baseline) flattens real traffic onto the bottom 1-2% of the plot — reads as
+//     "no data".
+//   * Scale to p95 and the burst is drawn ABOVE the axis maximum, so Chart.js
+//     clips it flat against the top edge — data visibly leaving the chart, which
+//     is what "y 轴自适应怎么还会超出图表" is about.
+//
+// So when the tail really is an outlier (>3x p95) switch to a square-root value
+// axis: the axis still covers the true peak (nothing is clipped) while the
+// baseline band gets a usable share of the height. Returns the scale plus the
+// transform the caller must apply to plotted `y` values; `rawY`/`rawMaxY` stay
+// untouched so tooltips keep reporting real rates.
 function adaptiveRateYScale(values = [], baseY = {}, fmtRateFn) {
   const clean = (Array.isArray(values) ? values : []).map(Number).filter((n) => Number.isFinite(n) && n >= 0);
-  // A single outlier burst (a 465 KB/s spike against a 25-35 KB/s baseline) dragged
-  // the axis up to 553 and flattened the real traffic onto the bottom few percent of
-  // the plot, which reads as "no data". Scale to a high percentile of the drawn
-  // values instead of the absolute max; the spike still renders, it just clips the
-  // gridline instead of squashing everything else.
   const sorted = clean.slice().sort((a, b) => a - b);
   const pick = (q) => (sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(q * (sorted.length - 1)))] : 0);
   const p95 = pick(0.95);
-  const median = pick(0.5);
   const absolutePeak = sorted.length ? sorted[sorted.length - 1] : 0;
-  // Only de-emphasise the tail when it really is an outlier (>3x the p95 band).
-  const reference = (p95 > 0 && absolutePeak > p95 * 3) ? Math.max(p95, median * 2) : absolutePeak;
-  // Ask for a max that divides cleanly into 4 gaps => exactly 5 labelled ticks.
-  const rawMax = niceAxisMax(reference, { minMax: 10, pad: 1.15, steps: DETAIL_RATE_STEPS_KBPS });
-  const max = Math.ceil(rawMax / 4) * 4;
+  const compress = p95 > 0 && absolutePeak > p95 * 3;
+  const label = (kbps) => (typeof fmtRateFn === 'function' ? fmtRateFn(Math.max(0, Number(kbps) || 0)) : String(kbps));
+  const common = {
+    color: '#6fa4ad',
+    autoSkip: false,
+    maxTicksLimit: 5,
+    padding: 6,
+    font: { size: isDetailMobileChart() ? 8 : 10, weight: '800' },
+  };
+  const afterFit = (axis) => { axis.width = Math.max(axis.width || 0, isDetailMobileChart() ? 48 : 56); };
+
+  // The ceiling always covers the real peak in both modes -> nothing is clipped.
+  const rawMax = niceAxisMax(absolutePeak, { minMax: 10, pad: 1.15, steps: DETAIL_RATE_STEPS_KBPS });
+
+  if (!compress) {
+    const max = Math.ceil(rawMax / 4) * 4;
+    return {
+      toPlot: (kbps) => Math.max(0, Number(kbps) || 0),
+      mode: 'linear-kbps',
+      rawMax: max,
+      scale: {
+        ...baseY,
+        min: 0,
+        max,
+        suggestedMax: max,
+        // stepSize + the matching max pins the count at 5 (0 .. max inclusive).
+        ticks: { ...common, stepSize: max / 4, callback: (v) => label(v) },
+        afterFit,
+      },
+    };
+  }
+
+  // sqrt space: 4 equal gaps land on raw values rawMax*(k/4)^2, so the low band
+  // (where the baseline lives) gets the first gridline at 1/16 of the peak.
+  const axisMax = Math.sqrt(rawMax);
   return {
-    ...baseY,
-    min: 0,
-    max,
-    suggestedMax: max,
-    ticks: {
-      color: '#6fa4ad',
-      // stepSize + the matching max pins the count at 5 (0 .. max inclusive).
-      stepSize: max / 4,
-      autoSkip: false,
-      maxTicksLimit: 5,
-      padding: 6,
-      font: { size: isDetailMobileChart() ? 8 : 10, weight: '800' },
-      callback: (v) => (typeof fmtRateFn === 'function' ? fmtRateFn(Number(v) || 0) : String(v)),
-    },
-    afterFit(axis) {
-      axis.width = Math.max(axis.width || 0, isDetailMobileChart() ? 48 : 56);
+    toPlot: (kbps) => Math.sqrt(Math.max(0, Number(kbps) || 0)),
+    mode: 'sqrt-kbps',
+    rawMax,
+    scale: {
+      ...baseY,
+      min: 0,
+      max: axisMax,
+      suggestedMax: axisMax,
+      ticks: {
+        ...common,
+        stepSize: axisMax / 4,
+        // Ticks are evenly spaced in sqrt space; label them with the real rate.
+        callback: (v) => label(Math.pow(Number(v) || 0, 2)),
+      },
+      afterFit,
     },
   };
 }
@@ -659,15 +697,30 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     ...networkDownDisplay.map((p) => Number(p?.y) || 0),
   ];
 
+  // Hoisted so the debug block below can report the axis mode that was actually
+  // chosen instead of a hardcoded string.
+  let networkYDebug = { mode: 'not-rendered', rawMax: 0 };
   if (networkCtx) {
     const baseOptions = makeHudChartOptions(5, '');
-    const networkYScale = adaptiveRateYScale(networkRateValues, baseOptions.scales.y, fmtRate);
+    const networkY = adaptiveRateYScale(networkRateValues, baseOptions.scales.y, fmtRate);
+    networkYDebug = { mode: networkY.mode, rawMax: networkY.rawMax };
+    const networkYScale = networkY.scale;
+    // Map plotted values into axis space (identity unless the axis compressed an
+    // outlier tail). rawY/rawMaxY are preserved by toPlotted so the tooltip and
+    // the empty-state check keep seeing real kbps.
+    const toPlotted = (points) => points.map((p) => {
+      const rawY = Number(p?.rawY ?? p?.y) || 0;
+      const rawMaxY = Number.isFinite(Number(p?.rawMaxY)) ? Number(p.rawMaxY) : null;
+      return { ...p, rawY, rawMaxY, y: networkY.toPlot(rawY) };
+    });
+    const networkUpPlot = toPlotted(networkUpChartDisplay);
+    const networkDownPlot = toPlotted(networkDownChartDisplay);
     detailCharts._register('detailNetworkChart', new Chart(networkCtx, {
       type: 'line',
       data: {
         datasets: [
-          { label: t('chartUp'), parsing: false, data: networkUpChartDisplay, borderColor: '#68f6ff', backgroundColor: 'transparent', fill: false, tension: networkMobile ? 0.28 : 0.18, pointRadius: 0, pointHoverRadius: 5, borderWidth: networkMobile ? 2.2 : 3.2, showLine: true, stepped: false },
-          { label: t('chartDown'), parsing: false, data: networkDownChartDisplay, borderColor: '#ffd66b', backgroundColor: 'transparent', fill: false, tension: networkMobile ? 0.28 : 0.18, pointRadius: 0, pointHoverRadius: 5, borderWidth: networkMobile ? 2.2 : 3.2, showLine: true, stepped: false },
+          { label: t('chartUp'), parsing: false, data: networkUpPlot, borderColor: '#68f6ff', backgroundColor: 'transparent', fill: false, tension: networkMobile ? 0.28 : 0.18, pointRadius: 0, pointHoverRadius: 5, borderWidth: networkMobile ? 2.2 : 3.2, showLine: true, stepped: false },
+          { label: t('chartDown'), parsing: false, data: networkDownPlot, borderColor: '#ffd66b', backgroundColor: 'transparent', fill: false, tension: networkMobile ? 0.28 : 0.18, pointRadius: 0, pointHoverRadius: 5, borderWidth: networkMobile ? 2.2 : 3.2, showLine: true, stepped: false },
         ]
       },
       options: { ...baseOptions, elements: { line: { borderCapStyle: 'round', borderJoinStyle: 'round' }, point: { radius: networkMobile ? 0 : undefined } }, plugins: { ...baseOptions.plugins, legend: { display: false, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `${item.dataset.label}: ${fmtRate(Number(item.raw.rawY ?? item.raw.y ?? 0))}${Number.isFinite(Number(item.raw.rawMaxY)) ? ` · ${t('chartPeak')} ${fmtRate(Number(item.raw.rawMaxY))}` : ''}${Number(item.raw.samples) > 1 ? ` · ${Number(item.raw.samples)} ${t('chartSamplesAggregated')}` : ''}` } } }, scales: { x: { type: 'linear', min: networkAxisBounds.min, max: networkAxisBounds.max, ticks: { color: '#45676c', stepSize: Math.max(60 * 1000, Math.round((networkAxisBounds.max - networkAxisBounds.min) / (networkMobile ? 3 : 4))), callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: networkMobile, maxTicksLimit: networkMobile ? 4 : undefined, font: { size: networkMobile ? 7 : 9, weight: '700' } }, grid: { color: networkMobile ? 'rgba(55,95,101,0.12)' : 'rgba(55,95,101,0.20)' }, border: { color: 'rgba(55,95,101,.30)' } }, y: networkYScale } }
@@ -816,7 +869,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
       cpuPoints: cpu12hSeries.length,
       ramPoints: ram12hSeries.length,
       processPoints: processSeries.length,
-      networkSeries: { raw: networkRows.length, source: networkRows[0]?.source || null, latestRaw: networkRows[networkRows.length - 1] || null, buckets: networkBuckets.length, up: networkUpChartDisplay.length, down: networkDownChartDisplay.length, upFirst: networkUpChartDisplay[0] || null, upSecond: networkUpChartDisplay[1] || null, upLast: networkUpChartDisplay[networkUpChartDisplay.length - 1] || null, downFirst: networkDownChartDisplay[0] || null, downSecond: networkDownChartDisplay[1] || null, downLast: networkDownChartDisplay[networkDownChartDisplay.length - 1] || null, axis: networkAxisBounds, yAxisMode: 'adaptive-linear-kbps', yPeak: Math.max(0, ...networkRateValues) },
+      networkSeries: { raw: networkRows.length, source: networkRows[0]?.source || null, latestRaw: networkRows[networkRows.length - 1] || null, buckets: networkBuckets.length, up: networkUpChartDisplay.length, down: networkDownChartDisplay.length, upFirst: networkUpChartDisplay[0] || null, upSecond: networkUpChartDisplay[1] || null, upLast: networkUpChartDisplay[networkUpChartDisplay.length - 1] || null, downFirst: networkDownChartDisplay[0] || null, downSecond: networkDownChartDisplay[1] || null, downLast: networkDownChartDisplay[networkDownChartDisplay.length - 1] || null, axis: networkAxisBounds, yAxisMode: networkYDebug.mode, yAxisRawMax: networkYDebug.rawMax, yPeakDrawn: Math.max(0, ...networkRateValues), yPeakBucket: Math.max(0, ...networkBuckets.flatMap((b) => [Number(b.upMax) || 0, Number(b.downMax) || 0])) },
       pingSeries: ping24hDatasets.map(ds => ({ label: ds.label, points: ds.data.length, first: ds.data[0] || null, last: ds.data[ds.data.length - 1] || null, fill: ds.fill, pointRadius: ds.pointRadius, borderWidth: ds.borderWidth })),
       pingSampleCache: Object.fromEntries(Object.entries(getDetailPingSampleCache ? getDetailPingSampleCache() : {}).map(([k,v]) => [k, v.length])),
       probeRows: probeRows.length,

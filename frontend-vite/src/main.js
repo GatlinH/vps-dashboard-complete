@@ -2588,13 +2588,19 @@ async function refreshDetailRealtime(serverId) {
 
 function startDetailRealtimeRefresh(serverId) {
   stopDetailRealtimeRefresh();
-  // Force the initial 5-second refresh invocation to fetch persisted telemetry
-  // immediately; subsequent heavy refreshes remain rate-limited to once/minute.
-  setDetailHeavyRefreshAt(0);
+  // renderDetailPage has just fetched the full history set (range rows, raw 1h
+  // telemetry, process counts, ping targets) and drawn every chart from it.
+  // Zeroing the heavy-refresh clock here forced an immediate second heavy pass,
+  // so first paint replayed the same four ~300ms history requests and threw the
+  // first set away — measured as a duplicate burst at ~740ms and ~2170ms.
+  // Start the rate limit from now; the next heavy pass lands one interval later.
+  setDetailHeavyRefreshAt(Date.now());
   startDetailRefreshTimer(() => refreshDetailRealtime(serverId).catch((error) => {
     window.__DBG__.DETAIL_REFRESH_ERROR = String(error?.stack || error);
     console.warn('[detail] realtime refresh failed', error);
   }), 5000);
+  // Still kick the cheap path once so the live sample / freshness row is current
+  // without waiting a full 5s tick. refreshDetailLivePoint only hits /live.
   refreshDetailRealtime(serverId).catch((error) => {
     window.__DBG__.DETAIL_REFRESH_ERROR = String(error?.stack || error);
     console.warn('[detail] initial realtime refresh failed', error);
