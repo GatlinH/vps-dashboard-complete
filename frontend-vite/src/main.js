@@ -2305,15 +2305,35 @@ async function refreshDetailHistoryRange(serverId) {
     // servers/history returns cpu/ram/disk/net_up/net_down/latency — a superset
     // of traffic/history. Fetch it once and derive the network series from the
     // same rows instead of scanning ProbeResult twice per range switch.
-    const [probeHistory, externalPingHistory, peerPingHistory] = await Promise.allSettled([
+    // The CPU/memory/process charts always draw a fixed 1h window regardless of the
+    // selected history range, so they need raw-resolution rows. Asking the server to
+    // pre-aggregate at the range's bucket width (5min for 1d, 20min for 4d) left only
+    // 13 / 4 samples inside that hour and the charts collapsed to a stub — while the
+    // first paint, which uses the un-bucketed telemetry, showed 121 points. Fetch the
+    // coarse range for the wide charts and a separate fine slice for the 1h ones.
+    const telemetryWindowDays = 1 / 24;
+    // Raw 5s samples for one hour ≈ 720 rows; ask for enough that the fine slice is
+    // never the limiting factor. Reusing the range's `limit` (288 on 4d) truncated it.
+    const telemetryLimit = 900;
+    const [probeHistory, externalPingHistory, peerPingHistory, fineHistory] = await Promise.allSettled([
       fetchServerHistory(current.id, historyDays, limit, bucketMinutes),
       fetchPingTargetHistory(current.id, targetHours, limit),
       fetchPingTargetHistory(current.id, targetHours, limit, 'agent'),
+      fetchServerHistory(current.id, telemetryWindowDays, telemetryLimit, 0),
     ]);
     if (probeHistory.status === 'fulfilled') {
       const probeData = probeHistory.value?.data || [];
       detailCache.probeRows = normalizePersistedRows(probeData, historyDays * 24);
       detailCache.historyRows = normalizeHistory24h(probeData);
+    }
+    // The 1h charts always prefer the fine slice when it returned anything. Comparing
+    // row counts was wrong: the coarse range also returns `limit` rows, so a 288-row
+    // fine slice never beat a 288-row bucketed set and the charts kept the 4-point
+    // stub. Only fall back to the coarse rows if the fine request actually failed.
+    let telemetryRows = detailCache.probeRows || [];
+    if (fineHistory.status === 'fulfilled') {
+      const fineRows = normalizePersistedRows(fineHistory.value?.data || [], 1);
+      if (fineRows.length) telemetryRows = fineRows;
     }
     if (externalPingHistory.status === 'fulfilled') {
       detailCache.pingTargetHistory = externalPingHistory.value;
@@ -2333,9 +2353,11 @@ async function refreshDetailHistoryRange(serverId) {
     const probeLabels = probeRows.map((row, index) => row.created_at ? new Date(row.created_at).toLocaleTimeString(uiLocaleTag(), clockOptions({ hour: '2-digit', minute: '2-digit' })) : `P${index + 1}`);
     await renderDetailMonitorCharts({
       chartLabels, upSeries, downSeries, probeLabels,
-      cpuSeries: numericMetricSeries(probeRows, 'cpu_use'),
-      ramSeries: numericMetricSeries(probeRows, 'ram_use'),
-      probeRows,
+      // Small 1h charts read from the fine slice; the wide network/ping charts keep
+      // using the coarse range rows above.
+      cpuSeries: numericMetricSeries(telemetryRows, 'cpu_use'),
+      ramSeries: numericMetricSeries(telemetryRows, 'ram_use'),
+      probeRows: telemetryRows,
       processRows: detailCache.processRows,
       pingTargetsData: detailCache.pingTargets,
       pingTargetHistoryData: detailCache.pingTargetHistory,

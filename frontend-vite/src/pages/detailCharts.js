@@ -231,12 +231,21 @@ function adaptivePercentYScale(fixedSmallY) {
 
 function adaptiveRateYScale(values = [], baseY = {}, fmtRateFn) {
   const clean = (Array.isArray(values) ? values : []).map(Number).filter((n) => Number.isFinite(n) && n >= 0);
-  const peak = clean.length ? Math.max(...clean) : 0;
-  const max = niceAxisMax(peak, {
-    minMax: 10,
-    pad: 1.15,
-    steps: DETAIL_RATE_STEPS_KBPS,
-  });
+  // A single outlier burst (a 465 KB/s spike against a 25-35 KB/s baseline) dragged
+  // the axis up to 553 and flattened the real traffic onto the bottom few percent of
+  // the plot, which reads as "no data". Scale to a high percentile of the drawn
+  // values instead of the absolute max; the spike still renders, it just clips the
+  // gridline instead of squashing everything else.
+  const sorted = clean.slice().sort((a, b) => a - b);
+  const pick = (q) => (sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(q * (sorted.length - 1)))] : 0);
+  const p95 = pick(0.95);
+  const median = pick(0.5);
+  const absolutePeak = sorted.length ? sorted[sorted.length - 1] : 0;
+  // Only de-emphasise the tail when it really is an outlier (>3x the p95 band).
+  const reference = (p95 > 0 && absolutePeak > p95 * 3) ? Math.max(p95, median * 2) : absolutePeak;
+  // Ask for a max that divides cleanly into 4 gaps => exactly 5 labelled ticks.
+  const rawMax = niceAxisMax(reference, { minMax: 10, pad: 1.15, steps: DETAIL_RATE_STEPS_KBPS });
+  const max = Math.ceil(rawMax / 4) * 4;
   return {
     ...baseY,
     min: 0,
@@ -244,6 +253,9 @@ function adaptiveRateYScale(values = [], baseY = {}, fmtRateFn) {
     suggestedMax: max,
     ticks: {
       color: '#6fa4ad',
+      // stepSize + the matching max pins the count at 5 (0 .. max inclusive).
+      stepSize: max / 4,
+      autoSkip: false,
       maxTicksLimit: 5,
       padding: 6,
       font: { size: isDetailMobileChart() ? 8 : 10, weight: '800' },
