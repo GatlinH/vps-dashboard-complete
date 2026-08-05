@@ -133,10 +133,14 @@ function setCurrency(currency) {
 // full renderer would replace the canvas/map nodes and make a simple select
 // change look like a page reload while all history requests are repeated.
 function relocalizeDetailChartTitles(root = document) {
-  // Preserve the current sample label (varies with the selected history range),
-  // which is the trailing segment after the last "·" on the network title.
-  const networkSpan = root.querySelector('[data-i18n-chart="network"]');
-  const sampleLabel = networkSpan ? (networkSpan.textContent.split('·').pop() || '').trim() : '';
+  // Recompose the sample label from the current range state. Scraping it out of
+  // the rendered title (the previous approach) inherited whatever language was
+  // already painted there, so the trailing segment stayed in the old language.
+  const detailDays = getDetailHistoryDays();
+  const bucketMinutes = getDetailHistoryBucketMinutes(detailDays);
+  const sampleLabel = bucketMinutes === 0
+    ? t('rangeRealtime')
+    : `${bucketMinutes}${t('rangeMinuteSampling')}`;
   const titles = {
     network: `${t('chartNetworkThroughput')} · ${t('chartHours6')}${sampleLabel ? ` · ${sampleLabel}` : ''}`,
     ping: `${t('chartPingLatency')} · ${t('chartHours6')} · ${t('chartDropLeavesGap')}`,
@@ -148,6 +152,14 @@ function relocalizeDetailChartTitles(root = document) {
     const span = root.querySelector(`[data-i18n-chart="${key}"]`);
     if (span) span.textContent = text;
   }
+  // The history range bar is a JS-composed string too.
+  const rangeLabel = root.querySelector('.history-range-label');
+  if (rangeLabel) {
+    rangeLabel.textContent = `${detailDays === 0 ? t('rangeToday') : `${detailDays}${t('rangeDayUnit')}`} · ${sampleLabel}`;
+  }
+  root.querySelectorAll('.detail-history-btn[data-detail-history-days]').forEach((btn) => {
+    btn.textContent = `${btn.dataset.detailHistoryDays}${t('rangeDayUnit')}`;
+  });
   // Target-count strong keeps its numeric prefix; only the unit word is localized.
   const targetStrong = root.querySelector('.detail-ping-target-count');
   if (targetStrong) {
@@ -169,6 +181,12 @@ function refreshDetailPresentation({ languageChanged = false, currencyChanged = 
     // without data-i18n hooks, so applyLanguage() cannot reach them. Without this
     // they stay in the previous language until the next full re-render.
     relocalizeDetailComposedLabels(detailGrid);
+    // Chart text (axis units, tooltips, empty states) is rasterized into the
+    // canvas, so no DOM pass can retranslate it — the charts have to be rebuilt.
+    // Repaint from detailCache only: refreshDetailHistoryRange would refetch the
+    // coarse 5-min persisted history and overwrite the 1h raw telemetry, which
+    // collapsed the CPU/memory charts from 121 points back to 13 on every switch.
+    repaintDetailChartsFromCache().catch(() => {});
   }
   window.__DBG__.DETAIL_PRESENTATION_REFRESH = {
     languageChanged,
@@ -2267,7 +2285,7 @@ async function refreshDetailHistoryRange(serverId) {
       button.classList.toggle('active', Number(button.dataset.detailHistoryDays) === detailDays);
     });
     const label = document.querySelector('.history-range-label');
-    if (label) label.textContent = `${detailDays === 0 ? '今天' : `${detailDays}天`} · ${bucketMinutes === 0 ? '实时' : `${bucketMinutes}分钟采样`}`;
+    if (label) label.textContent = `${detailDays === 0 ? t('rangeToday') : `${detailDays}${t('rangeDayUnit')}`} · ${bucketMinutes === 0 ? t('rangeRealtime') : `${bucketMinutes}${t('rangeMinuteSampling')}`}`;
     window.__DBG__.DETAIL_RANGE_REFRESH = {
       serverId: Number(serverId), detailDays, bucketMinutes, status: 'ready',
       elapsedMs: Math.round(performance.now() - startedAt),
@@ -2341,6 +2359,47 @@ async function refreshDetailLivePoint(serverId) {
     window.__DBG__.DETAIL_LIVE_APPEND_ERROR = String(error?.message || error);
     return false;
   }
+}
+
+// Rebuild the detail charts from detailCache WITHOUT refetching. Canvas text
+// (axis units, tooltip labels, empty states) is rasterized into the bitmap, so no
+// DOM pass can retranslate it — a language switch must rebuild the charts. Going
+// through refreshDetailHistoryRange instead would refetch the coarse 5-minute
+// persisted history and overwrite the 1h raw telemetry, collapsing the CPU and
+// memory charts from ~121 points back to 13 on every switch.
+async function repaintDetailChartsFromCache() {
+  if (!selectedServerId) return;
+  const current = state.servers.find((item) => Number(item.id) === Number(selectedServerId));
+  if (!current) return;
+  const historyRows = detailCache.historyRows || [];
+  const probeRows = detailCache.probeRows || [];
+  const resourceRows = detailCache.resourceRows.length ? detailCache.resourceRows : probeRows;
+  const trafficUpSeries = historyRows.map((row) => Number(row.net_up || 0));
+  const trafficDownSeries = historyRows.map((row) => Number(row.net_down || 0));
+  const probeUpSeries = numericMetricSeries(probeRows, 'net_up');
+  const probeDownSeries = numericMetricSeries(probeRows, 'net_down');
+  const upSeries = smoothNumericSeries(probeUpSeries.some((v) => Math.abs(v) > 0.01) ? probeUpSeries : trafficUpSeries, 5);
+  const downSeries = smoothNumericSeries(probeDownSeries.some((v) => Math.abs(v) > 0.01) ? probeDownSeries : trafficDownSeries, 5);
+  const cpuSeries = numericMetricSeries(resourceRows, 'cpu_use');
+  const ramSeries = numericMetricSeries(resourceRows, 'ram_use');
+  const chartLabels = historyRows.map((row, idx) => row.ts || row.time || row.timestamp || `T${idx + 1}`);
+  const probeLabels = probeRows.map((row, idx) => row.created_at ? new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `P${idx + 1}`);
+  await renderDetailMonitorCharts({
+    chartLabels, upSeries, downSeries, pingData: null, probeLabels,
+    cpuSeries, ramSeries, probeRows: resourceRows,
+    processRows: detailCache.processRows,
+    pingTargetsData: detailCache.pingTargets,
+    pingTargetHistoryData: detailCache.pingTargetHistory,
+    vpsProbeTargetsData: detailCache.vpsProbeTargets,
+    vpsProbeHistoryData: detailCache.vpsProbeHistory,
+    detailDays: getDetailHistoryDays(),
+  });
+  window.__DBG__.DETAIL_CHART_REPAINT = {
+    at: new Date().toISOString(),
+    language: currentLanguage,
+    cpuRaw: cpuSeries.length,
+    procRaw: (detailCache.processRows || []).length,
+  };
 }
 
 async function refreshDetailRealtime(serverId) {

@@ -142,12 +142,12 @@ export function renderDetailConsole(ctx) {
   const h = helpers;
   const displayPingTargetsData = ((pingTargetsData?.targets || []).length ? pingTargetsData : ctx.detailCachedPingTargets) || pingTargetsData || ctx.detailCachedPingTargets;
   const targetCount = (displayPingTargetsData?.targets || []).length || 0;
-  const historyLabel = detailDays === 0 ? '今天' : `${detailDays}天`;
-  const sampleLabel = detailBucketMinutes === 0 ? '实时' : `${detailBucketMinutes}分钟采样`;
-  const networkWindowLabel = '6小时';
-  const pingWindowLabel = '6小时';
-  const resourceWindowLabel = '1小时';
-  const resourceSampleLabel = '实时采样';
+  const historyLabel = detailDays === 0 ? t('rangeToday') : `${detailDays}${t('rangeDayUnit')}`;
+  const sampleLabel = detailBucketMinutes === 0 ? t('rangeRealtime') : `${detailBucketMinutes}${t('rangeMinuteSampling')}`;
+  const networkWindowLabel = t('chartHours6');
+  const pingWindowLabel = t('chartHours6');
+  const resourceWindowLabel = t('chartHours1');
+  const resourceSampleLabel = t('chartRealtimeSampling');
   return `
     <section class="fleet-detail-console">
       <header class="fleet-console-header">
@@ -172,7 +172,7 @@ export function renderDetailConsole(ctx) {
 
       ${h.renderRealtimeResourcePanels(resolvedServer, trafficData, upSeries, downSeries, displayCpuSeries, displayRamSeries, renderRuntimeEnvironmentCard(resolvedServer))}
       <main class="fleet-chart-matrix">
-        <div class="fleet-chart-card compact-metric-card network-throughput-card"><div class="fleet-chart-head"><span data-i18n-chart="network">${t('chartNetworkThroughput')} · ${t('chartHours6')} · ${sampleLabel}</span><strong>↑ ${h.detailRateValue(displayUpSeries, resolvedServer.net_up)} · ↓ ${h.detailRateValue(displayDownSeries, resolvedServer.net_down)}</strong></div><div class="network-legend"><i class="up"></i>上行 <i class="down"></i>下行</div><div class="network-chart-surface"><canvas id="detailNetworkChart"></canvas></div></div>
+        <div class="fleet-chart-card compact-metric-card network-throughput-card"><div class="fleet-chart-head"><span data-i18n-chart="network">${t('chartNetworkThroughput')} · ${t('chartHours6')} · ${sampleLabel}</span><strong>↑ ${h.detailRateValue(displayUpSeries, resolvedServer.net_up)} · ↓ ${h.detailRateValue(displayDownSeries, resolvedServer.net_down)}</strong></div><div class="network-legend"><i class="up"></i><span data-i18n="chartUp">${t('chartUp')}</span> <i class="down"></i><span data-i18n="chartDown">${t('chartDown')}</span></div><div class="network-chart-surface"><canvas id="detailNetworkChart"></canvas></div></div>
         <div class="fleet-chart-card compact-metric-card ping-multi-card"><div class="fleet-chart-head"><span data-i18n-chart="ping">${t('chartPingLatency')} · ${t('chartHours6')} · ${t('chartDropLeavesGap')}</span><strong class="detail-ping-target-count">${targetCount} ${t('chartTargets')}</strong></div><canvas id="detailPingChart"></canvas></div>
         <div class="fleet-chart-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span data-i18n-chart="cpu">${t('chartCpuUsage')} · ${t('chartHours1')} · ${t('chartRealtimeSampling')}</span><strong>${h.detailMetricValue(displayCpuSeries, resolvedServer.cpu_use, '%')}</strong></div><canvas id="detailCpuChart"></canvas></div>
         <div class="fleet-chart-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span data-i18n-chart="memory">${t('chartMemoryUsage')} · ${t('chartHours1')} · ${t('chartRealtimeSampling')}</span><strong>${h.detailMetricValue(displayRamSeries, resolvedServer.ram_use, '%')}</strong></div><canvas id="detailMemoryChart"></canvas></div>
@@ -185,7 +185,7 @@ export function renderDetailConsole(ctx) {
             <div class="fleet-title fleet-starmap-title">VPS·星图</div>
             <div id="detailGlobeStarmapMount" class="detail-globe-starmap-mount"></div>
           </div>
-          <div class="history-range-bar"><span class="history-range-label">${historyLabel} · ${sampleLabel}</span><div class="detail-history-range" role="group" aria-label="历史图表范围">${[1,4,7,30,90].map((d) => `<button type="button" class="detail-history-btn ${Number(detailDays) === d ? 'active' : ''}" data-detail-history-days="${d}">${d}天</button>`).join('')}</div></div>
+          <div class="history-range-bar"><span class="history-range-label">${historyLabel} · ${sampleLabel}</span><div class="detail-history-range" role="group" aria-label="历史图表范围">${[1,4,7,30,90].map((d) => `<button type="button" class="detail-history-btn ${Number(detailDays) === d ? 'active' : ''}" data-detail-history-days="${d}">${d}${t('rangeDayUnit')}</button>`).join('')}</div></div>
           <div class="fleet-panel fleet-probe-table-panel">
             <div class="fleet-title">全球 VPS 探针延迟 <small class="fleet-title-hint">当前节点 → 其它 VPS</small></div>
             <table class="fleet-table compact"><thead><tr><th>对端 VPS</th><th>ms</th><th data-i18n="loss">${t('loss')} %</th><th>链路</th></tr></thead><tbody>${h.renderGlobalVpsProbeRows(vpsProbeTargetsData || ctx.detailCachedVpsProbeTargets)}</tbody></table>

@@ -1,4 +1,7 @@
 import '../globals/dashboardGlobals.js';
+// Chart text is drawn into the canvas, so it is invisible to the DOM i18n pass
+// and must be resolved through t() at draw time.
+import { t } from '../core/preferences.js';
 function ensureDenseSeries(series) {
   return (Array.isArray(series) ? series : []).map(Number).filter((v) => Number.isFinite(v));
 }
@@ -126,7 +129,10 @@ function isDetailMobileChart() {
   return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
 }
 
-function telemetryEmptyStatePlugin(hasPoints, message = '暂无已持久化的历史采样') {
+function telemetryEmptyStatePlugin(hasPoints, message = null) {
+  // Resolved lazily via t(): a default literal here would leak the source
+  // language at every call site that omits the argument.
+  message = message || t('chartNoPersistedSamples');
   return {
     id: 'detailTelemetryEmptyState',
     afterDraw(chart) {
@@ -326,10 +332,10 @@ function attachPingPointTooltip(canvas, datasets = [], axisBounds = null) {
     if (!p || p.score > 0.18) { tip.style.display = 'none'; return; }
     const lines = [
       spanText('b', p.dsLabel || p.label || 'PING'),
-      spanText('span', `时间：${formatTooltipClock(p.x)}`),
-      spanText('span', `延迟：${Number(p.rawMs || 0).toFixed(1)} ms`),
-      spanText('span', `丢包：${Number(p.lossPct || 0).toFixed(0)}%`),
-      spanText('span', `协议：${p.protocol || 'icmp'}`),
+      spanText('span', `${t('chartTime')}: ${formatTooltipClock(p.x)}`),
+      spanText('span', `${t('chartLatency')}: ${Number(p.rawMs || 0).toFixed(1)} ms`),
+      spanText('span', `${t('chartLoss')}: ${Number(p.lossPct || 0).toFixed(0)}%`),
+      spanText('span', `${t('chartProtocol')}: ${p.protocol || 'icmp'}`),
     ];
     replaceChildrenSafe(tip, lines);
     const cardRect = card.getBoundingClientRect();
@@ -468,7 +474,21 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   const telemetryHours = 1;
   const pingHours = 6;
   const networkHours = 6;
-  window.__DBG__.DETAIL_CHART_BUCKET = { days: detailDays, bucketMinutes: detailBucketMinutes, bucketMs: detailBucketMs, telemetryHours, pingHours, networkHours };
+  // The bucket width must come from the window a chart actually draws, not from
+  // the history range picker. detailBucketMs is sized for the 1-90 day history
+  // (1 day -> 5 min), so feeding it to the 1h telemetry charts collapsed ~520
+  // real samples into 13 points (22 samples averaged per point) and to the 6h
+  // network chart into 13 buckets. The PING chart never bucketed, which is why
+  // it alone looked correct. Target a fixed point budget per chart instead and
+  // never coarsen below the source sample interval.
+  const sourceSampleMs = Math.max(1000, Number(window.__DBG__.DETAIL_SOURCE_SAMPLE_MS) || 5000);
+  const bucketMsForWindow = (hours, targetPoints = 120) => {
+    const span = hours * 60 * 60 * 1000;
+    return Math.max(sourceSampleMs, Math.floor(span / Math.max(1, targetPoints)));
+  };
+  const telemetryBucketMs = bucketMsForWindow(telemetryHours);
+  const networkBucketMs = bucketMsForWindow(networkHours);
+  window.__DBG__.DETAIL_CHART_BUCKET = { days: detailDays, bucketMinutes: detailBucketMinutes, bucketMs: detailBucketMs, telemetryBucketMs, networkBucketMs, sourceSampleMs, telemetryHours, pingHours, networkHours };
   const cpu12hSeries = seriesWindowFromRows(probeRows, 'cpu_use', telemetryHours);
   const ram12hSeries = seriesWindowFromRows(probeRows, 'ram_use', telemetryHours);
   const processSeries = seriesWindowFromRows(processRows, 'process_count', telemetryHours);
@@ -488,9 +508,9 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   })();
   const axis24h = Array.from({ length: 5 }, (_, i) => pingAxisBounds.min + (i / 4) * (pingAxisBounds.max - pingAxisBounds.min));
   const axis12hBounds = adaptiveRollingBounds([cpu12hSeries, ram12hSeries, processSeries], telemetryHours);
-  const cpuBuckets = aggregatePointSeriesForDisplay(cpu12hSeries, detailBucketMs);
-  const ramBuckets = aggregatePointSeriesForDisplay(ram12hSeries, detailBucketMs);
-  const processBuckets = aggregatePointSeriesForDisplay(processSeries, detailBucketMs);
+  const cpuBuckets = aggregatePointSeriesForDisplay(cpu12hSeries, telemetryBucketMs);
+  const ramBuckets = aggregatePointSeriesForDisplay(ram12hSeries, telemetryBucketMs);
+  const processBuckets = aggregatePointSeriesForDisplay(processSeries, telemetryBucketMs);
   const cpuDisplaySeries = fitSeriesToRollingAxis(cpuBuckets, axis12hBounds, 300);
   const ramDisplaySeries = fitSeriesToRollingAxis(ramBuckets, axis12hBounds, 300);
   const processDisplaySeries = fitSeriesToRollingAxis(processBuckets, axis12hBounds, 300);
@@ -512,7 +532,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   const processAxisBounds = seriesOwnBounds(processDisplaySeries);
   const cpuEmptyPlugin = telemetryEmptyStatePlugin(cpuDisplaySeries.length > 0);
   const ramEmptyPlugin = telemetryEmptyStatePlugin(ramDisplaySeries.length > 0);
-  const processEmptyPlugin = telemetryEmptyStatePlugin(processDisplaySeries.length > 0, '等待 Agent 上报进程数');
+  const processEmptyPlugin = telemetryEmptyStatePlugin(processDisplaySeries.length > 0, t('chartWaitingAgentProcessCount'));
   const processValues = processDisplaySeries.map((point) => Number(point?.y)).filter(Number.isFinite);
   const processMinValue = processValues.length ? Math.min(...processValues) : 0;
   const processMaxValue = processValues.length ? Math.max(...processValues) : 1;
@@ -520,16 +540,18 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   const processYMin = Math.max(0, Math.floor(processMinValue - processPadding));
   const processYMax = Math.max(processYMin + 1, Math.ceil(processMaxValue + processPadding));
   const processYScale = {
-    ...makeHudChartOptions(5, '个').scales.y,
+    ...makeHudChartOptions(5, '').scales.y,
     min: processYMin,
     max: processYMax,
     grace: 0,
     afterFit: (scale) => { fixedSmallY(scale); scale.width = Math.max(scale.width || 0, 36); },
     ticks: {
-      ...makeHudChartOptions(5, '个').scales.y.ticks,
+      ...makeHudChartOptions(5, '').scales.y.ticks,
       stepSize: 1,
       precision: 0,
-      callback: (value) => Number.isInteger(Number(value)) ? `${Math.round(Number(value))} 个` : '',
+      // Plain integers: the unit belongs in the card title, not on every gridline.
+      // A unit here is also unlocalizable (canvas text) and just costs axis width.
+      callback: (value) => Number.isInteger(Number(value)) ? `${Math.round(Number(value))}` : '',
     },
   };
   const label12h = cpuDisplaySeries.map(r => r.x);
@@ -572,7 +594,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     return { x: parsed, up: Number(upSeries[i] || 0), down: Number(downSeries[i] || 0), source: 'traffic-history' };
   }).filter(r => Number.isFinite(r.x) && r.x >= networkStart && r.x <= networkNow + 60 * 1000).sort((a, b) => a.x - b.x);
   const networkRows = probeNetworkRows.length ? probeNetworkRows : historyNetworkRows;
-  const networkBuckets = aggregateRateRowsForDisplay(networkRows, detailBucketMs);
+  const networkBuckets = aggregateRateRowsForDisplay(networkRows, networkBucketMs);
   const networkMobile = isDetailMobileChart();
   // Anchor to the chart's own samples (min = max(dataFirst, dataLast-window),
   // max = dataLast) so the line fills edge-to-edge instead of leaving a blank
@@ -614,11 +636,11 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
       type: 'line',
       data: {
         datasets: [
-          { label: '上行', parsing: false, data: networkUpChartDisplay, borderColor: '#68f6ff', backgroundColor: 'transparent', fill: false, tension: networkMobile ? 0.28 : 0.18, pointRadius: 0, pointHoverRadius: 5, borderWidth: networkMobile ? 2.2 : 3.2, showLine: true, stepped: false },
-          { label: '下行', parsing: false, data: networkDownChartDisplay, borderColor: '#ffd66b', backgroundColor: 'transparent', fill: false, tension: networkMobile ? 0.28 : 0.18, pointRadius: 0, pointHoverRadius: 5, borderWidth: networkMobile ? 2.2 : 3.2, showLine: true, stepped: false },
+          { label: t('chartUp'), parsing: false, data: networkUpChartDisplay, borderColor: '#68f6ff', backgroundColor: 'transparent', fill: false, tension: networkMobile ? 0.28 : 0.18, pointRadius: 0, pointHoverRadius: 5, borderWidth: networkMobile ? 2.2 : 3.2, showLine: true, stepped: false },
+          { label: t('chartDown'), parsing: false, data: networkDownChartDisplay, borderColor: '#ffd66b', backgroundColor: 'transparent', fill: false, tension: networkMobile ? 0.28 : 0.18, pointRadius: 0, pointHoverRadius: 5, borderWidth: networkMobile ? 2.2 : 3.2, showLine: true, stepped: false },
         ]
       },
-      options: { ...baseOptions, elements: { line: { borderCapStyle: 'round', borderJoinStyle: 'round' }, point: { radius: networkMobile ? 0 : undefined } }, plugins: { ...baseOptions.plugins, legend: { display: false, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `${item.dataset.label}: ${fmtRate(Number(item.raw.rawY ?? item.raw.y ?? 0))}${Number.isFinite(Number(item.raw.rawMaxY)) ? ` · 峰值 ${fmtRate(Number(item.raw.rawMaxY))}` : ''}${Number(item.raw.samples) > 1 ? ` · ${Number(item.raw.samples)}个采样点聚合` : ''}` } } }, scales: { x: { type: 'linear', min: networkAxisBounds.min, max: networkAxisBounds.max, ticks: { color: '#45676c', stepSize: Math.max(60 * 1000, Math.round((networkAxisBounds.max - networkAxisBounds.min) / (networkMobile ? 3 : 4))), callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: networkMobile, maxTicksLimit: networkMobile ? 4 : undefined, font: { size: networkMobile ? 7 : 9, weight: '700' } }, grid: { color: networkMobile ? 'rgba(55,95,101,0.12)' : 'rgba(55,95,101,0.20)' }, border: { color: 'rgba(55,95,101,.30)' } }, y: networkYScale } }
+      options: { ...baseOptions, elements: { line: { borderCapStyle: 'round', borderJoinStyle: 'round' }, point: { radius: networkMobile ? 0 : undefined } }, plugins: { ...baseOptions.plugins, legend: { display: false, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `${item.dataset.label}: ${fmtRate(Number(item.raw.rawY ?? item.raw.y ?? 0))}${Number.isFinite(Number(item.raw.rawMaxY)) ? ` · ${t('chartPeak')} ${fmtRate(Number(item.raw.rawMaxY))}` : ''}${Number(item.raw.samples) > 1 ? ` · ${Number(item.raw.samples)} ${t('chartSamplesAggregated')}` : ''}` } } }, scales: { x: { type: 'linear', min: networkAxisBounds.min, max: networkAxisBounds.max, ticks: { color: '#45676c', stepSize: Math.max(60 * 1000, Math.round((networkAxisBounds.max - networkAxisBounds.min) / (networkMobile ? 3 : 4))), callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: networkMobile, maxTicksLimit: networkMobile ? 4 : undefined, font: { size: networkMobile ? 7 : 9, weight: '700' } }, grid: { color: networkMobile ? 'rgba(55,95,101,0.12)' : 'rgba(55,95,101,0.20)' }, border: { color: 'rgba(55,95,101,.30)' } }, y: networkYScale } }
     }));
   }
   if (cpuCtx) {
@@ -663,7 +685,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
         }]
       },
       plugins: [ramEmptyPlugin],
-      options: { ...makeHudChartOptions(5, '%'), plugins: { ...makeHudChartOptions(5, '%').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `内存 ${Number(item.raw.y || 0).toFixed(1)}%` } } }, scales: { x: smallChartXScale(ramAxisBounds), y: adaptivePercentYScale(fixedSmallY) } }
+      options: { ...makeHudChartOptions(5, '%'), plugins: { ...makeHudChartOptions(5, '%').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `${t('memory')} ${Number(item.raw.y || 0).toFixed(1)}%` } } }, scales: { x: smallChartXScale(ramAxisBounds), y: adaptivePercentYScale(fixedSmallY) } }
     }));
   }
 
@@ -674,7 +696,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
       type: 'line',
       data: { datasets: [{ label: 'Processes', parsing: false, data: processDisplaySeries, borderColor: '#8dffd0', backgroundColor: 'rgba(125,255,193,0.20)', fill: true, tension: 0.18, pointRadius: 0, pointHoverRadius: 6, borderWidth: 3 }] },
       plugins: [processEmptyPlugin],
-      options: { ...makeHudChartOptions(5, '个'), plugins: { ...makeHudChartOptions(5, '个').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => telemetryTooltipTime(items[0]), label: (item) => `运行进程 ${Math.round(Number(item.raw.y || 0))} 个` } } }, scales: { x: smallChartXScale(processAxisBounds), y: processYScale } }
+      options: { ...makeHudChartOptions(5, ''), plugins: { ...makeHudChartOptions(5, '').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => telemetryTooltipTime(items[0]), label: (item) => `${t('chartRunningProcesses')} ${Math.round(Number(item.raw.y || 0))}` } } }, scales: { x: smallChartXScale(processAxisBounds), y: processYScale } }
     }));
   }
 
@@ -696,10 +718,10 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
         chart.ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
         chart.ctx.textAlign = 'center';
         chart.ctx.textBaseline = 'middle';
-        chart.ctx.fillText(targets.length ? '正在累计真实 ICMP 采样点' : '未配置延迟监测目标', (area.left + area.right) / 2, (area.top + area.bottom) / 2 - 8);
+        chart.ctx.fillText(targets.length ? t('chartAccumulatingIcmp') : t('chartNoLatencyTargets'), (area.left + area.right) / 2, (area.top + area.bottom) / 2 - 8);
         chart.ctx.fillStyle = 'rgba(102,141,154,.92)';
         chart.ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
-        chart.ctx.fillText(Number.isFinite(loss) ? `当前探测失败 / 丢包 ${loss.toFixed(0)}%` : (targets.length ? '等待探测样本' : '请在后台「延迟监测」配置 ping_targets'), (area.left + area.right) / 2, (area.top + area.bottom) / 2 + 12);
+        chart.ctx.fillText(Number.isFinite(loss) ? `${t('chartProbeFailLoss')} ${loss.toFixed(0)}%` : (targets.length ? t('chartWaitingProbeSample') : t('chartConfigurePingTargets')), (area.left + area.right) / 2, (area.top + area.bottom) / 2 + 12);
         chart.ctx.restore();
       }
     };
@@ -717,7 +739,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
         })),
       },
       plugins: [pingEmptyPlugin],
-      options: { ...makeHudChartOptions(5, 'ms'), plugins: { ...makeHudChartOptions(5, 'ms').plugins, legend: { display: false, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: hasPingPoints, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? `采样时间 ${formatTooltipClock(items[0].raw.x)}` : '', label: (item) => `${item.dataset.label}: ${Number(item.raw.rawMs ?? item.raw.y ?? 0).toFixed(1)} ms`, afterLabel: (item) => `协议 ${item.raw.protocol || 'icmp'} · 丢包 ${Number(item.raw.lossPct ?? 0).toFixed(0)}%` } } }, scales: { x: { type: 'linear', min: axis24h[0], max: axis24h[4], ticks: { color: '#8ab5bd', stepSize: 3 * 60 * 60 * 1000, callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: isDetailMobileChart(), maxTicksLimit: isDetailMobileChart() ? 4 : undefined, font: { size: isDetailMobileChart() ? 7 : 8 } }, grid: { color: 'rgba(98,245,238,0.13)' }, border: { color: 'rgba(98,245,238,.18)' } }, y: pingYScale } }
+      options: { ...makeHudChartOptions(5, 'ms'), plugins: { ...makeHudChartOptions(5, 'ms').plugins, legend: { display: false, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: hasPingPoints, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? `${t('chartSampleTime')} ${formatTooltipClock(items[0].raw.x)}` : '', label: (item) => `${item.dataset.label}: ${Number(item.raw.rawMs ?? item.raw.y ?? 0).toFixed(1)} ms`, afterLabel: (item) => `${t('chartProtocol')} ${item.raw.protocol || 'icmp'} · ${t('chartLoss')} ${Number(item.raw.lossPct ?? 0).toFixed(0)}%` } } }, scales: { x: { type: 'linear', min: axis24h[0], max: axis24h[4], ticks: { color: '#8ab5bd', stepSize: 3 * 60 * 60 * 1000, callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: isDetailMobileChart(), maxTicksLimit: isDetailMobileChart() ? 4 : undefined, font: { size: isDetailMobileChart() ? 7 : 8 } }, grid: { color: 'rgba(98,245,238,0.13)' }, border: { color: 'rgba(98,245,238,.18)' } }, y: pingYScale } }
     }));
     attachPingPointTooltip(pingCanvas, ping24hDatasets, {
       min: pingAxisBounds.min,
@@ -743,10 +765,10 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
         chart.ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
         chart.ctx.textAlign = 'center';
         chart.ctx.textBaseline = 'middle';
-        chart.ctx.fillText('尚无 VPS 探针采样', (area.left + area.right) / 2, (area.top + area.bottom) / 2 - 8);
+        chart.ctx.fillText(t('chartNoVpsProbeSamples'), (area.left + area.right) / 2, (area.top + area.bottom) / 2 - 8);
         chart.ctx.fillStyle = 'rgba(102,141,154,.92)';
         chart.ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
-        chart.ctx.fillText('等待当前 VPS Agent 上报全球 VPS 探针结果', (area.left + area.right) / 2, (area.top + area.bottom) / 2 + 12);
+        chart.ctx.fillText(t('chartWaitingVpsProbe'), (area.left + area.right) / 2, (area.top + area.bottom) / 2 + 12);
         chart.ctx.restore();
       }
     };
