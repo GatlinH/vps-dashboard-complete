@@ -38,6 +38,28 @@ Object.assign(LANGUAGE_PACKS.es, { chartNetworkThroughput:'Rendimiento de red', 
 Object.assign(LANGUAGE_PACKS.fr, { chartNetworkThroughput:'Débit réseau', chartPingLatency:'Latence PING', chartCpuUsage:'Utilisation CPU', chartMemoryUsage:'Utilisation mémoire', chartProcessCount:'Processus', chartDropLeavesGap:'vides si coupé', chartRealtimeSampling:'temps réel', chartTargets:'cibles', chartHours6:'6 h', chartHours1:'1 h', globalVpsProbeLatency:'Latence sonde VPS globale', probeLinkState:'État de la sonde' });
 Object.assign(LANGUAGE_PACKS.de, { chartNetworkThroughput:'Netzwerkdurchsatz', chartPingLatency:'PING-Latenz', chartCpuUsage:'CPU-Auslastung', chartMemoryUsage:'Speicherauslastung', chartProcessCount:'Prozesse', chartDropLeavesGap:'Lücke bei Ausfall', chartRealtimeSampling:'Echtzeit', chartTargets:'Ziele', chartHours6:'6 Std', chartHours1:'1 Std', globalVpsProbeLatency:'Globale VPS-Sonden-Latenz', probeLinkState:'Sondenstatus' });
 Object.assign(LANGUAGE_PACKS.ru, { chartNetworkThroughput:'Пропускная способность', chartPingLatency:'Задержка PING', chartCpuUsage:'Загрузка CPU', chartMemoryUsage:'Использование памяти', chartProcessCount:'Процессы', chartDropLeavesGap:'разрывы — пропуск', chartRealtimeSampling:'в реальном времени', chartTargets:'цели', chartHours6:'6 ч', chartHours1:'1 ч', globalVpsProbeLatency:'Глобальная задержка зонда VPS', probeLinkState:'Состояние зонда' });
+// The detail health-summary row and the realtime panel headers are rewritten by the
+// 5s live poll AFTER applyLanguage() has run, so every string the poll writes needs a
+// key here — a literal there silently reverts the UI to Chinese one tick after the
+// user switches language.
+Object.assign(LANGUAGE_PACKS.zh, { healthResources:'资源', healthLink:'链路', healthPacketLoss:'丢包', probeTargetsCount:'个探测目标', noPeerProbeSamples:'暂无真实节点侧互探采样', waitingAgentReport:'等待 agent 上报', waitingAgent:'等待 agent', hostLevelMonitoring:'主机级监控', processUnit:'个' });
+Object.assign(LANGUAGE_PACKS.en, { healthResources:'Resources', healthLink:'Link', healthPacketLoss:'Loss', probeTargetsCount:'probe targets', noPeerProbeSamples:'No peer probe samples yet', waitingAgentReport:'Waiting for agent report', waitingAgent:'Waiting for agent', hostLevelMonitoring:'Host-level monitoring', processUnit:'' });
+Object.assign(LANGUAGE_PACKS.ja, { healthResources:'リソース', healthLink:'リンク', healthPacketLoss:'パケット損失', probeTargetsCount:'個の探査対象', noPeerProbeSamples:'ノード間探査のサンプルなし', waitingAgentReport:'エージェントの報告待ち', waitingAgent:'エージェント待ち', hostLevelMonitoring:'ホストレベル監視', processUnit:'個' });
+Object.assign(LANGUAGE_PACKS.ko, { healthResources:'리소스', healthLink:'링크', healthPacketLoss:'패킷 손실', probeTargetsCount:'개 프로브 대상', noPeerProbeSamples:'노드 간 프로브 샘플 없음', waitingAgentReport:'에이전트 보고 대기 중', waitingAgent:'에이전트 대기', hostLevelMonitoring:'호스트 수준 모니터링', processUnit:'개' });
+Object.assign(LANGUAGE_PACKS.es, { healthResources:'Recursos', healthLink:'Enlace', healthPacketLoss:'Pérdida', probeTargetsCount:'objetivos de sonda', noPeerProbeSamples:'Sin muestras entre nodos', waitingAgentReport:'Esperando informe del agente', waitingAgent:'Esperando agente', hostLevelMonitoring:'Monitoreo a nivel de host', processUnit:'' });
+Object.assign(LANGUAGE_PACKS.fr, { healthResources:'Ressources', healthLink:'Liaison', healthPacketLoss:'Perte', probeTargetsCount:'cibles de sonde', noPeerProbeSamples:'Aucun échantillon inter-nœuds', waitingAgentReport:"En attente du rapport de l'agent", waitingAgent:"En attente de l'agent", hostLevelMonitoring:'Surveillance au niveau hôte', processUnit:'' });
+Object.assign(LANGUAGE_PACKS.de, { healthResources:'Ressourcen', healthLink:'Verbindung', healthPacketLoss:'Verlust', probeTargetsCount:'Sondenziele', noPeerProbeSamples:'Noch keine Peer-Proben', waitingAgentReport:'Warte auf Agent-Meldung', waitingAgent:'Warte auf Agent', hostLevelMonitoring:'Host-Level-Überwachung', processUnit:'' });
+Object.assign(LANGUAGE_PACKS.ru, { healthResources:'Ресурсы', healthLink:'Канал', healthPacketLoss:'Потери', probeTargetsCount:'целей зондирования', noPeerProbeSamples:'Пока нет взаимных проб', waitingAgentReport:'Ожидание отчёта агента', waitingAgent:'Ожидание агента', hostLevelMonitoring:'Мониторинг уровня хоста', processUnit:'' });
+// Process-count card: the privacy notice ("total count only, never process names or
+// command lines") is a product promise, so it must read correctly in every locale.
+Object.assign(LANGUAGE_PACKS.zh, { waitingAgentProcessCount:'等待 Agent 上报进程数', processTotalsOnly:'仅统计总数，不采集进程名称或命令行', noSamplesAvailable:'无可用样本' });
+Object.assign(LANGUAGE_PACKS.en, { waitingAgentProcessCount:'Waiting for agent process count', processTotalsOnly:'Total count only — no process names or command lines collected', noSamplesAvailable:'No samples available' });
+Object.assign(LANGUAGE_PACKS.ja, { waitingAgentProcessCount:'エージェントのプロセス数待ち', processTotalsOnly:'合計数のみ集計。プロセス名やコマンドラインは収集しません', noSamplesAvailable:'利用可能なサンプルなし' });
+Object.assign(LANGUAGE_PACKS.ko, { waitingAgentProcessCount:'에이전트 프로세스 수 대기 중', processTotalsOnly:'총 개수만 집계 — 프로세스 이름이나 명령줄은 수집하지 않음', noSamplesAvailable:'사용 가능한 샘플 없음' });
+Object.assign(LANGUAGE_PACKS.es, { waitingAgentProcessCount:'Esperando el recuento de procesos del agente', processTotalsOnly:'Solo el total — no se recopilan nombres de procesos ni líneas de comando', noSamplesAvailable:'Sin muestras disponibles' });
+Object.assign(LANGUAGE_PACKS.fr, { waitingAgentProcessCount:"En attente du nombre de processus de l'agent", processTotalsOnly:'Total uniquement — aucun nom de processus ni ligne de commande collecté', noSamplesAvailable:'Aucun échantillon disponible' });
+Object.assign(LANGUAGE_PACKS.de, { waitingAgentProcessCount:'Warte auf Prozessanzahl des Agents', processTotalsOnly:'Nur Gesamtzahl — keine Prozessnamen oder Befehlszeilen erfasst', noSamplesAvailable:'Keine Messwerte verfügbar' });
+Object.assign(LANGUAGE_PACKS.ru, { waitingAgentProcessCount:'Ожидание числа процессов от агента', processTotalsOnly:'Только общее число — имена процессов и командные строки не собираются', noSamplesAvailable:'Нет доступных выборок' });
 // Overview templates are also dynamic HTML, so their visible labels need explicit vocabulary.
 Object.assign(LANGUAGE_PACKS.zh, { overviewNodes:'节点', overviewGroups:'分组', overviewAll:'全部', overviewAllNodes:'全部节点', overviewCurrentGroup:'当前分组', overviewNodeAssets:'节点资产', overviewFlatLayout:'全部平铺 · 卡片上显示分组', overviewFilter:'筛选', overviewMasterTop:'主控置顶', overviewNoNodes:'当前筛选下暂无节点', overviewOperatingSummary:'运营摘要', overviewExpiryIn:'天内到期', overviewTraffic:'流量', overviewMaster:'主控', overviewNetworkDetails:'节点网络详情表', overviewUpdatedMissing:'未记录' });
 Object.assign(LANGUAGE_PACKS.en, { overviewNodes:'nodes', overviewGroups:'groups', overviewAll:'All', overviewAllNodes:'All nodes', overviewCurrentGroup:'Current group', overviewNodeAssets:'Node assets', overviewFlatLayout:'Flat layout · group shown on cards', overviewFilter:'Filter', overviewMasterTop:'Controller first', overviewNoNodes:'No nodes match this filter', overviewOperatingSummary:'Operations summary', overviewExpiryIn:'days until expiry', overviewTraffic:'Traffic', overviewMaster:'Controller', overviewNetworkDetails:'Node network details', overviewUpdatedMissing:'Not recorded' });
@@ -49,7 +71,16 @@ Object.assign(LANGUAGE_PACKS.de, { overviewNodes:'Knoten', overviewGroups:'Grupp
 Object.assign(LANGUAGE_PACKS.ru, { overviewNodes:'узлы', overviewGroups:'группы', overviewAll:'Все', overviewAllNodes:'Все узлы', overviewCurrentGroup:'Текущая группа', overviewNodeAssets:'Активы узлов', overviewFlatLayout:'Плоский вид · группа на карточках', overviewFilter:'Фильтр', overviewMasterTop:'Контроллер первым', overviewNoNodes:'Нет узлов по фильтру', overviewOperatingSummary:'Оперативная сводка', overviewExpiryIn:'дней до истечения', overviewTraffic:'Трафик', overviewMaster:'Контроллер', overviewNetworkDetails:'Сведения о сети', overviewUpdatedMissing:'Нет записи' });
 
 export let currentLanguage = safeStorageGet('display_language', 'zh') || 'zh';
-export function t(key) { return (LANGUAGE_PACKS[currentLanguage] || LANGUAGE_PACKS.zh)[key] || LANGUAGE_PACKS.zh[key] || key; }
+// An empty string is a legitimate translation: languages like English have no
+// counter word for "N processes", so processUnit is deliberately ''. Falling back
+// with `||` treated that as missing and re-inserted the Chinese "个" in every
+// non-CJK locale, so presence must be tested instead of truthiness.
+export function t(key) {
+  const pack = LANGUAGE_PACKS[currentLanguage] || LANGUAGE_PACKS.zh;
+  if (Object.prototype.hasOwnProperty.call(pack, key)) return pack[key];
+  if (Object.prototype.hasOwnProperty.call(LANGUAGE_PACKS.zh, key)) return LANGUAGE_PACKS.zh[key];
+  return key;
+}
 export function applyLanguage() {
   document.documentElement.setAttribute('lang', currentLanguage);
   document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });

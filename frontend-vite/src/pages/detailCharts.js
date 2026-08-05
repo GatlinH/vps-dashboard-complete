@@ -41,6 +41,17 @@ function detailRateStepLabel(valueKbps = 0) {
 }
 
 
+// Horizontal room reserved on the right of the small telemetry charts so the
+// centre-anchored terminal X tick label ("09/05, 03:42 AM") is not clipped by
+// the card edge. Sized for the widest xTickFmt output at font-size 8.
+// Measured: the widest xTickFmt output ("08/05, 05:19 AM") is ~59px at font-size 8,
+// and Chart.js centre-anchors tick labels, so the terminal tick overhangs the plot
+// area by ~30px. Reserve that half-width (plus 2px breathing room) or the tail of
+// the timestamp is clipped by the card edge.
+// With ticks.align='inner' the terminal label is right-aligned instead of centred,
+// so only a small gutter is needed to keep it off the canvas edge.
+const SMALL_X_TICK_EDGE_PAD = 6;
+
 const NETWORK_EQUAL_STEP_AXIS = [
   { value: 0, label: '0' },
   { value: 50, label: '50K' },
@@ -526,8 +537,18 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     type: 'linear',
     min: bounds.min,
     max: bounds.max,
-    afterFit: (scale) => { scale.paddingLeft = 0; scale.paddingRight = 0; },
-    ticks: { color: '#8ab5bd', stepSize: bounds.step, callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: false, font: { size: 8 }, padding: 10 },
+    // Tick labels are centre-anchored, so the terminal tick needs horizontal room
+    // or its right half is clipped by the card edge ("09/05, 0…" instead of the
+    // full timestamp). Zeroing both paddings removed exactly that room.
+    afterFit: (scale) => { scale.paddingLeft = 0; scale.paddingRight = SMALL_X_TICK_EDGE_PAD; },
+    ticks: {
+      color: '#8ab5bd', stepSize: bounds.step, callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: false, font: { size: 8 }, padding: 10,
+      // Reserving right-hand padding alone is not enough: the terminal tick is
+      // centre-anchored on the last gridline, so half the ~59px timestamp still
+      // overhangs the canvas and gets clipped. 'inner' pulls the first/last tick
+      // labels inward (right-aligning the final one) so they stay fully readable.
+      align: 'inner',
+    },
     offset: false,
     bounds: 'ticks',
     grid: { color: 'rgba(98,245,238,0.13)' },
@@ -576,11 +597,14 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   const networkDownChartDisplay = expandSinglePointSeries(
     networkMobile ? smoothMobileNetworkSeries(networkDownDisplay) : networkDownDisplay.map((p) => ({ ...p, rawY: Number(p.y) || 0, rawMaxY: Number.isFinite(Number(p.maxY)) ? Number(p.maxY) : null }))
   );
+  // Scale the axis to the values that are actually PLOTTED (bucket means, `y`).
+  // Including per-bucket peaks (`maxY`) here lets a single burst (e.g. 6.3 MB/s)
+  // set the ceiling while the drawn line sits at ~20 KB/s, flattening both series
+  // onto the 0 gridline — visually indistinguishable from "no data". Peaks are
+  // still surfaced in the tooltip via rawMaxY.
   const networkRateValues = [
     ...networkUpDisplay.map((p) => Number(p?.y) || 0),
     ...networkDownDisplay.map((p) => Number(p?.y) || 0),
-    ...networkUpDisplay.map((p) => Number(p?.maxY)).filter(Number.isFinite),
-    ...networkDownDisplay.map((p) => Number(p?.maxY)).filter(Number.isFinite),
   ];
 
   if (networkCtx) {

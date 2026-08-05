@@ -1026,7 +1026,11 @@
   width:auto!important;
   min-width:586px!important;
 }
-.detail-page-shell:has(.fleet-detail-console) .theme-toggle{width:96px!important;min-width:96px!important;}
+/* A hard 96px box leaves only ~47.6px of inner width after padding+gap, which is
+   narrower than the label itself ("舰桥模式" needs 48px), so the text wrapped onto a
+   second line and the button grew taller than its neighbours. Keep 96px as a floor
+   but let the box grow for longer translations ("Passerelle", "Мостик"). */
+.detail-page-shell:has(.fleet-detail-console) .theme-toggle{width:auto!important;min-width:96px!important;white-space:nowrap!important;flex-shrink:0!important;}
 .detail-page-shell:has(.fleet-detail-console) .language-select{width:128px!important;min-width:128px!important;max-width:128px!important;}
 .detail-page-shell:has(.fleet-detail-console) .detail-currency-switch{
   width:176px!important;
@@ -2277,7 +2281,8 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
   color:#cfffff!important;
   box-shadow:0 0 18px rgba(98,245,238,.08), inset 0 0 12px rgba(98,245,238,.04)!important;
 }
-.public-overview-page .theme-toggle{width:96px!important;min-width:96px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:7px!important;}
+/* See the detail-page rule above: a fixed 96px width wrapped the label. */
+.public-overview-page .theme-toggle{width:auto!important;min-width:96px!important;white-space:nowrap!important;flex-shrink:0!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:7px!important;}
 .public-overview-page .language-select{width:128px!important;min-width:128px!important;max-width:128px!important;cursor:pointer!important;}
 .public-overview-page .detail-currency-switch{min-height:38px!important;display:flex!important;align-items:center!important;gap:5px!important;}
 .public-overview-page .detail-currency-switch .currency-btn{width:52px!important;min-width:52px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;}
