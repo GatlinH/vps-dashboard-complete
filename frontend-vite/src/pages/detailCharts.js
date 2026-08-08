@@ -537,7 +537,39 @@ export function appendDetailLiveMetrics(live, deps) {
     if (Number(last?.x) >= timestamp) return false;
     points.push({ x: timestamp, rawX: timestamp, y: formatter(numeric), samples: 1 });
     const x = chart.options?.scales?.x;
-    if (x) { x.max = timestamp; x.min = Math.max(Number(points[0]?.x) || timestamp, timestamp - 60 * 60 * 1000); }
+    if (x) {
+      // This runs every 5s and OVERWRITES whatever bounds the render pass chose,
+      // so the collapse guard has to live here too. Pinning min to points[0].x
+      // meant a chart that started with few/no persisted rows drew an axis whose
+      // span equalled "how long the tab has been open": both edge ticks printed
+      // the same clock label and one minute of live samples was stretched across
+      // a card headed "1 hour". Anchor to the newest sample, floor the drawn span,
+      // and re-derive stepSize so the 5 ticks stay distinct.
+      const fullSpan = 60 * 60 * 1000;
+      const minVisibleSpan = 10 * 60 * 1000;
+      const first = Number(points[0]?.x);
+      const spanned = Number.isFinite(first) ? Math.max(0, timestamp - first) : 0;
+      const span = Math.min(fullSpan, Math.max(spanned, minVisibleSpan));
+      x.max = timestamp;
+      x.min = timestamp - span;
+      if (x.ticks) x.ticks.stepSize = Math.max(60 * 1000, Math.round(span / 4));
+      // The render pass writes DETAIL_CHART_DEBUG.smallXBounds, but this 5s path
+      // overwrites the axis afterwards, so that snapshot cannot prove what is on
+      // screen. Record the post-append bounds per chart instead.
+      try {
+        window.__DBG__ = window.__DBG__ || {};
+        window.__DBG__.DETAIL_LIVE_AXIS = window.__DBG__.DETAIL_LIVE_AXIS || {};
+        window.__DBG__.DETAIL_LIVE_AXIS[id] = {
+          at: new Date(timestamp).toISOString(),
+          spanMs: span,
+          spanMin: Math.round((span / 60000) * 100) / 100,
+          stepMs: x.ticks?.stepSize || null,
+          dataSpanMs: spanned,
+          points: points.length,
+          floored: spanned < minVisibleSpan,
+        };
+      } catch {}
+    }
     chart.update('none');
     return true;
   };
@@ -644,12 +676,24 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   const seriesOwnBounds = (points = []) => {
     const fullSpan = telemetryHours * 60 * 60 * 1000;
     const xs = (Array.isArray(points) ? points : []).map((p) => Number(p?.x)).filter(Number.isFinite).sort((a, b) => a - b);
-    if (!xs.length) return { min: axis12hBounds.min, max: axis12hBounds.max, step: axis12hBounds.step };
+    if (!xs.length) return { min: axis12hBounds.min, max: axis12hBounds.max, step: axis12hBounds.step, mode: 'fallback-shared-axis' };
     const dataFirst = xs[0];
     const dataLast = xs[xs.length - 1];
-    const min = Math.max(dataFirst, dataLast - fullSpan);
-    const max = dataLast > min ? dataLast : min + fullSpan;
-    return { min, max, step: Math.max(60 * 1000, Math.round((max - min) / 4)) };
+    // Pinning the left edge to dataFirst collapses the axis during cold start /
+    // right after a cache flush: with two samples a few seconds apart, min lands
+    // flush against max, so `(max - min) / 4` yielded a sub-minute step, EVERY
+    // tick formatted to the same clock label, and the two-point line was stretched
+    // flat across the full card width — indistinguishable from "1 hour of totally
+    // idle CPU". Anchor the window to the newest sample and keep a floor on the
+    // drawn span so a sparse series renders as a short trace inside a real hour.
+    const minVisibleSpan = Math.min(fullSpan, 10 * 60 * 1000);
+    const spanned = Math.max(0, dataLast - dataFirst);
+    const span = Math.min(fullSpan, Math.max(spanned, minVisibleSpan));
+    const max = dataLast;
+    const min = max - span;
+    // span / 4 is always >= 2.5min given the floor above, so this yields exactly
+    // 5 distinct ticks; the 60s clamp is now only a defensive backstop.
+    return { min, max, step: Math.max(60 * 1000, Math.round(span / 4)), mode: spanned >= minVisibleSpan ? 'anchored-to-own-samples' : 'floored-min-span', spanMs: span, dataSpanMs: spanned };
   };
   const cpuAxisBounds = seriesOwnBounds(cpuDisplaySeries);
   const ramAxisBounds = seriesOwnBounds(ramDisplaySeries);
@@ -953,6 +997,10 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
       displayPoints: { cpu: cpuDisplaySeries.length, ram: ramDisplaySeries.length, process: processDisplaySeries.length, cpuBuckets: cpuBuckets.length, ramBuckets: ramBuckets.length, processBuckets: processBuckets.length },
       axis12hBounds,
       telemetryHours,
+      // Per-chart X bounds: a collapsed span here (spanMs far under an hour, or
+      // every tick sharing one clock label) is the cold-start regression, not
+      // an idle host. Keep these visible so it can be caught without pixels.
+      smallXBounds: { cpu: cpuAxisBounds, ram: ramAxisBounds, process: processAxisBounds },
       processAxis: { min: processYMin, max: processYMax, integerTicks: true },
       latestSampleMs: latestTimelineMs(probeRows, latestServer),
       pingHours,
