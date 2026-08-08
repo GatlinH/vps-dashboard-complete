@@ -2373,6 +2373,7 @@ async function refreshDetailHistoryRange(serverId) {
       cpuSeries: numericMetricSeries(telemetryRows, 'cpu_use'),
       ramSeries: numericMetricSeries(telemetryRows, 'ram_use'),
       probeRows: telemetryRows,
+      networkProbeRows: probeRows,
       processRows: detailCache.processRows,
       pingTargetsData: detailCache.pingTargets,
       pingTargetHistoryData: detailCache.pingTargetHistory,
@@ -2486,6 +2487,7 @@ async function repaintDetailChartsFromCache() {
   await renderDetailMonitorCharts({
     chartLabels, upSeries, downSeries, pingData: null, probeLabels,
     cpuSeries, ramSeries, probeRows: resourceRows,
+    networkProbeRows: probeRows,
     processRows: detailCache.processRows,
     pingTargetsData: detailCache.pingTargets,
     pingTargetHistoryData: detailCache.pingTargetHistory,
@@ -2592,7 +2594,7 @@ async function refreshDetailRealtime(serverId) {
   const networkHeadStrong = document.querySelector(".network-throughput-card .fleet-chart-head strong");
   if (networkHeadStrong) networkHeadStrong.textContent = `↑ ${fmtRate(currentUpKbs)} · ↓ ${fmtRate(currentDownKbs)}`;
   if (doHeavy) {
-    await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData: null, probeLabels, cpuSeries, ramSeries, probeRows: resourceRows, processRows: detailCache.processRows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, detailDays: getDetailHistoryDays() });
+    await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData: null, probeLabels, cpuSeries, ramSeries, probeRows: resourceRows, networkProbeRows: probeRows, processRows: detailCache.processRows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, detailDays: getDetailHistoryDays() });
     refreshDetailProbeTargetsNow(current.id);
   }
   window.__DBG__.DETAIL_LAST_REFRESH = { at: new Date().toISOString(), serverId, pollMs: 5000, heavy: doHeavy, processCount: processMeta.count, upKBs: currentUpKbs, downKBs: currentDownKbs, cpu: cpuSeries.slice(-1)[0] ?? current.cpu_use ?? null, ram: ramSeries.slice(-1)[0] ?? current.ram_use ?? null };
