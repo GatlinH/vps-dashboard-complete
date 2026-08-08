@@ -2148,50 +2148,65 @@ async function renderDetailPage(serverId) {
   window.__DBG__.DETAIL_TRACE.push('before-charts');
   await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows, processRows: detailCache.processRows, pingTargetsData: detailCache.pingTargets || pingTargetsData, pingTargetHistoryData: detailCache.pingTargetHistory || pingTargetHistoryData, vpsProbeTargetsData: detailCache.vpsProbeTargets || vpsProbeTargetsData, vpsProbeHistoryData: detailCache.vpsProbeHistory || vpsProbeHistoryData, detailDays });
 
-  resourceHistoryPromise.then(async (history) => {
-    const rows = history.status === 'fulfilled' ? normalizePersistedRows(history.value?.data || [], 1) : [];
-    if (!rows.length) return;
-    detailCache.resourceRows = rows;
-    const resourceCpu = numericMetricSeries(rows, 'cpu_use');
-    const resourceRam = numericMetricSeries(rows, 'ram_use');
-    await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries: resourceCpu, ramSeries: resourceRam, probeRows: rows, processRows: detailCache.processRows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, vpsProbeTargetsData: detailCache.vpsProbeTargets, vpsProbeHistoryData: detailCache.vpsProbeHistory, detailDays });
-  }).catch((error) => { window.__DBG__.DETAIL_RESOURCE_PROGRESSIVE_ERROR = String(error?.message || error); });
+  // Commit the four progressive responses as ONE cache snapshot and redraw once.
+  // Previously each promise rebuilt all five Chart.js instances independently.
+  // The resource response first painted the raw 1h CPU/RAM rows, then a later PING
+  // callback captured `probeRows`/`cpuSeries`/`ramSeries` from first paint and
+  // overwrote them with the coarse 13-point snapshot. Visually the cards filled
+  // from right to left, restarted a few seconds later, and the network trace could
+  // disappear even though its history API contained data. A late unrelated
+  // response must never be allowed to roll newer telemetry cache state backwards.
+  Promise.all([resourceHistoryPromise, processHistoryPromise, externalPingPromise, peerPingPromise])
+    .then(async ([resourceHistory, processHistory, externalHistory, peerHistory]) => {
+      const resourceRows = resourceHistory.status === 'fulfilled'
+        ? normalizePersistedRows(resourceHistory.value?.data || [], 1)
+        : [];
+      if (resourceRows.length) detailCache.resourceRows = resourceRows;
 
-  processHistoryPromise.then(async (history) => {
-    const rows = history.status === 'fulfilled' ? normalizePersistedRows(history.value?.data || [], 1) : [];
-    if (!rows.length) return;
-    detailCache.processRows = rows;
-    const meta = detailProcessMeta(rows, resolvedServer);
-    const strong = document.querySelector('.process-count-card .fleet-chart-head strong');
-    if (strong) strong.textContent = meta.countText;
-    const resources = detailCache.resourceRows.length ? detailCache.resourceRows : probeRows;
-    await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries: numericMetricSeries(resources, 'cpu_use'), ramSeries: numericMetricSeries(resources, 'ram_use'), probeRows: resources, processRows: rows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, vpsProbeTargetsData: detailCache.vpsProbeTargets, vpsProbeHistoryData: detailCache.vpsProbeHistory, detailDays });
-  }).catch((error) => { window.__DBG__.DETAIL_PROCESS_PROGRESSIVE_ERROR = String(error?.message || error); });
+      const processRows = processHistory.status === 'fulfilled'
+        ? normalizePersistedRows(processHistory.value?.data || [], 1)
+        : [];
+      if (processRows.length) {
+        detailCache.processRows = processRows;
+        const meta = detailProcessMeta(processRows, resolvedServer);
+        const strong = document.querySelector('.process-count-card .fleet-chart-head strong');
+        if (strong) strong.textContent = meta.countText;
+      }
 
-  externalPingPromise.then(async (history) => {
-    const historyData = history.status === 'fulfilled' ? history.value : null;
-    if (historyData?.targets?.length) seedPingSamplesFromHistory(historyData, resolvedServer.id);
-    // PING history contains the target metadata needed for the chart, so keep it
-    // as both history and the initial target snapshot until the lightweight live
-    // target refresh arrives later.
-    detailCache.pingTargetHistory = historyData?.targets?.length ? historyData : detailCache.pingTargetHistory;
-    detailCache.pingTargets = historyData?.targets?.length ? historyData : detailCache.pingTargets;
-    window.__DBG__.DETAIL_PING_TARGETS = detailCache.pingTargets;
-    window.__DBG__.DETAIL_PING_TARGET_HISTORY = detailCache.pingTargetHistory;
-    updateDetailPingTargetCount(detailCache.pingTargets || historyData);
-    await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, vpsProbeTargetsData: detailCache.vpsProbeTargets, vpsProbeHistoryData: detailCache.vpsProbeHistory, detailDays });
-  }).catch((error) => { window.__DBG__.DETAIL_PING_PROGRESSIVE_ERROR = String(error?.message || error); });
+      const externalData = externalHistory.status === 'fulfilled' ? externalHistory.value : null;
+      if (externalData?.targets?.length) {
+        seedPingSamplesFromHistory(externalData, resolvedServer.id);
+        // PING history also carries target metadata and is the initial target
+        // snapshot until the lightweight live-target refresh arrives.
+        detailCache.pingTargetHistory = externalData;
+        detailCache.pingTargets = externalData;
+      }
+      window.__DBG__.DETAIL_PING_TARGETS = detailCache.pingTargets;
+      window.__DBG__.DETAIL_PING_TARGET_HISTORY = detailCache.pingTargetHistory;
+      updateDetailPingTargetCount(detailCache.pingTargets || externalData);
 
-  peerPingPromise.then(async (history) => {
-    const historyData = history.status === 'fulfilled' ? history.value : null;
-    detailCache.vpsProbeHistory = historyData?.targets?.length ? historyData : detailCache.vpsProbeHistory;
-    detailCache.vpsProbeTargets = historyData?.targets?.length ? historyData : detailCache.vpsProbeTargets;
-    window.__DBG__.DETAIL_GLOBAL_VPS_PROBE_TARGETS = detailCache.vpsProbeTargets;
-    window.__DBG__.DETAIL_GLOBAL_VPS_PROBE_HISTORY = detailCache.vpsProbeHistory;
-    const tbody = document.querySelector('.fleet-probe-table-panel tbody');
-    if (tbody) tbody.innerHTML = renderGlobalVpsProbeRows(detailCache.vpsProbeTargets || historyData);
-    await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, vpsProbeTargetsData: detailCache.vpsProbeTargets, vpsProbeHistoryData: detailCache.vpsProbeHistory, detailDays });
-  }).catch((error) => { window.__DBG__.DETAIL_PEER_PING_PROGRESSIVE_ERROR = String(error?.message || error); });
+      const peerData = peerHistory.status === 'fulfilled' ? peerHistory.value : null;
+      if (peerData?.targets?.length) {
+        detailCache.vpsProbeHistory = peerData;
+        detailCache.vpsProbeTargets = peerData;
+      }
+      window.__DBG__.DETAIL_GLOBAL_VPS_PROBE_TARGETS = detailCache.vpsProbeTargets;
+      window.__DBG__.DETAIL_GLOBAL_VPS_PROBE_HISTORY = detailCache.vpsProbeHistory;
+      const tbody = document.querySelector('.fleet-probe-table-panel tbody');
+      if (tbody) tbody.innerHTML = renderGlobalVpsProbeRows(detailCache.vpsProbeTargets || peerData);
+
+      // Recompose from CURRENT caches, never from the stale first-paint closure.
+      await repaintDetailChartsFromCache();
+      window.__DBG__.DETAIL_PROGRESSIVE_COMMIT = {
+        at: new Date().toISOString(),
+        resourceRows: detailCache.resourceRows.length,
+        processRows: detailCache.processRows.length,
+        probeRows: detailCache.probeRows.length,
+        historyRows: detailCache.historyRows.length,
+        redraws: 1,
+      };
+    })
+    .catch((error) => { window.__DBG__.DETAIL_PROGRESSIVE_ERROR = String(error?.message || error); });
 
   refreshDetailProbeTargetsNow(resolvedServer.id);
   startDetailRealtimeRefresh(resolvedServer.id);
