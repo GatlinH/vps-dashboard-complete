@@ -580,7 +580,7 @@ export function appendDetailLiveMetrics(live, deps) {
   return cpu || memory || process;
 }
 
-export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [], downSeries = [], pingData = null, probeLabels = [], cpuSeries = [], ramSeries = [], probeRows = [], processRows = [], pingTargetsData = null, pingTargetHistoryData = null, vpsProbeTargetsData = null, vpsProbeHistoryData = null, latestServer = null, detailDays = 0 }, deps) {
+export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [], downSeries = [], pingData = null, probeLabels = [], cpuSeries = [], ramSeries = [], probeRows = [], networkProbeRows = null, processRows = [], pingTargetsData = null, pingTargetHistoryData = null, vpsProbeTargetsData = null, vpsProbeHistoryData = null, latestServer = null, detailDays = 0 }, deps) {
   const { detailCharts, rowTimeMs, formatHourTick, formatHourTickWithDate, formatTooltipClock, telemetryTooltipTime, seriesWindowFromRows, adaptiveRollingBounds, fitSeriesToRollingAxis, buildPingDatasets, accumulatingAxisBoundsFromTimes, fmtRate, pingStepLabel, PING_AXIS_STEPS_MS, latestTimelineMs, getDetailPingSampleCache } = deps;
   const networkCanvas = document.getElementById('detailNetworkChart');
   const cpuCanvas = document.getElementById('detailCpuChart');
@@ -752,9 +752,13 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     border: { color: 'rgba(98,245,238,.18)' }
   });
   const fixedSmallY = (scale) => { scale.width = 28; };
-  const networkNow = latestTimelineMs(probeRows);
+  // CPU/RAM use a fixed raw 1h slice, while network is a fixed 6h chart. Callers
+  // that have both sources pass the wider rows explicitly; first paint keeps the
+  // legacy fallback so there is no behavioural change when only one source exists.
+  const networkRowsSource = Array.isArray(networkProbeRows) ? networkProbeRows : probeRows;
+  const networkNow = latestTimelineMs(networkRowsSource);
   const networkStart = networkNow - networkHours * 60 * 60 * 1000;
-  const probeNetworkRows = (Array.isArray(probeRows) ? probeRows : []).map((row) => {
+  const probeNetworkRows = networkRowsSource.map((row) => {
     const x = Number(row?.__timeMs) || rowTimeMs(row, NaN);
     const hasUp = row?.net_up != null && row?.net_up !== '';
     const hasDown = row?.net_down != null && row?.net_down !== '';
