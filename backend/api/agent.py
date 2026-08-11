@@ -454,11 +454,33 @@ def agent_register():
     # L-5: use the (ProxyFix-normalized) peer address, not a client-spoofable
     # X-Forwarded-For header, when recording the enrolling agent's IP.
     remote_ip = request.remote_addr or ""
+    # Seed geo at enrolment time. The richer inventory geo lookup only runs on the
+    # telemetry push path, so a node that enrols but cannot push yet (for example a
+    # transport-policy rejection) would otherwise sit at lat/lon 0,0 -- rendering on
+    # the globe as "Null Island" with an empty city/country.
+    geo = _geo_lookup_by_ip(remote_ip) if remote_ip else {}
+    geo_cfg = {}
+    seed_location = ""
+    if geo:
+        for key in ("city", "country", "region", "isp", "org", "query"):
+            value = str(geo.get(key) or "").strip()
+            if value:
+                geo_cfg[key] = value
+        lat, lon = geo.get("lat"), geo.get("lon")
+        if lat is not None and lon is not None:
+            geo_cfg["lat"] = lat
+            geo_cfg["lon"] = lon
+        seed_location = format_server_location(
+            str(geo_cfg.get("city") or ""),
+            str(geo_cfg.get("region") or ""),
+            str(geo_cfg.get("country") or ""),
+        )
     srv = Server(
         name=hostname, uuid=new_uuid,
         agent_key_hash=generate_password_hash(new_key),
         agent_key_last_used=datetime.utcnow(),
-        agent_config={}, ip=remote_ip
+        agent_config=geo_cfg, ip=remote_ip,
+        location=seed_location or None,
     )
     db.session.add(srv)
     db.session.commit()
