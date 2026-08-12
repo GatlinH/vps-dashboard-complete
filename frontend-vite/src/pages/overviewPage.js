@@ -146,8 +146,15 @@ function nextTrafficResetDateLabel(resetDay, now = new Date()) {
 
 function formatTrafficResetText(server, trafficData = null, opts = {}) {
   const day = trafficResetDay(server, trafficData);
-  const prefix = opts.short ? `${day}日重置` : `每月 ${day} 日重置`;
-  return opts.next === false ? prefix : `${prefix} · 下次 ${nextTrafficResetDateLabel(day)}`;
+  // Same locale-ordering contract as the detail page: the day sits between a
+  // translated prefix and suffix rather than inside a hardcoded Chinese template.
+  const suffix = t('trafficResetMonthlySuffix');
+  const prefix = opts.short
+    ? `${day}${suffix}`
+    : `${t('trafficResetMonthlyPrefix')} ${day} ${suffix}`.replace(/\s+/g, ' ').trim();
+  return opts.next === false
+    ? prefix
+    : `${prefix} · ${t('trafficResetNext')} ${nextTrafficResetDateLabel(day)}`;
 }
 
 function formatOverviewTraffic(server) {

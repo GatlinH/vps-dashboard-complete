@@ -287,6 +287,32 @@ def _apply_agent_inventory(server: Server, data: dict):
     # rather than overwriting it with an empty/private IPv4 placeholder.
     agent_ip = public_ipv4 or public_ipv6 or local_ipv4 or local_ipv6 or str(server.ip or '').strip()
 
+    # A NAT'd node can only see its private address, so the fallback chain above
+    # would replace an already-known public IP with something like 172.16.x.x --
+    # unreachable for peer probes, which silently drops the node out of the global
+    # probe matrix. Never downgrade a public address to a private one.
+    def _is_private_addr(value: str) -> bool:
+        try:
+            parsed = ipaddress.ip_address(value)
+        except ValueError:
+            return False
+        return (
+            parsed.is_private
+            or parsed.is_loopback
+            or parsed.is_link_local
+            or parsed.is_reserved
+        )
+
+    current_ip = str(server.ip or '').strip()
+    if (
+        agent_ip
+        and current_ip
+        and agent_ip != current_ip
+        and _is_private_addr(agent_ip)
+        and not _is_private_addr(current_ip)
+    ):
+        agent_ip = current_ip
+
     if cpu is not None and 0 < cpu <= 1024 and server.cpu_cores != cpu:
         server.cpu_cores = cpu
         changed = True
@@ -335,7 +361,12 @@ def _apply_agent_inventory(server: Server, data: dict):
             server.ip = agent_ip
             changed = True
 
+    # Geo-locating a private address is meaningless and returns nothing useful, so
+    # prefer any public address we already trust over the agent's private view.
     geo_lookup_ip = public_ipv4 or agent_ip
+    if geo_lookup_ip and _is_private_addr(geo_lookup_ip):
+        fallback_ip = str(server.ip or '').strip()
+        geo_lookup_ip = fallback_ip if fallback_ip and not _is_private_addr(fallback_ip) else ''
     geo = _geo_lookup_by_ip(geo_lookup_ip) if geo_lookup_ip else {}
     if geo:
         for key in ('city', 'country', 'region', 'isp', 'org', 'query'):
@@ -454,11 +485,33 @@ def agent_register():
     # L-5: use the (ProxyFix-normalized) peer address, not a client-spoofable
     # X-Forwarded-For header, when recording the enrolling agent's IP.
     remote_ip = request.remote_addr or ""
+    # Seed geo at enrolment time. The richer inventory geo lookup only runs on the
+    # telemetry push path, so a node that enrols but cannot push yet (for example a
+    # transport-policy rejection) would otherwise sit at lat/lon 0,0 -- rendering on
+    # the globe as "Null Island" with an empty city/country.
+    geo = _geo_lookup_by_ip(remote_ip) if remote_ip else {}
+    geo_cfg = {}
+    seed_location = ""
+    if geo:
+        for key in ("city", "country", "region", "isp", "org", "query"):
+            value = str(geo.get(key) or "").strip()
+            if value:
+                geo_cfg[key] = value
+        lat, lon = geo.get("lat"), geo.get("lon")
+        if lat is not None and lon is not None:
+            geo_cfg["lat"] = lat
+            geo_cfg["lon"] = lon
+        seed_location = format_server_location(
+            str(geo_cfg.get("city") or ""),
+            str(geo_cfg.get("region") or ""),
+            str(geo_cfg.get("country") or ""),
+        )
     srv = Server(
         name=hostname, uuid=new_uuid,
         agent_key_hash=generate_password_hash(new_key),
         agent_key_last_used=datetime.utcnow(),
-        agent_config={}, ip=remote_ip
+        agent_config=geo_cfg, ip=remote_ip,
+        location=seed_location or None,
     )
     db.session.add(srv)
     db.session.commit()
