@@ -17,7 +17,7 @@
     "test:single-renderer-home": "node scripts/verify-single-renderer-home.mjs"
   },
   "dependencies": {
-    "@deck.gl/core": "^9.3.6",
+    "@deck.gl/core": "^9.3.9",
     "@deck.gl/geo-layers": "^9.3.6",
     "@deck.gl/layers": "^9.3.6",
     "@luma.gl/core": "^9.3.6",
