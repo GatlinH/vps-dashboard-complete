@@ -38,5 +38,10 @@ export function shouldReplaceResourceTimeline(currentRows = [], candidateRows = 
 }
 
 export function resourceHistoryRequest() {
-  return { days: RESOURCE_TIMELINE_DAYS, limit: RESOURCE_TIMELINE_LIMIT, bucketMinutes: 0 };
+  return {
+    days: RESOURCE_TIMELINE_DAYS,
+    limit: RESOURCE_TIMELINE_LIMIT,
+    bucketMinutes: 0,
+    metric: 'resource_timeline',
+  };
 }

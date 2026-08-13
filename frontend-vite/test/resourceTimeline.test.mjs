@@ -8,7 +8,7 @@ import {
   shouldReplaceResourceTimeline,
 } from '../src/detail/resourceTimeline.js';
 
-const NOW = Date.parse('2026-08-13T06:41:00Z');
+const NOW = Date.now();
 
 const row = (secondsAgo, cpu) => ({
   created_at: new Date(NOW - secondsAgo * 1000).toISOString(),
@@ -21,6 +21,7 @@ test('resource CPU/RAM request is raw one-hour telemetry, never a range bucket',
     days: RESOURCE_TIMELINE_DAYS,
     limit: RESOURCE_TIMELINE_LIMIT,
     bucketMinutes: 0,
+    metric: 'resource_timeline',
   });
   assert.equal(RESOURCE_TIMELINE_DAYS, 1 / 24);
 });
@@ -39,9 +40,10 @@ test('late stale history cannot replace a newer appended live resource point', (
 });
 
 test('timezone-less backend timestamps are treated as UTC', () => {
-  const rows = resourceTimelineRows([{ created_at: '2026-08-13T06:40:50', cpu_use: 9 }], NOW);
+  const timestamp = new Date(NOW - 10_000).toISOString().replace(/\.\d{3}Z$/, '');
+  const rows = resourceTimelineRows([{ created_at: timestamp, cpu_use: 9 }], NOW);
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].__timeMs, Date.parse('2026-08-13T06:40:50Z'));
+  assert.equal(rows[0].__timeMs, Date.parse(`${timestamp}Z`));
 });
 
 test('duplicate timestamps retain one deterministic point', () => {

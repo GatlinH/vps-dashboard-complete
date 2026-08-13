@@ -143,6 +143,20 @@ export async function fetchServerHistory(serverId, days = 1, limit = 720, bucket
   return fetchJson(`${root}/api/v1/servers/public/${serverId}/history?days=${days}${bucketParam}&limit=${limit}${metricParam}`, { timeoutMs: Math.max(1200, limit > 1000 ? 12000 : 1200) });
 }
 
+// Dedicated raw CPU/RAM series. The server filters null resource rows before
+// limiting, so scheduler/network-probe rows cannot squeeze an hour of Agent
+// samples into a short right-edge trace.
+export function fetchResourceTimeline(serverId, limit = 900) {
+  return fetchServerHistory(serverId, 1 / 24, limit, 0, 'resource_timeline');
+}
+
+// Dedicated 6h network series. The backend filters null throughput rows and
+// returns a bounded 3-minute timeline, so first paint does not wait on the
+// selected 1/4/7/30/90-day history aggregation.
+export function fetchNetworkTimeline(serverId, limit = 120) {
+  return fetchServerHistory(serverId, 1, limit, 0, 'network_timeline');
+}
+
 export async function fetchPingTargets(serverId, count = 1, source = '') {
   const root = window.__DBG__.API_ROOT || (location.port === 5000 ? `${location.protocol}//${location.hostname}:5000` : location.origin);
   const sourceParam = source ? `&source=${encodeURIComponent(source)}` : '';
