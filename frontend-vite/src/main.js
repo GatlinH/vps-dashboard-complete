@@ -2112,10 +2112,11 @@ async function renderDetailPage(serverId) {
     : ensureDenseSeries(ramSeries).map((v) => Math.min(100, v));
   const displayUpSeries = smoothNumericSeries(ensureDenseSeries(upSeries), 5);
   const displayDownSeries = smoothNumericSeries(ensureDenseSeries(downSeries), 5);
-  const networkUseProbe = probeRows.length >= 3 && (probeUpSeries.some((v) => Math.abs(v) > 0.01) || probeDownSeries.some((v) => Math.abs(v) > 0.01));
-  const networkUpSeries = networkUseProbe ? smoothNumericSeries(probeUpSeries, 5) : (trafficUpSeries.length ? smoothNumericSeries(trafficUpSeries, 5) : displayUpSeries);
-  const networkDownSeries = networkUseProbe ? smoothNumericSeries(probeDownSeries, 5) : (trafficDownSeries.length ? smoothNumericSeries(trafficDownSeries, 5) : displayDownSeries);
-  const networkLabels = networkUseProbe ? probeLabels : (chartLabels.length ? chartLabels : probeLabels);
+  // networkRows is the only source for fixed 6h throughput; range-history rows
+  // must never silently replace it in the card label or chart input.
+  const networkUpSeries = trafficUpSeries.length ? smoothNumericSeries(trafficUpSeries, 5) : displayUpSeries;
+  const networkDownSeries = trafficDownSeries.length ? smoothNumericSeries(trafficDownSeries, 5) : displayDownSeries;
+  const networkLabels = chartLabels;
 
   window.__DBG__.DETAIL_TRACE.push('before-grid-html');
   const detailGrid = document.getElementById('detailPageGrid');
@@ -2522,10 +2523,10 @@ async function repaintDetailChartsFromCache() {
   const resourceRows = detailCache.resourceRows.length ? detailCache.resourceRows : probeRows;
   const trafficUpSeries = networkRows.map((row) => Number(row.net_up || 0));
   const trafficDownSeries = networkRows.map((row) => Number(row.net_down || 0));
-  const probeUpSeries = numericMetricSeries(probeRows, 'net_up');
-  const probeDownSeries = numericMetricSeries(probeRows, 'net_down');
-  const upSeries = smoothNumericSeries(trafficUpSeries.length ? trafficUpSeries : (probeUpSeries.some((v) => Math.abs(v) > 0.01) ? probeUpSeries : historyRows.map((row) => Number(row.net_up || 0))), 5);
-  const downSeries = smoothNumericSeries(trafficDownSeries.length ? trafficDownSeries : (probeDownSeries.some((v) => Math.abs(v) > 0.01) ? probeDownSeries : historyRows.map((row) => Number(row.net_down || 0))), 5);
+  // Presentation-only repaint must preserve the fixed network cache; never
+  // synthesize a six-hour chart from range-history/probe rows.
+  const upSeries = smoothNumericSeries(trafficUpSeries, 5);
+  const downSeries = smoothNumericSeries(trafficDownSeries, 5);
   const cpuSeries = numericMetricSeries(resourceRows, 'cpu_use');
   const ramSeries = numericMetricSeries(resourceRows, 'ram_use');
   const chartLabels = networkRows.length

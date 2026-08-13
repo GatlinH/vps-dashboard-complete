@@ -13,6 +13,8 @@ test('network timeline is never replaced by selected-range history', () => {
   assert.match(MAIN, /const networkRows = detailCache\.networkRows \|\| \[\];/);
   assert.match(MAIN, /networkProbeRows: networkRows,/);
   assert.doesNotMatch(MAIN, /networkProbeRows: probeRows,/);
+  assert.doesNotMatch(MAIN, /networkUseProbe/);
+  assert.doesNotMatch(MAIN, /probeUpSeries/);
 });
 
 test('network endpoint remains a fixed 6-hour bounded contract', () => {
