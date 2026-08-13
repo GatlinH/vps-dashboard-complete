@@ -26,3 +26,9 @@ def test_frontend_routes_serve_assets_and_spa_without_shadowing_api(tmp_path, mo
     assert client.get("/sw.js").headers["Cache-Control"] == "no-cache"
     assert client.get("/api/not-a-route").status_code == 404
     assert client.get("/health").is_json
+
+
+def test_dockerfile_declares_unified_frontend_dist_path():
+    """A clean image must serve /app/frontend-dist, not implicit /frontend-dist."""
+    dockerfile = (Path(__file__).parents[1] / "Dockerfile").read_text(encoding="utf-8")
+    assert "ENV FRONTEND_DIST_DIR=/app/frontend-dist" in dockerfile

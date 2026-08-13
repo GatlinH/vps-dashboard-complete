@@ -38,6 +38,10 @@ USER appuser
 # 环境变量
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_APP=app.py
+# Unified app serves the mounted/baked Vite bundle from this explicit path.
+# app.root_path is /app, whose parent is /, so the implicit default would
+# incorrectly resolve to /frontend-dist after a clean image rebuild.
+ENV FRONTEND_DIST_DIR=/app/frontend-dist
 # Gunicorn 并发配置（APScheduler 要求 workers=1，用 threads 提升并发）
 ENV GUNICORN_WORKERS=1
 ENV GUNICORN_THREADS=4
