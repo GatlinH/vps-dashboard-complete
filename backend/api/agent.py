@@ -24,6 +24,7 @@ from middleware.rbac import admin_required, owner_required
 from middleware.metrics_middleware import record_agent_push, record_agent_poll, record_agent_ack
 from models.models import AgentCommand, Server, format_server_location, record_ops_event
 from utils.errors import AuthenticationError, ValidationError
+from utils.request_context import audit_client_ip
 
 agent_bp = Blueprint("agent", __name__)
 logger = logging.getLogger(__name__)
@@ -373,7 +374,7 @@ def _authenticate_agent(payload: dict) -> tuple[Server, str]:
     uuid = payload.get("uuid") or request.headers.get("X-Agent-UUID")
     if not uuid:
         try:
-            record_ops_event("agent_auth_failed", "Agent 认证失败", message="missing uuid", level="warn", payload={"reason": "missing_uuid", "remote_addr": request.headers.get("X-Forwarded-For", request.remote_addr), "has_json": bool(payload), "has_agent_key_header": bool(request.headers.get("X-Agent-Key")), "has_uuid_header": bool(request.headers.get("X-Agent-UUID")), "user_agent": request.headers.get("User-Agent", "")[:120]})
+            record_ops_event("agent_auth_failed", "Agent 认证失败", message="missing uuid", level="warn", payload={"reason": "missing_uuid", "remote_addr": audit_client_ip(), "has_json": bool(payload), "has_agent_key_header": bool(request.headers.get("X-Agent-Key")), "has_uuid_header": bool(request.headers.get("X-Agent-UUID")), "user_agent": request.headers.get("User-Agent", "")[:120]})
             db.session.commit()
         except Exception:
             db.session.rollback()
@@ -394,7 +395,7 @@ def _authenticate_agent(payload: dict) -> tuple[Server, str]:
     agent_key = request.headers.get("X-Agent-Key", "")
     if not all([ts, nonce, sig, agent_key]):
         try:
-            record_ops_event("agent_auth_failed", f"Agent 认证失败 · {server.name}", message="missing auth headers", level="warn", server_id=server.id, payload={"uuid": uuid, "reason": "missing_auth_headers", "remote_addr": request.headers.get("X-Forwarded-For", request.remote_addr), "has_ts": bool(ts), "has_nonce": bool(nonce), "has_sig": bool(sig), "has_key": bool(agent_key), "user_agent": request.headers.get("User-Agent", "")[:120]})
+            record_ops_event("agent_auth_failed", f"Agent 认证失败 · {server.name}", message="missing auth headers", level="warn", server_id=server.id, payload={"uuid": uuid, "reason": "missing_auth_headers", "remote_addr": audit_client_ip(), "has_ts": bool(ts), "has_nonce": bool(nonce), "has_sig": bool(sig), "has_key": bool(agent_key), "user_agent": request.headers.get("User-Agent", "")[:120]})
             db.session.commit()
         except Exception:
             db.session.rollback()
@@ -412,7 +413,7 @@ def _authenticate_agent(payload: dict) -> tuple[Server, str]:
     )
     if not (valid_key or within_overlap):
         try:
-            record_ops_event("agent_auth_failed", f"Agent 认证失败 · {server.name}", message="invalid key", level="warn", server_id=server.id, payload={"uuid": uuid, "reason": "invalid_key", "remote_addr": request.headers.get("X-Forwarded-For", request.remote_addr)})
+            record_ops_event("agent_auth_failed", f"Agent 认证失败 · {server.name}", message="invalid key", level="warn", server_id=server.id, payload={"uuid": uuid, "reason": "invalid_key", "remote_addr": audit_client_ip()})
             db.session.commit()
         except Exception:
             db.session.rollback()
@@ -426,7 +427,7 @@ def _authenticate_agent(payload: dict) -> tuple[Server, str]:
     )
     if not hmac.compare_digest(expected, sig):
         try:
-            record_ops_event("agent_auth_failed", f"Agent 认证失败 · {server.name}", message="signature mismatch", level="warn", server_id=server.id, payload={"uuid": uuid, "reason": "signature_mismatch", "remote_addr": request.headers.get("X-Forwarded-For", request.remote_addr)})
+            record_ops_event("agent_auth_failed", f"Agent 认证失败 · {server.name}", message="signature mismatch", level="warn", server_id=server.id, payload={"uuid": uuid, "reason": "signature_mismatch", "remote_addr": audit_client_ip()})
             db.session.commit()
         except Exception:
             db.session.rollback()
