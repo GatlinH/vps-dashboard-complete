@@ -2,6 +2,7 @@ import './globals/dashboardGlobals.js';
 import { login as publicLogin, getOAuthProviders, oauthLoginUrl, verifyEmailToken, resetPasswordWithToken } from './api/auth.js';
 import './styles/main.css';
 import './styles/detail-starfleet-console.css';
+import './styles/detail-starmap-background.css';
 
 import { state } from './store/state.js';
 import { listServersPublic } from './api/public.js';

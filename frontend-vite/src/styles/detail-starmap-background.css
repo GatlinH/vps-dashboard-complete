@@ -1,0 +1,20 @@
+/*
+ * Final detail-page starmap background contract.
+ *
+ * GlobeStarmap only paints the sphere and nodes. The surrounding viewport must
+ * remain transparent so the active detail/site background is visible. This lives
+ * after legacy main.css overrides and targets all three layers: mount, React
+ * wrappers, and the canvas element itself.
+ */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount,
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div,
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div > div,
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+/* Canvas is an isolated paint surface: force alpha clear before the globe draw. */
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas {
+  background-color: transparent !important;
+}
