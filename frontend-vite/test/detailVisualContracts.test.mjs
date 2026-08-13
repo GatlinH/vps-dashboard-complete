@@ -19,4 +19,6 @@ test('detail starmap is transparent outside the globe itself', () => {
   assert.match(starmap, /background: "transparent"/);
   assert.match(css, /\.detail-globe-starmap-mount\{[\s\S]*background:transparent!important;/);
   assert.match(finalStarmapCss, /\.detail-globe-starmap-mount canvas[\s\S]*background-color: transparent !important;/);
+  assert.match(finalStarmapCss, /html\[data-theme="dark"\][\s\S]*\.fleet-starmap-panel/);
+  assert.match(finalStarmapCss, /html\[data-theme="light"\][\s\S]*\.fleet-starmap-panel[\s\S]*#f7efdc/);
 });
