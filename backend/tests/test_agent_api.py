@@ -35,34 +35,23 @@ def test_agent_key_and_config_endpoints(client, auth_headers, test_server):
     assert cfg.get_json()["agent_config"]["disable_nat"] is True
 
 
-def test_install_script_fetches_only_canonical_runtime_files(client):
+def test_install_script_requires_signed_release_and_installs_verified_binary(client):
     response = client.get("/api/v1/agent/install.sh")
 
     assert response.status_code == 200
     script = response.get_data(as_text=True)
-    assert "<<'PY2'" not in script
-    assert "fetch_runtime vps-agent.py" in script
-    assert "fetch_runtime agent_tasks.py" in script
-    assert "/api/v1/agent/runtime/$name" in script
-    assert "python3 -m py_compile" in script
+    assert "fetch_runtime" not in script
+    assert "/api/v1/agent/runtime/" not in script
+    assert "openssl pkeyutl -verify" in script
+    assert "sha256sum --check" in script
     assert "systemctl enable \"$SERVICE_NAME\"" in script
     assert "systemctl restart \"$SERVICE_NAME\"" in script
     assert "systemctl enable --now" not in script
-    assert "ExecStart=/usr/bin/python3 $INSTALL_DIR/vps-agent.py" in script
+    assert "ExecStart=$INSTALL_DIR/vps-dashboard-agent" in script
 
 
-def test_agent_runtime_endpoint_is_allowlisted_and_matches_canonical_source(client):
-    from pathlib import Path
-
-    runtime = client.get("/api/v1/agent/runtime/vps-agent.py")
-    assert runtime.status_code == 200
-    assert runtime.headers["Cache-Control"] == "no-store"
-    assert runtime.get_data(as_text=True) == (Path(__file__).parents[2] / "scripts" / "vps-agent.py").read_text(encoding="utf-8")
-
-    tasks = client.get("/api/v1/agent/runtime/agent_tasks.py")
-    assert tasks.status_code == 200
-    assert tasks.get_data(as_text=True) == (Path(__file__).parents[2] / "scripts" / "agent_tasks.py").read_text(encoding="utf-8")
-
+def test_unsigned_runtime_endpoints_are_removed(client):
+    assert client.get("/api/v1/agent/runtime/vps-agent.py").status_code == 404
     assert client.get("/api/v1/agent/runtime/../../config.py").status_code == 404
     assert client.get("/api/v1/agent/runtime/unknown.py").status_code == 404
 

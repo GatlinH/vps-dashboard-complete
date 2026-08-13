@@ -267,6 +267,10 @@ class Config:
     HSTS_INCLUDE_SUBDOMAINS = os.getenv('HSTS_INCLUDE_SUBDOMAINS', '1') == '1'
     HSTS_PRELOAD = os.getenv('HSTS_PRELOAD', '1') == '1'
     AGENT_REQUIRE_TLS = os.getenv('AGENT_REQUIRE_TLS', '1') == '1'
+    # Signed runtime release store. It is deliberately empty by default: the
+    # installer must fail closed until an operator mounts a verified release.
+    AGENT_RELEASE_DIR = os.getenv('AGENT_RELEASE_DIR', '').strip()
+    AGENT_RELEASE_VERSION = os.getenv('AGENT_RELEASE_VERSION', '').strip()
     # Empty by default deliberately disables automatic public enrollment.
     # Operators may set a long random value to enable first-install registration.
     AGENT_ENROLLMENT_KEY = os.getenv('AGENT_ENROLLMENT_KEY', '').strip()

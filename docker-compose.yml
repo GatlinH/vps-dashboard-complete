@@ -131,6 +131,10 @@ services:
       BREAKGLASS_USERNAMES: ${BREAKGLASS_USERNAMES:-}
       PUBLIC_OAUTH_PROVIDER_DISCOVERY: ${PUBLIC_OAUTH_PROVIDER_DISCOVERY:-0}
       AGENT_REQUIRE_TLS: ${AGENT_REQUIRE_TLS:-1}
+      # Signed native Agent release store. Empty is fail-closed: install.sh will
+      # not install an unsigned source runtime.
+      AGENT_RELEASE_DIR: ${AGENT_RELEASE_DIR:-}
+      AGENT_RELEASE_VERSION: ${AGENT_RELEASE_VERSION:-}
       # Empty disables automatic Agent enrollment; set a long random value only when needed.
       AGENT_ENROLLMENT_KEY: ${AGENT_ENROLLMENT_KEY:-}
       AGENT_PUSH_RATE_LIMIT: ${AGENT_PUSH_RATE_LIMIT:-60 per minute}
@@ -144,6 +148,9 @@ services:
     volumes:
       - /var/log/vps-dashboard:/var/log/vps-dashboard
       - /var/lib/vps-dashboard:/var/lib/vps-dashboard
+      # Optional operator-provisioned, immutable signed release directory.
+      # Read-only mount prevents the web process from altering served artifacts.
+      - ${AGENT_RELEASE_HOST_DIR:-/var/empty/vps-agent-releases}:/opt/vps-agent-releases:ro
     healthcheck:
       test: ["CMD", "python3", "-c", "import requests,sys; r=requests.get('http://localhost:5000/health',timeout=5,allow_redirects=False); sys.exit(0 if r.status_code in (200,302,503) else 1)"]
       interval: 30s

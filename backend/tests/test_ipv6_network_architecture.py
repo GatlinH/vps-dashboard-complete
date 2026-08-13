@@ -70,8 +70,8 @@ def test_canonical_linux_agent_reports_separate_ipv4_ipv6():
     assert '"public_ipv4"' not in inventory
 
 
-def test_installer_fetches_canonical_agent_runtime(client):
+def test_installer_requires_canonical_signed_release(client):
     script = client.get("/api/v1/agent/install.sh").get_data(as_text=True)
-    assert "fetch_runtime vps-agent.py" in script
-    assert "fetch_runtime agent_tasks.py" in script
-    assert "ExecStart=/usr/bin/python3 $INSTALL_DIR/vps-agent.py" in script
+    assert "fetch_runtime" not in script
+    assert "openssl pkeyutl -verify" in script
+    assert "ExecStart=$INSTALL_DIR/vps-dashboard-agent" in script
