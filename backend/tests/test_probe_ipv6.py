@@ -28,13 +28,15 @@ def test_icmp_ping_keeps_ipv4_command_unchanged():
     assert "-6" not in run.call_args.args[0]
 
 
-def test_canonical_agent_contains_dual_stack_and_real_http_probe(client):
+def test_release_build_source_contains_dual_stack_and_real_http_probe():
+    """The signed binary release is built from this canonical source.
+
+    Unsigned source-runtime HTTP delivery was deliberately removed; the
+    installer now accepts only a signed binary release.
+    """
     from pathlib import Path
 
-    response = client.get("/api/v1/agent/runtime/vps-agent.py")
-    assert response.status_code == 200
-    source = response.get_data(as_text=True)
-    assert source == (Path(__file__).parents[2] / "scripts" / "vps-agent.py").read_text(encoding="utf-8")
+    source = (Path(__file__).parents[2] / "scripts" / "vps-agent.py").read_text(encoding="utf-8")
     assert "socket.AF_UNSPEC" in source
     assert "def http_probe(" in source
     assert "cmd = ['ping'] + (['-6']" in source

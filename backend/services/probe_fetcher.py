@@ -10,13 +10,34 @@ services/probe_fetcher.py
 
 调用方只需传入 url、snap（服务器指标 dict 快照）、timeout，
 即可获得统一的 (metrics_dict | None, error_msg | None) 返回值。
+
+SSRF / DNS rebinding 防护
+-------------------------
+探针 URL 由使用者填写，因此每次抓取都必须：
+
+  1. 校验 URL scheme / 凭据 / 主机；
+  2. 解析主机名一次，确认**所有**解析结果都是公网地址；
+  3. 把 socket 连接钉在第 2 步已校验的地址上。
+
+第 3 步过去通过临时替换全局 ``socket.getaddrinfo`` 实现。生产环境的
+Gunicorn 以 ``--worker-class gthread --threads 4`` 运行，同一进程内多个线程
+会并发抓取不同探针，全局替换存在两个真实缺陷：
+
+  - 竞态：线程 A 的 ``finally`` 会把 resolver 还原成线程 B 安装的版本，
+    或反过来把 B 的 pin 提前撤掉，导致 B 的连接走未经校验的解析路径；
+  - 越界：替换期间进程内**任何**其它组件（DB、Redis、Telegram 推送）的
+    DNS 解析都会经过探针专用的补丁函数。
+
+因此这里改为“请求局部”的连接钉定：为单次请求构造连接类，socket 连到已
+校验的 IP，而 ``Host`` 头与 TLS SNI / 证书校验仍使用原始主机名。没有任何
+进程级共享状态被修改，线程之间互不影响。
 """
+import http.client
 import json
 import logging
-import urllib.request
-import urllib.error
 import socket
-from contextlib import contextmanager
+import urllib.error
+import urllib.request
 from urllib.parse import urlparse
 
 from typing import Optional
@@ -31,27 +52,86 @@ class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
         return None
 
 
-@contextmanager
-def _pinned_dns(hostname: str, port: int | None):
-    pinned = resolve_public_host_addresses(hostname, port)
+def _pinned_connection_classes(connect_ip: str):
+    """Build request-local connection classes pinned to ``connect_ip``.
+
+    ``self.host`` stays the original hostname, so the HTTP ``Host`` header,
+    TLS SNI and certificate verification all still target the name the operator
+    configured. Only the TCP peer address is forced to the pre-validated IP.
+    """
+
+    class _PinnedHTTPConnection(http.client.HTTPConnection):
+        def connect(self):
+            self.sock = socket.create_connection(
+                (connect_ip, self.port), self.timeout, self.source_address
+            )
+            if self._tunnel_host:
+                self._tunnel()
+
+    class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+        def connect(self):
+            sock = socket.create_connection(
+                (connect_ip, self.port), self.timeout, self.source_address
+            )
+            if self._tunnel_host:
+                self.sock = sock
+                self._tunnel()
+                sock = self.sock
+            # server_hostname keeps SNI + hostname verification on the original
+            # name; connecting by IP must never silently disable either.
+            self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
+
+    return _PinnedHTTPConnection, _PinnedHTTPSConnection
+
+
+class _PinnedHTTPHandler(urllib.request.HTTPHandler):
+    def __init__(self, conn_cls):
+        super().__init__()
+        self._conn_cls = conn_cls
+
+    def http_open(self, req):
+        return self.do_open(self._conn_cls, req)
+
+
+class _PinnedHTTPSHandler(urllib.request.HTTPSHandler):
+    def __init__(self, conn_cls):
+        super().__init__()
+        self._conn_cls = conn_cls
+
+    def https_open(self, req):
+        return self.do_open(self._conn_cls, req)
+
+
+def _open_pinned(req: urllib.request.Request, timeout: float = 8.0):
+    """Open ``req`` against a freshly validated, pinned public address.
+
+    This is the single outbound-HTTP seam of this module: the hostname and port
+    are taken from the request itself, re-validated, and the socket is pinned to
+    a public address that passed validation. Tests patch this function to
+    exercise error mapping without real network I/O — production code must never
+    branch on whether a mock is installed.
+
+    Raises ``ValueError`` when the host does not resolve exclusively to public
+    addresses. No process-global state is touched, so concurrent callers in
+    other threads are unaffected.
+    """
+    parsed = urlparse(req.full_url)
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError("probe_url 非法或存在安全风险")
+
+    pinned = resolve_public_host_addresses(hostname, parsed.port)
     if not pinned:
         raise ValueError("probe_url 非法或存在安全风险")
-    original = socket.getaddrinfo
 
-    def patched_getaddrinfo(host, req_port, *args, **kwargs):
-        if str(host).lower().rstrip('.') == hostname.lower().rstrip('.'):
-            fixed = []
-            for family, socktype, proto, canonname, sockaddr in pinned:
-                addr = sockaddr[0]
-                fixed.append((family, socktype, proto, canonname, (addr, req_port or port or sockaddr[1])))
-            return fixed
-        return original(host, req_port, *args, **kwargs)
-
-    socket.getaddrinfo = patched_getaddrinfo
-    try:
-        yield
-    finally:
-        socket.getaddrinfo = original
+    connect_ip = str(pinned[0][4][0])
+    http_cls, https_cls = _pinned_connection_classes(connect_ip)
+    opener = urllib.request.build_opener(
+        _NoRedirectHandler,
+        _PinnedHTTPHandler(http_cls),
+        _PinnedHTTPSHandler(https_cls),
+    )
+    return opener.open(req, timeout=timeout)
 
 
 def fetch_and_parse_probe(
@@ -90,16 +170,7 @@ def fetch_and_parse_probe(
 
     try:
         req = urllib.request.Request(url, headers=req_headers, method="GET")
-        if hasattr(urllib.request.urlopen, "mock_calls"):
-            # Unit tests patch urllib.request.urlopen. Honour that mock so error
-            # mapping tests do not perform real DNS/network I/O; production still
-            # uses DNS pinning + no-redirect opener below.
-            cm = urllib.request.urlopen(req, timeout=timeout)
-        else:
-            opener = urllib.request.build_opener(_NoRedirectHandler)
-            with _pinned_dns(parsed.hostname, parsed.port):
-                cm = opener.open(req, timeout=timeout)
-        with cm as resp:
+        with _open_pinned(req, timeout=timeout) as resp:
             payload = json.loads(resp.read(1024 * 1024).decode())
     except urllib.error.HTTPError as exc:
         return None, f"HTTP {exc.code}"
@@ -110,6 +181,8 @@ def fetch_and_parse_probe(
         return None, reason
     except (json.JSONDecodeError, ValueError) as exc:
         return None, f"invalid payload: {exc}"
+    except socket.timeout:
+        return None, "timed out"
     except Exception as exc:
         return None, str(exc)
 

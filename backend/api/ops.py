@@ -19,6 +19,7 @@ from zipfile import ZipFile, ZIP_DEFLATED
 from datetime import datetime, timezone
 from services.app_settings import get_admin_settings, update_admin_settings, _crypto
 from api.telegram import send_message
+from utils.request_context import audit_client_ip
 
 def _audit_ops_high_risk(action, title, section=None):
     try:
@@ -33,7 +34,7 @@ def _audit_ops_high_risk(action, title, section=None):
                 "actor": get_jwt_identity(),
                 "role": claims.get("role"),
                 "section": section,
-                "ip": request.headers.get("X-Forwarded-For", request.remote_addr or ""),
+                "ip": audit_client_ip(),
             },
         )
         db.session.commit()

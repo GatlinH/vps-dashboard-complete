@@ -21,6 +21,7 @@ import { getDetailHistoryDays, getDetailHistoryBucketMinutes, getDetailHistoryPo
 import { getDetailHeavyRefreshAt, getDetailPingTargetsFetchedAt, setDetailHeavyRefreshAt, setDetailPingTargetsFetchedAt, startDetailRefreshTimer, stopDetailRefreshTimer } from './detail/refreshState.js';
 import { detailCache } from './detail/detailCache.js';
 import { createDetailPingSampleCache } from './detail/sampleCache.js';
+import { resourceHistoryRequest, resourceTimelineRows, shouldReplaceResourceTimeline } from './detail/resourceTimeline.js';
 import { getGlobeRuntimeDebug } from './utils/debugState.js';
 import { buildClusterScreenFanout, resolveClusterSelection } from './components/globe/vpsClusterInteraction.js';
 import { groupClusterMembers } from './services/serverGroups.js';
@@ -2012,8 +2013,9 @@ async function renderDetailPage(serverId) {
     'vps-probe-history',
   );
   // Fixed one-hour process monitor is independent of the selected history range.
+  const resourceRequest = resourceHistoryRequest();
   const resourceHistoryPromise = settleWithin(
-    fetchServerHistory(resolvedServer.id, 1, 720, 0),
+    fetchServerHistory(resolvedServer.id, resourceRequest.days, resourceRequest.limit, resourceRequest.bucketMinutes),
     fetchBudgetMs,
     'resource-history',
   );
@@ -2059,9 +2061,17 @@ async function renderDetailPage(serverId) {
   const rv = calcResidualValue(resolvedServer);
   const pct = trafficData ? Number(trafficData.used_percent || 0) : (getTrafficPct(resolvedServer) || 0);
   const historyRows = normalizePersistedRows(historyData?.data || [], 12);
-  window.__DBG__.DETAIL_HISTORY_META = { days: detailDays, bucketMinutes: detailBucketMinutes, historyTotal: historyData?.total || 0, probeTotal: probeHistoryData?.total || 0 };
+  // CPU/RAM never consume the selected 1-90d aggregate. If the short raw
+  // request completed within the first-paint budget, use it immediately rather
+  // than visibly drawing a 5-minute-bucket chart and replacing it moments later.
+  const initialResourceRows = resourceHistoryPromise.status === 'fulfilled'
+    ? resourceTimelineRows(resourceHistoryPromise.value?.data || [])
+    : [];
+  window.__DBG__.DETAIL_HISTORY_META = { days: detailDays, bucketMinutes: detailBucketMinutes, historyTotal: historyData?.total || 0, probeTotal: probeHistoryData?.total || 0, resourceBucketMinutes: resourceRequest.bucketMinutes };
   detailCache.traffic = trafficData || detailCache.traffic;
   detailCache.historyRows = historyRows.length ? historyRows : detailCache.historyRows;
+  if (initialResourceRows.length && shouldReplaceResourceTimeline(detailCache.resourceRows, initialResourceRows)) detailCache.resourceRows = initialResourceRows;
+  const resourceRows = detailCache.resourceRows.length ? detailCache.resourceRows : historyRows;
   const historySeries = historyRows.map((row) => Number(row.net_up || 0) + Number(row.net_down || 0));
   const trafficUpSeries = historyRows.map((row) => Number(row.net_up || 0));
   const trafficDownSeries = historyRows.map((row) => Number(row.net_down || 0));
@@ -2069,8 +2079,8 @@ async function renderDetailPage(serverId) {
   const probeRows = normalizePersistedRows(probeHistoryData?.data || [], historyDays * 24);
   detailCache.probeRows = probeRows;
   const probeLabels = probeRows.map((row, idx) => row.created_at ? new Date(row.created_at).toLocaleTimeString(uiLocaleTag(), clockOptions({ hour: '2-digit', minute: '2-digit' })) : `P${idx + 1}`);
-  const cpuSeries = numericMetricSeries(probeRows, 'cpu_use');
-  const ramSeries = numericMetricSeries(probeRows, 'ram_use');
+  const cpuSeries = numericMetricSeries(resourceRows, 'cpu_use');
+  const ramSeries = numericMetricSeries(resourceRows, 'ram_use');
   const probeUpSeries = numericMetricSeries(probeRows, 'net_up');
   const probeDownSeries = numericMetricSeries(probeRows, 'net_down');
   const upSeries = probeUpSeries.some((v) => Math.abs(v) > 0.01) ? probeUpSeries : trafficUpSeries;
@@ -2154,7 +2164,7 @@ async function renderDetailPage(serverId) {
   });
   window.__DBG__.DETAIL_STARMAP_MOUNTED = !!detailStarmapUnmount;
   window.__DBG__.DETAIL_TRACE.push('before-charts');
-  await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows, processRows: detailCache.processRows, pingTargetsData: detailCache.pingTargets || pingTargetsData, pingTargetHistoryData: detailCache.pingTargetHistory || pingTargetHistoryData, vpsProbeTargetsData: detailCache.vpsProbeTargets || vpsProbeTargetsData, vpsProbeHistoryData: detailCache.vpsProbeHistory || vpsProbeHistoryData, detailDays });
+  await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows: resourceRows, networkProbeRows: probeRows, processRows: detailCache.processRows, pingTargetsData: detailCache.pingTargets || pingTargetsData, pingTargetHistoryData: detailCache.pingTargetHistory || pingTargetHistoryData, vpsProbeTargetsData: detailCache.vpsProbeTargets || vpsProbeTargetsData, vpsProbeHistoryData: detailCache.vpsProbeHistory || vpsProbeHistoryData, detailDays });
 
   // Commit the four progressive responses as ONE cache snapshot and redraw once.
   // Previously each promise rebuilt all five Chart.js instances independently.
@@ -2167,9 +2177,11 @@ async function renderDetailPage(serverId) {
   Promise.all([resourceHistoryPromise, processHistoryPromise, externalPingPromise, peerPingPromise])
     .then(async ([resourceHistory, processHistory, externalHistory, peerHistory]) => {
       const resourceRows = resourceHistory.status === 'fulfilled'
-        ? normalizePersistedRows(resourceHistory.value?.data || [], 1)
+        ? resourceTimelineRows(resourceHistory.value?.data || [])
         : [];
-      if (resourceRows.length) detailCache.resourceRows = resourceRows;
+      // A delayed history response is allowed to fill an empty cache, but it
+      // must never move CPU/RAM backwards after a newer live point was appended.
+      if (resourceRows.length && shouldReplaceResourceTimeline(detailCache.resourceRows, resourceRows)) detailCache.resourceRows = resourceRows;
 
       const processRows = processHistory.status === 'fulfilled'
         ? normalizePersistedRows(processHistory.value?.data || [], 1)
@@ -2334,15 +2346,12 @@ async function refreshDetailHistoryRange(serverId) {
     // 13 / 4 samples inside that hour and the charts collapsed to a stub — while the
     // first paint, which uses the un-bucketed telemetry, showed 121 points. Fetch the
     // coarse range for the wide charts and a separate fine slice for the 1h ones.
-    const telemetryWindowDays = 1 / 24;
-    // Raw 5s samples for one hour ≈ 720 rows; ask for enough that the fine slice is
-    // never the limiting factor. Reusing the range's `limit` (288 on 4d) truncated it.
-    const telemetryLimit = 900;
+    const resourceRequest = resourceHistoryRequest();
     const [probeHistory, externalPingHistory, peerPingHistory, fineHistory] = await Promise.allSettled([
       fetchServerHistory(current.id, historyDays, limit, bucketMinutes),
       fetchPingTargetHistory(current.id, targetHours, limit),
       fetchPingTargetHistory(current.id, targetHours, limit, 'agent'),
-      fetchServerHistory(current.id, telemetryWindowDays, telemetryLimit, 0),
+      fetchServerHistory(current.id, resourceRequest.days, resourceRequest.limit, resourceRequest.bucketMinutes),
     ]);
     if (probeHistory.status === 'fulfilled') {
       const probeData = probeHistory.value?.data || [];
@@ -2353,10 +2362,11 @@ async function refreshDetailHistoryRange(serverId) {
     // row counts was wrong: the coarse range also returns `limit` rows, so a 288-row
     // fine slice never beat a 288-row bucketed set and the charts kept the 4-point
     // stub. Only fall back to the coarse rows if the fine request actually failed.
-    let telemetryRows = detailCache.probeRows || [];
+    let telemetryRows = detailCache.resourceRows.length ? detailCache.resourceRows : (detailCache.probeRows || []);
     if (fineHistory.status === 'fulfilled') {
-      const fineRows = normalizePersistedRows(fineHistory.value?.data || [], 1);
-      if (fineRows.length) telemetryRows = fineRows;
+      const fineRows = resourceTimelineRows(fineHistory.value?.data || []);
+      if (fineRows.length && shouldReplaceResourceTimeline(detailCache.resourceRows, fineRows)) detailCache.resourceRows = fineRows;
+      if (detailCache.resourceRows.length) telemetryRows = detailCache.resourceRows;
     }
     if (externalPingHistory.status === 'fulfilled') {
       detailCache.pingTargetHistory = externalPingHistory.value;
@@ -2417,6 +2427,14 @@ async function refreshDetailLivePoint(serverId) {
     const appended = appendDetailLiveMetrics(live, { detailCharts });
     detailCache.liveUpdatedAt = timeMs;
     if (appended) {
+      // Advance the cache watermark with the exact point appended to Chart.js.
+      // A slower history request that started before this live poll then fails
+      // shouldReplaceResourceTimeline instead of repainting an older last point.
+      const mergedResourceRows = resourceTimelineRows([
+        ...(detailCache.resourceRows || []),
+        { ...live, created_at: live.updated_at },
+      ]);
+      if (mergedResourceRows.length) detailCache.resourceRows = mergedResourceRows;
       window.__DBG__.DETAIL_LIVE_APPEND = { at: new Date().toISOString(), sourceAt: live.updated_at, serverId, appended: true };
       const cpu = document.querySelector('.cpu-chart-card .fleet-chart-head strong');
       const ram = document.querySelector('.memory-chart-card .fleet-chart-head strong');
@@ -2540,7 +2558,7 @@ async function refreshDetailRealtime(serverId) {
       fetchJson(`${API_ROOT}/api/v1/traffic/public/${current.id}`, { timeoutMs: 1000 }),
       fetchServerHistory(current.id, getDetailHistoryDays(), getDetailHistoryPointLimit(getDetailHistoryDays()), getDetailHistoryBucketMinutes(getDetailHistoryDays())),
       // CPU/memory and process charts use a separate raw one-hour window.
-      fetchServerHistory(current.id, 1, 720, 0),
+      fetchServerHistory(current.id, resourceHistoryRequest().days, resourceHistoryRequest().limit, resourceHistoryRequest().bucketMinutes),
       fetchServerHistory(current.id, 1, 720, 0, 'process_count'),
       shouldRefreshPingTargets ? settleRealtimePing(fetchPingTargets(current.id, 3)) : Promise.resolve(detailCache.pingTargets),
       shouldRefreshPingTargets ? settleRealtimePing(fetchPingTargetHistory(current.id, 6, getDetailHistoryPointLimit(getDetailHistoryDays()))) : Promise.resolve(detailCache.pingTargetHistory),
@@ -2550,8 +2568,8 @@ async function refreshDetailRealtime(serverId) {
     detailCache.historyRows = normalizeHistory24h(heavyProbeData || detailCache.historyRows || []);
     detailCache.probeRows = normalizePersistedRows(heavyProbeData || detailCache.probeRows || [], Math.max(1, getDetailHistoryDays()) * 24);
     if (resourceHistory.status === 'fulfilled') {
-      const rows = normalizePersistedRows(resourceHistory.value?.data || [], 1);
-      if (rows.length) detailCache.resourceRows = rows;
+      const rows = resourceTimelineRows(resourceHistory.value?.data || []);
+      if (rows.length && shouldReplaceResourceTimeline(detailCache.resourceRows, rows)) detailCache.resourceRows = rows;
     }
     if (processHistory.status === 'fulfilled') {
       const rows = normalizePersistedRows(processHistory.value?.data || [], 1);

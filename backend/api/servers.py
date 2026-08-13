@@ -22,6 +22,7 @@ from services.server_groups import assign_server_group
 from utils.errors import ValidationError, InternalServerError
 from middleware.rbac import admin_required, viewer_or_admin_required, owner_required
 from utils.validators import validate_server_name, validate_server_ip
+from utils.request_context import audit_client_ip
 from services.metrics_ingest import ingest_metrics
 from api.probe import clear_ping_targets_cache
 
@@ -38,7 +39,7 @@ def _audit_high_risk(action, title, sid=None, extra=None):
             payload={
                 "actor": get_jwt_identity(),
                 "role": claims.get("role"),
-                "ip": request.headers.get("X-Forwarded-For", request.remote_addr or ""),
+                "ip": audit_client_ip(),
                 **(extra or {}),
             },
         )

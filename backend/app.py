@@ -9,6 +9,7 @@ from flasgger import Swagger as Flasgger
 from werkzeug.middleware.proxy_fix import ProxyFix
 from extensions import db, jwt, redis_client, init_redis
 from middleware.security import SecurityConfig
+from utils.request_context import audit_client_ip
 from middleware.rate_limit import RateLimitConfig
 from middleware.error_handler import ErrorHandler
 from middleware.audit import AuditMiddleware
@@ -142,7 +143,7 @@ def _register_request_logger(app: Flask):
                 or request.path.startswith("/api/v1/ops")
                 or suspicious_path
             )
-            ip_for_audit = request.headers.get("X-Forwarded-For", request.remote_addr or "")[:120]
+            ip_for_audit = audit_client_ip()[:120]
             ua_for_audit = (request.headers.get("User-Agent") or "")[:180]
             noisy_internal_agent = (
                 request.path == "/api/v1/agent/push"

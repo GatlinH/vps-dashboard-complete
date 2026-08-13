@@ -269,7 +269,7 @@ class TestProbeFetcherErrorMapping:
         with app.app_context():
             with patch("services.probe_fetcher.is_safe_outbound_url", return_value=True):
                 with patch(
-                    "urllib.request.urlopen",
+                    "services.probe_fetcher._open_pinned",
                     side_effect=urllib.error.URLError(TimeoutError("timed out")),
                 ):
                     metrics, err = fetch_and_parse_probe(
@@ -286,7 +286,7 @@ class TestProbeFetcherErrorMapping:
         with app.app_context():
             with patch("services.probe_fetcher.is_safe_outbound_url", return_value=True):
                 with patch(
-                    "urllib.request.urlopen",
+                    "services.probe_fetcher._open_pinned",
                     side_effect=urllib.error.HTTPError(
                         url="http://x/probe", code=503, msg="Service Unavailable",
                         hdrs=None, fp=None,
@@ -305,7 +305,7 @@ class TestProbeFetcherErrorMapping:
         with app.app_context():
             with patch("services.probe_fetcher.is_safe_outbound_url", return_value=True):
                 with patch(
-                    "urllib.request.urlopen",
+                    "services.probe_fetcher._open_pinned",
                     side_effect=urllib.error.URLError("Connection refused"),
                 ):
                     metrics, err = fetch_and_parse_probe(
@@ -327,7 +327,7 @@ class TestProbeFetcherErrorMapping:
 
         with app.app_context():
             with patch("services.probe_fetcher.is_safe_outbound_url", return_value=True):
-                with patch("urllib.request.urlopen", return_value=mock_resp):
+                with patch("services.probe_fetcher._open_pinned", return_value=mock_resp):
                     metrics, err = fetch_and_parse_probe(
                         "http://10.0.0.1/probe", self._snap()
                     )
@@ -342,7 +342,7 @@ class TestProbeFetcherErrorMapping:
         from services.probe_fetcher import fetch_and_parse_probe
 
         with app.app_context():
-            with patch("urllib.request.urlopen") as mock_urlopen:
+            with patch("services.probe_fetcher._open_pinned") as mock_urlopen:
                 metrics, err = fetch_and_parse_probe(
                     "http://169.254.169.254/metadata", self._snap()
                 )
@@ -385,7 +385,7 @@ class TestProbeFetcherErrorMapping:
                 raise urllib.error.URLError("Connection refused")
 
             with patch("services.probe_fetcher.is_safe_outbound_url", return_value=True):
-                with patch("urllib.request.urlopen", side_effect=_selective_urlopen):
+                with patch("services.probe_fetcher._open_pinned", side_effect=_selective_urlopen):
                     from services.probe_fetcher import fetch_and_parse_probe
 
                     s2_snap = {

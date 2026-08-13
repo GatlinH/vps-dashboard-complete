@@ -24,6 +24,9 @@ RUN pip install --no-cache-dir -r requirements.txt \
 
 # 复制应用代码
 COPY . .
+# The installer embeds this immutable trust anchor. Keep a runtime copy so the
+# container's source layout need not contain repository-level scripts.
+COPY agent-release-ed25519-public.b64 /app/agent-release-ed25519-public.b64
 
 # 创建日志目录
 RUN mkdir -p /var/log/vps-dashboard
@@ -35,6 +38,10 @@ USER appuser
 # 环境变量
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_APP=app.py
+# Unified app serves the mounted/baked Vite bundle from this explicit path.
+# app.root_path is /app, whose parent is /, so the implicit default would
+# incorrectly resolve to /frontend-dist after a clean image rebuild.
+ENV FRONTEND_DIST_DIR=/app/frontend-dist
 # Gunicorn 并发配置（APScheduler 要求 workers=1，用 threads 提升并发）
 ENV GUNICORN_WORKERS=1
 ENV GUNICORN_THREADS=4
