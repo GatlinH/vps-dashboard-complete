@@ -623,7 +623,10 @@ export default function GlobeStarmap({
 
   return (
     <div style={{
-      background: isLight ? "linear-gradient(180deg,#f7f0dc,#eadfc6)" : "#070b14",
+      // The detail starmap is an overlay inside the detail page. Its canvas draws
+      // the globe only; an opaque component shell would mask the operator-selected
+      // site/detail background and make this one panel ignore theme/background.
+      background: "transparent",
       color: isLight ? "#203438" : "#e2e8f0",
       fontFamily: "'Noto Sans SC', sans-serif",
       padding: "1.25rem",
