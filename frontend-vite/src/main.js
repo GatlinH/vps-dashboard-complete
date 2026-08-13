@@ -2100,8 +2100,15 @@ async function renderDetailPage(serverId) {
   const assetRiskChips = buildAssetRiskChips(resolvedServer, rv, pct, heartbeatPct, pingData);
   const healthNarrative = buildHealthNarrative(resolvedServer, heartbeatPct, cpuSeries, ramSeries, latencySeries, pingData);
   const trendNarrative = buildTrendNarrative(cpuSeries, ramSeries, historySeries);
-  const displayCpuSeries = ensureDenseSeries(cpuSeries).map((v) => Math.min(100, v));
-  const displayRamSeries = ensureDenseSeries(ramSeries).map((v) => Math.min(100, v));
+  // Headline values must use the latest raw sample, not the last value after
+  // gap-filling/display bucketing (which can be an older bucket when live data
+  // arrives between redraws).
+  const displayCpuSeries = cpuSeries.length
+    ? cpuSeries.map((point) => Math.min(100, Number(point?.y ?? point) || 0))
+    : ensureDenseSeries(cpuSeries).map((v) => Math.min(100, v));
+  const displayRamSeries = ramSeries.length
+    ? ramSeries.map((point) => Math.min(100, Number(point?.y ?? point) || 0))
+    : ensureDenseSeries(ramSeries).map((v) => Math.min(100, v));
   const displayUpSeries = smoothNumericSeries(ensureDenseSeries(upSeries), 5);
   const displayDownSeries = smoothNumericSeries(ensureDenseSeries(downSeries), 5);
   const networkUseProbe = probeRows.length >= 3 && (probeUpSeries.some((v) => Math.abs(v) > 0.01) || probeDownSeries.some((v) => Math.abs(v) > 0.01));
