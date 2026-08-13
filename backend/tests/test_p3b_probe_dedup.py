@@ -49,7 +49,7 @@ class TestFetchAndParseProbeUnit:
         }).encode()
 
         with patch("services.probe_fetcher.is_safe_outbound_url", return_value=True), \
-             patch("urllib.request.urlopen", return_value=_make_urlopen_mock(body)):
+             patch("services.probe_fetcher._open_pinned", return_value=_make_urlopen_mock(body)):
             metrics, err = fetch_and_parse_probe("http://probe.example.com/api", _SNAP)
 
         assert err is None
@@ -73,7 +73,7 @@ class TestFetchAndParseProbeUnit:
         }).encode()
 
         with patch("services.probe_fetcher.is_safe_outbound_url", return_value=True), \
-             patch("urllib.request.urlopen", return_value=_make_urlopen_mock(body)):
+             patch("services.probe_fetcher._open_pinned", return_value=_make_urlopen_mock(body)):
             metrics, err = fetch_and_parse_probe("http://probe.example.com/api", _SNAP)
 
         assert err is None
@@ -91,7 +91,7 @@ class TestFetchAndParseProbeUnit:
 
         with patch("services.probe_fetcher.is_safe_outbound_url", return_value=True), \
              patch(
-                "urllib.request.urlopen",
+                "services.probe_fetcher._open_pinned",
                 side_effect=urllib.error.URLError(reason=socket.timeout("timed out")),
              ):
             metrics, err = fetch_and_parse_probe("http://probe.example.com/api", _SNAP)
@@ -105,7 +105,7 @@ class TestFetchAndParseProbeUnit:
 
         with patch("services.probe_fetcher.is_safe_outbound_url", return_value=True), \
              patch(
-                "urllib.request.urlopen",
+                "services.probe_fetcher._open_pinned",
                 side_effect=urllib.error.HTTPError(
                     url="http://probe.example.com/api",
                     code=503,
@@ -124,7 +124,7 @@ class TestFetchAndParseProbeUnit:
         from services.probe_fetcher import fetch_and_parse_probe
 
         with patch("services.probe_fetcher.is_safe_outbound_url", return_value=True), \
-             patch("urllib.request.urlopen", return_value=_make_urlopen_mock(b"not-json")):
+             patch("services.probe_fetcher._open_pinned", return_value=_make_urlopen_mock(b"not-json")):
             metrics, err = fetch_and_parse_probe("http://probe.example.com/api", _SNAP)
 
         assert metrics is None
@@ -147,7 +147,7 @@ class TestFetchAndParseProbeUnit:
 
         with patch("services.probe_fetcher.is_safe_outbound_url", return_value=True), \
              patch(
-                "urllib.request.urlopen",
+                "services.probe_fetcher._open_pinned",
                 side_effect=urllib.error.URLError(reason="Name or service not known"),
              ):
             metrics, err = fetch_and_parse_probe("http://no-such-host.example/probe", _SNAP)

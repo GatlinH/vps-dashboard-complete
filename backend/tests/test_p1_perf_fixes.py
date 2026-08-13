@@ -118,7 +118,7 @@ class TestFetchProbeConcurrent:
             return m
 
         with patch('services.probe_fetcher.is_safe_outbound_url', return_value=True), \
-             patch('urllib.request.urlopen', side_effect=_urlopen_ok):
+             patch('services.probe_fetcher._open_pinned', side_effect=_urlopen_ok):
             resp = client.post(
                 '/api/v1/probe/fetch-probe',
                 json={'server_ids': sids},
@@ -155,7 +155,7 @@ class TestFetchProbeConcurrent:
             return m
 
         with patch('services.probe_fetcher.is_safe_outbound_url', return_value=True), \
-             patch('urllib.request.urlopen', side_effect=_selective_urlopen):
+             patch('services.probe_fetcher._open_pinned', side_effect=_selective_urlopen):
             resp = client.post(
                 '/api/v1/probe/fetch-probe',
                 json={'server_ids': sids},
@@ -197,7 +197,7 @@ class TestFetchProbeConcurrent:
             return "/node-0/" in url
 
         with patch('services.probe_fetcher.is_safe_outbound_url', side_effect=_selective_safe), \
-             patch('urllib.request.urlopen', side_effect=_urlopen_ok):
+             patch('services.probe_fetcher._open_pinned', side_effect=_urlopen_ok):
             resp = client.post(
                 '/api/v1/probe/fetch-probe',
                 json={'server_ids': sids},
@@ -225,7 +225,7 @@ class TestFetchProbeConcurrent:
             return m
 
         with patch('services.probe_fetcher.is_safe_outbound_url', return_value=True), \
-             patch('urllib.request.urlopen', side_effect=_urlopen_ok):
+             patch('services.probe_fetcher._open_pinned', side_effect=_urlopen_ok):
             resp = client.post(
                 '/api/v1/probe/fetch-probe',
                 json={'server_ids': sids},
@@ -253,7 +253,7 @@ class TestFetchProbeConcurrent:
             return m
 
         with patch('services.probe_fetcher.is_safe_outbound_url', return_value=True), \
-             patch('urllib.request.urlopen', side_effect=_urlopen_ok):
+             patch('services.probe_fetcher._open_pinned', side_effect=_urlopen_ok):
             resp = client.post(
                 '/api/v1/probe/fetch-probe',
                 json={'server_ids': sids},
