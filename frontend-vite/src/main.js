@@ -393,8 +393,16 @@ function nextTrafficResetDateLabel(resetDay, now = new Date()) {
 
 function formatTrafficResetText(server, trafficData = null, opts = {}) {
   const day = trafficResetDay(server, trafficData);
-  const prefix = opts.short ? `${day}日重置` : `每月 ${day} 日重置`;
-  return opts.next === false ? prefix : `${prefix} · 下次 ${nextTrafficResetDateLabel(day)}`;
+  // Day-of-month sits between a locale-specific prefix and suffix so languages that
+  // put the ordinal after the number (zh/ja/ko) and before it (en/es/fr/de/ru) both read
+  // naturally instead of being forced into one hardcoded Chinese template.
+  const suffix = t('trafficResetMonthlySuffix');
+  const prefix = opts.short
+    ? `${day}${suffix}`
+    : `${t('trafficResetMonthlyPrefix')} ${day} ${suffix}`.replace(/\s+/g, ' ').trim();
+  return opts.next === false
+    ? prefix
+    : `${prefix} · ${t('trafficResetNext')} ${nextTrafficResetDateLabel(day)}`;
 }
 
 function mountDisplayPage() {
@@ -1445,7 +1453,7 @@ function renderRealtimeResourcePanels(server, trafficData, upSeries = [], downSe
         <div><span data-i18n="downlink">${t('downlink')}</span><strong>↓ ${fmtRate(latestDown)}</strong></div>
       </div>
       <div class="probe-meter-list compact">
-        ${renderProbeMeter('TRAFFIC 累计流量', fmtResourceGb(usedGb), limitGb > 0 ? fmtResourceGb(limitGb) : '不限', trafficPct, `累计上传 ${fmtResourceGb(upGb)} · 累计下载 ${fmtResourceGb(downGb)} · ${formatTrafficResetText(server, trafficData)}`)}
+        ${renderProbeMeter(`TRAFFIC ${t('totalTraffic')}`, fmtResourceGb(usedGb), limitGb > 0 ? fmtResourceGb(limitGb) : t('trafficUnlimited'), trafficPct, `${t('trafficUploaded')} ${fmtResourceGb(upGb)} · ${t('trafficDownloaded')} ${fmtResourceGb(downGb)} · ${formatTrafficResetText(server, trafficData)}`)}
       </div>
     </div>
   </section>`;
