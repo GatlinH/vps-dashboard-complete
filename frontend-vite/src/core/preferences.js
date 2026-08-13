@@ -148,6 +148,9 @@ export function setTheme(theme) {
   const label = document.getElementById('themeLabel');
   if (icon) icon.textContent = theme === 'dark' ? '☾' : '☀';
   if (label) label.textContent = theme === 'dark' ? t('bridge') : t('daylight');
+  // CSS variables cannot alter an already-rendered WebGL scene. Renderers subscribe
+  // to this explicit bridge and update their own scene state in place.
+  window.dispatchEvent(new CustomEvent('vps-theme-changed', { detail: { theme } }));
 }
 
 export function toggleTheme() {

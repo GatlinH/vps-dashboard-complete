@@ -9,7 +9,7 @@ import { getServerCoords } from './globe-utils.js';
 import { rebuildVpsEntities } from './globe/vpsEntities.js';
 import { getGlobeViewState } from './globe/globeViewState.js';
 import { applyNodeLOD, applyImageryLOD, disableLegacyFallbacks } from './globe/globeLod.js';
-import { setupCesiumScene } from './globe/runtime/sceneSetup.js';
+import { setupCesiumScene, applyCesiumTheme } from './globe/runtime/sceneSetup.js';
 import { installImageryStack } from './globe/runtime/imageryStack.js';
 import { applySceneRuntimeState } from './globe/runtime/sceneRuntimeState.js';
 import { installVisitorBeacon, addVisitorBeacon } from './globe/runtime/visitorBeacon.js';
@@ -104,6 +104,8 @@ export class CesiumDeckGlobe {
 
     const scene = this.viewer.scene;
     setupCesiumScene(this.viewer, { minHeight: MIN_HEIGHT, maxHeight: MAX_HEIGHT, defaultLightIntensity: 2.35 });
+    this._onThemeChanged = (event) => applyCesiumTheme(this.viewer, event?.detail?.theme);
+    window.addEventListener('vps-theme-changed', this._onThemeChanged);
 
     this._installWorldTerrain();
 
@@ -443,6 +445,7 @@ export class CesiumDeckGlobe {
     this._destroyed = true;
     if (this._animFrame) cancelAnimationFrame(this._animFrame);
     clearTimeout(this._interactionTimer);
+    if (this._onThemeChanged) window.removeEventListener('vps-theme-changed', this._onThemeChanged);
     if (this._handler) this._handler.destroy();
     if (this._visualShell) { this._visualShell.destroy(); this._visualShell = null; }
     if (this.viewer) { this.viewer.destroy(); this.viewer = null; }

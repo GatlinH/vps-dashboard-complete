@@ -1,5 +1,19 @@
 import * as Cesium from 'cesium';
 
+export const CESIUM_THEME_COLORS = Object.freeze({
+  dark: Object.freeze({ background: '#050812', base: '#0c2c4d' }),
+  light: Object.freeze({ background: '#dcecf4', base: '#6d9bb7' }),
+});
+
+export function applyCesiumTheme(viewer, theme = document.documentElement.getAttribute('data-theme')) {
+  const palette = CESIUM_THEME_COLORS[theme] || CESIUM_THEME_COLORS.dark;
+  if (!viewer?.scene?.globe) return false;
+  viewer.scene.backgroundColor = Cesium.Color.fromCssColorString(palette.background);
+  viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString(palette.base);
+  viewer.scene.requestRender();
+  return true;
+}
+
 export function setupCesiumScene(viewer, {
   minHeight,
   maxHeight,
@@ -8,10 +22,9 @@ export function setupCesiumScene(viewer, {
   const scene = viewer.scene;
   const globe = scene.globe;
 
-  scene.backgroundColor = Cesium.Color.BLACK;
-  // 统一底色: 与 sceneRuntimeState 保持一致的深海蓝, 避免极点网格收敛 /
-  // tile 缝隙处透出浅色底色, 在极区形成发亮色块。
-  globe.baseColor = Cesium.Color.fromCssColorString('#0c2c4d');
+  // Theme state is renderer-owned, not a CSS-only body background.
+  applyCesiumTheme(viewer);
+  // Avoid pale tile seams near poles; applyCesiumTheme supplies the theme base.
   globe.showGroundAtmosphere = true;
   globe.enableLighting = false;
   globe.dynamicAtmosphereLighting = false;

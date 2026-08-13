@@ -1336,6 +1336,13 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .data-fre
   display:flex!important;
   align-items:center!important;
   justify-content:center!important;
+  /* The detail starmap must inherit the panel/site background rather than
+     introduce a second opaque dark canvas frame. */
+  background:transparent!important;
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount > div,
+.detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount > div > div{
+  background:transparent!important;
 }
 .detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel{
   min-height:560px!important;

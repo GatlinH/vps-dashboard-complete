@@ -12,7 +12,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.exceptions import HTTPException
 from werkzeug.security import generate_password_hash
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from extensions import db
 import extensions
@@ -644,6 +644,91 @@ def get_public_history(sid):
                 .order_by(ProbeResult.created_at.asc()).limit(min(limit, 720)).all())
         data = [{"server_id": sid, "created_at": row.created_at.isoformat(), "timestamp": row.created_at.isoformat(), "process_count": int(row.process_count)} for row in rows]
         return jsonify(data=data, total=len(data), count=len(data), metric="process_count", hours=1, history_source="raw")
+    if metric == "resource_timeline":
+        # Agent telemetry shares ProbeResult with scheduler/network probe rows.
+        # Filter resource-null rows BEFORE applying the point budget: otherwise
+        # recent latency-only rows consume `limit` and a declared one-hour CPU/RAM
+        # chart receives just a few minutes of values at its right edge.
+        since = datetime.now(timezone.utc) - timedelta(hours=1)
+        resource_filter = or_(ProbeResult.cpu_use.isnot(None), ProbeResult.ram_use.isnot(None))
+        total = (ProbeResult.query
+                 .filter(ProbeResult.server_id == sid, ProbeResult.created_at >= since, resource_filter)
+                 .count())
+        # Limit is intentionally bounded for the raw 5s detail series. Fetch in
+        # DESC order (index-friendly newest-N) then reverse to preserve the API's
+        # old-to-new chart contract.
+        newest = (ProbeResult.query
+                  .filter(ProbeResult.server_id == sid, ProbeResult.created_at >= since, resource_filter)
+                  .order_by(ProbeResult.created_at.desc())
+                  .limit(min(limit, 900))
+                  .all())
+        newest.reverse()
+        data = []
+        for row in newest:
+            item = row.to_dict()
+            item["timestamp"] = item["created_at"]
+            data.append(item)
+        return jsonify(
+            data=data, total=total, count=len(data), metric="resource_timeline",
+            hours=1, history_source="raw", bucketed=False, bucket_minutes=0,
+        )
+    if metric == "network_timeline":
+        # Network chart has its own six-hour contract. Filtering before GROUP BY
+        # prevents CPU-only telemetry and scheduler rows from creating null buckets
+        # and avoids scanning the selected 1-90d detail range on first paint.
+        hours = 6
+        bucket_minutes = 3
+        since = datetime.now(timezone.utc) - timedelta(hours=hours)
+        bucket_seconds = bucket_minutes * 60
+        network_filter = or_(ProbeResult.net_up.isnot(None), ProbeResult.net_down.isnot(None))
+        # Production MySQL performs the aggregate where the data lives: return
+        # 120 buckets, not thousands of raw rows for Python/browser aggregation.
+        # SQLite's test dialect has no UNIX_TIMESTAMP, so retain a small explicit
+        # compatibility fallback only for the test/dev database.
+        if db.session.get_bind().dialect.name == 'mysql':
+            bucket_expr = (func.floor(func.unix_timestamp(ProbeResult.created_at) / bucket_seconds) * bucket_seconds).label('bucket_ts')
+            rows = (db.session.query(
+                bucket_expr,
+                func.avg(ProbeResult.net_up).label('net_up'),
+                func.avg(ProbeResult.net_down).label('net_down'),
+                func.count(ProbeResult.id).label('samples'),
+            )
+            .filter(ProbeResult.server_id == sid, ProbeResult.created_at >= since, network_filter)
+            .group_by(bucket_expr).order_by(bucket_expr.desc()).limit(min(limit, 120)).all())
+            data = [{
+                "server_id": sid,
+                "created_at": datetime.fromtimestamp(int(row.bucket_ts), timezone.utc).isoformat(),
+                "timestamp": datetime.fromtimestamp(int(row.bucket_ts), timezone.utc).isoformat(),
+                "net_up": float(row.net_up) if row.net_up is not None else None,
+                "net_down": float(row.net_down) if row.net_down is not None else None,
+                "samples": int(row.samples or 0), "bucket_minutes": bucket_minutes,
+            } for row in reversed(rows)]
+        else:
+            raw_rows = (ProbeResult.query
+                        .filter(ProbeResult.server_id == sid, ProbeResult.created_at >= since, network_filter)
+                        .order_by(ProbeResult.created_at.desc()).limit(5000).all())
+            buckets = {}
+            for row in reversed(raw_rows):
+                timestamp = row.created_at
+                if timestamp.tzinfo is None:
+                    timestamp = timestamp.replace(tzinfo=timezone.utc)
+                bucket_ts = int(timestamp.timestamp() // bucket_seconds * bucket_seconds)
+                item = buckets.setdefault(bucket_ts, {"up": [], "down": []})
+                if row.net_up is not None: item["up"].append(float(row.net_up))
+                if row.net_down is not None: item["down"].append(float(row.net_down))
+            data = []
+            for bucket_ts, item in sorted(buckets.items())[-min(limit, 120):]:
+                timestamp = datetime.fromtimestamp(bucket_ts, timezone.utc).isoformat()
+                data.append({
+                    "server_id": sid, "created_at": timestamp, "timestamp": timestamp,
+                    "net_up": sum(item["up"]) / len(item["up"]) if item["up"] else None,
+                    "net_down": sum(item["down"]) / len(item["down"]) if item["down"] else None,
+                    "samples": max(len(item["up"]), len(item["down"])), "bucket_minutes": bucket_minutes,
+                })
+        return jsonify(
+            data=data, total=len(data), count=len(data), metric="network_timeline",
+            hours=hours, history_source="raw", bucketed=True, bucket_minutes=bucket_minutes,
+        )
     since = datetime.now(timezone.utc) - timedelta(days=days)
     # Long windows are served from bounded materialized hourly summaries. Raw
     # ProbeResult remains the source for short diagnostics and for deployments

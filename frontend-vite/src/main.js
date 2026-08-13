@@ -2,6 +2,7 @@ import './globals/dashboardGlobals.js';
 import { login as publicLogin, getOAuthProviders, oauthLoginUrl, verifyEmailToken, resetPasswordWithToken } from './api/auth.js';
 import './styles/main.css';
 import './styles/detail-starfleet-console.css';
+import './styles/detail-starmap-background.css';
 
 import { state } from './store/state.js';
 import { listServersPublic } from './api/public.js';
@@ -12,7 +13,7 @@ import { mountGlobeStarmap } from './components/GlobeStarmapMount.jsx';
 import { toDisplay, calcResidualValue, getMonthlyPrice, getBillingMonths, sourceAmountToCny, getSourceCurrency, updateRateDisplay, refreshExchangeRates } from './utils/currency.js';
 import { fmtGb, getTrafficPct, getTrafficUsed } from './utils/traffic.js';
 import { renderSunBadge, renderMoonPanel } from './ui/sunMoonEntry.js';
-import { fetchJson, fetchPing, fetchPingTargetHistory, fetchPingTargets, fetchServerHistory, enrichServersWithIpGeo, normalizeServer } from './services/displayData.js';
+import { fetchJson, fetchPing, fetchPingTargetHistory, fetchPingTargets, fetchServerHistory, fetchResourceTimeline, fetchNetworkTimeline, enrichServersWithIpGeo, normalizeServer } from './services/displayData.js';
 import { LANGUAGE_PACKS, applyLanguage, configureLanguageSwitcher, currentLanguage, safeStorageGet, safeStorageRemove, safeStorageSet, setLanguage, setTheme, t, toggleTheme } from './core/preferences.js';
 import { renderPublicOverviewPage as renderPublicOverviewPageModule } from './pages/overviewPage.js';
 import { detailLoadingShell, renderDetailConsole, renderDetailNotFound } from './pages/detailPage.js';
@@ -2015,7 +2016,7 @@ async function renderDetailPage(serverId) {
   // Fixed one-hour process monitor is independent of the selected history range.
   const resourceRequest = resourceHistoryRequest();
   const resourceHistoryPromise = settleWithin(
-    fetchServerHistory(resolvedServer.id, resourceRequest.days, resourceRequest.limit, resourceRequest.bucketMinutes),
+    fetchResourceTimeline(resolvedServer.id, resourceRequest.limit),
     fetchBudgetMs,
     'resource-history',
   );
@@ -2024,16 +2025,18 @@ async function renderDetailPage(serverId) {
     fetchBudgetMs,
     'process-history',
   );
-  const [traffic, ping, probeHistory] = await Promise.all([
+  const [traffic, ping, probeHistory, networkHistory] = await Promise.all([
     settleWithin(fetchJson(`${API_ROOT}/api/v1/traffic/public/${resolvedServer.id}`, { timeoutMs: 1200 }), fetchBudgetMs, 'traffic'),
     settleWithin(fetchPing(resolvedServer), fetchBudgetMs, 'ping'),
+    // Keep selected-range history separate from the network chart's fixed 6h contract.
     settleWithin(fetchServerHistory(resolvedServer.id, historyDays, historyLimit, detailBucketMinutes), fetchBudgetMs, 'server-history'),
+    settleWithin(fetchNetworkTimeline(resolvedServer.id), fetchBudgetMs, 'network-history'),
   ]);
 
   const trafficData = traffic.status === 'fulfilled' ? traffic.value : null;
   const pingData = ping.status === 'fulfilled' ? ping.value : null;
   const probeHistoryData = probeHistory.status === 'fulfilled' ? probeHistory.value : null;
-  // Network history is derived from the same server-history response.
+  const networkHistoryData = networkHistory.status === 'fulfilled' ? networkHistory.value : null;
   const historyData = probeHistoryData;
   // The first paint intentionally uses cached PING data (if any). The two
   // background promises below redraw only the charts/table when ready.
@@ -2061,6 +2064,7 @@ async function renderDetailPage(serverId) {
   const rv = calcResidualValue(resolvedServer);
   const pct = trafficData ? Number(trafficData.used_percent || 0) : (getTrafficPct(resolvedServer) || 0);
   const historyRows = normalizePersistedRows(historyData?.data || [], 12);
+  const networkRows = normalizePersistedRows(networkHistoryData?.data || [], 6);
   // CPU/RAM never consume the selected 1-90d aggregate. If the short raw
   // request completed within the first-paint budget, use it immediately rather
   // than visibly drawing a 5-minute-bucket chart and replacing it moments later.
@@ -2070,21 +2074,23 @@ async function renderDetailPage(serverId) {
   window.__DBG__.DETAIL_HISTORY_META = { days: detailDays, bucketMinutes: detailBucketMinutes, historyTotal: historyData?.total || 0, probeTotal: probeHistoryData?.total || 0, resourceBucketMinutes: resourceRequest.bucketMinutes };
   detailCache.traffic = trafficData || detailCache.traffic;
   detailCache.historyRows = historyRows.length ? historyRows : detailCache.historyRows;
+  if (networkRows.length) detailCache.networkRows = networkRows;
   if (initialResourceRows.length && shouldReplaceResourceTimeline(detailCache.resourceRows, initialResourceRows)) detailCache.resourceRows = initialResourceRows;
   const resourceRows = detailCache.resourceRows.length ? detailCache.resourceRows : historyRows;
   const historySeries = historyRows.map((row) => Number(row.net_up || 0) + Number(row.net_down || 0));
-  const trafficUpSeries = historyRows.map((row) => Number(row.net_up || 0));
-  const trafficDownSeries = historyRows.map((row) => Number(row.net_down || 0));
-  const chartLabels = historyRows.map((row, idx) => row.ts || row.time || row.timestamp || `T${idx + 1}`);
+  const trafficUpSeries = networkRows.map((row) => Number(row.net_up || 0));
+  const trafficDownSeries = networkRows.map((row) => Number(row.net_down || 0));
+  const chartLabels = networkRows.map((row, idx) => row.ts || row.time || row.timestamp || row.created_at || `T${idx + 1}`);
   const probeRows = normalizePersistedRows(probeHistoryData?.data || [], historyDays * 24);
   detailCache.probeRows = probeRows;
   const probeLabels = probeRows.map((row, idx) => row.created_at ? new Date(row.created_at).toLocaleTimeString(uiLocaleTag(), clockOptions({ hour: '2-digit', minute: '2-digit' })) : `P${idx + 1}`);
   const cpuSeries = numericMetricSeries(resourceRows, 'cpu_use');
   const ramSeries = numericMetricSeries(resourceRows, 'ram_use');
-  const probeUpSeries = numericMetricSeries(probeRows, 'net_up');
-  const probeDownSeries = numericMetricSeries(probeRows, 'net_down');
-  const upSeries = probeUpSeries.some((v) => Math.abs(v) > 0.01) ? probeUpSeries : trafficUpSeries;
-  const downSeries = probeDownSeries.some((v) => Math.abs(v) > 0.01) ? probeDownSeries : trafficDownSeries;
+  // Network has its own fixed 6h contract. Do not let selected-range rows
+  // override this card/plot: on a 4/7/30/90d switch they are a different time
+  // domain and would make the headline disagree with the six-hour canvas.
+  const upSeries = trafficUpSeries;
+  const downSeries = trafficDownSeries;
   const latencySeries = probeRows.map((row) => row.latency_ms == null ? null : Number(row.latency_ms));
   const heartbeatSeries = probeRows.map((row) => row.status || 'unknown');
   const freshMeta = detailFreshnessMeta(probeRows, resolvedServer);
@@ -2096,14 +2102,22 @@ async function renderDetailPage(serverId) {
   const assetRiskChips = buildAssetRiskChips(resolvedServer, rv, pct, heartbeatPct, pingData);
   const healthNarrative = buildHealthNarrative(resolvedServer, heartbeatPct, cpuSeries, ramSeries, latencySeries, pingData);
   const trendNarrative = buildTrendNarrative(cpuSeries, ramSeries, historySeries);
-  const displayCpuSeries = ensureDenseSeries(cpuSeries).map((v) => Math.min(100, v));
-  const displayRamSeries = ensureDenseSeries(ramSeries).map((v) => Math.min(100, v));
+  // Headline values must use the latest raw sample, not the last value after
+  // gap-filling/display bucketing (which can be an older bucket when live data
+  // arrives between redraws).
+  const displayCpuSeries = cpuSeries.length
+    ? cpuSeries.map((point) => Math.min(100, Number(point?.y ?? point) || 0))
+    : ensureDenseSeries(cpuSeries).map((v) => Math.min(100, v));
+  const displayRamSeries = ramSeries.length
+    ? ramSeries.map((point) => Math.min(100, Number(point?.y ?? point) || 0))
+    : ensureDenseSeries(ramSeries).map((v) => Math.min(100, v));
   const displayUpSeries = smoothNumericSeries(ensureDenseSeries(upSeries), 5);
   const displayDownSeries = smoothNumericSeries(ensureDenseSeries(downSeries), 5);
-  const networkUseProbe = probeRows.length >= 3 && (probeUpSeries.some((v) => Math.abs(v) > 0.01) || probeDownSeries.some((v) => Math.abs(v) > 0.01));
-  const networkUpSeries = networkUseProbe ? smoothNumericSeries(probeUpSeries, 5) : (trafficUpSeries.length ? smoothNumericSeries(trafficUpSeries, 5) : displayUpSeries);
-  const networkDownSeries = networkUseProbe ? smoothNumericSeries(probeDownSeries, 5) : (trafficDownSeries.length ? smoothNumericSeries(trafficDownSeries, 5) : displayDownSeries);
-  const networkLabels = networkUseProbe ? probeLabels : (chartLabels.length ? chartLabels : probeLabels);
+  // networkRows is the only source for fixed 6h throughput; range-history rows
+  // must never silently replace it in the card label or chart input.
+  const networkUpSeries = trafficUpSeries.length ? smoothNumericSeries(trafficUpSeries, 5) : displayUpSeries;
+  const networkDownSeries = trafficDownSeries.length ? smoothNumericSeries(trafficDownSeries, 5) : displayDownSeries;
+  const networkLabels = chartLabels;
 
   window.__DBG__.DETAIL_TRACE.push('before-grid-html');
   const detailGrid = document.getElementById('detailPageGrid');
@@ -2164,7 +2178,7 @@ async function renderDetailPage(serverId) {
   });
   window.__DBG__.DETAIL_STARMAP_MOUNTED = !!detailStarmapUnmount;
   window.__DBG__.DETAIL_TRACE.push('before-charts');
-  await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows: resourceRows, networkProbeRows: probeRows, processRows: detailCache.processRows, pingTargetsData: detailCache.pingTargets || pingTargetsData, pingTargetHistoryData: detailCache.pingTargetHistory || pingTargetHistoryData, vpsProbeTargetsData: detailCache.vpsProbeTargets || vpsProbeTargetsData, vpsProbeHistoryData: detailCache.vpsProbeHistory || vpsProbeHistoryData, detailDays });
+  await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows: resourceRows, networkProbeRows: networkRows, processRows: detailCache.processRows, pingTargetsData: detailCache.pingTargets || pingTargetsData, pingTargetHistoryData: detailCache.pingTargetHistory || pingTargetHistoryData, vpsProbeTargetsData: detailCache.vpsProbeTargets || vpsProbeTargetsData, vpsProbeHistoryData: detailCache.vpsProbeHistory || vpsProbeHistoryData, detailDays });
 
   // Commit the four progressive responses as ONE cache snapshot and redraw once.
   // Previously each promise rebuilt all five Chart.js instances independently.
@@ -2347,11 +2361,12 @@ async function refreshDetailHistoryRange(serverId) {
     // first paint, which uses the un-bucketed telemetry, showed 121 points. Fetch the
     // coarse range for the wide charts and a separate fine slice for the 1h ones.
     const resourceRequest = resourceHistoryRequest();
-    const [probeHistory, externalPingHistory, peerPingHistory, fineHistory] = await Promise.allSettled([
+    const [probeHistory, externalPingHistory, peerPingHistory, fineHistory, networkHistory] = await Promise.allSettled([
       fetchServerHistory(current.id, historyDays, limit, bucketMinutes),
       fetchPingTargetHistory(current.id, targetHours, limit),
       fetchPingTargetHistory(current.id, targetHours, limit, 'agent'),
-      fetchServerHistory(current.id, resourceRequest.days, resourceRequest.limit, resourceRequest.bucketMinutes),
+      fetchResourceTimeline(current.id, resourceRequest.limit),
+      fetchNetworkTimeline(current.id),
     ]);
     if (probeHistory.status === 'fulfilled') {
       const probeData = probeHistory.value?.data || [];
@@ -2376,13 +2391,19 @@ async function refreshDetailHistoryRange(serverId) {
 
     const historyRows = detailCache.historyRows || [];
     const probeRows = detailCache.probeRows || [];
-    const trafficUpSeries = historyRows.map((row) => Number(row.net_up || 0));
-    const trafficDownSeries = historyRows.map((row) => Number(row.net_down || 0));
-    const probeUpSeries = numericMetricSeries(probeRows, 'net_up');
-    const probeDownSeries = numericMetricSeries(probeRows, 'net_down');
-    const upSeries = probeUpSeries.some((value) => Math.abs(value) > 0.01) ? probeUpSeries : trafficUpSeries;
-    const downSeries = probeDownSeries.some((value) => Math.abs(value) > 0.01) ? probeDownSeries : trafficDownSeries;
-    const chartLabels = historyRows.map((row, index) => row.ts || row.time || row.timestamp || `T${index + 1}`);
+    const returnedNetworkRows = networkHistory.status === 'fulfilled'
+      ? normalizePersistedRows(networkHistory.value?.data || [], 6)
+      : [];
+    if (returnedNetworkRows.length) detailCache.networkRows = returnedNetworkRows;
+    const networkRows = detailCache.networkRows || [];
+    // Range changes refresh the wide history only. Network remains the fixed 6h
+    // timeline even when the request is temporarily unavailable; preserve its
+    // prior cache rather than falling back to the range's incompatible rows.
+    const trafficUpSeries = networkRows.map((row) => Number(row.net_up || 0));
+    const trafficDownSeries = networkRows.map((row) => Number(row.net_down || 0));
+    const upSeries = trafficUpSeries;
+    const downSeries = trafficDownSeries;
+    const chartLabels = networkRows.map((row, index) => row.ts || row.time || row.timestamp || row.created_at || `T${index + 1}`);
     const probeLabels = probeRows.map((row, index) => row.created_at ? new Date(row.created_at).toLocaleTimeString(uiLocaleTag(), clockOptions({ hour: '2-digit', minute: '2-digit' })) : `P${index + 1}`);
     await renderDetailMonitorCharts({
       chartLabels, upSeries, downSeries, probeLabels,
@@ -2391,7 +2412,7 @@ async function refreshDetailHistoryRange(serverId) {
       cpuSeries: numericMetricSeries(telemetryRows, 'cpu_use'),
       ramSeries: numericMetricSeries(telemetryRows, 'ram_use'),
       probeRows: telemetryRows,
-      networkProbeRows: probeRows,
+      networkProbeRows: networkRows,
       processRows: detailCache.processRows,
       pingTargetsData: detailCache.pingTargets,
       pingTargetHistoryData: detailCache.pingTargetHistory,
@@ -2498,22 +2519,25 @@ async function repaintDetailChartsFromCache() {
   const current = state.servers.find((item) => Number(item.id) === Number(selectedServerId));
   if (!current) return;
   const historyRows = detailCache.historyRows || [];
+  const networkRows = detailCache.networkRows || [];
   const probeRows = detailCache.probeRows || [];
   const resourceRows = detailCache.resourceRows.length ? detailCache.resourceRows : probeRows;
-  const trafficUpSeries = historyRows.map((row) => Number(row.net_up || 0));
-  const trafficDownSeries = historyRows.map((row) => Number(row.net_down || 0));
-  const probeUpSeries = numericMetricSeries(probeRows, 'net_up');
-  const probeDownSeries = numericMetricSeries(probeRows, 'net_down');
-  const upSeries = smoothNumericSeries(probeUpSeries.some((v) => Math.abs(v) > 0.01) ? probeUpSeries : trafficUpSeries, 5);
-  const downSeries = smoothNumericSeries(probeDownSeries.some((v) => Math.abs(v) > 0.01) ? probeDownSeries : trafficDownSeries, 5);
+  const trafficUpSeries = networkRows.map((row) => Number(row.net_up || 0));
+  const trafficDownSeries = networkRows.map((row) => Number(row.net_down || 0));
+  // Presentation-only repaint must preserve the fixed network cache; never
+  // synthesize a six-hour chart from range-history/probe rows.
+  const upSeries = smoothNumericSeries(trafficUpSeries, 5);
+  const downSeries = smoothNumericSeries(trafficDownSeries, 5);
   const cpuSeries = numericMetricSeries(resourceRows, 'cpu_use');
   const ramSeries = numericMetricSeries(resourceRows, 'ram_use');
-  const chartLabels = historyRows.map((row, idx) => row.ts || row.time || row.timestamp || `T${idx + 1}`);
+  const chartLabels = networkRows.length
+    ? networkRows.map((row, idx) => row.ts || row.time || row.timestamp || row.created_at || `T${idx + 1}`)
+    : historyRows.map((row, idx) => row.ts || row.time || row.timestamp || `T${idx + 1}`);
   const probeLabels = probeRows.map((row, idx) => row.created_at ? new Date(row.created_at).toLocaleTimeString(uiLocaleTag(), clockOptions({ hour: '2-digit', minute: '2-digit' })) : `P${idx + 1}`);
   await renderDetailMonitorCharts({
     chartLabels, upSeries, downSeries, pingData: null, probeLabels,
     cpuSeries, ramSeries, probeRows: resourceRows,
-    networkProbeRows: probeRows,
+    networkProbeRows: networkRows,
     processRows: detailCache.processRows,
     pingTargetsData: detailCache.pingTargets,
     pingTargetHistoryData: detailCache.pingTargetHistory,
@@ -2554,12 +2578,13 @@ async function refreshDetailRealtime(serverId) {
     ]);
     // server-history is a superset of traffic/history; fetch it once and derive
     // the network series from the same rows instead of a second ProbeResult scan.
-    const [traffic, probeHistory, resourceHistory, processHistory, pingTargets, pingTargetHistory] = await Promise.allSettled([
+    const [traffic, probeHistory, resourceHistory, processHistory, networkHistory, pingTargets, pingTargetHistory] = await Promise.allSettled([
       fetchJson(`${API_ROOT}/api/v1/traffic/public/${current.id}`, { timeoutMs: 1000 }),
       fetchServerHistory(current.id, getDetailHistoryDays(), getDetailHistoryPointLimit(getDetailHistoryDays()), getDetailHistoryBucketMinutes(getDetailHistoryDays())),
       // CPU/memory and process charts use a separate raw one-hour window.
-      fetchServerHistory(current.id, resourceHistoryRequest().days, resourceHistoryRequest().limit, resourceHistoryRequest().bucketMinutes),
+      fetchResourceTimeline(current.id, resourceHistoryRequest().limit),
       fetchServerHistory(current.id, 1, 720, 0, 'process_count'),
+      fetchNetworkTimeline(current.id),
       shouldRefreshPingTargets ? settleRealtimePing(fetchPingTargets(current.id, 3)) : Promise.resolve(detailCache.pingTargets),
       shouldRefreshPingTargets ? settleRealtimePing(fetchPingTargetHistory(current.id, 6, getDetailHistoryPointLimit(getDetailHistoryDays()))) : Promise.resolve(detailCache.pingTargetHistory),
     ]);
@@ -2567,6 +2592,10 @@ async function refreshDetailRealtime(serverId) {
     const heavyProbeData = probeHistory.status === 'fulfilled' ? probeHistory.value?.data : null;
     detailCache.historyRows = normalizeHistory24h(heavyProbeData || detailCache.historyRows || []);
     detailCache.probeRows = normalizePersistedRows(heavyProbeData || detailCache.probeRows || [], Math.max(1, getDetailHistoryDays()) * 24);
+    if (networkHistory.status === 'fulfilled') {
+      const rows = normalizePersistedRows(networkHistory.value?.data || [], 6);
+      if (rows.length) detailCache.networkRows = rows;
+    }
     if (resourceHistory.status === 'fulfilled') {
       const rows = resourceTimelineRows(resourceHistory.value?.data || []);
       if (rows.length && shouldReplaceResourceTimeline(detailCache.resourceRows, rows)) detailCache.resourceRows = rows;
@@ -2589,17 +2618,18 @@ async function refreshDetailRealtime(serverId) {
     setDetailHeavyRefreshAt(now);
   }
   const historyRows = detailCache.historyRows;
+  const networkRows = detailCache.networkRows || [];
   const probeRows = detailCache.probeRows;
   const resourceRows = detailCache.resourceRows.length ? detailCache.resourceRows : probeRows;
-  const trafficUpSeries = historyRows.map((row) => Number(row.net_up || 0));
-  const trafficDownSeries = historyRows.map((row) => Number(row.net_down || 0));
-  const probeUpSeries = numericMetricSeries(probeRows, 'net_up');
-  const probeDownSeries = numericMetricSeries(probeRows, 'net_down');
-  const upSeries = smoothNumericSeries(probeUpSeries.some((v) => Math.abs(v) > 0.01) ? probeUpSeries : trafficUpSeries, 5);
-  const downSeries = smoothNumericSeries(probeDownSeries.some((v) => Math.abs(v) > 0.01) ? probeDownSeries : trafficDownSeries, 5);
+  // Realtime refresh may update the selected-range cache, but the 6h throughput
+  // card/chart must stay on its dedicated cached timeline.
+  const trafficUpSeries = networkRows.map((row) => Number(row.net_up || 0));
+  const trafficDownSeries = networkRows.map((row) => Number(row.net_down || 0));
+  const upSeries = smoothNumericSeries(trafficUpSeries, 5);
+  const downSeries = smoothNumericSeries(trafficDownSeries, 5);
   const cpuSeries = numericMetricSeries(resourceRows, 'cpu_use');
   const ramSeries = numericMetricSeries(resourceRows, 'ram_use');
-  const chartLabels = historyRows.map((row, idx) => row.ts || row.time || row.timestamp || `T${idx + 1}`);
+  const chartLabels = networkRows.map((row, idx) => row.ts || row.time || row.timestamp || row.created_at || `T${idx + 1}`);
   const probeLabels = probeRows.map((row, idx) => row.created_at ? new Date(row.created_at).toLocaleTimeString(uiLocaleTag(), clockOptions({ hour: '2-digit', minute: '2-digit' })) : `P${idx + 1}`);
   const panel = document.getElementById('detailRealtimePanels');
   const runtimeEnvironmentCard = panel?.querySelector('.runtime-env-card')?.outerHTML || '';
@@ -2620,7 +2650,7 @@ async function refreshDetailRealtime(serverId) {
   const networkHeadStrong = document.querySelector(".network-throughput-card .fleet-chart-head strong");
   if (networkHeadStrong) networkHeadStrong.textContent = `↑ ${fmtRate(currentUpKbs)} · ↓ ${fmtRate(currentDownKbs)}`;
   if (doHeavy) {
-    await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData: null, probeLabels, cpuSeries, ramSeries, probeRows: resourceRows, networkProbeRows: probeRows, processRows: detailCache.processRows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, detailDays: getDetailHistoryDays() });
+    await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData: null, probeLabels, cpuSeries, ramSeries, probeRows: resourceRows, networkProbeRows: networkRows, processRows: detailCache.processRows, pingTargetsData: detailCache.pingTargets, pingTargetHistoryData: detailCache.pingTargetHistory, detailDays: getDetailHistoryDays() });
     refreshDetailProbeTargetsNow(current.id);
   }
   window.__DBG__.DETAIL_LAST_REFRESH = { at: new Date().toISOString(), serverId, pollMs: 5000, heavy: doHeavy, processCount: processMeta.count, upKBs: currentUpKbs, downKBs: currentDownKbs, cpu: cpuSeries.slice(-1)[0] ?? current.cpu_use ?? null, ram: ramSeries.slice(-1)[0] ?? current.ram_use ?? null };

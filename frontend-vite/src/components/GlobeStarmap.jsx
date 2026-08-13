@@ -415,9 +415,10 @@ export default function GlobeStarmap({
       const r  = baseRadius * S.zoom;
       const ls = S.liveServers;
 
-      ctx.clearRect(0, 0, W, H);
-
       const lightMode = currentTheme() === "light";
+      // Transparent canvas: the detail panel's configured background remains
+      // visible around the globe instead of this renderer painting a dark slab.
+      ctx.clearRect(0, 0, W, H);
       // Ocean sphere
       const sph = ctx.createRadialGradient(cx - r*0.35, cy - r*0.35, r*0.08, cx, cy, r);
       if (lightMode) {
@@ -623,7 +624,10 @@ export default function GlobeStarmap({
 
   return (
     <div style={{
-      background: isLight ? "linear-gradient(180deg,#f7f0dc,#eadfc6)" : "#070b14",
+      // The detail starmap is an overlay inside the detail page. Its canvas draws
+      // the globe only; an opaque component shell would mask the operator-selected
+      // site/detail background and make this one panel ignore theme/background.
+      background: "transparent",
       color: isLight ? "#203438" : "#e2e8f0",
       fontFamily: "'Noto Sans SC', sans-serif",
       padding: "1.25rem",

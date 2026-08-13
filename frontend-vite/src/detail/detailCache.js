@@ -1,6 +1,8 @@
 export const detailCache = {
   traffic: null,
   historyRows: [],
+  // Dedicated bounded six-hour throughput buckets; separate from selected-range history.
+  networkRows: [],
   probeRows: [],
   // Fixed one-hour raw telemetry for CPU/memory/process charts. Long-range
   // history remains separately bucketed for the network chart.
@@ -22,6 +24,7 @@ export const detailCache = {
 export function resetDetailCache() {
   detailCache.traffic = null;
   detailCache.historyRows = [];
+  detailCache.networkRows = [];
   detailCache.probeRows = [];
   detailCache.resourceRows = [];
   detailCache.processRows = [];

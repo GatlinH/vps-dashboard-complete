@@ -24,6 +24,7 @@ import { getDashboardDebug, getGlobeRuntimeDebug } from '../utils/debugState.js'
 import * as Cesium from 'cesium';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 import { getServerCoords } from './globe-utils.js';
+import { applyCesiumTheme } from './globe/runtime/sceneSetup.js';
 import { rebuildVpsEntities } from './globe/vpsEntities.js';
 import { installVisitorBeacon } from './globe/runtime/visitorBeacon.js';
 import { installPlaceLabels, updatePlaceLabels, updateHtmlNodeLabels } from './globe/runtime/labelOverlay.js';
@@ -460,6 +461,8 @@ export class CesiumGlobe {
     } catch (_) {}
 
     this._setupScene();
+    this._onThemeChanged = (event) => applyCesiumTheme(this.viewer, event?.detail?.theme);
+    window.addEventListener('vps-theme-changed', this._onThemeChanged);
     this._setupNativeCamera();
     this._installImagery();
     this._installWorldTerrain();
@@ -627,8 +630,9 @@ export class CesiumGlobe {
   _setupScene() {
     const scene = this.viewer.scene;
     const globe = scene.globe;
-    scene.backgroundColor = Cesium.Color.TRANSPARENT;
-    globe.baseColor = Cesium.Color.fromCssColorString('#1b4f7c');
+    // Theme state must enter Cesium itself; CSS/body backgrounds cannot recolor
+    // the WebGL canvas. Apply after viewer construction and on every theme event.
+    applyCesiumTheme(this.viewer);
     globe.enableLighting = false;            // 永久关闭真实昼夜光照, 避免旋转到任何角度仍死黑
     globe.dynamicAtmosphereLighting = false;
     globe.dynamicAtmosphereLightingFromSun = false;
@@ -1228,6 +1232,7 @@ export class CesiumGlobe {
     this._starshipNativeRadius = null;
     if (this._raf) { try { cancelAnimationFrame(this._raf); } catch (_) {} this._raf = null; }
     if (this._resumeTimer) { try { clearTimeout(this._resumeTimer); } catch (_) {} this._resumeTimer = null; }
+    if (this._onThemeChanged) window.removeEventListener('vps-theme-changed', this._onThemeChanged);
     try {
       const canvas = this.viewer?.scene?.canvas;
       if (canvas && this._onPointerDown) canvas.removeEventListener('pointerdown', this._onPointerDown, true);
