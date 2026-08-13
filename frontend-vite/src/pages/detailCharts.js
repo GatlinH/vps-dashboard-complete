@@ -679,21 +679,14 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     if (!xs.length) return { min: axis12hBounds.min, max: axis12hBounds.max, step: axis12hBounds.step, mode: 'fallback-shared-axis' };
     const dataFirst = xs[0];
     const dataLast = xs[xs.length - 1];
-    // Pinning the left edge to dataFirst collapses the axis during cold start /
-    // right after a cache flush: with two samples a few seconds apart, min lands
-    // flush against max, so `(max - min) / 4` yielded a sub-minute step, EVERY
-    // tick formatted to the same clock label, and the two-point line was stretched
-    // flat across the full card width — indistinguishable from "1 hour of totally
-    // idle CPU". Anchor the window to the newest sample and keep a floor on the
-    // drawn span so a sparse series renders as a short trace inside a real hour.
-    const minVisibleSpan = Math.min(fullSpan, 10 * 60 * 1000);
+    // CPU/RAM charts promise a one-hour timeline. The newest real persisted
+    // sample is the right edge; the left edge is exactly one hour before it.
+    // Collapsing to a 10-minute "minimum visible span" makes a sparse/cold series
+    // look like it starts at the right and destroys the declared time contract.
     const spanned = Math.max(0, dataLast - dataFirst);
-    const span = Math.min(fullSpan, Math.max(spanned, minVisibleSpan));
     const max = dataLast;
-    const min = max - span;
-    // span / 4 is always >= 2.5min given the floor above, so this yields exactly
-    // 5 distinct ticks; the 60s clamp is now only a defensive backstop.
-    return { min, max, step: Math.max(60 * 1000, Math.round(span / 4)), mode: spanned >= minVisibleSpan ? 'anchored-to-own-samples' : 'floored-min-span', spanMs: span, dataSpanMs: spanned };
+    const min = max - fullSpan;
+    return { min, max, step: Math.max(60 * 1000, Math.round(fullSpan / 4)), mode: 'fixed-window-ending-at-last-sample', spanMs: fullSpan, dataSpanMs: spanned };
   };
   const cpuAxisBounds = seriesOwnBounds(cpuDisplaySeries);
   const ramAxisBounds = seriesOwnBounds(ramDisplaySeries);
