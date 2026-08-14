@@ -11,7 +11,11 @@ from sqlalchemy.orm import load_only
 from sqlalchemy import func
 from extensions import db, redis_client
 from models.models import Server, ProbeResult
-from services.telemetry_rollups import query_hourly_telemetry_rollups, serialize_hourly_telemetry_rollup
+from services.telemetry_rollups import (
+    mysql_epoch_bucket_expression,
+    query_hourly_telemetry_rollups,
+    serialize_hourly_telemetry_rollup,
+)
 from middleware.rbac import admin_required, viewer_or_admin_required
 from werkzeug.exceptions import HTTPException
 from utils.errors import ValidationError, InternalServerError
@@ -99,7 +103,7 @@ def get_public_traffic_history(sid):
         if bucket_minutes:
             bucket_minutes = max(1, min(1440, int(bucket_minutes)))
             bucket_seconds = bucket_minutes * 60
-            bucket_expr = (func.floor(func.unix_timestamp(ProbeResult.created_at) / bucket_seconds) * bucket_seconds).label('bucket_ts')
+            bucket_expr = mysql_epoch_bucket_expression(ProbeResult.created_at, bucket_seconds=bucket_seconds)
             rows = (
                 db.session.query(
                     bucket_expr,

@@ -17,7 +17,11 @@ from sqlalchemy import func, or_
 from extensions import db
 import extensions
 from models.models import Server, ProbeResult, AgentCommand, record_ops_event
-from services.telemetry_rollups import query_hourly_telemetry_rollups, serialize_hourly_telemetry_rollup
+from services.telemetry_rollups import (
+    mysql_epoch_bucket_expression,
+    query_hourly_telemetry_rollups,
+    serialize_hourly_telemetry_rollup,
+)
 from services.server_groups import assign_server_group
 from utils.errors import ValidationError, InternalServerError
 from middleware.rbac import admin_required, viewer_or_admin_required, owner_required
@@ -686,7 +690,7 @@ def get_public_history(sid):
         # SQLite's test dialect has no UNIX_TIMESTAMP, so retain a small explicit
         # compatibility fallback only for the test/dev database.
         if db.session.get_bind().dialect.name == 'mysql':
-            bucket_expr = (func.floor(func.unix_timestamp(ProbeResult.created_at) / bucket_seconds) * bucket_seconds).label('bucket_ts')
+            bucket_expr = mysql_epoch_bucket_expression(ProbeResult.created_at, bucket_seconds=bucket_seconds)
             rows = (db.session.query(
                 bucket_expr,
                 func.avg(ProbeResult.net_up).label('net_up'),
@@ -753,7 +757,7 @@ def get_public_history(sid):
     if bucket_minutes:
         bucket_minutes = max(1, min(1440, int(bucket_minutes)))
         bucket_seconds = bucket_minutes * 60
-        bucket_expr = (func.floor(func.unix_timestamp(ProbeResult.created_at) / bucket_seconds) * bucket_seconds).label('bucket_ts')
+        bucket_expr = mysql_epoch_bucket_expression(ProbeResult.created_at, bucket_seconds=bucket_seconds)
         rows = (
             db.session.query(
                 bucket_expr,

@@ -167,8 +167,11 @@ def app():
     """创建测试应用实例"""
     application = create_app(**_TEST_CONFIG)
 
-    # 优先使用 fakeredis；受限环境下回退到内存实现，避免依赖外部服务
+    # 优先使用 fakeredis；受限环境下回退到内存实现，避免依赖外部服务。
+    # 保留在测试 app 的私有属性上，作为 session 内的权威客户端：部分测试会
+    # 额外调用 create_app()，其 init_redis() 会改写 extensions.redis_client。
     fake_redis = fakeredis.FakeRedis(decode_responses=True) if fakeredis else _InMemoryRedis()
+    application._test_redis_client = fake_redis
     extensions.redis_client = fake_redis
 
     with application.app_context():
@@ -201,11 +204,10 @@ def reset_db(app):
             # 某些独立测试会自建最小 Flask app（未绑定 SQLAlchemy），直接跳过 DB 处理
             yield
             return
-        # 清空 Redis 缓存，避免跨测试缓存污染
-        try:
-            extensions.redis_client.flushdb()
-        except Exception:
-            pass
+        # create_app() is also exercised by some tests and init_redis() mutates the
+        # module-global client. Restore this session app's fake before every test.
+        extensions.redis_client = app._test_redis_client
+        extensions.redis_client.flushdb()
         # 清空 flask-limiter 计数，避免跨测试累计命中 /auth/login 速率限制
         try:
             app.limiter.reset()

@@ -4,10 +4,22 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Mapping
 
+from sqlalchemy import func
+
 from extensions import db
 from models.models import TelemetryRollup
 
 HOURLY_RESOLUTION_MINUTES = 60
+
+
+def mysql_epoch_bucket_expression(timestamp_column, *, bucket_seconds: int):
+    """Return the canonical MySQL epoch bucket expression used by raw telemetry APIs."""
+    seconds = int(bucket_seconds)
+    if seconds <= 0:
+        raise ValueError("bucket_seconds must be positive")
+    return (
+        func.floor(func.unix_timestamp(timestamp_column) / seconds) * seconds
+    ).label("bucket_ts")
 
 
 def _utc_naive_hour(value: datetime | None = None) -> datetime:

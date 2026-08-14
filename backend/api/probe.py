@@ -851,42 +851,6 @@ def _fetch_ping_target_history(server_id, hours=12, limit=2000, target_keys=None
     return [dict(r) for r in rows]
 
 
-
-def _backend_fallback_probe_peer_targets(server_id, targets):
-    if not targets:
-        return False
-    results = []
-    for t in targets:
-        host = t.get("host") or t.get("label")
-        port = t.get("port") or 22
-        if not host:
-            continue
-        try:
-            import socket, time
-            start = time.time()
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(3)
-            result = sock.connect_ex((str(host), int(port)))
-            elapsed = (time.time() - start) * 1000
-            sock.close()
-            if result == 0:
-                t["stats"] = {"avg_ms": round(elapsed, 1), "loss_pct": 0, "count": 1}
-                t["quality"] = "good" if elapsed < 100 else ("fair" if elapsed < 300 else "poor")
-                t["source"] = "backend-fallback"
-                results.append(t)
-            else:
-                t["stats"] = {"avg_ms": None, "loss_pct": 100, "count": 0}
-                t["quality"] = "dead"
-                t["source"] = "backend-fallback"
-                results.append(t)
-        except Exception as e:
-            t["stats"] = {"avg_ms": None, "loss_pct": 100, "count": 0, "error": str(e)[:200]}
-            t["quality"] = "dead"
-            t["source"] = "backend-fallback"
-            results.append(t)
-    if results:
-        _persist_ping_target_results(server_id, results)
-    return bool(results)
 @probe_bp.get("/public/ping-targets/<int:sid>/history")
 def public_ping_targets_history(sid):
     server = Server.query.get(sid)
