@@ -81,7 +81,9 @@ def test_http_ping_connects_to_pinned_ip_and_keeps_https_hostname(monkeypatch):
         def close(self):
             captured['closed'] = True
 
-    monkeypatch.setattr(probe.urllib3, 'HTTPSConnectionPool', Pool)
+    from services import probe_protocols
+
+    monkeypatch.setattr(probe_protocols.urllib3, 'HTTPSConnectionPool', Pool)
     result = probe.http_ping('https://public.example.test/health?x=1', timeout=1, connect_host='198.51.100.42')
 
     assert result['success'] is True
@@ -94,6 +96,34 @@ def test_http_ping_connects_to_pinned_ip_and_keeps_https_hostname(monkeypatch):
     assert captured['path'] == '/health?x=1'
     assert captured['request_kwargs']['redirect'] is False
     assert captured['closed'] is True
+
+
+def test_run_probe_once_forwards_pinned_ip_to_http_probe(monkeypatch):
+    import api.probe as probe
+
+    captured = {}
+
+    def fake_http_ping(host, port, timeout, connect_host=None):
+        captured.update(
+            host=host,
+            port=port,
+            timeout=timeout,
+            connect_host=connect_host,
+        )
+        return {'success': True, 'latency_ms': 4.0}
+
+    monkeypatch.setattr(probe, 'http_ping', fake_http_ping)
+
+    result = probe.run_probe_once(
+        'http',
+        'https://public.example.test/health',
+        443,
+        timeout=2,
+        connect_host='198.51.100.42',
+    )
+
+    assert captured['connect_host'] == '198.51.100.42'
+    assert result['protocol'] == 'http'
 
 
 def test_http_probe_stats_passes_resolved_public_ip_to_runner(monkeypatch):

@@ -7,12 +7,8 @@ import time
 from datetime import datetime, timezone, timedelta
 import json
 import os
-import re
-import subprocess
 from urllib.parse import urlparse
 import requests
-import urllib3
-from urllib.parse import urlencode
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, request, jsonify, current_app
 from extensions import db
@@ -422,83 +418,42 @@ def _load_ping_targets():
 
 
 
-# ── TCP Ping ─────────────────────────────────────────────────────────────────
+# Protocol implementations live outside the Flask route module. Re-export the
+# established names here so existing callers and route-level tests remain stable.
+from services import probe_protocols as _probe_protocols
 
-def tcp_ping(host: str, port: int, timeout: float = 5.0) -> dict:
-    """
-    单次 TCP 连接测试。
-    返回 { success, latency_ms, error }
-    """
-    start = time.perf_counter()
-    try:
-        target = str(host or "").strip().strip("[]")
-        if ":" in target:
-            # IPv6 targets are probed via an optional on-host helper (the API
-            # container cannot open raw IPv6 sockets in some deployments). The
-            # helper URL must be configured explicitly; there is no hardcoded
-            # docker-bridge default (was: http://172.18.0.1:9117/tcp), which
-            # broke silently whenever the bridge subnet differed.
-            helper = os.getenv("HOST_PROBE_HELPER_URL", "").strip()
-            if helper:
-                try:
-                    url = helper + "?" + urlencode({"host": target, "port": int(port), "timeout": float(timeout)})
-                    resp = requests.get(url, timeout=timeout + 1)
-                    if resp.ok:
-                        data = resp.json()
-                        return {
-                            "success": bool(data.get("success")),
-                            "latency_ms": data.get("latency_ms"),
-                            "error": data.get("error"),
-                        }
-                    return {"success": False, "latency_ms": None, "error": f"helper HTTP {resp.status_code}"}
-                except Exception as helper_exc:
-                    return {"success": False, "latency_ms": None, "error": f"helper: {helper_exc}"}
-        family = socket.AF_INET6 if ":" in target else socket.AF_INET
-        sock = socket.socket(family, socket.SOCK_STREAM)
-        sock.settimeout(timeout)
-        result = sock.connect_ex((target, port))
-        elapsed = (time.perf_counter() - start) * 1000
-        sock.close()
-        if result == 0:
-            return {"success": True, "latency_ms": round(elapsed, 2), "error": None}
-        else:
-            return {"success": False, "latency_ms": None, "error": f"errno {result}"}
-    except socket.timeout:
-        return {"success": False, "latency_ms": None, "error": "timeout"}
-    except Exception as e:
-        return {"success": False, "latency_ms": None, "error": str(e)}
+tcp_ping = _probe_protocols.tcp_ping
+icmp_ping = _probe_protocols.icmp_ping
+http_ping = _probe_protocols.http_ping
+_http_probe_url = _probe_protocols.http_probe_url
+_normalize_probe_protocol = _probe_protocols.normalize_probe_protocol
 
 
-def _normalize_probe_protocol(value) -> str:
-    proto = str(value or "tcp").strip().lower()
-    if proto == "lcmp":
-        proto = "icmp"
-    return proto if proto in {"tcp", "icmp", "http"} else "tcp"
-
-
-def _http_probe_url(host: str, port: int | None = None) -> str:
-    """Build a valid HTTP URL from a host, including a bare IPv6 literal."""
-    raw = (host or "").strip()
-    if raw.startswith(("http://", "https://")):
-        return raw
-    target = raw.strip("[]")
-    try:
-        is_v6 = ipaddress.ip_address(target).version == 6
-    except ValueError:
-        is_v6 = False
-    authority = f"[{target}]" if is_v6 else target
-    if port and port not in (80, 443):
-        return f"http://{authority}:{int(port)}"
-    return f"http://{authority}"
-
-
+def run_probe_once(
+    protocol: str,
+    host: str,
+    port: int,
+    timeout: float = 5.0,
+    connect_host: str | None = None,
+) -> dict:
+    # Keep dispatch local so route-level monkeypatches of api.probe.* continue to
+    # work while protocol implementations remain isolated from Flask concerns.
+    protocol = _normalize_probe_protocol(protocol)
+    target = connect_host or host
+    if protocol == "icmp":
+        result = icmp_ping(target, timeout)
+    elif protocol == "http":
+        result = http_ping(host, port, timeout, connect_host=connect_host)
+    else:
+        result = tcp_ping(target, port, timeout)
+    result["protocol"] = protocol
+    return result
 def _is_public_probe_hostname(hostname: str) -> bool:
     """Reject loopback/private/link-local/reserved targets for anonymous probes."""
     name = (hostname or "").strip().strip("[]")
     if not name:
         return False
     lowered = name.lower().rstrip(".")
-    # Block cloud metadata endpoints (SSRF prevention)
     if name in {"169.254.169.254", "metadata.google.internal"}:
         return False
     if lowered in {"localhost", "localhost.localdomain"}:
@@ -533,90 +488,6 @@ def _validate_probe_target(protocol: str, host: str) -> bool:
             return False
         return validate_ip_or_hostname(parsed.hostname) and _is_public_probe_hostname(parsed.hostname)
     return validate_ip_or_hostname(host) and _is_public_probe_hostname(host)
-
-
-def icmp_ping(host: str, timeout: float = 5.0) -> dict:
-    start = time.perf_counter()
-    try:
-        target = str(host or "").strip().strip("[]")
-        try:
-            is_v6 = ipaddress.ip_address(target).version == 6
-        except ValueError:
-            is_v6 = False
-        cmd = ["ping", "-6"] if is_v6 else ["ping"]
-        cmd += ["-c", "1", "-W", str(max(1, int(timeout))), target]
-        proc = subprocess.run(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout + 1,
-        )
-        out = (proc.stdout or "") + "\n" + (proc.stderr or "")
-        if proc.returncode == 0:
-            m = re.search(r"time[=<]([0-9.]+)\s*ms", out)
-            latency = float(m.group(1)) if m else (time.perf_counter() - start) * 1000
-            return {"success": True, "latency_ms": round(latency, 2), "error": None}
-        return {"success": False, "latency_ms": None, "error": (out.strip().splitlines()[-1] if out.strip() else f"exit {proc.returncode}")[:160]}
-    except FileNotFoundError:
-        return {"success": False, "latency_ms": None, "error": "ping command unavailable"}
-    except subprocess.TimeoutExpired:
-        return {"success": False, "latency_ms": None, "error": "timeout"}
-    except Exception as e:
-        return {"success": False, "latency_ms": None, "error": str(e)}
-
-
-def http_ping(host: str, port: int | None = None, timeout: float = 5.0, connect_host: str | None = None) -> dict:
-    """Probe HTTP over a pre-resolved public IP without a second DNS lookup.
-
-    ``connect_host`` is a validated address from ``resolve_public_host_addresses``.
-    The authority remains the original hostname for HTTP Host and HTTPS SNI/cert
-    validation, while the socket itself is pinned to the address we validated.
-    """
-    url = _http_probe_url(host, port)
-    parsed = urlparse(url)
-    origin_host = parsed.hostname or str(host or "").strip().strip("[]")
-    connect_ip = str(connect_host or origin_host).strip().strip("[]")
-    scheme = parsed.scheme or "http"
-    target_port = parsed.port or (443 if scheme == "https" else 80)
-    path = (parsed.path or "/") + (f"?{parsed.query}" if parsed.query else "")
-    start = time.perf_counter()
-    try:
-        headers = {"User-Agent": "vps-dashboard-probe/1.0", "Host": origin_host}
-        pool_cls = urllib3.HTTPSConnectionPool if scheme == "https" else urllib3.HTTPConnectionPool
-        pool_kwargs = {"retries": False, "timeout": urllib3.Timeout(total=timeout), "headers": headers}
-        if scheme == "https":
-            # urllib3 connects to connect_ip but sends original hostname as SNI
-            # and validates the certificate against it.
-            pool_kwargs["server_hostname"] = origin_host
-            pool_kwargs["assert_hostname"] = origin_host
-        pool = pool_cls(connect_ip, port=target_port, **pool_kwargs)
-        try:
-            resp = pool.request("GET", path, redirect=False, preload_content=False)
-            status_code = int(resp.status)
-            resp.release_conn()
-        finally:
-            pool.close()
-        elapsed = (time.perf_counter() - start) * 1000
-        ok = 100 <= status_code < 500
-        return {"success": ok, "latency_ms": round(elapsed, 2) if ok else None, "error": None if ok else f"HTTP {status_code}", "status_code": status_code, "url": url}
-    except (urllib3.exceptions.ConnectTimeoutError, urllib3.exceptions.ReadTimeoutError):
-        return {"success": False, "latency_ms": None, "error": "timeout", "url": url}
-    except Exception as e:
-        return {"success": False, "latency_ms": None, "error": str(e), "url": url}
-
-
-def run_probe_once(protocol: str, host: str, port: int, timeout: float = 5.0, connect_host: str | None = None) -> dict:
-    # M-3: connect_host, when provided, is a pre-resolved public IP pinned by the
-    # caller. Connecting to it (instead of re-resolving `host`) closes the DNS
-    # rebinding / TOCTOU window between validation and connect. `host` is still
-    # used for display and, for http, the Host header / URL.
-    protocol = _normalize_probe_protocol(protocol)
-    target = connect_host or host
-    if protocol == "icmp":
-        r = icmp_ping(target, timeout)
-    elif protocol == "http":
-        r = http_ping(host, port, timeout)
-    else:
-        r = tcp_ping(target, port, timeout)
-    r["protocol"] = protocol
-    return r
 
 
 def _probe_stats(protocol: str, host: str, port: int, count: int, timeout: float, max_workers: int = 5):
