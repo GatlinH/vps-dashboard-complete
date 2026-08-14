@@ -3,32 +3,8 @@
  * 适配美化版 admin.html 的后台逻辑
  */
 
-import './styles/admin.css'; // 确保引入样式
-import './styles/hermes_admin_polish_20260706.css';
-import './styles/hermes_admin_ui_hardening_20260706.css';
-import './styles/hermes_admin_ops_diagnostics_20260706.css';
-import './styles/hermes_admin_spacing_sessions_20260706.css';
-import './styles/hermes_admin_verified_fixes_20260706.css';
-import './styles/hermes_admin_table_sticky_actions_20260706.css';
-import './styles/hermes_admin_session_audit_20260706.css';
-import './styles/hermes_admin_ui_audit_fixes_20260706.css';
-import './styles/hermes_admin_ui_audit_final_20260706.css';
-import './styles/hermes_admin_user_reported_fixes_20260706.css';
-import './styles/hermes_admin_node_table_complete_20260706.css';
-import './styles/hermes_admin_node_table_readability_20260706.css';
-import './styles/hermes_admin_node_table_clean_select_20260706.css';
-import './styles/hermes_admin_node_checkbox_square_20260706.css';
-import './styles/hermes_admin_ops_filter_spacing_20260706.css';
-import './styles/hermes_admin_settings_ops_functional_20260706.css';
-import './styles/hermes_admin_site_settings_redesign_20260707.css';
-import './styles/hermes_admin_site_settings_layout_fix_20260707.css';
-import './styles/hermes_admin_notify_management_bottom_20260707.css';
-import './styles/hermes_admin_proxy_redesign_20260707.css';
-import './styles/hermes_admin_manual_updates_20260707.css';
-import './styles/hermes_admin_proxy_spacing_fix_20260707.css';
-import './styles/hermes_admin_proxy_lift_20260707.css';
-import './styles/hermes_admin_theme_followups_20260707.css';
-import './styles/hermes_admin_mobile_hotfix_20260708.css';
+import './styles/admin.css';
+import './styles/admin-legacy-overrides.css';
 import { applyAdminTextLanguage, initAdminTextI18nObserver } from './admin-i18n-runtime.js';
 import { logout, checkSession } from './api/auth.js';
 import { ServerManager } from './components/admin/ServerManager.js';
