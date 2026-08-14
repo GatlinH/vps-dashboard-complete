@@ -19,9 +19,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.interval     import IntervalTrigger
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR, EVENT_JOB_MISSED
 from middleware.metrics_middleware import record_scheduler_job, record_alert_fired
+from services.scheduler_registration import register_scheduler_jobs
 
 log = logging.getLogger(__name__)
 
@@ -195,85 +195,26 @@ def create_scheduler(app):
 
     scheduler = BackgroundScheduler(timezone=tz_name)
 
+    def _run_storage_monitor(target_app):
+        from services.storage_monitor import _job_storage_monitor
+        _job_storage_monitor(target_app)
+
+    callbacks = {
+        "tcp_ping": _job_tcp_ping,
+        "fetch_probes": _job_fetch_probes,
+        "check_alerts": _job_check_alerts,
+        "cleanup": _job_cleanup,
+        "traffic_accumulate": _job_traffic_accumulate,
+        "monthly_traffic_reset": _job_monthly_traffic_reset,
+        "traffic_alerts": _job_traffic_alerts,
+        "tg_bot_updates": _job_tg_bot_updates,
+        "audit_log_cleanup": _job_audit_log_cleanup,
+        "agent_command_cleanup": _job_agent_command_cleanup,
+        "probe_partition_maintain": _job_probe_partition_maintain,
+        "storage_monitor": _run_storage_monitor,
+    }
     with app.app_context():
-        # ── 任务注册 ────────────────────────────────────────────────────────
-        scheduler.add_job(
-            func=lambda: _job_tcp_ping(app),
-            trigger=IntervalTrigger(seconds=20),
-            id="tcp_ping", name="TCP Ping 所有服务器",
-            replace_existing=True, misfire_grace_time=10,
-        )
-        scheduler.add_job(
-            func=lambda: _job_fetch_probes(app),
-            trigger=IntervalTrigger(seconds=30),
-            id="fetch_probes", name="抓取探针数据",
-            replace_existing=True, misfire_grace_time=15,
-        )
-        scheduler.add_job(
-            func=lambda: _job_check_alerts(app),
-            trigger=IntervalTrigger(seconds=60),
-            id="check_alerts", name="告警规则检查",
-            replace_existing=True, misfire_grace_time=20,
-        )
-        scheduler.add_job(
-            func=lambda: _job_cleanup(app),
-            trigger="cron", hour=2, minute=0,
-            id="cleanup", name="历史数据清理（每天凌晨 2 点）",
-            replace_existing=True,
-        )
-        scheduler.add_job(
-            func=lambda: _job_traffic_accumulate(app),
-            trigger=IntervalTrigger(seconds=30),
-            id="traffic_accumulate", name="流量实时累积",
-            replace_existing=True, misfire_grace_time=15,
-        )
-        scheduler.add_job(
-            func=lambda: _job_monthly_traffic_reset(app),
-            trigger="cron", hour=0, minute=5,
-            id="monthly_traffic_reset", name="月度流量重置",
-            replace_existing=True,
-        )
-        scheduler.add_job(
-            func=lambda: _job_traffic_alerts(app),
-            trigger=IntervalTrigger(seconds=120),
-            id="traffic_alerts", name="流量超限告警",
-            replace_existing=True, misfire_grace_time=30,
-        )
-        scheduler.add_job(
-            func=lambda: _job_tg_bot_updates(app),
-            trigger=IntervalTrigger(seconds=15),
-            id="tg_bot_updates", name="Telegram bot 命令轮询",
-            replace_existing=True, misfire_grace_time=10,
-        )
-        scheduler.add_job(
-            func=lambda: _job_audit_log_cleanup(app),
-            trigger="cron", day_of_week="sun", hour=3, minute=0,
-            id="audit_log_cleanup", name="审计日志归档（每周日凌晨 3 点）",
-            replace_existing=True,
-        )
-        scheduler.add_job(
-            func=lambda: _job_agent_command_cleanup(app),
-            trigger="cron", hour=4, minute=0,
-            id="agent_command_cleanup", name="过期 Agent 命令清理（每天凌晨 4 点）",
-            replace_existing=True,
-        )
-        scheduler.add_job(
-            func=lambda: _job_probe_partition_maintain(app),
-            trigger="cron", hour=1, minute=30,
-            id="probe_partition_maintain",
-            name="ProbeResult 分区预创建（每天凌晨 1:30）",
-            replace_existing=True,
-        )
-        def _run_storage_monitor():
-            from services.storage_monitor import _job_storage_monitor
-            _job_storage_monitor(app)
-        scheduler.add_job(
-            func=_run_storage_monitor,
-            trigger="cron", hour=2, minute=30,
-            id="storage_monitor",
-            name="存储/保留健康检查（每天凌晨 2:30）",
-            replace_existing=True,
-        )
+        register_scheduler_jobs(scheduler, app, callbacks)
 
     scheduler.add_listener(_build_scheduler_listener(app), EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED)
 
