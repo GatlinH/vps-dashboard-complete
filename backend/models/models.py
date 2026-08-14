@@ -9,6 +9,7 @@ import os
 from datetime import datetime, timezone, date
 from extensions import db
 from models.audit_log import AuditLog  # re-export for backward compatibility
+from services.server_serialization import serialize_public_server
 from utils.crypto import CryptoManager, EncryptedString
 
 logger = logging.getLogger(__name__)
@@ -309,56 +310,8 @@ class Server(db.Model):
             ))
         
         if public_only:
-            # Public homepage/detail APIs must expose only display-safe fields.
-            # Expose a sanitized display remark under public_note so the globe
-            # can honor the admin-configured public remark without leaking the
-            # raw internal note field/key.
-            raw_public_note = str(self.note or "").strip()
-            if raw_public_note:
-                d["public_note"] = raw_public_note[:160]
-                d["publicRemark"] = d["public_note"]
-            elif str(d.get("location") or "").strip() and not str(d.get("region") or "").strip():
-                d["public_note"] = d["location"]
+            return serialize_public_server(d, note=self.note)
 
-            # Never leak agent identifiers/config, raw inventory metadata, raw
-            # note key, probe URLs, or full origin IPs to anonymous visitors.
-            sensitive_keys = (
-                "probe", "note", "uuid", "agent_config",
-                "provider_guess",
-            )
-            for key in sensitive_keys:
-                d.pop(key, None)
-
-            def _mask_ip(value):
-                raw = str(value or "").strip()
-                if not raw:
-                    return ""
-                parts = raw.split(".")
-                if len(parts) == 4 and all(part.isdigit() for part in parts):
-                    return f"{parts[0]}.{parts[1]}.*.*"
-                if ":" in raw:
-                    head = raw.split(":", 1)[0]
-                    return f"{head}:***" if head else "***"
-                if len(raw) <= 6:
-                    return "***"
-                return raw[:3] + "***" + raw[-2:]
-
-            d["ip"] = _mask_ip(d.get("ip"))
-            for key in ("city", "region", "country"):
-                d[key] = str(d.get(key) or "")[:64]
-
-            # Coarsen runtime inventory for anonymous/public APIs. Exact kernel
-            # patch strings are useful for target fingerprinting; keep precise
-            # values only in internal/admin data.
-            raw_os = str(d.get("os") or "").strip()
-            if raw_os:
-                d["os"] = raw_os.split("(", 1)[0].strip()[:80]
-            raw_kernel = str(d.get("kernel_version") or "").strip()
-            if raw_kernel:
-                kernel_family = raw_kernel.split("-", 1)[0]
-                parts = kernel_family.split(".")
-                d["kernel_version"] = ".".join(parts[:2]) if len(parts) >= 2 else kernel_family[:16]
-        
         return d
 
 
