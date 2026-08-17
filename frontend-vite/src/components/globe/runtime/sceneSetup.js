@@ -31,6 +31,8 @@ export function setupCesiumScene(viewer, {
   const scene = viewer.scene;
   const globe = scene.globe;
 
+  // Theme state is renderer-owned, not a CSS-only body background.
+  applyCesiumTheme(viewer);
   // Avoid pale tile seams near poles; applyCesiumTheme supplies the theme base.
   globe.showGroundAtmosphere = true;
   globe.enableLighting = false;
