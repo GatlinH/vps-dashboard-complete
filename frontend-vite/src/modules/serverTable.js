@@ -147,8 +147,8 @@ function relocalizeDetailChartTitles(root = document) {
     ? t('rangeRealtime')
     : `${bucketMinutes}${t('rangeMinuteSampling')}`;
   const titles = {
-    network: `${t('chartNetworkThroughput')} · ${detailDays === 0 ? t('rangeRealtime') : `${detailDays}${t('rangeDayUnit')}`}${sampleLabel ? ` · ${sampleLabel}` : ''}`,
-    ping: `${t('chartPingLatency')} · ${detailDays === 0 ? t('rangeRealtime') : `${detailDays}${t('rangeDayUnit')}`} · ${t('chartDropLeavesGap')}`,
+    network: `${t('chartNetworkThroughput')} · ${detailDays === 0 ? t('chartHours6') : `${detailDays}${t('rangeDayUnit')}`}${sampleLabel ? ` · ${sampleLabel}` : ''}`,
+    ping: `${t('chartPingLatency')} · ${detailDays === 0 ? t('chartHours6') : `${detailDays}${t('rangeDayUnit')}`} · ${t('chartDropLeavesGap')}`,
     cpu: `${t('chartCpuUsage')} · ${t('chartHours1')} · ${t('chartRealtimeSampling')}`,
     memory: `${t('chartMemoryUsage')} · ${t('chartHours1')} · ${t('chartRealtimeSampling')}`,
     process: `${t('chartProcessCount')} · ${t('chartHours1')}`,
@@ -1900,11 +1900,11 @@ async function renderDetailPage(serverId) {
   bindTopbarEvents(app);
   updateRateDisplay();
   const isMobileDetail = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
-  const historyDays = detailDays === 0 ? 1 / 24 : detailDays;
+  const historyDays = detailDays === 0 ? 6 / 24 : detailDays;
   // Fixed range budgets: 1d/5m=288 points, 4d/20m=288, 7d/1h=168.
   // Never return a full raw one-second day (21,600 rows / multi-MB JSON).
   const historyLimit = getDetailHistoryPointLimit(detailDays);
-  const targetHistoryHours = detailDays === 0 ? 1 : detailDays * 24;
+  const targetHistoryHours = detailDays === 0 ? 6 : detailDays * 24;
   const settleWithin = (promise, timeoutMs, label) => Promise.race([
     promise.then((value) => ({ status: 'fulfilled', value }), (reason) => ({ status: 'rejected', reason })),
     new Promise((resolve) => setTimeout(() => resolve({ status: 'rejected', reason: new Error(`${label || 'detail'} timeout`) }), timeoutMs)),
@@ -2256,9 +2256,9 @@ async function refreshDetailHistoryRange(serverId) {
   const requestedDetailDays = Number(getDetailHistoryDays());
   const detailDays = [0, 1, 4, 7, 30, 90].includes(requestedDetailDays) ? requestedDetailDays : 1;
   const bucketMinutes = getDetailHistoryBucketMinutes(detailDays);
-  const historyDays = detailDays === 0 ? 1 / 24 : detailDays;
+  const historyDays = detailDays === 0 ? 6 / 24 : detailDays;
   const limit = getDetailHistoryPointLimit(detailDays);
-  const targetHours = detailDays === 0 ? 1 : detailDays * 24;
+  const targetHours = detailDays === 0 ? 6 : detailDays * 24;
   const startedAt = performance.now();
   window.__DBG__.DETAIL_RANGE_REFRESH = { serverId: Number(serverId), detailDays, bucketMinutes, status: 'loading' };
   document.querySelector('.history-range-bar')?.setAttribute('aria-busy', 'true');
@@ -2333,7 +2333,7 @@ async function refreshDetailHistoryRange(serverId) {
     });
     const label = document.querySelector('.history-range-label');
     if (label) label.textContent = `${detailDays === 0 ? t('rangeRealtime') : `${detailDays}${t('rangeDayUnit')}`} · ${bucketMinutes === 0 ? t('rangeRealtime') : `${bucketMinutes}${t('rangeMinuteSampling')}`}`;
-    const rangeWindowLabel = detailDays === 0 ? t('rangeRealtime') : `${detailDays}${t('rangeDayUnit')}`;
+    const rangeWindowLabel = detailDays === 0 ? t('chartHours6') : `${detailDays}${t('rangeDayUnit')}`;
     const networkTitle = document.querySelector('[data-i18n-chart="network"]');
     const pingTitle = document.querySelector('[data-i18n-chart="ping"]');
     if (networkTitle) networkTitle.textContent = `${t('chartNetworkThroughput')} · ${rangeWindowLabel} · ${bucketMinutes === 0 ? t('rangeRealtime') : `${bucketMinutes}${t('rangeMinuteSampling')}`}`;

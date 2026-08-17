@@ -624,8 +624,8 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   const detailBucketMinutes = ({ 0: 0, 1: 5, 4: 20, 7: 60, 30: 60, 90: 180 })[detailDays] ?? 60;
   const detailBucketMs = detailBucketMinutes * 60 * 1000;
   const telemetryHours = 1;
-  const pingHours = detailDays === 0 ? 1 : detailDays * 24;
-  const networkHours = detailDays === 0 ? 1 : detailDays * 24;
+  const pingHours = detailDays === 0 ? 6 : detailDays * 24;
+  const networkHours = detailDays === 0 ? 6 : detailDays * 24;
   // The bucket width must come from the window a chart actually draws, not from
   // the history range picker. detailBucketMs is sized for the 1-90 day history
   // (1 day -> 5 min), so feeding it to the 1h telemetry charts collapsed ~520
