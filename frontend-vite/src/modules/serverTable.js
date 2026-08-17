@@ -2089,10 +2089,10 @@ async function renderDetailPage(serverId) {
     originServerId: resolvedServer.id,
   });
   window.__DBG__.DETAIL_STARMAP_MOUNTED = !!detailStarmapUnmount;
-  window.__DBG__.DETAIL_TRACE.push('before-charts');
-  await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows: resourceRows, networkProbeRows: networkRows, processRows: detailCache.processRows, pingTargetsData: detailCache.pingTargets || pingTargetsData, pingTargetHistoryData: detailCache.pingTargetHistory || pingTargetHistoryData, vpsProbeTargetsData: detailCache.vpsProbeTargets || vpsProbeTargetsData, vpsProbeHistoryData: detailCache.vpsProbeHistory || vpsProbeHistoryData, detailDays });
-
-  // Commit the four progressive responses as ONE cache snapshot and redraw once.
+  // Commit the four history responses as ONE cache snapshot and draw once.
+  // Do not create empty/one-point Chart.js instances before this batch settles:
+  // the live poll would append at the right edge, then the later history redraw
+  // would make the chart appear to grow backwards.
   // Previously each promise rebuilt all five Chart.js instances independently.
   // The resource response first painted the raw 1h CPU/RAM rows, then a later PING
   // callback captured `probeRows`/`cpuSeries`/`ramSeries` from first paint and
@@ -2100,61 +2100,72 @@ async function renderDetailPage(serverId) {
   // from right to left, restarted a few seconds later, and the network trace could
   // disappear even though its history API contained data. A late unrelated
   // response must never be allowed to roll newer telemetry cache state backwards.
-  Promise.all([resourceHistoryPromise, processHistoryPromise, externalPingPromise, peerPingPromise])
-    .then(async ([resourceHistory, processHistory, externalHistory, peerHistory]) => {
-      const resourceRows = resourceHistory.status === 'fulfilled'
-        ? resourceTimelineRows(resourceHistory.value?.data || [])
-        : [];
-      // A delayed history response is allowed to fill an empty cache, but it
-      // must never move CPU/RAM backwards after a newer live point was appended.
-      if (resourceRows.length && shouldReplaceResourceTimeline(detailCache.resourceRows, resourceRows)) detailCache.resourceRows = resourceRows;
+  window.__DBG__.DETAIL_TRACE.push('before-history-settle');
+  const settledHistory = await Promise.allSettled([
+    resourceHistoryPromise,
+    processHistoryPromise,
+    externalPingPromise,
+    peerPingPromise,
+  ]);
+  const [resourceHistory, processHistory, externalHistory, peerHistory] = settledHistory.map((result) => (
+    result.status === 'fulfilled' ? result.value : { status: 'rejected', reason: result.reason }
+  ));
+  const settledResourceRows = resourceHistory.status === 'fulfilled'
+    ? resourceTimelineRows(resourceHistory.value?.data || [])
+    : [];
+  // A delayed history response is allowed to fill an empty cache, but it
+  // must never move CPU/RAM backwards after a newer live point was appended.
+  if (settledResourceRows.length && shouldReplaceResourceTimeline(detailCache.resourceRows, settledResourceRows)) detailCache.resourceRows = settledResourceRows;
 
-      const processRows = processHistory.status === 'fulfilled'
-        ? normalizePersistedRows(processHistory.value?.data || [], 1)
-        : [];
-      if (processRows.length) {
-        detailCache.processRows = processRows;
-        const meta = detailProcessMeta(processRows, resolvedServer);
-        const strong = document.querySelector('.process-count-card .fleet-chart-head strong');
-        if (strong) strong.textContent = meta.countText;
-      }
+  const processRows = processHistory.status === 'fulfilled'
+    ? normalizePersistedRows(processHistory.value?.data || [], 1)
+    : [];
+  if (processRows.length) {
+    detailCache.processRows = processRows;
+    const meta = detailProcessMeta(processRows, resolvedServer);
+    const strong = document.querySelector('.process-count-card .fleet-chart-head strong');
+    if (strong) strong.textContent = meta.countText;
+  }
 
-      const externalData = externalHistory.status === 'fulfilled' ? externalHistory.value : null;
-      if (externalData?.targets?.length) {
-        seedPingSamplesFromHistory(externalData, resolvedServer.id);
-        // PING history also carries target metadata and is the initial target
-        // snapshot until the lightweight live-target refresh arrives.
-        detailCache.pingTargetHistory = externalData;
-        detailCache.pingTargets = externalData;
-      }
-      window.__DBG__.DETAIL_PING_TARGETS = detailCache.pingTargets;
-      window.__DBG__.DETAIL_PING_TARGET_HISTORY = detailCache.pingTargetHistory;
-      updateDetailPingTargetCount(detailCache.pingTargets || externalData);
+  const externalData = externalHistory.status === 'fulfilled' ? externalHistory.value : null;
+  if (externalData?.targets?.length) {
+    seedPingSamplesFromHistory(externalData, resolvedServer.id);
+    // PING history also carries target metadata and is the initial target
+    // snapshot until the lightweight live-target refresh arrives.
+    detailCache.pingTargetHistory = externalData;
+    detailCache.pingTargets = externalData;
+  }
+  window.__DBG__.DETAIL_PING_TARGETS = detailCache.pingTargets;
+  window.__DBG__.DETAIL_PING_TARGET_HISTORY = detailCache.pingTargetHistory;
+  updateDetailPingTargetCount(detailCache.pingTargets || externalData);
 
-      const peerData = peerHistory.status === 'fulfilled' ? peerHistory.value : null;
-      if (peerData?.targets?.length) {
-        detailCache.vpsProbeHistory = peerData;
-        detailCache.vpsProbeTargets = peerData;
-      }
-      window.__DBG__.DETAIL_GLOBAL_VPS_PROBE_TARGETS = detailCache.vpsProbeTargets;
-      window.__DBG__.DETAIL_GLOBAL_VPS_PROBE_HISTORY = detailCache.vpsProbeHistory;
-      const tbody = document.querySelector('.fleet-probe-table-panel tbody');
-      if (tbody) tbody.innerHTML = renderGlobalVpsProbeRows(detailCache.vpsProbeTargets || peerData);
+  const peerData = peerHistory.status === 'fulfilled' ? peerHistory.value : null;
+  if (peerData?.targets?.length) {
+    detailCache.vpsProbeHistory = peerData;
+    detailCache.vpsProbeTargets = peerData;
+  }
+  window.__DBG__.DETAIL_GLOBAL_VPS_PROBE_TARGETS = detailCache.vpsProbeTargets;
+  window.__DBG__.DETAIL_GLOBAL_VPS_PROBE_HISTORY = detailCache.vpsProbeHistory;
+  const tbody = document.querySelector('.fleet-probe-table-panel tbody');
+  if (tbody) tbody.innerHTML = renderGlobalVpsProbeRows(detailCache.vpsProbeTargets || peerData);
 
-      // Recompose from CURRENT caches, never from the stale first-paint closure.
-      await repaintDetailChartsFromCache();
-      window.__DBG__.DETAIL_PROGRESSIVE_COMMIT = {
-        at: new Date().toISOString(),
-        resourceRows: detailCache.resourceRows.length,
-        processRows: detailCache.processRows.length,
-        probeRows: detailCache.probeRows.length,
-        historyRows: detailCache.historyRows.length,
-        redraws: 1,
-      };
-    })
-    .catch((error) => { window.__DBG__.DETAIL_PROGRESSIVE_ERROR = String(error?.message || error); });
+  // Recompose from CURRENT caches, never from the stale first-paint closure.
+  // When history is genuinely empty this creates the empty-state charts once;
+  // otherwise every chart is born with its complete initial dataset.
+  window.__DBG__.DETAIL_TRACE.push('before-charts');
+  await repaintDetailChartsFromCache();
+  window.__DBG__.DETAIL_PROGRESSIVE_COMMIT = {
+    at: new Date().toISOString(),
+    resourceRows: detailCache.resourceRows.length,
+    processRows: detailCache.processRows.length,
+    probeRows: detailCache.probeRows.length,
+    historyRows: detailCache.historyRows.length,
+    redraws: 1,
+  };
 
   refreshDetailProbeTargetsNow(resolvedServer.id);
+  // Live polling starts only after the initial history-backed render (or the
+  // confirmed-empty state) has completed.
   startDetailRealtimeRefresh(resolvedServer.id);
   window.__DBG__.DETAIL_TRACE.push('done');
   } catch (error) {

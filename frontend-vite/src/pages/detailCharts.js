@@ -525,6 +525,11 @@ export function appendDetailLiveMetrics(live, deps) {
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(timestampText)) timestampText += 'Z';
   const timestamp = Date.parse(timestampText);
   if (!detailCharts?._instances || !Number.isFinite(timestamp)) return false;
+  // Initial history owns chart creation. If that render has not completed yet,
+  // leave the live point for the next history response instead of constructing
+  // a one-point chart that appears to grow backwards.
+  const initialChartIds = ['detailCpuChart', 'detailMemoryChart', 'detailProcessCountChart'];
+  if (initialChartIds.some((id) => !detailCharts._instances.get(id))) return false;
 
   const append = (id, value, formatter) => {
     const chart = detailCharts._instances.get(id);
