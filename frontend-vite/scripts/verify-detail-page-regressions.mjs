@@ -65,14 +65,14 @@ assert.equal(
   'detail renderer must install one native loading shell',
 );
 
-assert.match(detailChartsSource, /const telemetryHours = detailDays === 0 \? 2 : detailDays \* 24;/, 'today CPU/RAM/freshness must use an exact two-hour window');
-assert.match(detailChartsSource, /const pingHours = detailDays === 0 \? 12 : detailDays \* 24;/, 'today configured-target PING must retain its twelve-hour window');
-assert.match(detailChartsSource, /const networkHours = detailDays === 0 \? 12 : detailDays \* 24;/, 'today network must retain its twelve-hour window');
+assert.match(detailChartsSource, /const telemetryHours = 1;/, 'CPU/RAM/process charts must use the fixed one-hour resource window');
+assert.match(detailChartsSource, /const pingHours = 6;/, 'configured-target PING must use its fixed six-hour window');
+assert.match(detailChartsSource, /const networkHours = 6;/, 'network charts must use their fixed six-hour window');
 assert.match(mainSource, /function normalizePersistedTimelineRows\(rows = \[\], hours = 2\)[\s\S]*?lastPersistedProbeMs[\s\S]*?const start = lastPersistedProbeMs - fullSpan;[\s\S]*?t >= start && t <= lastPersistedProbeMs/, 'resource data must be filtered against the last persisted ProbeResult, not browser time');
 assert.match(mainSource, /function adaptiveRollingBounds\(pointGroups = \[\], hours = 12\)[\s\S]*?const coldMax = dataFirst \+ fullSpan;[\s\S]*?const rolling = xs\.length > 0 && dataLast >= coldMax;[\s\S]*?const min = rolling \? dataLast - fullSpan : dataFirst;[\s\S]*?const max = rolling \? dataLast : coldMax;/, 'resource chart axes must grow from the first real sample at cold start and roll only after the full window');
 assert.doesNotMatch(mainSource, /normalizeTimelineRows/, 'resource timeline must not include live server fallback rows');
-assert.match(detailPageSource, /PING 延迟/, 'detail chart must use the configured-target PING label');
-assert.match(detailPageSource, /PING 延迟 · \$\{historyLabel\} · 掉线留空[\s\S]*?\$\{targetCount\} 目标/, 'detail PING card must expose the configured-target count without conflating it with the peer-probe table');
+assert.match(detailPageSource, /data-i18n-chart="ping">\$\{t\('chartPingLatency'\)\} · \$\{t\('chartHours6'\)\} · \$\{t\('chartDropLeavesGap'\)\}/, 'detail chart must use the configured-target PING label and fixed six-hour window');
+assert.match(detailPageSource, /class="detail-ping-target-count">\$\{targetCount\} \$\{Number\(targetCount\) === 1 \? t\('chartTargetOne'\) : t\('chartTargets'\)\}/, 'detail PING card must expose the localized configured-target count without conflating it with the peer-probe table');
 assert.match(mainSource, /未读取到延迟监测目标/, 'empty configured targets must use the customer-facing empty state');
 assert.match(mainSource, /请在后台「延迟监测」配置 ping_targets/, 'empty configured targets must explain how to configure them');
 const probeRowsRenderer = mainSource.match(/function renderProbeRows[\s\S]*?\n}\n\nasync function refreshDetailProbeTargetsNow/);

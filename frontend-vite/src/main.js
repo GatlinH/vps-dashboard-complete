@@ -10,7 +10,7 @@ import { CesiumGlobe } from './components/CesiumGlobe.js';
 import { StarshipShowcase } from './components/StarshipShowcase.js';
 import { TrafficChart } from './components/TrafficChart.js';
 import { mountGlobeStarmap } from './components/GlobeStarmapMount.jsx';
-import { toDisplay, calcResidualValue, getMonthlyPrice, getBillingMonths, sourceAmountToCny, getSourceCurrency, updateRateDisplay, refreshExchangeRates } from './utils/currency.js';
+import { toDisplay, calcResidualValue, getMonthlyPrice, getBillingMonths, updateRateDisplay, refreshExchangeRates } from './utils/currency.js';
 import { fmtGb, getTrafficPct, getTrafficUsed } from './utils/traffic.js';
 import { renderSunBadge, renderMoonPanel } from './ui/sunMoonEntry.js';
 import { fetchJson, fetchPing, fetchPingTargetHistory, fetchPingTargets, fetchServerHistory, fetchResourceTimeline, fetchNetworkTimeline, enrichServersWithIpGeo, normalizeServer } from './services/displayData.js';
@@ -307,68 +307,12 @@ function bindTopbarEvents(root = document) {
   });
 }
 
-function classifyStatus(status) {
-  return status === 'online' ? 'online' : status === 'warn' ? 'warn' : 'offline';
-}
-
 function daysUntilExpiry(expiry) {
   if (!expiry) return null;
   const t = new Date(expiry);
   if (Number.isNaN(t.getTime())) return null;
   return Math.ceil((t.getTime() - Date.now()) / 86400000);
 }
-
-function summarizeMoonPanel(servers = []) {
-  const rows = Array.isArray(servers) ? servers : [];
-  const status = { total: rows.length, online: 0, warn: 0, offline: 0 };
-  const expiry = { today: [], d3: [], d7: [] };
-  const badNodes = [];
-  const byRegion = new Map();
-  const byProvider = new Map();
-  let monthlyActual = 0;
-  let yearlyActual = 0;
-
-  for (const s of rows) {
-    const cls = classifyStatus(s.status);
-    status[cls] += 1;
-
-    const monthlyEq = Number(getMonthlyPrice(s) || 0);
-    const sourcePriceCny = sourceAmountToCny(s.price, getSourceCurrency(s));
-    monthlyActual += monthlyEq;
-    yearlyActual += monthlyEq * 12;
-
-    const regionKey = s.location || s.city || s.region || s.country || t('unknownRegion');
-    byRegion.set(regionKey, (byRegion.get(regionKey) || 0) + monthlyEq);
-    const providerKey = s.provider || s.provider_guess || t('unknownProvider');
-    byProvider.set(providerKey, (byProvider.get(providerKey) || 0) + monthlyEq);
-
-    const d = daysUntilExpiry(s.expiry);
-    if (d != null) {
-      if (d === 0) expiry.today.push(s);
-      if (d >= 0 && d <= 3) expiry.d3.push(s);
-      if (d >= 0 && d <= 7) expiry.d7.push(s);
-    }
-
-    const pct = Number(getTrafficPct(s) || 0);
-    if (cls !== 'online' || pct >= 85) badNodes.push({ server: s, pct, cls });
-  }
-
-  const sortCost = (map) => Array.from(map.entries()).sort((a, b) => b[1] - a[1]).slice(0, 4);
-  badNodes.sort((a, b) => (a.cls === 'offline' ? -1 : 0) - (b.cls === 'offline' ? -1 : 0) || b.pct - a.pct);
-
-  return {
-    status,
-    expiry,
-    cost: {
-      monthlyActual,
-      yearlyActual,
-      byRegion: sortCost(byRegion),
-      byProvider: sortCost(byProvider),
-    },
-    badNodes: badNodes.slice(0, 6),
-  };
-}
-
 
 function trafficResetDay(server, trafficData = null) {
   const raw = Number(trafficData?.reset_day ?? trafficData?.traffic_reset_day ?? server?.traffic_reset_day ?? 1);

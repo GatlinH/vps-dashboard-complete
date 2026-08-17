@@ -688,60 +688,6 @@ export class StarshipShowcase {
     });
   }
 
-  _addColdEdgeShell(source) {
-    // clonefix1: keep bussard/exhaust animation, but do not clone entire GLTF scene.
-    return;
-    if (!this.anchor || !source || this.edgeShell) return;
-    this.edgeShell = source.clone(true);
-    this.edgeShell.name = 'Cold blue 2px-style edge shell';
-    this.edgeShell.scale.multiplyScalar(1.012);
-    this.edgeShell.traverse((obj) => {
-      if (!obj.isMesh) return;
-      obj.material = new THREE.MeshBasicMaterial({
-        color: 0x7799cc,
-        transparent: true,
-        opacity: 0.055,
-        blending: THREE.AdditiveBlending,
-        side: THREE.BackSide,
-        depthWrite: false,
-      });
-      obj.renderOrder = 2;
-    });
-    this.anchor.add(this.edgeShell);
-  }
-
-  _addChromaticEdgePass(source) {
-    // clonefix1: keep bussard/exhaust animation, but do not clone entire GLTF scene.
-    return;
-    if (!this.anchor || !source || this.chromaticEdges) return;
-    this.chromaticEdges = new THREE.Group();
-    const passes = [
-      { color: 0xff4f45, x: 0.018, opacity: 0.035 },
-      { color: 0x5f9cff, x: -0.018, opacity: 0.045 },
-    ];
-    passes.forEach((pass) => {
-      const ghost = source.clone(true);
-      ghost.name = `Subtle ${pass.color.toString(16)} chromatic edge pass`;
-      ghost.position.x += pass.x;
-      ghost.scale.multiplyScalar(1.004);
-      ghost.traverse((obj) => {
-        if (!obj.isMesh) return;
-        obj.material = new THREE.MeshBasicMaterial({
-          color: pass.color,
-          transparent: true,
-          opacity: pass.opacity,
-          blending: THREE.AdditiveBlending,
-          side: THREE.FrontSide,
-          depthWrite: false,
-        });
-        obj.renderOrder = 1;
-      });
-      this.chromaticEdges.add(ghost);
-    });
-    this.anchor.add(this.chromaticEdges);
-  }
-
-
   _makeIrregularPlasmaPlumeGeometry(length = 10.8, baseRadius = 0.82, radialSegments = 96, lengthSegments = 32, seed = 7) {
     const positions = [];
     const uvs = [];

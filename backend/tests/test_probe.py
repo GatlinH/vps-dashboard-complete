@@ -359,7 +359,7 @@ def test_ip_info_does_not_trust_forwarded_header_without_proxy_gate():
 
 def test_ip_geo_fallback_is_explicitly_invalid():
     """An anonymous degraded result cannot be mistaken for mappable geo data."""
-    with patch('api.probe._fetch_json_url', return_value=None):
+    with patch('services.geo_lookup._fetch_json_url', return_value=None):
         from api.probe import lookup_ip_geo
         data = lookup_ip_geo('8.8.8.8')
     assert data['valid'] is False
