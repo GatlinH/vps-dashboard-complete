@@ -147,8 +147,8 @@ function relocalizeDetailChartTitles(root = document) {
     ? t('rangeRealtime')
     : `${bucketMinutes}${t('rangeMinuteSampling')}`;
   const titles = {
-    network: `${t('chartNetworkThroughput')} · ${detailDays}${t('rangeDayUnit')}${sampleLabel ? ` · ${sampleLabel}` : ''}`,
-    ping: `${t('chartPingLatency')} · ${detailDays}${t('rangeDayUnit')} · ${t('chartDropLeavesGap')}`,
+    network: `${t('chartNetworkThroughput')} · ${detailDays === 0 ? t('rangeRealtime') : `${detailDays}${t('rangeDayUnit')}`}${sampleLabel ? ` · ${sampleLabel}` : ''}`,
+    ping: `${t('chartPingLatency')} · ${detailDays === 0 ? t('rangeRealtime') : `${detailDays}${t('rangeDayUnit')}`} · ${t('chartDropLeavesGap')}`,
     cpu: `${t('chartCpuUsage')} · ${t('chartHours1')} · ${t('chartRealtimeSampling')}`,
     memory: `${t('chartMemoryUsage')} · ${t('chartHours1')} · ${t('chartRealtimeSampling')}`,
     process: `${t('chartProcessCount')} · ${t('chartHours1')}`,
@@ -160,10 +160,10 @@ function relocalizeDetailChartTitles(root = document) {
   // The history range bar is a JS-composed string too.
   const rangeLabel = root.querySelector('.history-range-label');
   if (rangeLabel) {
-    rangeLabel.textContent = `${detailDays === 0 ? t('rangeToday') : `${detailDays}${t('rangeDayUnit')}`} · ${sampleLabel}`;
+    rangeLabel.textContent = `${detailDays === 0 ? t('rangeRealtime') : `${detailDays}${t('rangeDayUnit')}`} · ${sampleLabel}`;
   }
   root.querySelectorAll('.detail-history-btn[data-detail-history-days]').forEach((btn) => {
-    btn.textContent = `${btn.dataset.detailHistoryDays}${t('rangeDayUnit')}`;
+    btn.textContent = Number(btn.dataset.detailHistoryDays) === 0 ? t('rangeRealtime') : `${btn.dataset.detailHistoryDays}${t('rangeDayUnit')}`;
   });
   // Target-count strong keeps its numeric prefix; only the unit word is localized.
   const targetStrong = root.querySelector('.detail-ping-target-count');
@@ -1876,7 +1876,7 @@ async function renderDetailPage(serverId) {
   window.__DBG__.DETAIL_TRACE = ['renderDetailPage:start', String(serverId)];
   loadStoredPingSamples(serverId);
   const requestedDetailDays = Number(getDetailHistoryDays() || 0) || 0;
-  const detailDays = [1, 4, 7, 30, 90].includes(requestedDetailDays) ? requestedDetailDays : 1;
+  const detailDays = [0, 1, 4, 7, 30, 90].includes(requestedDetailDays) ? requestedDetailDays : 1;
   const detailBucketMinutes = getDetailHistoryBucketMinutes(detailDays);
   try {
   const requestedId = Number(serverId);
@@ -1900,11 +1900,11 @@ async function renderDetailPage(serverId) {
   bindTopbarEvents(app);
   updateRateDisplay();
   const isMobileDetail = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
-  const historyDays = detailDays;
+  const historyDays = detailDays === 0 ? 1 / 24 : detailDays;
   // Fixed range budgets: 1d/5m=288 points, 4d/20m=288, 7d/1h=168.
   // Never return a full raw one-second day (21,600 rows / multi-MB JSON).
   const historyLimit = getDetailHistoryPointLimit(detailDays);
-  const targetHistoryHours = detailDays * 24;
+  const targetHistoryHours = detailDays === 0 ? 1 : detailDays * 24;
   const settleWithin = (promise, timeoutMs, label) => Promise.race([
     promise.then((value) => ({ status: 'fulfilled', value }), (reason) => ({ status: 'rejected', reason })),
     new Promise((resolve) => setTimeout(() => resolve({ status: 'rejected', reason: new Error(`${label || 'detail'} timeout`) }), timeoutMs)),
@@ -2238,12 +2238,12 @@ function loadStoredPingSamples(serverId) { detailPingSamples.loadStored(serverId
 async function refreshDetailHistoryRange(serverId) {
   const current = state.servers.find((item) => Number(item.id) === Number(serverId));
   if (!current || !document.getElementById('detailNetworkChart')) return;
-  const requestedDetailDays = Number(getDetailHistoryDays() || 1) || 1;
-  const detailDays = [1, 4, 7, 30, 90].includes(requestedDetailDays) ? requestedDetailDays : 1;
+  const requestedDetailDays = Number(getDetailHistoryDays());
+  const detailDays = [0, 1, 4, 7, 30, 90].includes(requestedDetailDays) ? requestedDetailDays : 1;
   const bucketMinutes = getDetailHistoryBucketMinutes(detailDays);
-  const historyDays = detailDays;
+  const historyDays = detailDays === 0 ? 1 / 24 : detailDays;
   const limit = getDetailHistoryPointLimit(detailDays);
-  const targetHours = detailDays * 24;
+  const targetHours = detailDays === 0 ? 1 : detailDays * 24;
   const startedAt = performance.now();
   window.__DBG__.DETAIL_RANGE_REFRESH = { serverId: Number(serverId), detailDays, bucketMinutes, status: 'loading' };
   document.querySelector('.history-range-bar')?.setAttribute('aria-busy', 'true');
@@ -2317,11 +2317,11 @@ async function refreshDetailHistoryRange(serverId) {
       button.classList.toggle('active', Number(button.dataset.detailHistoryDays) === detailDays);
     });
     const label = document.querySelector('.history-range-label');
-    if (label) label.textContent = `${detailDays === 0 ? t('rangeToday') : `${detailDays}${t('rangeDayUnit')}`} · ${bucketMinutes === 0 ? t('rangeRealtime') : `${bucketMinutes}${t('rangeMinuteSampling')}`}`;
-    const rangeWindowLabel = `${detailDays}${t('rangeDayUnit')}`;
+    if (label) label.textContent = `${detailDays === 0 ? t('rangeRealtime') : `${detailDays}${t('rangeDayUnit')}`} · ${bucketMinutes === 0 ? t('rangeRealtime') : `${bucketMinutes}${t('rangeMinuteSampling')}`}`;
+    const rangeWindowLabel = detailDays === 0 ? t('rangeRealtime') : `${detailDays}${t('rangeDayUnit')}`;
     const networkTitle = document.querySelector('[data-i18n-chart="network"]');
     const pingTitle = document.querySelector('[data-i18n-chart="ping"]');
-    if (networkTitle) networkTitle.textContent = `${t('chartNetworkThroughput')} · ${rangeWindowLabel} · ${bucketMinutes}${t('rangeMinuteSampling')}`;
+    if (networkTitle) networkTitle.textContent = `${t('chartNetworkThroughput')} · ${rangeWindowLabel} · ${bucketMinutes === 0 ? t('rangeRealtime') : `${bucketMinutes}${t('rangeMinuteSampling')}`}`;
     if (pingTitle) pingTitle.textContent = `${t('chartPingLatency')} · ${rangeWindowLabel} · ${t('chartDropLeavesGap')}`;
     window.__DBG__.DETAIL_RANGE_REFRESH = {
       serverId: Number(serverId), detailDays, bucketMinutes, status: 'ready',

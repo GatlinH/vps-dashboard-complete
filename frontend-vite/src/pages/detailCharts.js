@@ -545,28 +545,27 @@ export function appendDetailLiveMetrics(live, deps) {
       // the same clock label and one minute of live samples was stretched across
       // a card headed "1 hour". Anchor to the newest sample, floor the drawn span,
       // and re-derive stepSize so the 5 ticks stay distinct.
-      const fullSpan = 60 * 60 * 1000;
-      const minVisibleSpan = 10 * 60 * 1000;
-      const first = Number(points[0]?.x);
-      const spanned = Number.isFinite(first) ? Math.max(0, timestamp - first) : 0;
-      const span = Math.min(fullSpan, Math.max(spanned, minVisibleSpan));
-      x.max = timestamp;
-      x.min = timestamp - span;
-      if (x.ticks) x.ticks.stepSize = Math.max(60 * 1000, Math.round(span / 4));
+      const span = 60 * 60 * 1000;
+      const now = Date.now();
+      x.max = now;
+      x.min = now - span;
+      if (x.ticks) x.ticks.stepSize = span / 4;
       // The render pass writes DETAIL_CHART_DEBUG.smallXBounds, but this 5s path
       // overwrites the axis afterwards, so that snapshot cannot prove what is on
       // screen. Record the post-append bounds per chart instead.
       try {
         window.__DBG__ = window.__DBG__ || {};
         window.__DBG__.DETAIL_LIVE_AXIS = window.__DBG__.DETAIL_LIVE_AXIS || {};
+        const first = Number(points[0]?.x);
+        const dataSpanMs = Number.isFinite(first) ? Math.max(0, timestamp - first) : 0;
         window.__DBG__.DETAIL_LIVE_AXIS[id] = {
           at: new Date(timestamp).toISOString(),
           spanMs: span,
           spanMin: Math.round((span / 60000) * 100) / 100,
           stepMs: x.ticks?.stepSize || null,
-          dataSpanMs: spanned,
+          dataSpanMs,
           points: points.length,
-          floored: spanned < minVisibleSpan,
+          fixedWindow: true,
         };
       } catch {}
     }
@@ -615,13 +614,13 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   // ~59px in zh but far wider once en switches to a 12-hour clock, which pushed
   // the terminal label past the card edge. Time-only ticks keep them inside.
   const smallXTickFmt = (v) => formatHourTick(v);
-  const requestedDetailDays = Number(detailDays ?? window.__DBG__.DETAIL_HISTORY_DAYS ?? 1) || 1;
-  detailDays = [1, 4, 7, 30, 90].includes(requestedDetailDays) ? requestedDetailDays : 1;
-  const detailBucketMinutes = ({ 1: 5, 4: 20, 7: 60, 30: 60, 90: 180 })[detailDays] || 60;
+  const requestedDetailDays = Number(detailDays ?? window.__DBG__.DETAIL_HISTORY_DAYS ?? 1);
+  detailDays = [0, 1, 4, 7, 30, 90].includes(requestedDetailDays) ? requestedDetailDays : 1;
+  const detailBucketMinutes = ({ 0: 0, 1: 5, 4: 20, 7: 60, 30: 60, 90: 180 })[detailDays] ?? 60;
   const detailBucketMs = detailBucketMinutes * 60 * 1000;
   const telemetryHours = 1;
-  const pingHours = detailDays * 24;
-  const networkHours = detailDays * 24;
+  const pingHours = detailDays === 0 ? 1 : detailDays * 24;
+  const networkHours = detailDays === 0 ? 1 : detailDays * 24;
   // The bucket width must come from the window a chart actually draws, not from
   // the history range picker. detailBucketMs is sized for the 1-90 day history
   // (1 day -> 5 min), so feeding it to the 1h telemetry charts collapsed ~520
@@ -677,20 +676,11 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   // Each small chart gets its OWN axis anchored to its own samples so the line
   // fills edge-to-edge and starts at the left. A single shared axis made a chart
   // whose latest/earliest sample differed from the others look truncated.
-  const seriesOwnBounds = (points = []) => {
+  const seriesOwnBounds = () => {
     const fullSpan = telemetryHours * 60 * 60 * 1000;
-    const xs = (Array.isArray(points) ? points : []).map((p) => Number(p?.x)).filter(Number.isFinite).sort((a, b) => a - b);
-    if (!xs.length) return { min: axis12hBounds.min, max: axis12hBounds.max, step: axis12hBounds.step, mode: 'fallback-shared-axis' };
-    const dataFirst = xs[0];
-    const dataLast = xs[xs.length - 1];
-    // CPU/RAM charts promise a one-hour timeline. The newest real persisted
-    // sample is the right edge; the left edge is exactly one hour before it.
-    // Collapsing to a 10-minute "minimum visible span" makes a sparse/cold series
-    // look like it starts at the right and destroys the declared time contract.
-    const spanned = Math.max(0, dataLast - dataFirst);
-    const max = dataLast;
+    const max = Date.now();
     const min = max - fullSpan;
-    return { min, max, step: Math.max(60 * 1000, Math.round(fullSpan / 4)), mode: 'fixed-window-ending-at-last-sample', spanMs: fullSpan, dataSpanMs: spanned };
+    return { min, max, step: fullSpan / 4, mode: 'fixed-window-ending-now', spanMs: fullSpan };
   };
   const cpuAxisBounds = seriesOwnBounds(cpuDisplaySeries);
   const ramAxisBounds = seriesOwnBounds(ramDisplaySeries);

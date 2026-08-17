@@ -144,9 +144,9 @@ export function renderDetailConsole(ctx) {
   const h = helpers;
   const displayPingTargetsData = ((pingTargetsData?.targets || []).length ? pingTargetsData : ctx.detailCachedPingTargets) || pingTargetsData || ctx.detailCachedPingTargets;
   const targetCount = (displayPingTargetsData?.targets || []).length || 0;
-  const historyLabel = detailDays === 0 ? t('rangeToday') : `${detailDays}${t('rangeDayUnit')}`;
+  const historyLabel = detailDays === 0 ? t('rangeRealtime') : `${detailDays}${t('rangeDayUnit')}`;
   const sampleLabel = detailBucketMinutes === 0 ? t('rangeRealtime') : `${detailBucketMinutes}${t('rangeMinuteSampling')}`;
-  const wideWindowLabel = `${detailDays}${t('rangeDayUnit')}`;
+  const wideWindowLabel = detailDays === 0 ? t('rangeRealtime') : `${detailDays}${t('rangeDayUnit')}`;
   const resourceWindowLabel = t('chartHours1');
   const resourceSampleLabel = t('chartRealtimeSampling');
   return `
@@ -186,7 +186,7 @@ export function renderDetailConsole(ctx) {
             <div class="fleet-title fleet-starmap-title">VPS·星图</div>
             <div id="detailGlobeStarmapMount" class="detail-globe-starmap-mount"></div>
           </div>
-          <div class="history-range-bar"><span class="history-range-label">${historyLabel} · ${sampleLabel}</span><div class="detail-history-range" role="group" aria-label="历史图表范围">${[1,4,7,30,90].map((d) => `<button type="button" class="detail-history-btn ${Number(detailDays) === d ? 'active' : ''}" data-detail-history-days="${d}">${d}${t('rangeDayUnit')}</button>`).join('')}</div></div>
+          <div class="history-range-bar"><span class="history-range-label">${historyLabel} · ${sampleLabel}</span><div class="detail-history-range" role="group" aria-label="历史图表范围">${[0,1,4,7,30,90].map((d) => `<button type="button" class="detail-history-btn ${Number(detailDays) === d ? 'active' : ''}" data-detail-history-days="${d}">${d === 0 ? t('rangeRealtime') : `${d}${t('rangeDayUnit')}`}</button>`).join('')}</div></div>
           <div class="fleet-panel fleet-probe-table-panel">
             <div class="fleet-title">全球 VPS 探针延迟 <small class="fleet-title-hint">当前节点 → 其它 VPS</small></div>
             <table class="fleet-table compact"><thead><tr><th>对端 VPS</th><th>ms</th><th data-i18n="loss">${t('loss')} %</th><th>链路</th></tr></thead><tbody>${h.renderGlobalVpsProbeRows(vpsProbeTargetsData || ctx.detailCachedVpsProbeTargets)}</tbody></table>

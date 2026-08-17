@@ -7,9 +7,9 @@ const starmap = readFileSync(new URL('../src/components/GlobeStarmap.jsx', impor
 const css = readFileSync(new URL('../src/styles/main.css', import.meta.url), 'utf8');
 const finalStarmapCss = readFileSync(new URL('../src/styles/detail-starmap-background.css', import.meta.url), 'utf8');
 
-test('CPU and RAM axes are always a full hour ending at the newest persisted sample', () => {
+test('CPU and RAM axes are always a full hour ending at now', () => {
   assert.match(charts, /const min = max - fullSpan;/);
-  assert.match(charts, /mode: 'fixed-window-ending-at-last-sample'/);
+  assert.match(charts, /mode: 'fixed-window-ending-now'/);
   const ownAxis = charts.slice(charts.indexOf('const seriesOwnBounds'), charts.indexOf('const cpuAxisBounds'));
   assert.doesNotMatch(ownAxis, /minVisibleSpan/);
 });
