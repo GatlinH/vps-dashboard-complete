@@ -2,25 +2,63 @@ services:
   mysql:
     env_file:
       - ${VPS_DASHBOARD_SECRETS_FILE:?set VPS_DASHBOARD_SECRETS_FILE to an absolute .env path}
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-authentication-plugin=mysql_native_password
+      --max-connections=1000
+      --max_allowed_packet=256M
+      --binlog_expire_logs_seconds=86400
+      --max_binlog_size=256M
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '3'
   schema_init:
     env_file:
       - ${VPS_DASHBOARD_SECRETS_FILE:?set VPS_DASHBOARD_SECRETS_FILE to an absolute .env path}
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '3'
   redis:
     env_file:
       - ${VPS_DASHBOARD_SECRETS_FILE:?set VPS_DASHBOARD_SECRETS_FILE to an absolute .env path}
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '3'
   api:
     env_file:
       - ${VPS_DASHBOARD_SECRETS_FILE:?set VPS_DASHBOARD_SECRETS_FILE to an absolute .env path}
     volumes:
       - dashboard_logs:/var/log/vps-dashboard
       - dashboard_data:/var/lib/vps-dashboard
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '3'
   agent_consumer:
     env_file:
       - ${VPS_DASHBOARD_SECRETS_FILE:?set VPS_DASHBOARD_SECRETS_FILE to an absolute .env path}
     volumes:
       - dashboard_logs:/var/log/vps-dashboard
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '3'
   watchtower:
     profiles: ["watchtower"]
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '3'
 
 volumes:
   dashboard_logs:

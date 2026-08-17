@@ -8,15 +8,30 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '3'
 
   api:
     image: vps-dashboard-complete-backend:local
     build:
       context: .
       dockerfile: Dockerfile
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '3'
 
   agent_consumer:
     image: vps-dashboard-complete-backend:local
     build:
       context: .
       dockerfile: Dockerfile
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '3'
