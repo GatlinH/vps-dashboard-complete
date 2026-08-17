@@ -889,7 +889,6 @@ body.komari-admin-shell #tab-ops .ops-event-row {
 /* Server table: prevent action buttons being clipped on the right. */
 body.komari-admin-shell .komari-table-wrap {
   padding-right: 12px !important;
-  overflow-x: auto !important;
 }
 body.komari-admin-shell .komari-node-table {
   width: 100% !important;
@@ -905,10 +904,7 @@ body.komari-admin-shell .komari-node-table td:last-child {
   white-space: nowrap !important;
 }
 body.komari-admin-shell .komari-node-table td:last-child {
-  display: flex !important;
   gap: 6px !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
 }
 body.komari-admin-shell .komari-node-table td:last-child button {
   flex: 0 0 28px !important;
@@ -1421,23 +1417,13 @@ html body.komari-admin-shell #acct-session-clear {
    Direct fixes for user-reported admin UI issues. */
 
 /* Node list: no horizontal overflow. Compress columns and keep all actions visible. */
-html body.komari-admin-shell .komari-table-wrap {
-  overflow-x: hidden !important;
-  width: 100% !important;
-}
 html body.komari-admin-shell .komari-node-table {
-  width: 100% !important;
-  min-width: 0 !important;
   max-width: 100% !important;
-  table-layout: fixed !important;
 }
 html body.komari-admin-shell .komari-node-table th,
 html body.komari-admin-shell .komari-node-table td {
   padding-left: 8px !important;
   padding-right: 8px !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
 }
 html body.komari-admin-shell .komari-node-table th:nth-child(1),
 html body.komari-admin-shell .komari-node-table td:nth-child(1) { width: 24% !important; }
@@ -1489,9 +1475,6 @@ html body.komari-admin-shell .komari-node-name-sub {
 }
 
 /* Settings: custom HTML areas. */
-html body.komari-admin-shell .custom-html-grid {
-  gap: 14px !important;
-}
 html body.komari-admin-shell .custom-html-input {
   min-height: 128px !important;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
@@ -1552,18 +1535,6 @@ html body.komari-admin-shell #tab-ops .ops-diag-title-row code {
 html body.komari-admin-shell .komari-table-wrap {
   overflow-x: hidden !important;
 }
-html body.komari-admin-shell .komari-node-table {
-  width: 100% !important;
-  min-width: 0 !important;
-  table-layout: fixed !important;
-}
-html body.komari-admin-shell .komari-node-table th,
-html body.komari-admin-shell .komari-node-table td {
-  box-sizing: border-box !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-}
 /* Actual table has 9 columns. Keep operation column visible; compact secondary metadata. */
 html body.komari-admin-shell .komari-node-table th:nth-child(1),
 html body.komari-admin-shell .komari-node-table td:nth-child(1) { width: 13% !important; }
@@ -1585,9 +1556,6 @@ html body.komari-admin-shell .komari-node-table th:nth-child(9),
 html body.komari-admin-shell .komari-node-table td:nth-child(9) {
   width: 17% !important;
   min-width: 144px !important;
-  position: static !important;
-  right: auto !important;
-  box-shadow: none !important;
 }
 html body.komari-admin-shell .komari-node-table td:nth-child(9) {
   display: table-cell !important;
@@ -1923,7 +1891,6 @@ html body.komari-admin-shell.admin-day-mode .sm-row-menu .sm-row-menu-item.dange
     max-width: 100vw !important;
   }
   html body.komari-admin-shell .komari-table-wrap {
-    overflow-x: visible !important;
     padding-right: 0 !important;
   }
   html body.komari-admin-shell .komari-node-table,
@@ -1989,16 +1956,6 @@ html body.komari-admin-shell.admin-day-mode .sm-row-menu .sm-row-menu-item.dange
     width: 100% !important;
     min-width: 0 !important;
     max-width: none !important;
-  }
-  html body.komari-admin-shell .komari-node-name-inner {
-    grid-template-columns: 34px minmax(0, 1fr) !important;
-    overflow: visible !important;
-  }
-  html body.komari-admin-shell .komari-node-name strong,
-  html body.komari-admin-shell .komari-node-name small {
-    white-space: normal !important;
-    overflow: visible !important;
-    text-overflow: clip !important;
   }
   html body.komari-admin-shell .komari-node-table td.komari-row-actions {
     grid-template-columns: 82px minmax(0, 1fr) !important;
@@ -2066,7 +2023,6 @@ html body.komari-admin-shell .komari-node-table input[type="checkbox"]:checked {
 html body.komari-admin-shell .komari-node-table input[type="checkbox"]:checked::after {
   content: "" !important;
   display: block !important;
-  width: 8px !important;
   height: 4px !important;
   margin: 4px 0 0 3px !important;
   border-left: 2px solid #fff !important;
