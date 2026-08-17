@@ -8,6 +8,7 @@
 import os
 import sys
 import logging
+import secrets
 from datetime import timedelta
 from dotenv import load_dotenv
 from urllib.parse import quote as _url_quote
@@ -21,6 +22,8 @@ logger = logging.getLogger(__name__)
 _MISSING_SECRET_KEY = "__VPS_DASHBOARD_SECRET_KEY_MISSING__"
 _MISSING_JWT_SECRET_KEY = "__VPS_DASHBOARD_JWT_SECRET_KEY_MISSING__"
 _LEGACY_WEAK_SECRET_KEYS = {
+    "dev-secret-key-change-me",
+    "dev-jwt-secret-change-me",
     "change-me-in-production",
     "change-me-in-production-32chars!",
     "change-me-jwt-secret",
@@ -457,7 +460,32 @@ class ProductionConfig(Config):
 
 def get_config():
     """根据 FLASK_ENV 环境变量返回对应的配置类"""
-    env = os.getenv("FLASK_ENV", "development")
-    if env == "production":
-        return ProductionConfig
-    return DevelopmentConfig
+    env = os.getenv("FLASK_ENV", "production").lower()
+
+    secret_key = os.getenv("SECRET_KEY")
+    jwt_secret_key = os.getenv("JWT_SECRET_KEY")
+    if env in ("development", "testing"):
+        secret_key = secret_key or secrets.token_urlsafe(32)
+        jwt_secret_key = jwt_secret_key or secrets.token_urlsafe(32)
+    else:
+        invalid_secret_keys = {
+            None,
+            "",
+            "dev-secret-key-change-me",
+            "dev-jwt-secret-change-me",
+        }
+        missing = []
+        if secret_key in invalid_secret_keys:
+            missing.append("SECRET_KEY")
+        if jwt_secret_key in invalid_secret_keys:
+            missing.append("JWT_SECRET_KEY")
+        if missing:
+            raise RuntimeError(
+                f"Refusing to start in {env} mode: set strong, unique values for "
+                f"{', '.join(missing)}."
+            )
+
+    config_class = ProductionConfig if env == "production" else DevelopmentConfig
+    config_class.SECRET_KEY = secret_key
+    config_class.JWT_SECRET_KEY = jwt_secret_key
+    return config_class

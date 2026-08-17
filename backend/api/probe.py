@@ -7,12 +7,7 @@ import time
 from datetime import datetime, timezone, timedelta
 import json
 import os
-import re
-import subprocess
 from urllib.parse import urlparse
-import requests
-import urllib3
-from urllib.parse import urlencode
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, request, jsonify, current_app
 from extensions import db
@@ -22,483 +17,65 @@ from middleware.rbac import admin_required
 from middleware.rate_limit import limiter, PING_LIMIT
 from utils.validators import validate_port, validate_ip_or_hostname, resolve_public_host_addresses
 from services.probe_fetcher import fetch_and_parse_probe, _parse_probe_payload_dict
-
+from services.geo_lookup import (
+    _is_public_ipv4, _client_public_ip, _fetch_json_url, _normalize_ipwho,
+    _valid_geo, lookup_ip_geo,
+)
+from services.ping_target_cache import (
+    _ping_targets_cache_ttl, _cache_get_json, _cache_set_json,
+    clear_ping_targets_cache,
+)
+from services.peer_probe import (
+    DEFAULT_PING_TARGET_PRESETS, _is_private_or_loopback_host,
+    _peer_probe_endpoint, _server_peer_ping_targets, _ping_targets_are_peer_targets,
+    _agent_side_unavailable_payload, _resolve_ping_targets_for_server,
+    _load_ping_targets,
+)
 probe_bp = Blueprint("probe", __name__)
 
 
 IP_GEO_CACHE_VERSION = "v4"
 
-def _is_public_ipv4(value):
-    try:
-        ip_obj = ipaddress.ip_address(str(value or "").strip())
-        return ip_obj.version == 4 and not (ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_reserved or ip_obj.is_multicast)
-    except Exception:
-        return False
-
-
-def _client_public_ip():
-    candidate = (request.remote_addr or "").strip()
-    return candidate if _is_public_ipv4(candidate) else ""
-
-
-def _fetch_json_url(url, timeout=5):
-    try:
-        resp = requests.get(url, timeout=timeout, headers={"Accept": "application/json", "User-Agent": "vps-dashboard-ipgeo/1.0"})
-        if resp.status_code >= 400:
-            return None
-        return resp.json()
-    except Exception:
-        return None
-
-
-def _normalize_ipwho(raw):
-    if not isinstance(raw, dict) or raw.get("success") is False:
-        return None
-    conn = raw.get("connection") if isinstance(raw.get("connection"), dict) else {}
-    tz = raw.get("timezone")
-    return {
-        "status": "success",
-        "country": raw.get("country") or "",
-        "countryCode": raw.get("country_code") or "",
-        "regionName": raw.get("region") or "",
-        "city": raw.get("city") or "",
-        "lat": raw.get("latitude"),
-        "lon": raw.get("longitude"),
-        "isp": conn.get("isp") or "",
-        "org": conn.get("org") or "",
-        "as": str(conn.get("asn") or ""),
-        "query": raw.get("ip") or "",
-        "timezone": tz.get("id") if isinstance(tz, dict) else tz,
-        "source": "ipwho.is",
-    }
-
-
-def _valid_geo(data):
-    try:
-        if not isinstance(data, dict) or data.get("status") not in (None, "success"):
-            return False
-        lat = float(data.get("lat"))
-        lon = float(data.get("lon"))
-        return -90 <= lat <= 90 and -180 <= lon <= 180
-    except Exception:
-        return False
-
-
-def lookup_ip_geo(ip=""):
-    target = (ip or _client_public_ip()).strip()
-    if target and not _is_public_ipv4(target):
-        raise ValueError("仅支持合法公网 IPv4 地址")
-
-    suffix = target or ""
-    ip_api = _fetch_json_url(
-        f"http://ip-api.com/json/{suffix}?fields=status,message,country,countryCode,regionName,city,lat,lon,isp,org,as,query,timezone&lang=zh-CN",
-        timeout=5,
-    )
-    who = _normalize_ipwho(_fetch_json_url(f"https://ipwho.is/{suffix}?lang=zh-CN", timeout=5))
-
-    candidates = [d for d in (ip_api, who) if _valid_geo(d)]
-    if candidates:
-        chosen = candidates[0]
-        if len(candidates) > 1:
-            a, b = candidates[0], candidates[1]
-            ac = str(a.get("countryCode") or "").upper()
-            bc = str(b.get("countryCode") or "").upper()
-            if ac != bc and ac == "US" and bc and bc != "US":
-                chosen = b
-            elif ac != bc and bc == "US" and ac and ac != "US":
-                chosen = a
-        sources = []
-        for name, data in (("ip-api", ip_api), ("ipwho.is", who)):
-            if _valid_geo(data):
-                sources.append({"source": name, "countryCode": data.get("countryCode"), "country": data.get("country"), "city": data.get("city"), "lat": data.get("lat"), "lon": data.get("lon")})
-        out = dict(chosen)
-        out["source"] = chosen.get("source") or ("ip-api" if chosen is ip_api else "ipwho.is")
-        out["geo_sources"] = sources
-        if len(sources) > 1 and str(sources[0].get("countryCode") or "").upper() != str(sources[1].get("countryCode") or "").upper():
-            out["geo_conflict"] = True
-        return out
-
-    # Controlled degradation: never leak upstream unavailability to the public UI.
-    # Return a safe anonymous placeholder so the visitor beacon can still render
-    # a non-identifying state instead of disappearing.
-    return {
-        "status": "success",
-        "valid": False,
-        "query": target,
-        "country": "—",
-        "countryCode": "ZZ",
-        "regionName": "—",
-        "city": "—",
-        "lat": 0,
-        "lon": 0,
-        "timezone": None,
-        "isp": None,
-        "org": None,
-        "as": None,
-        "source": "fallback:anonymous",
-        "degraded": True,
-    }
-
-DEFAULT_PING_TARGET_PRESETS = [
-    {"key": "hk", "label": "香港 CMI", "host": "43.155.88.12", "port": 443, "protocol": "tcp"},
-    {"key": "jp", "label": "日本东京 SoftBank", "host": "27.0.234.55", "port": 443, "protocol": "tcp"},
-    {"key": "de", "label": "德国法兰克福", "host": "95.216.12.88", "port": 443, "protocol": "tcp"},
-    {"key": "sg", "label": "新加坡", "host": "172.104.55.99", "port": 443, "protocol": "tcp"},
-    {"key": "us", "label": "美国纽约 OVH", "host": "51.81.22.44", "port": 443, "protocol": "tcp"},
-]
-
-_DEFAULT_PING_TARGETS_CACHE_TTL = 15
-_ping_targets_memory_cache = {}
-
-
-def _ping_targets_cache_ttl() -> int:
-    """Return the configured TTL for latency-target definitions, independently of metric snapshots."""
-    try:
-        return max(0, int(current_app.config.get("PING_TARGETS_CACHE_TTL", _DEFAULT_PING_TARGETS_CACHE_TTL)))
-    except (TypeError, ValueError):
-        return _DEFAULT_PING_TARGETS_CACHE_TTL
-
-
-def _cache_get_json(key):
-    try:
-        client = getattr(extensions, "redis_client", None)
-        if client:
-            raw = client.get(key)
-            if raw:
-                if isinstance(raw, bytes):
-                    raw = raw.decode("utf-8")
-                return json.loads(raw)
-    except Exception:
-        pass
-    item = _ping_targets_memory_cache.get(key)
-    if item and item.get("expires", 0) > time.time():
-        return item.get("value")
-    return None
-
-
-def _cache_set_json(key, value, ttl=None):
-    if ttl is None:
-        ttl = _ping_targets_cache_ttl()
-    try:
-        client = getattr(extensions, "redis_client", None)
-        if client:
-            client.setex(key, int(ttl), json.dumps(value, ensure_ascii=False))
-            return
-    except Exception:
-        pass
-    _ping_targets_memory_cache[key] = {"expires": time.time() + ttl, "value": value}
-
-
-def clear_ping_targets_cache(sid):
-    prefix = f"vps:public:ping-targets:{sid}:"
-    for key in list(_ping_targets_memory_cache.keys()):
-        if str(key).startswith(prefix):
-            _ping_targets_memory_cache.pop(key, None)
-    try:
-        client = getattr(extensions, "redis_client", None)
-        if client:
-            for key in client.scan_iter(f"{prefix}*"):
-                client.delete(key)
-    except Exception:
-        pass
+"""Service helpers are imported above; route code begins below."""
 
 
 
-def _is_private_or_loopback_host(host: str) -> bool:
-    try:
-        import ipaddress
-        ip = ipaddress.ip_address(str(host).strip().strip('[]'))
-        return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_unspecified or ip.is_multicast
-    except Exception:
-        # Hostnames / domains are not treated as private IPs.
-        return False
+# Protocol implementations live outside the Flask route module. Re-export the
+# established names here so existing callers and route-level tests remain stable.
+from services import probe_protocols as _probe_protocols
+
+tcp_ping = _probe_protocols.tcp_ping
+icmp_ping = _probe_protocols.icmp_ping
+http_ping = _probe_protocols.http_ping
+_http_probe_url = _probe_protocols.http_probe_url
+_normalize_probe_protocol = _probe_protocols.normalize_probe_protocol
 
 
-def _peer_probe_endpoint(peer: Server):
-    """Pick a publicly reachable endpoint for VPS-to-VPS probing.
-
-    Priority:
-      1) explicit NAT / network public IPv4 + mapped port
-      2) inventory_meta.public_ip / public_ipv4
-      3) public IPv6
-      4) server.ip when it is a public IP or hostname (not RFC1918)
-    Private-only peers return None so the controller never invents fake local pings.
-    """
-    cfg = peer.agent_config if isinstance(peer.agent_config, dict) else {}
-    network = cfg.get("network") if isinstance(cfg.get("network"), dict) else {}
-    nat = cfg.get("nat") if isinstance(cfg.get("nat"), dict) else {}
-    mapped = cfg.get("mapped_ports") if isinstance(cfg.get("mapped_ports"), dict) else {}
-    meta = cfg.get("inventory_meta") if isinstance(cfg.get("inventory_meta"), dict) else {}
-
-    def _port(*candidates, default=80):
-        for value in candidates:
-            if value is None or value == "":
-                continue
-            try:
-                return int(value)
-            except Exception:
-                continue
-        return default
-
-    host = str(
-        nat.get("public_ipv4")
-        or network.get("public_ipv4")
-        or cfg.get("public_ipv4")
-        or meta.get("public_ip")
-        or meta.get("public_ipv4")
-        or ""
-    ).strip()
-    port = _port(
-        nat.get("public_port"),
-        nat.get("mapped_port"),
-        mapped.get("https"),
-        mapped.get("tcp"),
-        mapped.get("ssh"),
-        cfg.get("public_port"),
-        cfg.get("probe_port"),
-        meta.get("public_port"),
-        meta.get("probe_port"),
-        default=80,
-    )
-    if host and not _is_private_or_loopback_host(host):
-        return host, port, "tcp", "public_ipv4"
-
-    ipv6 = str(
-        network.get("public_ipv6")
-        or nat.get("public_ipv6")
-        or cfg.get("public_ipv6")
-        or meta.get("public_ipv6")
-        or ""
-    ).strip()
-    if ipv6 and not _is_private_or_loopback_host(ipv6):
-        return ipv6, _port(nat.get("port"), mapped.get("https"), mapped.get("tcp"), cfg.get("probe_port"), default=22), "tcp", "public_ipv6"
-
-    # Hostname in inventory (e.g. natsg4.bytevirt.net) beats private LAN IP reported by agent.
-    hostname = str(meta.get("hostname") or meta.get("public_host") or cfg.get("public_host") or "").strip()
-    if hostname and "." in hostname and not _is_private_or_loopback_host(hostname):
-        return hostname, port, "tcp", "hostname"
-
-    host = str(getattr(peer, "ip", "") or "").strip()
-    if host and not _is_private_or_loopback_host(host):
-        # Bare public IP defaults to 80; hostnames keep configured/mapped port when present.
-        use_port = port if not host.replace(".", "").isdigit() else 80
-        if host.replace(".", "").isdigit() or ":" in host.strip("[]"):
-            use_port = 80 if port == 80 else port
-        return host, use_port if not _is_private_or_loopback_host(host) else 80, "tcp", "server_ip"
-    return None
-
-
-def _server_peer_ping_targets(server: Server):
-    """Default global probe targets: current VPS -> other VPS nodes in this dashboard."""
-    try:
-        peers = Server.query.filter(Server.id != server.id).order_by(Server.id.asc()).all()
-    except Exception:
-        return [], False
-    out = []
-    for peer in peers:
-        endpoint = _peer_probe_endpoint(peer)
-        if not endpoint:
-            continue
-        host, port, protocol, source = endpoint
-        label_parts = [str(getattr(peer, "name", "") or "").strip(), str(getattr(peer, "location", "") or "").strip()]
-        label = " · ".join([p for p in label_parts if p]) or host
-        out.append({
-            "key": f"vps-{peer.id}",
-            "label": label,
-            "host": host,
-            "port": port,
-            "protocol": protocol,
-            "peer_server_id": peer.id,
-            "source": source,
-            "type": "peer",
-        })
-    # has peer nodes means the semantic source is VPS-to-VPS, even if every peer is NAT-only/unreachable.
-    return out, bool(peers)
-
-
-def _ping_targets_are_peer_targets(server: Server, targets=None):
-    """True when targets describe VPS-to-VPS peer probes.
-
-    These must come from the source node/agent.  The API container is only the
-    controller and must not synthesize directional latency by probing from the
-    controller host; that produced false near-zero samples for controller-local
-    peers.
-    """
-    targets = targets if targets is not None else _resolve_ping_targets_for_server(server)
-    return bool(targets) and all(str(t.get("key", "")).startswith("vps-") or t.get("peer_server_id") for t in targets)
-
-
-def _agent_side_unavailable_payload(server_id, targets, hours=None):
-    sanitized = []
-    for t in targets or []:
-        sanitized.append({
-            "key": t.get("key"),
-            "label": t.get("label") or t.get("key") or "peer",
-            "port": t.get("port"),
-            "protocol": t.get("protocol") or "tcp",
-            "results": [],
-            "stats": {"avg_ms": None, "count": 0, "success": 0, "loss_pct": None, "port": t.get("port"), "protocol": t.get("protocol") or "tcp"},
-            "quality": None,
-            "source": "agent-side-unavailable",
-            "points": [],
-        })
-    payload = {
-        "server_id": server_id,
-        "targets": sanitized,
-        "derived_from": "agent-side peer probe unavailable",
-        "probe_source": "agent",
-        "unavailable": True,
-        "message": "暂无真实节点侧互探采样",
-    }
-    if hours is not None:
-        payload["hours"] = hours
-    return payload
-
-
-def _resolve_ping_targets_for_server(server: Server):
-    """Resolve user-facing latency monitor targets only.
-
-    Detail-page PING charts/tables must show only targets configured in the
-    admin latency monitor (agent_config.ping_targets), or global defaults when
-    no per-node config exists. Added VPS/peer nodes are reserved for
-    source=agent peer probing and must not be mixed into the public PING view.
-    """
-    cfg = (server.agent_config or {}) if getattr(server, "agent_config", None) else {}
-    targets = cfg.get("ping_targets")
-    if isinstance(targets, list):
-        if not targets:
-            return []
-        cleaned = []
-        for idx, item in enumerate(targets):
-            if not isinstance(item, dict):
-                continue
-            host = str(item.get("host", "")).strip()
-            label = str(item.get("label", host or f"target-{idx+1}")).strip()
-            key = str(item.get("key", f"target-{idx+1}")).strip()
-            try:
-                port = int(item.get("port", 443))
-            except Exception:
-                port = 443
-            if host:
-                cleaned.append({"key": key, "label": label, "host": host, "port": port, "protocol": _normalize_probe_protocol(item.get("protocol")), "type": "external"})
-        return cleaned
-    return [{**dt, "type": "external"} for dt in _load_ping_targets()]
-
-def _load_ping_targets():
-    """Load global external latency targets.
-
-    Empty/missing config intentionally means no targets.  Older builds used
-    DEFAULT_PING_TARGET_PRESETS here, which made fresh installs display PING
-    data even when the admin had never configured latency monitoring.
-    """
-    raw = os.getenv("PING_TARGETS_JSON", "").strip()
-    if not raw:
-        return []
-    try:
-        data = json.loads(raw)
-        if not isinstance(data, list):
-            return []
-        legacy_default_hosts = {str(t.get("host")) for t in DEFAULT_PING_TARGET_PRESETS}
-        incoming_hosts = {str(t.get("host")) for t in data if isinstance(t, dict)}
-        if incoming_hosts == legacy_default_hosts:
-            return []
-        cleaned = []
-        for idx, item in enumerate(data):
-            if not isinstance(item, dict):
-                continue
-            host = str(item.get("host", "")).strip()
-            label = str(item.get("label", host or f"target-{idx+1}")).strip()
-            key = str(item.get("key", f"target-{idx+1}")).strip()
-            try:
-                port = int(item.get("port", 443))
-            except Exception:
-                port = 443
-            if not host:
-                continue
-            cleaned.append({"key": key, "label": label, "host": host, "port": port, "protocol": _normalize_probe_protocol(item.get("protocol")), "type": "external"})
-        return cleaned
-    except Exception:
-        return []
-
-
-
-# ── TCP Ping ─────────────────────────────────────────────────────────────────
-
-def tcp_ping(host: str, port: int, timeout: float = 5.0) -> dict:
-    """
-    单次 TCP 连接测试。
-    返回 { success, latency_ms, error }
-    """
-    start = time.perf_counter()
-    try:
-        target = str(host or "").strip().strip("[]")
-        if ":" in target:
-            # IPv6 targets are probed via an optional on-host helper (the API
-            # container cannot open raw IPv6 sockets in some deployments). The
-            # helper URL must be configured explicitly; there is no hardcoded
-            # docker-bridge default (was: http://172.18.0.1:9117/tcp), which
-            # broke silently whenever the bridge subnet differed.
-            helper = os.getenv("HOST_PROBE_HELPER_URL", "").strip()
-            if helper:
-                try:
-                    url = helper + "?" + urlencode({"host": target, "port": int(port), "timeout": float(timeout)})
-                    resp = requests.get(url, timeout=timeout + 1)
-                    if resp.ok:
-                        data = resp.json()
-                        return {
-                            "success": bool(data.get("success")),
-                            "latency_ms": data.get("latency_ms"),
-                            "error": data.get("error"),
-                        }
-                    return {"success": False, "latency_ms": None, "error": f"helper HTTP {resp.status_code}"}
-                except Exception as helper_exc:
-                    return {"success": False, "latency_ms": None, "error": f"helper: {helper_exc}"}
-        family = socket.AF_INET6 if ":" in target else socket.AF_INET
-        sock = socket.socket(family, socket.SOCK_STREAM)
-        sock.settimeout(timeout)
-        result = sock.connect_ex((target, port))
-        elapsed = (time.perf_counter() - start) * 1000
-        sock.close()
-        if result == 0:
-            return {"success": True, "latency_ms": round(elapsed, 2), "error": None}
-        else:
-            return {"success": False, "latency_ms": None, "error": f"errno {result}"}
-    except socket.timeout:
-        return {"success": False, "latency_ms": None, "error": "timeout"}
-    except Exception as e:
-        return {"success": False, "latency_ms": None, "error": str(e)}
-
-
-def _normalize_probe_protocol(value) -> str:
-    proto = str(value or "tcp").strip().lower()
-    if proto == "lcmp":
-        proto = "icmp"
-    return proto if proto in {"tcp", "icmp", "http"} else "tcp"
-
-
-def _http_probe_url(host: str, port: int | None = None) -> str:
-    """Build a valid HTTP URL from a host, including a bare IPv6 literal."""
-    raw = (host or "").strip()
-    if raw.startswith(("http://", "https://")):
-        return raw
-    target = raw.strip("[]")
-    try:
-        is_v6 = ipaddress.ip_address(target).version == 6
-    except ValueError:
-        is_v6 = False
-    authority = f"[{target}]" if is_v6 else target
-    if port and port not in (80, 443):
-        return f"http://{authority}:{int(port)}"
-    return f"http://{authority}"
-
-
+def run_probe_once(
+    protocol: str,
+    host: str,
+    port: int,
+    timeout: float = 5.0,
+    connect_host: str | None = None,
+) -> dict:
+    # Keep dispatch local so route-level monkeypatches of api.probe.* continue to
+    # work while protocol implementations remain isolated from Flask concerns.
+    protocol = _normalize_probe_protocol(protocol)
+    target = connect_host or host
+    if protocol == "icmp":
+        result = icmp_ping(target, timeout)
+    elif protocol == "http":
+        result = http_ping(host, port, timeout, connect_host=connect_host)
+    else:
+        result = tcp_ping(target, port, timeout)
+    result["protocol"] = protocol
+    return result
 def _is_public_probe_hostname(hostname: str) -> bool:
     """Reject loopback/private/link-local/reserved targets for anonymous probes."""
     name = (hostname or "").strip().strip("[]")
     if not name:
         return False
     lowered = name.lower().rstrip(".")
-    # Block cloud metadata endpoints (SSRF prevention)
     if name in {"169.254.169.254", "metadata.google.internal"}:
         return False
     if lowered in {"localhost", "localhost.localdomain"}:
@@ -533,90 +110,6 @@ def _validate_probe_target(protocol: str, host: str) -> bool:
             return False
         return validate_ip_or_hostname(parsed.hostname) and _is_public_probe_hostname(parsed.hostname)
     return validate_ip_or_hostname(host) and _is_public_probe_hostname(host)
-
-
-def icmp_ping(host: str, timeout: float = 5.0) -> dict:
-    start = time.perf_counter()
-    try:
-        target = str(host or "").strip().strip("[]")
-        try:
-            is_v6 = ipaddress.ip_address(target).version == 6
-        except ValueError:
-            is_v6 = False
-        cmd = ["ping", "-6"] if is_v6 else ["ping"]
-        cmd += ["-c", "1", "-W", str(max(1, int(timeout))), target]
-        proc = subprocess.run(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout + 1,
-        )
-        out = (proc.stdout or "") + "\n" + (proc.stderr or "")
-        if proc.returncode == 0:
-            m = re.search(r"time[=<]([0-9.]+)\s*ms", out)
-            latency = float(m.group(1)) if m else (time.perf_counter() - start) * 1000
-            return {"success": True, "latency_ms": round(latency, 2), "error": None}
-        return {"success": False, "latency_ms": None, "error": (out.strip().splitlines()[-1] if out.strip() else f"exit {proc.returncode}")[:160]}
-    except FileNotFoundError:
-        return {"success": False, "latency_ms": None, "error": "ping command unavailable"}
-    except subprocess.TimeoutExpired:
-        return {"success": False, "latency_ms": None, "error": "timeout"}
-    except Exception as e:
-        return {"success": False, "latency_ms": None, "error": str(e)}
-
-
-def http_ping(host: str, port: int | None = None, timeout: float = 5.0, connect_host: str | None = None) -> dict:
-    """Probe HTTP over a pre-resolved public IP without a second DNS lookup.
-
-    ``connect_host`` is a validated address from ``resolve_public_host_addresses``.
-    The authority remains the original hostname for HTTP Host and HTTPS SNI/cert
-    validation, while the socket itself is pinned to the address we validated.
-    """
-    url = _http_probe_url(host, port)
-    parsed = urlparse(url)
-    origin_host = parsed.hostname or str(host or "").strip().strip("[]")
-    connect_ip = str(connect_host or origin_host).strip().strip("[]")
-    scheme = parsed.scheme or "http"
-    target_port = parsed.port or (443 if scheme == "https" else 80)
-    path = (parsed.path or "/") + (f"?{parsed.query}" if parsed.query else "")
-    start = time.perf_counter()
-    try:
-        headers = {"User-Agent": "vps-dashboard-probe/1.0", "Host": origin_host}
-        pool_cls = urllib3.HTTPSConnectionPool if scheme == "https" else urllib3.HTTPConnectionPool
-        pool_kwargs = {"retries": False, "timeout": urllib3.Timeout(total=timeout), "headers": headers}
-        if scheme == "https":
-            # urllib3 connects to connect_ip but sends original hostname as SNI
-            # and validates the certificate against it.
-            pool_kwargs["server_hostname"] = origin_host
-            pool_kwargs["assert_hostname"] = origin_host
-        pool = pool_cls(connect_ip, port=target_port, **pool_kwargs)
-        try:
-            resp = pool.request("GET", path, redirect=False, preload_content=False)
-            status_code = int(resp.status)
-            resp.release_conn()
-        finally:
-            pool.close()
-        elapsed = (time.perf_counter() - start) * 1000
-        ok = 100 <= status_code < 500
-        return {"success": ok, "latency_ms": round(elapsed, 2) if ok else None, "error": None if ok else f"HTTP {status_code}", "status_code": status_code, "url": url}
-    except (urllib3.exceptions.ConnectTimeoutError, urllib3.exceptions.ReadTimeoutError):
-        return {"success": False, "latency_ms": None, "error": "timeout", "url": url}
-    except Exception as e:
-        return {"success": False, "latency_ms": None, "error": str(e), "url": url}
-
-
-def run_probe_once(protocol: str, host: str, port: int, timeout: float = 5.0, connect_host: str | None = None) -> dict:
-    # M-3: connect_host, when provided, is a pre-resolved public IP pinned by the
-    # caller. Connecting to it (instead of re-resolving `host`) closes the DNS
-    # rebinding / TOCTOU window between validation and connect. `host` is still
-    # used for display and, for http, the Host header / URL.
-    protocol = _normalize_probe_protocol(protocol)
-    target = connect_host or host
-    if protocol == "icmp":
-        r = icmp_ping(target, timeout)
-    elif protocol == "http":
-        r = http_ping(host, port, timeout)
-    else:
-        r = tcp_ping(target, port, timeout)
-    r["protocol"] = protocol
-    return r
 
 
 def _probe_stats(protocol: str, host: str, port: int, count: int, timeout: float, max_workers: int = 5):
@@ -663,230 +156,16 @@ def _tcp_ping_stats(host: str, port: int, count: int, timeout: float, protocol: 
     return _probe_stats(protocol, host, port, count, timeout, max_workers=5)
 
 
-def _target_history_table_ready():
-    """Ensure PING history storage once per process, never once per request.
+# PING history storage lives outside the Flask route module. Keep these names
+# re-exported so route-level callers and monkeypatches remain compatible.
+from services import probe_history as _probe_history
 
-    The table is normally created by schema_init. This fallback is retained for
-    older installs, but repeated CREATE TABLE DDL under concurrent detail/agent
-    requests can block InnoDB commits and must be avoided.
-    """
-    global _PTR_HISTORY_TABLE_READY
-    if _PTR_HISTORY_TABLE_READY:
-        return True
-    try:
-        is_mysql = db.engine.dialect.name in ("mysql", "pymysql", "mariadb")
-        if is_mysql:
-            db.session.execute(db.text("""
-                CREATE TABLE IF NOT EXISTS ping_target_results (
-                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-                    server_id INT NOT NULL,
-                    target_key VARCHAR(128) NOT NULL,
-                    label VARCHAR(255) NOT NULL DEFAULT '',
-                    host VARCHAR(255) NOT NULL DEFAULT '',
-                    port INT NULL,
-                    protocol VARCHAR(16) NOT NULL DEFAULT 'icmp',
-                    latency_ms DOUBLE NULL,
-                    success TINYINT(1) NOT NULL DEFAULT 0,
-                    loss_pct DOUBLE NULL,
-                    quality INT NULL,
-                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_ptr_server_created (server_id, created_at),
-                    INDEX idx_ptr_server_target_created (server_id, target_key, created_at)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-            """))
-            db.session.commit()
-            _ensure_ping_target_partitioning()
-        else:
-            # SQLite (tests) / other dialects: portable DDL without engine/index
-            # inline clauses, then create indexes separately.
-            db.session.execute(db.text("""
-                CREATE TABLE IF NOT EXISTS ping_target_results (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    server_id INTEGER NOT NULL,
-                    target_key VARCHAR(128) NOT NULL,
-                    label VARCHAR(255) NOT NULL DEFAULT '',
-                    host VARCHAR(255) NOT NULL DEFAULT '',
-                    port INTEGER NULL,
-                    protocol VARCHAR(16) NOT NULL DEFAULT 'icmp',
-                    latency_ms DOUBLE NULL,
-                    success SMALLINT NOT NULL DEFAULT 0,
-                    loss_pct DOUBLE NULL,
-                    quality INTEGER NULL,
-                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-                )
-            """))
-            db.session.execute(db.text(
-                "CREATE INDEX IF NOT EXISTS idx_ptr_server_created "
-                "ON ping_target_results (server_id, created_at)"))
-            db.session.execute(db.text(
-                "CREATE INDEX IF NOT EXISTS idx_ptr_server_target_created "
-                "ON ping_target_results (server_id, target_key, created_at)"))
-            db.session.commit()
-        _PTR_HISTORY_TABLE_READY = True
-        return True
-    except Exception:
-        db.session.rollback()
-        return False
+_target_history_table_ready = _probe_history._target_history_table_ready
+_ensure_ping_target_partitioning = _probe_history._ensure_ping_target_partitioning
+_persist_ping_target_results = _probe_history._persist_ping_target_results
+_fetch_ping_target_history = _probe_history._fetch_ping_target_history
 
 
-_PTR_PARTITION_CHECKED = False
-_PTR_HISTORY_TABLE_READY = False
-
-
-def _ensure_ping_target_partitioning():
-    """Idempotently enable daily partitioning on ping_target_results (MySQL only).
-
-    Per-second agent sampling makes this table grow fast; daily RANGE partitions
-    let the retention job DROP PARTITION cheaply instead of scanning millions of
-    rows. Runs at most once per process; the scheduler maintenance job keeps
-    future partitions pre-created and drops expired ones thereafter. Failure here
-    must never block writes — the table still works unpartitioned.
-    """
-    global _PTR_PARTITION_CHECKED
-    if _PTR_PARTITION_CHECKED:
-        return
-    _PTR_PARTITION_CHECKED = True
-    try:
-        from services.probe_partition import initialize_table_partitioning, is_partitioned
-        engine = db.engine
-        if not is_partitioned(engine, "ping_target_results"):
-            initialize_table_partitioning(engine, "ping_target_results")
-    except Exception:
-        pass
-
-
-def _persist_ping_target_results(server_id, targets, created_at=None):
-    if not targets or not _target_history_table_ready():
-        return
-    created_at = created_at or datetime.now(timezone.utc)
-    try:
-        for t in targets:
-            stats = t.get("stats") or {}
-            avg_ms = stats.get("avg_ms")
-            success = avg_ms is not None
-            db.session.execute(db.text("""
-                INSERT INTO ping_target_results
-                  (server_id, target_key, label, host, port, protocol, latency_ms, success, loss_pct, quality, created_at)
-                VALUES
-                  (:server_id, :target_key, :label, :host, :port, :protocol, :latency_ms, :success, :loss_pct, :quality, :created_at)
-            """), {
-                "server_id": server_id,
-                "target_key": str(t.get("key") or t.get("host") or t.get("label") or "unknown")[:128],
-                "label": str(t.get("label") or t.get("host") or "")[:255],
-                "host": str(t.get("host") or "")[:255],
-                "port": t.get("port"),
-                "protocol": str(t.get("protocol") or "icmp")[:16],
-                "latency_ms": float(avg_ms) if avg_ms is not None else None,
-                "success": 1 if success else 0,
-                "loss_pct": stats.get("loss_pct"),
-                "quality": t.get("quality"),
-                "created_at": created_at.replace(tzinfo=None) if hasattr(created_at, "replace") else created_at,
-            })
-            # Long-range charts read one aggregate per target/hour rather than
-            # scanning raw per-second samples. It shares this transaction with
-            # the raw insert so a successful sample is represented consistently.
-            try:
-                from services.ping_rollups import record_ping_rollup
-                record_ping_rollup(server_id, t, created_at)
-            except Exception:
-                current_app.logger.exception("ping rollup write failed", extra={"server_id": server_id})
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-
-
-def _fetch_ping_target_history(server_id, hours=12, limit=2000, target_keys=None):
-    if not _target_history_table_ready():
-        return []
-    hours = max(1, min(int(hours or 12), 168))
-    limit = max(1, min(int(limit or 2000), 10000))
-    since = datetime.now(timezone.utc) - timedelta(hours=hours)
-    since_naive = since.replace(tzinfo=None)
-    # Filter the shared raw table before bucket/limit. Otherwise dense peer rows
-    # can consume the aggregate budget and hide a configured external target.
-    keys = sorted({str(key) for key in (target_keys or []) if str(key)})
-    if target_keys is not None and not keys:
-        return []
-    key_clause = ""
-    params = {"server_id": server_id, "since": since_naive}
-    if keys:
-        placeholders = []
-        for index, key in enumerate(keys):
-            name = f"target_key_{index}"
-            placeholders.append(f":{name}")
-            params[name] = key
-        key_clause = f" AND target_key IN ({', '.join(placeholders)})"
-    # The agent writes second-level samples. Returning raw rows with a global
-    # LIMIT makes a busy target consume the response and leaves later targets
-    # blank; it also returns only a short tail of a 12h axis. Aggregate by a
-    # dynamic time bucket instead: preserve the whole requested time span while
-    # keeping total points near the caller's chart-safe limit.
-    target_count = db.session.execute(db.text("""
-        SELECT COUNT(DISTINCT target_key)
-        FROM ping_target_results
-        WHERE server_id = :server_id AND created_at >= :since""" + key_clause + """
-    """), params).scalar() or 1
-    points_per_target = max(1, limit // max(1, int(target_count)))
-    bucket_seconds = max(60, int((hours * 3600 + points_per_target - 1) // points_per_target))
-    params.update({"bucket_seconds": bucket_seconds, "limit": limit})
-    rows = db.session.execute(db.text("""
-        SELECT
-          :server_id AS server_id,
-          target_key,
-          MAX(label) AS label,
-          MAX(host) AS host,
-          MAX(port) AS port,
-          MAX(protocol) AS protocol,
-          AVG(latency_ms) AS latency_ms,
-          MAX(success) AS success,
-          AVG(loss_pct) AS loss_pct,
-          MAX(quality) AS quality,
-          MAX(created_at) AS created_at
-        FROM ping_target_results
-        WHERE server_id = :server_id AND created_at >= :since""" + key_clause + """
-        GROUP BY target_key, FLOOR(UNIX_TIMESTAMP(created_at) / :bucket_seconds)
-        ORDER BY created_at ASC
-        LIMIT :limit
-    """), params).mappings().all()
-    return [dict(r) for r in rows]
-
-
-
-def _backend_fallback_probe_peer_targets(server_id, targets):
-    if not targets:
-        return False
-    results = []
-    for t in targets:
-        host = t.get("host") or t.get("label")
-        port = t.get("port") or 22
-        if not host:
-            continue
-        try:
-            import socket, time
-            start = time.time()
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(3)
-            result = sock.connect_ex((str(host), int(port)))
-            elapsed = (time.time() - start) * 1000
-            sock.close()
-            if result == 0:
-                t["stats"] = {"avg_ms": round(elapsed, 1), "loss_pct": 0, "count": 1}
-                t["quality"] = "good" if elapsed < 100 else ("fair" if elapsed < 300 else "poor")
-                t["source"] = "backend-fallback"
-                results.append(t)
-            else:
-                t["stats"] = {"avg_ms": None, "loss_pct": 100, "count": 0}
-                t["quality"] = "dead"
-                t["source"] = "backend-fallback"
-                results.append(t)
-        except Exception as e:
-            t["stats"] = {"avg_ms": None, "loss_pct": 100, "count": 0, "error": str(e)[:200]}
-            t["quality"] = "dead"
-            t["source"] = "backend-fallback"
-            results.append(t)
-    if results:
-        _persist_ping_target_results(server_id, results)
-    return bool(results)
 @probe_bp.get("/public/ping-targets/<int:sid>/history")
 def public_ping_targets_history(sid):
     server = Server.query.get(sid)

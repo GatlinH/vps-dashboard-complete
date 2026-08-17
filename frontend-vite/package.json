@@ -9,12 +9,21 @@
     "preview": "vite preview",
     "analyze": "vite build && echo '✓ Build complete. Check ../frontend-dist/ for output.'",
     "test:account-password-ui": "node scripts/verify-account-password-ui.mjs",
+    "test:admin-css-structure": "node scripts/verify-admin-css-structure.mjs",
     "test:dashboard-globals": "node scripts/verify-dashboard-globals.mjs",
     "test:ping-axis-wiring": "node scripts/verify-ping-axis-wiring.mjs",
     "test:focused-globe-regressions": "node scripts/verify-focused-globe-regressions.mjs",
     "test:cesium-module-workers": "node scripts/verify-cesium-module-workers.mjs",
     "test:cesium-starship-home": "node scripts/verify-single-renderer-home.mjs",
-    "test:single-renderer-home": "node scripts/verify-single-renderer-home.mjs"
+    "test:single-renderer-home": "node scripts/verify-single-renderer-home.mjs",
+    "lint": "eslint src/",
+    "lint:js": "eslint src/",
+    "lint:css": "stylelint 'src/**/*.css'",
+    "format": "prettier --check .",
+    "lint:all": "npm run lint && npm run lint:css && npm run format",
+    "format:check": "prettier --check eslint.config.js prettier.config.js stylelint.config.js vitest.config.js src/api/serverPayload.js src/api/servers.js src/detail/resourceTimeline.js test/unit",
+    "test:unit": "vitest run",
+    "quality": "npm run lint && npm run format:check && npm run test:unit"
   },
   "dependencies": {
     "@deck.gl/core": "^9.3.6",
@@ -36,8 +45,15 @@
     "workbox-strategies": "7.4.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "esbuild": "0.28.1",
+    "eslint": "^9.39.5",
+    "globals": "^15.15.0",
+    "prettier": "^3.9.6",
+    "stylelint": "^16.26.1",
+    "stylelint-config-standard": "^36.0.1",
     "vite": "8.1.5",
-    "vite-plugin-pwa": "1.3.0"
+    "vite-plugin-pwa": "1.3.0",
+    "vitest": "^3.2.7"
   }
 }

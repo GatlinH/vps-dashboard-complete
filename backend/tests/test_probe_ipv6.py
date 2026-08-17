@@ -12,7 +12,7 @@ def test_http_probe_url_brackets_bare_ipv6_literal():
 
 def test_icmp_ping_uses_explicit_ipv6_flag_for_ipv6_literal():
     completed = MagicMock(returncode=0, stdout="64 bytes time=12.5 ms", stderr="")
-    with patch("api.probe.subprocess.run", return_value=completed) as run:
+    with patch("services.probe_protocols.subprocess.run", return_value=completed) as run:
         result = icmp_ping("2001:db8::1", timeout=2)
     assert result["success"] is True
     assert result["latency_ms"] == 12.5
@@ -21,7 +21,7 @@ def test_icmp_ping_uses_explicit_ipv6_flag_for_ipv6_literal():
 
 def test_icmp_ping_keeps_ipv4_command_unchanged():
     completed = MagicMock(returncode=0, stdout="64 bytes time=7.0 ms", stderr="")
-    with patch("api.probe.subprocess.run", return_value=completed) as run:
+    with patch("services.probe_protocols.subprocess.run", return_value=completed) as run:
         result = icmp_ping("1.1.1.1", timeout=2)
     assert result["success"] is True
     assert run.call_args.args[0][0] == "ping"

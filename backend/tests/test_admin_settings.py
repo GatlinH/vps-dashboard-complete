@@ -1,5 +1,17 @@
 import json
 from pathlib import Path
+import pytest
+from flask_jwt_extended import create_access_token
+
+
+@pytest.fixture
+def owner_headers(app, test_user):
+    with app.app_context():
+        token = create_access_token(
+            identity=str(test_user.id),
+            additional_claims={"role": "owner", "username": test_user.username},
+        )
+    return {"Authorization": f"Bearer {token}"}
 
 
 def test_login_settings_endpoints_require_existing_auth(client):
@@ -7,11 +19,16 @@ def test_login_settings_endpoints_require_existing_auth(client):
     assert client.put('/api/v1/ops/settings/login', json={}).status_code == 401
 
 
-def test_login_settings_round_trip(client, auth_headers, monkeypatch, tmp_path):
+def test_admin_cannot_update_login_settings(client, auth_headers):
+    response = client.put('/api/v1/ops/settings/login', json={}, headers=auth_headers)
+    assert response.status_code == 403
+
+
+def test_login_settings_round_trip(client, owner_headers, monkeypatch, tmp_path):
     settings_file = tmp_path / 'admin-settings.json'
     monkeypatch.setenv('ADMIN_SETTINGS_FILE', str(settings_file))
 
-    get_resp = client.get('/api/v1/ops/settings/login', headers=auth_headers)
+    get_resp = client.get('/api/v1/ops/settings/login', headers=owner_headers)
     assert get_resp.status_code == 200
     data = get_resp.get_json()
     assert data['disable_password_login'] is False
@@ -27,7 +44,7 @@ def test_login_settings_round_trip(client, auth_headers, monkeypatch, tmp_path):
         'allowed_emails': 'a@example.com,b@example.com',
         'api_key_enabled': True,
     }
-    put_resp = client.put('/api/v1/ops/settings/login', json=payload, headers=auth_headers)
+    put_resp = client.put('/api/v1/ops/settings/login', json=payload, headers=owner_headers)
     assert put_resp.status_code == 200
     saved = put_resp.get_json()
     assert saved['disable_password_login'] is True
@@ -36,7 +53,7 @@ def test_login_settings_round_trip(client, auth_headers, monkeypatch, tmp_path):
     assert saved['github_client_secret_masked'].startswith('gh-s')
     assert saved['api_key_enabled'] is True
 
-    round_trip = client.get('/api/v1/ops/settings/login', headers=auth_headers)
+    round_trip = client.get('/api/v1/ops/settings/login', headers=owner_headers)
     assert round_trip.status_code == 200
     round_data = round_trip.get_json()
     assert round_data['disable_password_login'] is True
@@ -84,7 +101,7 @@ def test_notification_settings_round_trip(client, auth_headers, monkeypatch, tmp
     assert round_trip.get_json()['message_prefix'] == '【告警中心】'
 
 
-def test_settings_summary_includes_login_and_notifications(client, auth_headers, monkeypatch, tmp_path):
+def test_settings_summary_includes_login_and_notifications(client, auth_headers, owner_headers, monkeypatch, tmp_path):
     settings_file = tmp_path / 'admin-settings.json'
     monkeypatch.setenv('ADMIN_SETTINGS_FILE', str(settings_file))
 
@@ -92,7 +109,7 @@ def test_settings_summary_includes_login_and_notifications(client, auth_headers,
         'disable_password_login': True,
         'github_client_id': 'gh-client-id',
         'github_client_secret': 'gh-secret-123456',
-    }, headers=auth_headers)
+    }, headers=owner_headers)
     client.put('/api/v1/ops/settings/notifications', json={
         'enabled': True,
         'message_prefix': '【告警中心】',

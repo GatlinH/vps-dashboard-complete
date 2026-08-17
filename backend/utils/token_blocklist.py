@@ -209,6 +209,20 @@ def is_user_force_revoked(user_id, token_iat: float) -> bool:
         return False
 
 
+def wait_until_user_tokens_can_be_issued(user_id) -> None:
+    """Wait out the sub-second revocation boundary before issuing a new JWT."""
+    try:
+        key = f"{_PREFIX_USER}{user_id}:forced_at"
+        val = extensions.redis_client.get(key)
+        if val is None:
+            return
+        delay = float(val) - time.time()
+        if delay > 0:
+            time.sleep(min(delay + 0.01, 1.1))
+    except Exception:
+        return
+
+
 # ── 统计（调试用） ────────────────────────────────────────────────────────────
 
 def get_blocklist_stats() -> dict:

@@ -49,9 +49,9 @@ function locationToLatLng(loc, server = {}) {
 function project3d(lat, lng, r, cx, cy, rotY, rotX) {
   const phi   = (90 - lat) * Math.PI / 180;
   const theta = (lng + 180) * Math.PI / 180;
-  let x = -Math.sin(phi) * Math.cos(theta);
-  let y =  Math.cos(phi);
-  let z =  Math.sin(phi) * Math.sin(theta);
+  const x = -Math.sin(phi) * Math.cos(theta);
+  const y =  Math.cos(phi);
+  const z =  Math.sin(phi) * Math.sin(theta);
   const cY = Math.cos(rotY), sY = Math.sin(rotY);
   const x2 = x * cY - z * sY, z2 = x * sY + z * cY;
   const cX = Math.cos(rotX), sX = Math.sin(rotX);

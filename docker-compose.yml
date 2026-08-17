@@ -20,6 +20,13 @@ services:
       --default-authentication-plugin=mysql_native_password
       --max-connections=1000
       --max_allowed_packet=256M
+      --binlog_expire_logs_seconds=86400
+      --max_binlog_size=256M
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '3'
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 30s
@@ -54,6 +61,11 @@ services:
       - sh
       - -lc
       - python -c "from app import create_app; from extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); db.create_all(); ctx.pop(); print('schema_init_ok')"
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '3'
     networks:
       - vps-network
 
@@ -75,6 +87,11 @@ services:
     environment:
       # REDISCLI_AUTH lets redis-cli authenticate automatically in healthcheck
       REDISCLI_AUTH: ${REDIS_PASSWORD:-}
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '3'
     volumes:
       - redis_data:/data
     healthcheck:
@@ -141,6 +158,11 @@ services:
       AGENT_POLL_RATE_LIMIT: ${AGENT_POLL_RATE_LIMIT:-120 per minute}
       WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_HTTP_API_TOKEN:-}
       WATCHTOWER_HTTP_API_URL: http://watchtower:8080/v1/update
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '3'
     ports:
       # Default stays IPv4 direct. Operators explicitly opt into IPv6/direct dual-stack
       # publishing with PUBLIC_BIND_ADDRESS='[::]' (or their chosen host address).
@@ -193,6 +215,11 @@ services:
       AGENT_METRICS_QUEUE_TIMEOUT: ${AGENT_METRICS_QUEUE_TIMEOUT:-5}
       AGENT_METRICS_RETRY_SLEEP: ${AGENT_METRICS_RETRY_SLEEP:-1}
       AGENT_METRICS_ERROR_QUEUE: ${AGENT_METRICS_ERROR_QUEUE:-vps:agent:metrics_queue:error}
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '3'
     volumes:
       - /var/log/vps-dashboard:/var/log/vps-dashboard
     networks:
@@ -210,6 +237,11 @@ services:
     environment:
       WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_HTTP_API_TOKEN:?set WATCHTOWER_HTTP_API_TOKEN}
       DOCKER_API_VERSION: "1.44"
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '3'
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:

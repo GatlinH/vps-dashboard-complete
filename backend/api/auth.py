@@ -15,6 +15,7 @@ import secrets
 import string
 import time
 import json
+import tempfile
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify, current_app, redirect
 from flask_jwt_extended import (
@@ -278,6 +279,30 @@ def _generate_random_password(length: int = 20) -> str:
     return "".join(pool)
 
 
+def _write_initial_admin_password(password: str) -> str:
+    fd, path = tempfile.mkstemp(prefix="admin_initial_password_", dir="/tmp", text=True)
+    try:
+        os.fchmod(fd, 0o600)
+        os.write(fd, (password + "\n").encode("utf-8"))
+    finally:
+        os.close(fd)
+    current_app.config["_ADMIN_INITIAL_PASSWORD_FILE"] = path
+    return path
+
+
+def _remove_initial_admin_password_file() -> None:
+    path = current_app.config.pop("_ADMIN_INITIAL_PASSWORD_FILE", None)
+    if not path:
+        return
+    try:
+        os.remove(path)
+        logger.info("首次成功登录后已删除 admin 初始密码文件: %s", path)
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        logger.warning("无法删除 admin 初始密码文件 %s，请手动删除: %s", path, exc)
+
+
 def _get_or_create_default_admin():
     """首次启动自动创建 admin 账户"""
     u = User.query.filter_by(username="admin").first()
@@ -285,13 +310,10 @@ def _get_or_create_default_admin():
         default_password = current_app.config.get("ADMIN_DEFAULT_PASSWORD", "")
         if not default_password:
             default_password = _generate_random_password()
-            print(
-                "\n" + "=" * 60 + "\n"
-                "⚠️  ADMIN_DEFAULT_PASSWORD 未设置，已自动生成随机密码。\n"
-                f"   admin 初始密码: {default_password}\n"
-                "   请登录后立即修改密码！\n"
-                + "=" * 60 + "\n",
-                flush=True,
+            password_file = _write_initial_admin_password(default_password)
+            current_app.logger.warning(
+                "ADMIN_DEFAULT_PASSWORD 未设置；随机 admin 初始密码已写入 %s（权限 0600）。首次成功登录后该文件将被删除。",
+                password_file,
             )
         u = User(
             username      = "admin",
@@ -398,5 +420,4 @@ def _oauth_upsert_admin(provider: str, email: str, name: str | None = None) -> U
         if changed:
             db.session.commit()
     return user
-
 

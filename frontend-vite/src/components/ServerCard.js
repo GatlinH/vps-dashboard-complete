@@ -1,7 +1,8 @@
 /**
  * components/ServerCard.js
- * 渲染单张服务器卡片 HTML（纯字符串模板），以及服务器详情模态框。
+ * 渲染单张服务器卡片 HTML 字符串，以及使用安全 DOM API 构建详情模态框。
  * 不依赖任何第三方库，仅使用浏览器原生 API。
+ * @deprecated 当前应用未导入此模块；保留以兼容旧版调用方。
  */
 
 import { toDisplay, calcResidualValue } from '../utils/currency.js';
@@ -13,6 +14,48 @@ const STATUS_LINE = { online: 'status-online', warn: 'status-warn', offline: 'st
 const STATUS_DOT  = { online: 'online',         warn: 'warn',        offline: 'offline' };
 
 // ─── 内部辅助 ────────────────────────────────────────────────────────────────
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>'"]/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
+  })[char]);
+}
+
+function safeExternalUrl(value) {
+  try {
+    const url = new URL(String(value), window.location.href);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function element(tag, options = {}) {
+  const node = document.createElement(tag);
+  if (options.className) node.className = options.className;
+  if (options.text !== undefined) node.textContent = String(options.text);
+  if (options.style) node.setAttribute('style', options.style);
+  return node;
+}
+
+function appendSpecTable(parent, rows) {
+  const table = element('table', { className: 'spec-table' });
+  rows.forEach(([label, value, style]) => {
+    const row = document.createElement('tr');
+    row.append(element('td', { text: label }));
+    const valueCell = element('td', { text: value });
+    if (style) valueCell.setAttribute('style', style);
+    row.append(valueCell);
+    table.append(row);
+  });
+  parent.append(table);
+}
+
+function modalSection(title) {
+  const section = element('div', { className: 'modal-section' });
+  section.append(element('div', { className: 'modal-section-title', text: title }));
+  return section;
+}
 
 function metricBar(label, pct) {
   const v   = parseFloat(pct);
@@ -27,13 +70,13 @@ function metricBar(label, pct) {
 }
 
 function rvTooltip(server, rv) {
-  const periodText = { monthly: '月付', yearly: '年付', quarterly: '季付' }[server.period] || server.period;
+  const periodText = escapeHtml({ monthly: '月付', yearly: '年付', quarterly: '季付' }[server.period] || server.period);
   const daysLeft   = Math.max(0, Math.ceil((new Date(server.expiry) - new Date()) / 86400000));
   return /* html */`
     <div class="rv-tooltip">
       <div class="rv-tooltip-title">💰 剩余价值分析</div>
       <div class="rv-tooltip-row"><span class="key">购入价格</span><span class="val">${toDisplay(server.price)} / ${periodText}</span></div>
-      <div class="rv-tooltip-row"><span class="key">到期日期</span><span class="val">${server.expiry}</span></div>
+      <div class="rv-tooltip-row"><span class="key">到期日期</span><span class="val">${escapeHtml(server.expiry)}</span></div>
       <div class="rv-tooltip-row"><span class="key">剩余天数</span><span class="val">${daysLeft > 0 ? daysLeft + ' 天' : '已到期'}</span></div>
       <div class="rv-tooltip-row"><span class="key">剩余价值</span><span class="val" style="color:var(--green)">${toDisplay(rv.value)}</span></div>
       <div class="rv-tooltip-row"><span class="key">已消耗</span><span class="val" style="color:var(--red)">${toDisplay(server.price - rv.value)}</span></div>
@@ -83,7 +126,7 @@ export function renderCard(server, onDetailClick) {
   const trafficCrit = server.traffic_limit_gb > 0 && pct >= 95;
 
   // Register click handler via dataset (event delegation friendly)
-  const clickAttr = `data-server-id="${server.id}"`;
+  const clickAttr = `data-server-id="${escapeHtml(server.id)}"`;
 
   return /* html */`
     <div class="server-card" ${clickAttr}>
@@ -91,12 +134,12 @@ export function renderCard(server, onDetailClick) {
 
       <div class="card-header">
         <div class="card-name">
-          <span class="flag">${server.flag}</span>
+          <span class="flag">${escapeHtml(server.flag)}</span>
           <span class="status-dot ${STATUS_DOT[server.status] || 'offline'}"></span>
-          ${server.name}
+          ${escapeHtml(server.name)}
         </div>
         <div class="card-badges">
-          <span class="badge badge-blue">${server.group}</span>
+          <span class="badge badge-blue">${escapeHtml(server.group)}</span>
           ${server.status === 'warn' ? '<span class="badge badge-red">⚠ 预警</span>' : ''}
           ${trafficCrit ? '<span class="badge badge-red">🔴 流量危急</span>'
             : trafficWarn ? '<span class="badge" style="background:rgba(255,159,67,.12);color:var(--orange);border:1px solid rgba(255,159,67,.3)">⚡ 流量预警</span>'
@@ -105,7 +148,7 @@ export function renderCard(server, onDetailClick) {
       </div>
 
       <div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-bottom:8px">
-        ${server.location} · ${server.ip}
+        ${escapeHtml(server.location)} · ${escapeHtml(server.ip)}
       </div>
 
       <div class="metrics">
@@ -117,20 +160,20 @@ export function renderCard(server, onDetailClick) {
       <div class="net-speeds">
         <div class="net-item">↑ <span>${Number(server.net_up).toFixed(1)} MB/s</span></div>
         <div class="net-item">↓ <span>${Number(server.net_down).toFixed(1)} MB/s</span></div>
-        <div class="net-item" style="margin-left:auto">SLA <span>${server.uptime}</span></div>
+        <div class="net-item" style="margin-left:auto">SLA <span>${escapeHtml(server.uptime)}</span></div>
       </div>
 
       ${trafficSection(server)}
 
       <div class="card-footer">
-        <div class="card-spec">${server.cpu}C / ${server.ram}G / ${server.disk}G · ${server.bw}</div>
+        <div class="card-spec">${escapeHtml(server.cpu)}C / ${escapeHtml(server.ram)}G / ${escapeHtml(server.disk)}G · ${escapeHtml(server.bw)}</div>
         <div class="rv-tag-wrapper" data-stop-propagation>
           <div class="rv-tag">💰 剩余 ${rv.pct}%</div>
           ${rvTooltip(server, rv)}
         </div>
       </div>
 
-      ${server.note ? `<div style="margin-top:8px;font-size:11px;color:var(--text3);border-left:2px solid var(--border2);padding-left:8px">${server.note}</div>` : ''}
+      ${server.note ? `<div style="margin-top:8px;font-size:11px;color:var(--text3);border-left:2px solid var(--border2);padding-left:8px">${escapeHtml(server.note)}</div>` : ''}
     </div>`;
 }
 
@@ -143,63 +186,71 @@ export function renderDetailModal(server) {
   const daysLeft = Math.max(0, Math.ceil((new Date(server.expiry) - new Date()) / 86400000));
   const periodMap = { monthly: '月', yearly: '年', quarterly: '季' };
 
-  document.getElementById('modalTitle').textContent = `${server.flag} ${server.name}`;
-  document.getElementById('modalContent').innerHTML = /* html */`
-    <div class="modal-section">
-      <div class="modal-section-title">基本规格</div>
-      <table class="spec-table">
-        <tr><td>位置</td><td>${server.location}</td></tr>
-        <tr><td>IP地址</td><td>${server.ip}</td></tr>
-        <tr><td>CPU</td><td>${server.cpu} 核</td></tr>
-        <tr><td>内存</td><td>${server.ram} GB</td></tr>
-        <tr><td>存储</td><td>${server.disk} GB</td></tr>
-        <tr><td>带宽</td><td>${server.bw}</td></tr>
-        <tr><td>运行时间</td><td>${server.uptime}</td></tr>
-      </table>
-    </div>
+  const modalTitle = document.getElementById('modalTitle');
+  const modalContent = document.getElementById('modalContent');
+  if (!modalTitle || !modalContent) return;
+  modalTitle.textContent = `${server.flag ?? ''} ${server.name ?? ''}`;
+  modalContent.replaceChildren();
 
-    <div class="modal-section">
-      <div class="modal-section-title">资源监控 (近24小时)</div>
-      <div style="height: 200px; position: relative; width: 100%;">
-        <canvas id="modal-cpu-chart-${server.id}"></canvas>
-      </div>
-    </div>
+  const specs = modalSection('基本规格');
+  appendSpecTable(specs, [
+    ['位置', server.location], ['IP地址', server.ip], ['CPU', `${server.cpu ?? ''} 核`],
+    ['内存', `${server.ram ?? ''} GB`], ['存储', `${server.disk ?? ''} GB`],
+    ['带宽', server.bw], ['运行时间', server.uptime],
+  ]);
+  modalContent.append(specs);
 
-    <div class="modal-section">
-      <div class="modal-section-title">价格与到期</div>
-      <table class="spec-table">
-        <tr><td>购入价格</td><td>${toDisplay(server.price)} / ${periodMap[server.period] || server.period}</td></tr>
-        <tr><td>到期时间</td><td>${server.expiry}</td></tr>
-        <tr><td>剩余天数</td><td>${daysLeft} 天</td></tr>
-        <tr><td>剩余价值</td><td style="color:var(--green)">${toDisplay(rv.value)}</td></tr>
-        <tr><td>已使用价值</td><td style="color:var(--red)">${toDisplay(server.price - rv.value)}</td></tr>
-      </table>
-    </div>
-    
-    ${server.probe ? `
-    <div class="modal-section">
-      <div class="modal-section-title">探针链接</div>
-      <a href="${server.probe}" style="color:var(--accent);font-size:13px;word-break:break-all" target="_blank">${server.probe}</a>
-    </div>` : ''}
-    
-    <div class="modal-section">
-      <div class="modal-section-title">用户评价</div>
-      <div class="review-item">
-        <div class="review-author">技术老司机</div>
-        <div class="review-stars">★★★★★</div>
-        <div class="review-text">稳定性非常好，跑了一年没出过问题。延迟正常，性价比高。</div>
-      </div>
-      <div class="review-item">
-        <div class="review-author">网络爱好者</div>
-        <div class="review-stars">★★★★☆</div>
-        <div class="review-text">速度不错，偶尔抖动，客服响应及时。总体推荐。</div>
-      </div>
-    </div>
-    
-    <div style="display:flex;gap:10px;margin-top:1rem">
-      ${server.probe ? `<a href="${server.probe}" target="_blank" class="aff-link-btn aff-btn-review" style="display:block;padding:8px;text-align:center">📡 查看探针</a>` : ''}
-      <button class="add-btn modal-close-btn" type="button">关闭</button>
-    </div>`;
+  const monitor = modalSection('资源监控 (近24小时)');
+  const chartWrap = element('div', { style: 'height: 200px; position: relative; width: 100%;' });
+  const canvas = document.createElement('canvas');
+  canvas.setAttribute('id', `modal-cpu-chart-${String(server.id ?? '')}`);
+  chartWrap.append(canvas);
+  monitor.append(chartWrap);
+  modalContent.append(monitor);
+
+  const pricing = modalSection('价格与到期');
+  appendSpecTable(pricing, [
+    ['购入价格', `${toDisplay(server.price)} / ${periodMap[server.period] || server.period || ''}`],
+    ['到期时间', server.expiry], ['剩余天数', `${daysLeft} 天`],
+    ['剩余价值', toDisplay(rv.value), 'color:var(--green)'],
+    ['已使用价值', toDisplay(server.price - rv.value), 'color:var(--red)'],
+  ]);
+  modalContent.append(pricing);
+
+  const probeUrl = server.probe ? safeExternalUrl(server.probe) : null;
+  if (probeUrl) {
+    const probe = modalSection('探针链接');
+    const link = element('a', { text: server.probe, style: 'color:var(--accent);font-size:13px;word-break:break-all' });
+    link.setAttribute('href', probeUrl);
+    link.setAttribute('target', '_blank');
+    link.setAttribute('rel', 'noopener noreferrer');
+    probe.append(link);
+    modalContent.append(probe);
+  }
+
+  const reviews = modalSection('用户评价');
+  [['技术老司机', '★★★★★', '稳定性非常好，跑了一年没出过问题。延迟正常，性价比高。'],
+    ['网络爱好者', '★★★★☆', '速度不错，偶尔抖动，客服响应及时。总体推荐。']].forEach(([author, stars, review]) => {
+    const item = element('div', { className: 'review-item' });
+    item.append(element('div', { className: 'review-author', text: author }));
+    item.append(element('div', { className: 'review-stars', text: stars }));
+    item.append(element('div', { className: 'review-text', text: review }));
+    reviews.append(item);
+  });
+  modalContent.append(reviews);
+
+  const actions = element('div', { style: 'display:flex;gap:10px;margin-top:1rem' });
+  if (probeUrl) {
+    const probeButton = element('a', { className: 'aff-link-btn aff-btn-review', text: '📡 查看探针', style: 'display:block;padding:8px;text-align:center' });
+    probeButton.setAttribute('href', probeUrl);
+    probeButton.setAttribute('target', '_blank');
+    probeButton.setAttribute('rel', 'noopener noreferrer');
+    actions.append(probeButton);
+  }
+  const closeButton = element('button', { className: 'add-btn modal-close-btn', text: '关闭' });
+  closeButton.setAttribute('type', 'button');
+  actions.append(closeButton);
+  modalContent.append(actions);
 
   document.getElementById('modalContent')?.querySelector('.modal-close-btn')?.addEventListener('click', () => {
     document.getElementById('detailModal')?.classList.remove('open');

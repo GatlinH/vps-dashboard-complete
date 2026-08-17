@@ -2,6 +2,8 @@
 
 from extensions import db
 from models.models import Server
+from services.server_serialization import PUBLIC_SERVER_FIELDS, serialize_public_server
+from services.admin_serialization import AdminServerSerializer
 
 
 def test_list_servers_authenticated(client, auth_headers):
@@ -74,3 +76,48 @@ def test_public_detail_preserves_exact_agent_reported_cpu_model(app):
 
     assert public_detail['cpu_model'] == cpu_model
     assert public_detail['ip'] == '203.0.*.*'
+
+
+def test_public_server_projection_rejects_unknown_internal_fields():
+    internal = {
+        'id': 7,
+        'name': 'public-node',
+        'ip': '2001:db8::7',
+        'status': 'online',
+        'future_secret': 'must-not-leak',
+        'agent_key_hash': 'must-not-leak',
+    }
+
+    public = serialize_public_server(internal, note='public remark')
+
+    assert set(public) <= PUBLIC_SERVER_FIELDS | {'public_note', 'publicRemark'}
+    assert public['ip'] == '2001:***'
+    assert public['public_note'] == 'public remark'
+    assert 'future_secret' not in public
+    assert 'agent_key_hash' not in public
+
+
+def test_public_server_dto_excludes_internal_fields_but_admin_keeps_them(app):
+    with app.app_context():
+        server = Server(
+            name='dto-boundary-node',
+            ip='203.0.113.20',
+            probe_url='https://internal-probe.example',
+            uuid='internal-agent-uuid',
+            note='public display remark',
+            agent_config={'inventory_meta': {'provider_guess': 'private-org'}},
+        )
+        db.session.add(server)
+        db.session.commit()
+
+        public = server.to_dict()
+        admin = AdminServerSerializer.serialize(server)
+
+    for key in (
+        'uuid', 'probe', 'probe_config', 'agent_config', 'agent_status',
+        'internal_ips', 'raw_metadata', 'note', 'provider_guess',
+    ):
+        assert key not in public
+        assert key in admin
+    assert public['public_note'] == 'public display remark'
+    assert public['publicRemark'] == 'public display remark'
