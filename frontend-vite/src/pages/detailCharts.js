@@ -168,7 +168,7 @@ function makeHudChartOptions(maxTicks = 5, yUnit = '') {
       tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, titleColor: '#eaffff', bodyColor: '#bffffb' }
     },
     scales: {
-      x: { ticks: { color: '#8ab5bd', maxRotation: 0, autoSkip: true, maxTicksLimit: tickLimit, font: { size: mobile ? 7 : 8 } }, grid: { color: 'rgba(98,245,238,0.13)' }, border: { color: 'rgba(98,245,238,.18)' } },
+      x: { reverse: false, ticks: { color: '#8ab5bd', maxRotation: 0, autoSkip: true, maxTicksLimit: tickLimit, font: { size: mobile ? 7 : 8 } }, grid: { color: 'rgba(98,245,238,0.13)' }, border: { color: 'rgba(98,245,238,.18)' } },
       y: {
         afterFit(axis){ if (mobile) axis.width = Math.max(axis.width, 44); },
         ticks: {
@@ -620,8 +620,8 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   const detailBucketMinutes = ({ 1: 5, 4: 20, 7: 60, 30: 60, 90: 180 })[detailDays] || 60;
   const detailBucketMs = detailBucketMinutes * 60 * 1000;
   const telemetryHours = 1;
-  const pingHours = 6;
-  const networkHours = 6;
+  const pingHours = detailDays * 24;
+  const networkHours = detailDays * 24;
   // The bucket width must come from the window a chart actually draws, not from
   // the history range picker. detailBucketMs is sized for the 1-90 day history
   // (1 day -> 5 min), so feeding it to the 1h telemetry charts collapsed ~520
@@ -648,7 +648,11 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   const processSeries = processSeriesPrimary.length
     ? processSeriesPrimary
     : seriesWindowFromRows(probeRows, 'process_count', telemetryHours);
-  const ping24hDatasets = buildPingDatasets(probeRows, pingHours, pingTargetsData, pingTargetHistoryData);
+  const ping24hDatasets = buildPingDatasets(probeRows, pingHours, pingTargetsData, pingTargetHistoryData)
+    .map((dataset) => ({
+      ...dataset,
+      data: [...(dataset.data || [])].sort((a, b) => Number(a?.x) - Number(b?.x)),
+    }));
   // Anchor the PING axis to its own samples (min = max(first, last-window),
   // max = last) so the line fills edge-to-edge instead of leaving a blank tail
   // from a cold-start (dataFirst + full window) upper bound.
@@ -725,6 +729,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   const label12h = cpuDisplaySeries.map(r => r.x);
   const smallChartXScale = (bounds = axis12hBounds) => ({
     type: 'linear',
+    reverse: false,
     min: bounds.min,
     max: bounds.max,
     // Tick labels are centre-anchored, so the terminal tick needs horizontal room
@@ -745,9 +750,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     border: { color: 'rgba(98,245,238,.18)' }
   });
   const fixedSmallY = (scale) => { scale.width = 28; };
-  // CPU/RAM use a fixed raw 1h slice, while network is a fixed 6h chart. Callers
-  // that have both sources pass the wider rows explicitly; first paint keeps the
-  // legacy fallback so there is no behavioural change when only one source exists.
+  // CPU/RAM use a fixed raw 1h slice, while network follows the selected range.
   const networkRowsSource = Array.isArray(networkProbeRows) ? networkProbeRows : probeRows;
   const networkNow = latestTimelineMs(networkRowsSource);
   const networkStart = networkNow - networkHours * 60 * 60 * 1000;
@@ -827,7 +830,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
           { label: t('chartDown'), parsing: false, data: networkDownPlot, borderColor: '#ffd66b', backgroundColor: 'transparent', fill: false, tension: networkMobile ? 0.28 : 0.18, pointRadius: 0, pointHoverRadius: 5, borderWidth: networkMobile ? 2.2 : 3.2, showLine: true, stepped: false },
         ]
       },
-      options: { ...baseOptions, elements: { line: { borderCapStyle: 'round', borderJoinStyle: 'round' }, point: { radius: networkMobile ? 0 : undefined } }, plugins: { ...baseOptions.plugins, legend: { display: false, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `${item.dataset.label}: ${fmtRate(Number(item.raw.rawY ?? item.raw.y ?? 0))}${Number.isFinite(Number(item.raw.rawMaxY)) ? ` · ${t('chartPeak')} ${fmtRate(Number(item.raw.rawMaxY))}` : ''}${Number(item.raw.samples) > 1 ? ` · ${Number(item.raw.samples)} ${t('chartSamplesAggregated')}` : ''}` } } }, scales: { x: { type: 'linear', min: networkAxisBounds.min, max: networkAxisBounds.max, ticks: { color: '#45676c', stepSize: Math.max(60 * 1000, Math.round((networkAxisBounds.max - networkAxisBounds.min) / (networkMobile ? 3 : 4))), callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: networkMobile, maxTicksLimit: networkMobile ? 4 : undefined, font: { size: networkMobile ? 7 : 9, weight: '700' } }, grid: { color: networkMobile ? 'rgba(55,95,101,0.12)' : 'rgba(55,95,101,0.20)' }, border: { color: 'rgba(55,95,101,.30)' } }, y: networkYScale } }
+      options: { ...baseOptions, elements: { line: { borderCapStyle: 'round', borderJoinStyle: 'round' }, point: { radius: networkMobile ? 0 : undefined } }, plugins: { ...baseOptions.plugins, legend: { display: false, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `${item.dataset.label}: ${fmtRate(Number(item.raw.rawY ?? item.raw.y ?? 0))}${Number.isFinite(Number(item.raw.rawMaxY)) ? ` · ${t('chartPeak')} ${fmtRate(Number(item.raw.rawMaxY))}` : ''}${Number(item.raw.samples) > 1 ? ` · ${Number(item.raw.samples)} ${t('chartSamplesAggregated')}` : ''}` } } }, scales: { x: { type: 'linear', reverse: false, min: networkAxisBounds.min, max: networkAxisBounds.max, ticks: { color: '#45676c', stepSize: Math.max(60 * 1000, Math.round((networkAxisBounds.max - networkAxisBounds.min) / (networkMobile ? 3 : 4))), callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: networkMobile, maxTicksLimit: networkMobile ? 4 : undefined, font: { size: networkMobile ? 7 : 9, weight: '700' } }, grid: { color: networkMobile ? 'rgba(55,95,101,0.12)' : 'rgba(55,95,101,0.20)' }, border: { color: 'rgba(55,95,101,.30)' } }, y: networkYScale } }
     }));
   }
   if (cpuCtx) {
@@ -931,7 +934,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
         })),
       },
       plugins: [pingEmptyPlugin],
-      options: { ...makeHudChartOptions(5, 'ms'), plugins: { ...makeHudChartOptions(5, 'ms').plugins, legend: { display: false, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: hasPingPoints, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? `${t('chartSampleTime')} ${formatTooltipClock(items[0].raw.x)}` : '', label: (item) => `${item.dataset.label}: ${Number(item.raw.rawMs ?? item.raw.y ?? 0).toFixed(1)} ms`, afterLabel: (item) => `${t('chartProtocol')} ${item.raw.protocol || 'icmp'} · ${t('chartLoss')} ${Number(item.raw.lossPct ?? 0).toFixed(0)}%` } } }, scales: { x: { type: 'linear', min: axis24h[0], max: axis24h[4], ticks: { color: '#8ab5bd', stepSize: 3 * 60 * 60 * 1000, callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: isDetailMobileChart(), maxTicksLimit: isDetailMobileChart() ? 4 : undefined, font: { size: isDetailMobileChart() ? 7 : 8 } }, grid: { color: 'rgba(98,245,238,0.13)' }, border: { color: 'rgba(98,245,238,.18)' } }, y: pingYScale } }
+      options: { ...makeHudChartOptions(5, 'ms'), plugins: { ...makeHudChartOptions(5, 'ms').plugins, legend: { display: false, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: hasPingPoints, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? `${t('chartSampleTime')} ${formatTooltipClock(items[0].raw.x)}` : '', label: (item) => `${item.dataset.label}: ${Number(item.raw.rawMs ?? item.raw.y ?? 0).toFixed(1)} ms`, afterLabel: (item) => `${t('chartProtocol')} ${item.raw.protocol || 'icmp'} · ${t('chartLoss')} ${Number(item.raw.lossPct ?? 0).toFixed(0)}%` } } }, scales: { x: { type: 'linear', reverse: false, min: axis24h[0], max: axis24h[4], ticks: { color: '#8ab5bd', stepSize: Math.max(60 * 1000, Math.round((axis24h[4] - axis24h[0]) / 4)), callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: isDetailMobileChart(), maxTicksLimit: isDetailMobileChart() ? 4 : undefined, font: { size: isDetailMobileChart() ? 7 : 8 } }, grid: { color: 'rgba(98,245,238,0.13)' }, border: { color: 'rgba(98,245,238,.18)' } }, y: pingYScale } }
     }));
     attachPingPointTooltip(pingCanvas, ping24hDatasets, {
       min: pingAxisBounds.min,
@@ -966,9 +969,9 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     };
     detailCharts._register('detailGlobalVpsProbeChart', new Chart(ctx, {
       type: 'line',
-      data: { datasets: vpsProbeDatasets.map((dataset) => ({ ...dataset, parsing: false })) },
+      data: { datasets: vpsProbeDatasets.map((dataset) => ({ ...dataset, parsing: false, data: [...(dataset.data || [])].sort((a, b) => Number(a?.x) - Number(b?.x)) })) },
       plugins: [vpsProbeEmptyPlugin],
-      options: { ...makeHudChartOptions(5, 'ms'), scales: { x: { type: 'linear', ticks: { callback: (value) => xTickFmt(value), color: '#8ab5bd' }, grid: { color: 'rgba(98,245,238,0.13)' } }, y: makeHudChartOptions(5, 'ms').scales.y } }
+      options: { ...makeHudChartOptions(5, 'ms'), scales: { x: { type: 'linear', reverse: false, ticks: { callback: (value) => xTickFmt(value), color: '#8ab5bd' }, grid: { color: 'rgba(98,245,238,0.13)' } }, y: makeHudChartOptions(5, 'ms').scales.y } }
     }));
     window.__DBG__.DETAIL_GLOBAL_VPS_PROBE_CHART = { targets: vpsProbeTargets.map((target) => target.key), datasets: vpsProbeDatasets.map((dataset) => dataset.label) };
   }
