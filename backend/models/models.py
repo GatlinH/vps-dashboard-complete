@@ -236,83 +236,11 @@ class Server(db.Model):
     )
     
     def to_dict(self, include_metrics=True, public_only=False):
-        cfg, inventory_meta = get_server_inventory_meta(self)
-        lat, lon = get_server_coords(self)
-        city = str(inventory_meta.get('city') or cfg.get('city') or '').strip()
-        region = str(inventory_meta.get('region') or cfg.get('region') or '').strip()
-        country = str(inventory_meta.get('country') or cfg.get('country') or '').strip()
-        provider_guess = str(inventory_meta.get('provider_guess') or cfg.get('provider_guess') or inventory_meta.get('org') or inventory_meta.get('isp') or '').strip()
-        runtime_os = str(inventory_meta.get('os') or cfg.get('os') or '').strip()
-        runtime_kernel = str(inventory_meta.get('kernel_version') or inventory_meta.get('kernel') or cfg.get('kernel_version') or cfg.get('kernel') or '').strip()
-        runtime_arch = str(inventory_meta.get('arch') or cfg.get('arch') or '').strip()
-        runtime_cpu_model = str(inventory_meta.get('cpu_model') or inventory_meta.get('cpu_name') or cfg.get('cpu_model') or cfg.get('cpu_name') or '').strip()
-        effective_location = str(self.location or '').strip() or format_server_location(city, region, country)
+        # Kept for compatibility with older callers; model serialization is public-only.
+        from services.admin_serialization import AdminServerSerializer
 
-        merged_agent_config = dict(cfg or {})
-        merged_agent_config['inventory_meta'] = inventory_meta
-        d = dict(
-            id=self.id,
-            name=self.name,
-            group=(self.group.name if self.group else self.group_name),
-            group_info=(self.group.to_public_dict() if self.group else None),
-            flag=self.flag,
-            location=effective_location,
-            city=city,
-            region=region,
-            country=country,
-            ip=self.ip,
-            cpu=self.cpu_cores,
-            ram=self.ram_gb,
-            disk=self.disk_gb,
-            bw=self.bandwidth,
-            provider=self.provider or '',
-            provider_guess=provider_guess,
-            os=runtime_os[:160],
-            kernel_version=runtime_kernel[:160],
-            arch=runtime_arch[:80],
-            cpu_model=runtime_cpu_model,
-            tags=self.tags or [],
-            probe=self.probe_url,
-            note=self.note,
-            price=self.price,
-            period=self.period,
-            expiry=self.expiry.isoformat() if self.expiry else None,
-            uuid=self.uuid,
-            agent_config=merged_agent_config,
-            lat=lat,
-            lon=lon,
-        )
-        
-        if include_metrics:
-            d.update(dict(
-                cpu_use=round(self.cpu_use, 2),
-                ram_use=round(self.ram_use, 2),
-                disk_use=round(self.disk_use, 2),
-                net_up=round(self.net_up, 2),
-                net_down=round(self.net_down, 2),
-                process_count=self.process_count,
-                status=self.status,
-                uptime=self.uptime,
-                traffic_limit_gb=self.traffic_limit_gb,
-                traffic_reset_day=self.traffic_reset_day or 1,
-                traffic_up_gb=round(self.traffic_up_gb, 4),
-                traffic_down_gb=round(self.traffic_down_gb, 4),
-                traffic_used_gb=round(self.traffic_used_gb, 4),
-                updated_at=self.updated_at.isoformat() if self.updated_at else None,
-            ))
-
-        # Admin node list uses these for heartbeat / agent binding (not public homepage).
-        if not public_only:
-            d.update(dict(
-                agent_key_created_at=self.agent_key_created_at.isoformat() if self.agent_key_created_at else None,
-                agent_key_last_used=self.agent_key_last_used.isoformat() if self.agent_key_last_used else None,
-                has_agent_key=bool(self.agent_key_hash),
-            ))
-        
-        if public_only:
-            return serialize_public_server(d, note=self.note)
-
-        return d
+        internal = AdminServerSerializer.serialize(self, include_metrics=include_metrics)
+        return serialize_public_server(internal, note=self.note)
 
 
 class AgentCommand(db.Model):

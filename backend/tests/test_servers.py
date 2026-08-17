@@ -3,6 +3,7 @@
 from extensions import db
 from models.models import Server
 from services.server_serialization import PUBLIC_SERVER_FIELDS, serialize_public_server
+from services.admin_serialization import AdminServerSerializer
 
 
 def test_list_servers_authenticated(client, auth_headers):
@@ -109,10 +110,13 @@ def test_public_server_dto_excludes_internal_fields_but_admin_keeps_them(app):
         db.session.add(server)
         db.session.commit()
 
-        public = server.to_dict(public_only=True)
-        admin = server.to_dict()
+        public = server.to_dict()
+        admin = AdminServerSerializer.serialize(server)
 
-    for key in ('uuid', 'probe', 'agent_config', 'note', 'provider_guess'):
+    for key in (
+        'uuid', 'probe', 'probe_config', 'agent_config', 'agent_status',
+        'internal_ips', 'raw_metadata', 'note', 'provider_guess',
+    ):
         assert key not in public
         assert key in admin
     assert public['public_note'] == 'public display remark'

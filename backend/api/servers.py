@@ -23,6 +23,7 @@ from services.telemetry_rollups import (
     serialize_hourly_telemetry_rollup,
 )
 from services.server_groups import assign_server_group
+from services.admin_serialization import AdminServerSerializer
 from utils.errors import ValidationError, InternalServerError
 from middleware.rbac import admin_required, viewer_or_admin_required, owner_required
 from utils.validators import validate_server_name, validate_server_ip
@@ -253,7 +254,7 @@ def create_server():
     db.session.commit()
 
     _clear_cache()
-    server_dict = server.to_dict()
+    server_dict = AdminServerSerializer.serialize(server)
     resp = {"server": server_dict, "id": server.id, "name": server.name}
     if install_payload:
         resp.update({"agent": install_payload})
@@ -367,7 +368,7 @@ def update_server(sid):
 
     db.session.commit()
     _clear_cache()
-    return jsonify(server.to_dict())
+    return jsonify(AdminServerSerializer.serialize(server))
 
 
 def _parse_bulk_ids(data, field="ids", limit=100):

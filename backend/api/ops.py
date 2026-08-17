@@ -18,6 +18,7 @@ from io import BytesIO
 from zipfile import ZipFile, ZIP_DEFLATED
 from datetime import datetime, timezone
 from services.app_settings import get_admin_settings, update_admin_settings, _crypto
+from services.admin_serialization import AdminServerSerializer
 from api.telegram import send_message
 from utils.request_context import audit_client_ip
 
@@ -68,9 +69,8 @@ def _agent_update_state():
         )
         current = ""
         if server:
-            cfg = server.agent_config if isinstance(server.agent_config, dict) else {}
-            raw_meta = cfg.get("inventory_meta")
-            meta = raw_meta if isinstance(raw_meta, dict) else {}
+            admin_server = AdminServerSerializer.serialize(server, include_metrics=False)
+            meta = admin_server["raw_metadata"]
             current = str(meta.get("agent_version") or "").strip()
         return {
             "name": "host-agent",
