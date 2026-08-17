@@ -18,7 +18,7 @@ import { LANGUAGE_PACKS, applyLanguage, configureLanguageSwitcher, currentLangua
 import { renderPublicOverviewPage as renderPublicOverviewPageModule } from './pages/overviewPage.js';
 import { detailLoadingShell, renderDetailConsole, renderDetailNotFound } from './pages/detailPage.js';
 import { appendDetailLiveMetrics, renderDetailMonitorCharts as renderDetailMonitorChartsModule } from './pages/detailCharts.js';
-import { getDetailHistoryDays, getDetailHistoryBucketMinutes, getDetailHistoryPointLimit, setDetailHistoryDays as setDetailHistoryDaysModule, syncDetailHistoryStateFromStorage } from './detail/historyRange.js';
+import { getDetailHistoryBucketMinutes, getDetailHistoryPointLimit, setDetailHistoryDays as setDetailHistoryDaysModule, syncDetailHistoryStateFromStorage } from './detail/historyRange.js';
 import { getDetailHeavyRefreshAt, getDetailPingTargetsFetchedAt, setDetailHeavyRefreshAt, setDetailPingTargetsFetchedAt, startDetailRefreshTimer, stopDetailRefreshTimer } from './detail/refreshState.js';
 import { detailCache } from './detail/detailCache.js';
 import { createDetailPingSampleCache } from './detail/sampleCache.js';
@@ -27,6 +27,11 @@ import { getGlobeRuntimeDebug } from './utils/debugState.js';
 import { buildClusterScreenFanout, resolveClusterSelection } from './components/globe/vpsClusterInteraction.js';
 import { groupClusterMembers } from './services/serverGroups.js';
 import { clusterServersByCoordinate } from './components/globe/vpsClusters.js';
+import { createDashboardTab } from './modules/dashboardTab.js';
+import { createDetailTab } from './modules/detailTab.js';
+import { createAssetManager } from './modules/assetManager.js';
+import { createDetailChartInitializer } from './modules/chartInit.js';
+import { bindDisplayEventHandlers } from './modules/eventHandlers.js';
 
 let globe = null;
 let starshipShowcase = null;
@@ -115,11 +120,9 @@ configureLanguageSwitcher({
   refreshDetailPresentation,
 });
 
-let detailHistoryDays = syncDetailHistoryStateFromStorage(1);
-window.__DBG__.DETAIL_HISTORY_DAYS = detailHistoryDays; // debug/read-only compatibility
-function setDetailHistoryDays(days) {
-  detailHistoryDays = setDetailHistoryDaysModule(days, refreshDetailHistoryRange);
-}
+let detailTab;
+function getDetailHistoryDays() { return detailTab.getHistoryDays(); }
+function setDetailHistoryDays(days) { return detailTab.setHistoryDays(days); }
 
 function setCurrency(currency) {
   state.currency = currency;
@@ -1404,11 +1407,6 @@ function renderRealtimeResourcePanels(server, trafficData, upSeries = [], downSe
   </section>`;
 }
 
-function renderInventoryRows(rows = []) {
-  const list = rows.slice(0, 5);
-  return list.map((row, idx) => `<tr><td>ASSET-${idx + 1}</td><td>${row.name}</td><td>${row.city || row.location || 'vector'}</td><td>${statusShortLabel(row.status)}</td><td>${(row.uuid || `phase-${idx + 1}`).slice(0, 13)}</td></tr>`).join('');
-}
-
 function formatExpiryCountdown(expiry) {
   const d = daysUntilExpiry(expiry);
   if (d == null) return t('expiryNone');
@@ -1417,23 +1415,17 @@ function formatExpiryCountdown(expiry) {
   return t('expiryIn').replace('{n}', String(d));
 }
 
+const {
+  renderInventoryRows,
+  renderSummaryStats,
+  statusShortLabel,
+  buildAssetNarrative,
+  buildAssetRiskChips,
+} = createAssetManager({ state, metric, statusLabel, formatExpiryCountdown, toDisplay, getMonthlyPrice });
+
 function renderTagChips(tags) {
   const rows = Array.isArray(tags) ? tags.filter(Boolean) : [];
   return rows.length ? rows.map(tag => `<span class="detail-tag">${tag}</span>`).join('') : `<span class="detail-tag is-empty">${t('noTags')}</span>`;
-}
-
-function renderSummaryStats() {
-  const rows = Array.isArray(state.servers) ? state.servers : [];
-  const total = rows.length;
-  const online = rows.filter(s => s.status === 'online').length;
-  const warn = rows.filter(s => s.status === 'warn').length;
-  const offline = rows.filter(s => s.status !== 'online' && s.status !== 'warn').length;
-  return `<div class="detail-metrics-grid compact detail-metrics-grid-dense">${metric('总节点', total)}${metric('在线', online)}${metric('波动', warn)}${metric('离线', offline)}</div>`;
-}
-
-
-function statusShortLabel(status) {
-  return status === 'online' ? 'ONLINE' : status === 'warn' ? 'WARN' : 'OFFLINE';
 }
 
 function describeRuleType(ruleType) {
@@ -1447,22 +1439,6 @@ function describeRuleType(ruleType) {
     ping: '延迟告警',
   };
   return map[ruleType] || (ruleType || '未知规则');
-}
-
-function buildAssetNarrative(server, rv, pct, pingData) {
-  const provider = server.provider || server.provider_guess || '未知供应商';
-  const loc = server.location || server.city || server.region || server.country || '未知地区';
-  const latency = pingData?.stats?.avg_ms != null ? `${pingData.stats.avg_ms}ms` : '暂无 TCP 采样';
-  return `${server.name} 当前位于 ${loc}，供应商 ${provider}，月均成本 ${toDisplay(getMonthlyPrice(server))}，剩余价值 ${toDisplay(rv.value)}，流量使用 ${pct.toFixed(1)}%，链路表现 ${latency}。`;
-}
-
-function buildAssetRiskChips(server, rv, pct, heartbeatPct, pingData) {
-  const chips = [statusLabel(server.status), formatExpiryCountdown(server.expiry)];
-  if (pct >= 85) chips.push('流量偏高');
-  if (Number(heartbeatPct || 0) < 95) chips.push('稳定率偏低');
-  if ((pingData?.stats?.loss_pct || 0) > 0) chips.push('存在丢包');
-  if (rv.daysLeft <= 7) chips.push('临近续费');
-  return chips;
 }
 
 function buildHealthNarrative(server, heartbeatPct, cpuSeries, ramSeries, latencySeries, pingData) {
@@ -2218,9 +2194,10 @@ function ensureDenseSeries(series) {
 }
 
 
-async function renderDetailMonitorCharts(args) {
-  return renderDetailMonitorChartsModule(args, {
-    detailCharts,
+const initializeDetailCharts = createDetailChartInitializer({
+  renderCharts: renderDetailMonitorChartsModule,
+  detailCharts,
+  helpers: {
     rowTimeMs,
     formatHourTick,
     formatHourTickWithDate,
@@ -2235,8 +2212,11 @@ async function renderDetailMonitorCharts(args) {
     pingStepLabel,
     PING_AXIS_STEPS_MS,
     latestTimelineMs,
-    getDetailPingSampleCache: () => detailPingSamples.store,
-  });
+  },
+  getPingSampleCache: () => detailPingSamples.store,
+});
+function renderDetailMonitorCharts(args) {
+  return initializeDetailCharts(args);
 }
 
 async function loadServers() {
@@ -2258,26 +2238,10 @@ async function loadServers() {
 }
 
 
-async function refreshDisplayServers() {
-  if (selectedServerId) return;
-  await loadServers();
-  if (globe) globe.setServers(state.servers);
-  if (overviewMode && document.querySelector('.public-overview-page')) {
-    renderPublicOverviewPage();
-    window.__DBG__.OVERVIEW_LAST_REFRESH = { at: new Date().toISOString(), count: state.servers.length, names: state.servers.map((s) => s.name) };
-  }
-  renderMoonPanel();
-}
-
-function stopDetailRealtimeRefresh() {
-  stopDetailRefreshTimer();
-}
-
 let detailRefreshInFlight = false;
 const detailPingSamples = createDetailPingSampleCache({ pingStepValue });
 const DETAIL_PING_SAMPLE_WINDOW_MS = detailPingSamples.windowMs;
 function loadStoredPingSamples(serverId) { detailPingSamples.loadStored(serverId); }
-let overviewRefreshTimer = null;
 
 async function refreshDetailHistoryRange(serverId) {
   const current = state.servers.find((item) => Number(item.id) === Number(serverId));
@@ -2603,43 +2567,40 @@ async function refreshDetailRealtime(serverId) {
   }
 }
 
-function startDetailRealtimeRefresh(serverId) {
-  stopDetailRealtimeRefresh();
-  // renderDetailPage has just fetched the full history set (range rows, raw 1h
-  // telemetry, process counts, ping targets) and drawn every chart from it.
-  // Zeroing the heavy-refresh clock here forced an immediate second heavy pass,
-  // so first paint replayed the same four ~300ms history requests and threw the
-  // first set away — measured as a duplicate burst at ~740ms and ~2170ms.
-  // Start the rate limit from now; the next heavy pass lands one interval later.
-  setDetailHeavyRefreshAt(Date.now());
-  startDetailRefreshTimer(() => refreshDetailRealtime(serverId).catch((error) => {
-    window.__DBG__.DETAIL_REFRESH_ERROR = String(error?.stack || error);
-    console.warn('[detail] realtime refresh failed', error);
-  }), 5000);
-  // Still kick the cheap path once so the live sample / freshness row is current
-  // without waiting a full 5s tick. refreshDetailLivePoint only hits /live.
-  refreshDetailRealtime(serverId).catch((error) => {
-    window.__DBG__.DETAIL_REFRESH_ERROR = String(error?.stack || error);
-    console.warn('[detail] initial realtime refresh failed', error);
-  });
-}
-
-function startSoftRefresh() {
-  if (selectedServerId) return;
-  if (overviewRefreshTimer) clearInterval(overviewRefreshTimer);
-  overviewRefreshTimer = setInterval(refreshDisplayServers, 10000);
-  window.__DBG__.OVERVIEW_REFRESH_TIMER = overviewRefreshTimer;
-  window.__DBG__.OVERVIEW_REFRESH_INTERVAL_MS = 10000;
-}
-
-window.addEventListener('storage', async (e) => {
-  if (e.key === 'vps-servers-version') await refreshDisplayServers();
+detailTab = createDetailTab({
+  syncHistoryDays: syncDetailHistoryStateFromStorage,
+  persistHistoryDays: setDetailHistoryDaysModule,
+  refreshHistoryRange: refreshDetailHistoryRange,
+  stopRefreshTimer: stopDetailRefreshTimer,
+  startRefreshTimer: startDetailRefreshTimer,
+  setHeavyRefreshAt: setDetailHeavyRefreshAt,
+  refreshRealtime: refreshDetailRealtime,
 });
+window.__DBG__.DETAIL_HISTORY_DAYS = getDetailHistoryDays();
+function startDetailRealtimeRefresh(serverId) {
+  return detailTab.startRealtimeRefresh(serverId);
+}
+function stopDetailRealtimeRefresh() {
+  return detailTab.stopRealtimeRefresh();
+}
 
-window.addEventListener('servers-changed', refreshDisplayServers);
-window.addEventListener('pageshow', refreshDisplayServers);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { selectedServerId ? refreshDetailRealtime(selectedServerId) : refreshDisplayServers(); } });
-if (serversChannel) serversChannel.addEventListener('message', refreshDisplayServers);
+const dashboardTab = createDashboardTab({
+  state,
+  selectedServerId,
+  overviewMode,
+  loadServers,
+  getMountedGlobe: () => globe,
+  renderOverview: renderPublicOverviewPage,
+  renderMoonPanel,
+});
+const { refresh: refreshDisplayServers, startRefresh: startSoftRefresh } = dashboardTab;
+
+bindDisplayEventHandlers({
+  serversChannel,
+  selectedServerId,
+  refreshDisplayServers,
+  refreshDetailRealtime,
+});
 
 window.__DBG__.LOAD_SERVERS = loadServers;
 

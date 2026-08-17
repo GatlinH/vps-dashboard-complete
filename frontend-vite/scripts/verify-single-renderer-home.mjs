@@ -3,6 +3,9 @@ import { readFileSync } from 'node:fs';
 
 const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
 const showcaseSource = readFileSync(new URL('../src/components/StarshipShowcase.js', import.meta.url), 'utf8');
+const engineSource = readFileSync(new URL('../src/components/starship/EngineFX.js', import.meta.url), 'utf8');
+const bussardSource = readFileSync(new URL('../src/components/starship/BussardFX.js', import.meta.url), 'utf8');
+const starshipSource = `${showcaseSource}\n${engineSource}\n${bussardSource}`;
 const cesiumSource = readFileSync(new URL('../src/components/CesiumGlobe.js', import.meta.url), 'utf8');
 const defaultGlobe = mainSource.match(/function getGlobe\(\) \{[\s\S]*?\n\}\n\nfunction initGlobe/);
 const displayMount = mainSource.match(/function mountDisplayPage\(\) \{[\s\S]*?\n\}\n\nfunction renderPublicOverviewPage/);
@@ -27,15 +30,15 @@ assert.match(showcaseSource, /basePosition = new THREE\.Vector3\(2\.15, -0\.16, 
 assert.match(showcaseSource, /userScale = 0\.86/, 'original-model hero scale keeps labels readable');
 assert.match(showcaseSource, /const target = 4\.85/, 'model normalization target');
 assert.match(showcaseSource, /this\._addExhaustRig\(\);/, 'runtime adds compact nacelle propulsion');
-assert.match(showcaseSource, /const ports = \[\[-4\.00, 3\.20, -4\.50\], \[-4\.00, -3\.20, -4\.50\]\];/, 'propulsion is anchored to two nacelles');
+assert.match(engineSource, /const ports = \[\[-4\.00, 3\.20, -4\.50\], \[-4\.00, -3\.20, -4\.50\]\];/, 'propulsion is anchored to two nacelles');
 assert.doesNotMatch(showcaseSource.match(/_finishModelLoad\([\s\S]*?\n  _normalizeUserModel/)[0], /_addWeiyan[45]/, 'runtime model load does not attach legacy smoke/plume rigs');
-assert.doesNotMatch(showcaseSource.match(/_addExhaustRig\(\) \{[\s\S]*?\n  _makeGlowSprite/)[0], /this\._makeExhaustRibbonTexture\(|this\._addWeiyan[45]/, 'compact exhaust rig does not create legacy flame-sheet or plume rigs');
+assert.doesNotMatch(engineSource.match(/_addExhaustRig\(\) \{[\s\S]*?\n\},?\n\n_makeGlowSprite/)[0], /this\._makeExhaustRibbonTexture\(|this\._addWeiyan[45]/, 'compact exhaust rig does not create legacy flame-sheet or plume rigs');
 assert.match(showcaseSource, /modelUrl: '\/globe\/xinjian1\.glb\?v=20260728'/, 'showcase default uses the versioned original xinjian1 hero model');
 assert.match(showcaseSource, /fallbackModelUrl: ''/, 'showcase fails soft rather than downloading a legacy duplicate fallback');
 assert.doesNotMatch(showcaseSource, /star_trek_dsc_enterprise_user\.glb/, 'showcase must not retain the legacy duplicate hero URL');
 assert.match(showcaseSource, /_installInteractionHandlers/, 'interaction handlers');
 assert.match(showcaseSource, /AnimationMixer/, 'GLB mixer');
-assert.match(showcaseSource, /bussard/, 'bussard animation path');
+assert.match(starshipSource, /bussard/, 'bussard animation path');
 assert.match(showcaseSource, /new THREE\.WebGLRenderer/, 'single WebGLRenderer');
 assert.match(showcaseSource, /requestAnimationFrame\(\(\) => this\._tick\(\)\)/, 'single rAF');
 assert.match(cesiumSource, /this\.enableStarship = options\.enableStarship === true/, 'Cesium starship opt-in only');
