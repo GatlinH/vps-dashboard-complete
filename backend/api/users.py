@@ -4,6 +4,7 @@ from extensions import db
 from models.models import User
 from middleware.rate_limit import limiter, READ_LIMIT, WRITE_LIMIT
 from middleware.rbac import admin_required, ADMIN_ROLE
+from utils.token_blocklist import revoke_all_user_tokens
 
 users_bp = Blueprint("users", __name__)
 
@@ -36,5 +37,8 @@ def assign_user_role(user_id: int):
     if target.role == ADMIN_ROLE:
         return jsonify(msg="不能通过此接口修改 admin 账户角色"), 403
     target.role = new_role
+    if not revoke_all_user_tokens(target.id):
+        db.session.rollback()
+        return jsonify(msg="会话吊销失败，角色未更新；请联系管理员"), 503
     db.session.commit()
     return jsonify(msg="角色已更新", user=target.to_dict())

@@ -200,6 +200,9 @@ class TestAdminRoleAssignment:
 
     def test_admin_can_demote_viewer_to_user(self, app, client, admin_headers, viewer_user):
         """admin 应能将 viewer 降级回 user。"""
+        viewer_headers = _login(client, "p1_viewer_user", "ViewerPass@123456")
+        assert client.get("/api/v1/audit/", headers=viewer_headers).status_code == 200
+
         resp = client.patch(
             f"/api/v1/auth/users/{viewer_user}/role",
             json={"role": "user"},
@@ -207,6 +210,11 @@ class TestAdminRoleAssignment:
         )
         assert resp.status_code == 200, f"降级 user 失败: {resp.get_json()}"
         assert resp.get_json()["user"]["role"] == "user"
+
+        revoked = client.get("/api/v1/audit/", headers=viewer_headers)
+        assert revoked.status_code in {401, 403}, (
+            f"降级后旧 JWT 应失效，实际: {revoked.status_code} {revoked.get_json()}"
+        )
 
     def test_admin_cannot_assign_admin_role(self, client, admin_headers, plain_user):
         """admin 不可通过此接口将用户提升为 admin（防止越权）。"""

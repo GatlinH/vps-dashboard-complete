@@ -1,5 +1,8 @@
 """/auth 账户与密码流程"""
 import logging
+import os
+import secrets
+import tempfile
 import time
 import json
 from datetime import datetime, timezone
@@ -15,7 +18,7 @@ from middleware.rate_limit import limiter, LOGIN_LIMIT, WRITE_LIMIT, READ_LIMIT
 from middleware.rbac import admin_required, ADMIN_ROLE, VIEWER_ROLE, USER_ROLE
 from services.email_service import send_verification_email, send_password_reset_email, send_welcome_email
 from utils.errors import AuthenticationError
-from utils.token_blocklist import is_refresh_token_revoked, revoke_refresh_token, revoke_access_token, revoke_all_user_tokens
+from utils.token_blocklist import is_refresh_token_revoked, revoke_refresh_token, revoke_access_token, revoke_all_user_tokens, wait_until_user_tokens_can_be_issued
 import extensions
 from utils.validators import validate_password_strength
 
@@ -107,7 +110,7 @@ def _iter_sessions(user_id: str):
 
 
 def _generate_random_password(length: int = 20) -> str:
-    import secrets, string
+    import string
     lower = secrets.choice(string.ascii_lowercase)
     upper = secrets.choice(string.ascii_uppercase)
     digit = secrets.choice(string.digits)
@@ -118,22 +121,40 @@ def _generate_random_password(length: int = 20) -> str:
     return "".join(pool)
 
 
+def _write_initial_admin_password(password: str) -> str:
+    fd, path = tempfile.mkstemp(prefix="admin_initial_password_", dir="/tmp", text=True)
+    try:
+        os.fchmod(fd, 0o600)
+        os.write(fd, (password + "\n").encode("utf-8"))
+    finally:
+        os.close(fd)
+    current_app.config["_ADMIN_INITIAL_PASSWORD_FILE"] = path
+    return path
+
+
+def _remove_initial_admin_password_file() -> None:
+    path = current_app.config.pop("_ADMIN_INITIAL_PASSWORD_FILE", None)
+    if not path:
+        return
+    try:
+        os.remove(path)
+        logger.info("首次成功登录后已删除 admin 初始密码文件: %s", path)
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        logger.warning("无法删除 admin 初始密码文件 %s，请手动删除: %s", path, exc)
+
+
 def _get_or_create_default_admin():
     u = User.query.filter_by(username="admin").first()
     if not u:
         configured_password = current_app.config.get("ADMIN_DEFAULT_PASSWORD", "")
         default_password = configured_password or _generate_random_password()
         if not configured_password:
-            print(
-                "\n" + "=" * 60 + "\n"
-                "⚠️  ADMIN_DEFAULT_PASSWORD 未设置，已自动生成随机密码。\n"
-                f"   admin 初始密码: {default_password}\n"
-                "   请登录后立即修改密码！\n"
-                + "=" * 60 + "\n",
-                flush=True,
-            )
+            password_file = _write_initial_admin_password(default_password)
             current_app.logger.warning(
-                "ADMIN_DEFAULT_PASSWORD 未设置，已自动生成随机 admin 初始密码；请登录后立即修改。"
+                "ADMIN_DEFAULT_PASSWORD 未设置；随机 admin 初始密码已写入 %s（权限 0600）。首次成功登录后该文件将被删除。",
+                password_file,
             )
         u = User(username="admin", password_hash=generate_password_hash(default_password), role="admin", email_verified=True)
         db.session.add(u)
@@ -167,12 +188,15 @@ def login():
         return jsonify(msg="用户名或密码错误"), 401
     if user.role != "admin" and not getattr(user, "email_verified", True):
         return jsonify(msg="请先验证您的邮箱后再登录"), 403
+    if user.username == "admin":
+        _remove_initial_admin_password_file()
     user.last_login = datetime.now(timezone.utc)
     db.session.commit()
     try:
         LoginGuard.record_login_attempt(username, success=True, ip_address=ip_address, user_agent=user_agent, request_obj=request)
     except Exception as e:
         logger.warning("⚠️ LoginGuard 成功记录失败: %s", e)
+    wait_until_user_tokens_can_be_issued(user.id)
     access = create_access_token(identity=str(user.id), additional_claims={"role": user.role, "username": user.username})
     refresh = create_refresh_token(identity=str(user.id))
     body = {"user": user.to_dict(), "authenticated": True}
@@ -451,6 +475,9 @@ def update_user_role(user_id):
     if user.role == ADMIN_ROLE:
         return jsonify(msg="不能通过此接口修改 admin 账户角色"), 403
     user.role = new_role
+    if not revoke_all_user_tokens(user.id):
+        db.session.rollback()
+        return jsonify(msg="会话吊销失败，角色未更新；请联系管理员"), 503
     db.session.commit()
     return jsonify(msg="角色已更新", user=user.to_dict())
 
