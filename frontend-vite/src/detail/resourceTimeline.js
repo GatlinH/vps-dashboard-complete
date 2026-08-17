@@ -30,11 +30,38 @@ export function resourceTimelineRows(rows = [], nowMs = Date.now()) {
 }
 
 export function shouldReplaceResourceTimeline(currentRows = [], candidateRows = []) {
-  const currentLast = resourceTimelineRows(currentRows).at(-1)?.__timeMs || 0;
-  const candidateLast = resourceTimelineRows(candidateRows).at(-1)?.__timeMs || 0;
+  const current = resourceTimelineRows(currentRows);
+  const candidate = resourceTimelineRows(candidateRows);
+  const currentLast = current.at(-1)?.__timeMs || 0;
+  const candidateLast = candidate.at(-1)?.__timeMs || 0;
   // An empty/older HTTP response must not erase a newer point appended by the
   // 5-second live endpoint while the request was in flight.
-  return candidateLast >= currentLast;
+  if (candidateLast < currentLast) return false;
+
+  // A history endpoint can return a newer final bucket while still being much
+  // coarser than the live series already on screen. Compare average spacing so
+  // that a 5-minute response cannot replace second-resolution points.
+  const spacing = (rows) => rows.length > 1
+    ? (rows.at(-1).__timeMs - rows[0].__timeMs) / (rows.length - 1)
+    : Infinity;
+  const currentSpacing = spacing(current);
+  const candidateSpacing = spacing(candidate);
+  return !Number.isFinite(currentSpacing)
+    || !Number.isFinite(candidateSpacing)
+    || candidateSpacing <= currentSpacing * 1.5;
+}
+
+export function mergeResourceTimelineHistory(currentRows = [], historyRows = []) {
+  const current = resourceTimelineRows(currentRows);
+  const history = resourceTimelineRows(historyRows);
+  if (!current.length) return history;
+  if (!history.length) return current;
+
+  const oldestCurrent = current[0].__timeMs;
+  return resourceTimelineRows([
+    ...history.filter((row) => row.__timeMs < oldestCurrent),
+    ...current,
+  ]);
 }
 
 export function resourceHistoryRequest() {
