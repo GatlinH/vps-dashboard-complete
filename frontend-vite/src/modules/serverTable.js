@@ -13,7 +13,7 @@ import { mountGlobeStarmap } from '../components/GlobeStarmapMount.jsx';
 import { toDisplay, calcResidualValue, getMonthlyPrice, getBillingMonths, updateRateDisplay, refreshExchangeRates } from '../utils/currency.js';
 import { fmtGb, getTrafficPct, getTrafficUsed } from '../utils/traffic.js';
 import { renderSunBadge, renderMoonPanel } from '../ui/sunMoonEntry.js';
-import { fetchJson, fetchPing, fetchPingTargetHistory, fetchPingTargets, fetchServerHistory, fetchResourceTimeline, enrichServersWithIpGeo, normalizeServer } from '../services/displayData.js';
+import { fetchJson, fetchPingTargetHistory, fetchPingTargets, fetchServerHistory, fetchResourceTimeline, enrichServersWithIpGeo, normalizeServer } from '../services/displayData.js';
 import { LANGUAGE_PACKS, applyLanguage, configureLanguageSwitcher, currentLanguage, safeStorageGet, safeStorageRemove, safeStorageSet, setLanguage, setTheme, t, toggleTheme } from '../core/preferences.js';
 import { renderPublicOverviewPage as renderPublicOverviewPageModule } from '../pages/overviewPage.js';
 import { detailLoadingShell, renderDetailConsole, renderDetailNotFound } from '../pages/detailPage.js';
@@ -1923,8 +1923,12 @@ async function renderDetailPage(serverId) {
   // History responses already include target metadata. Avoid separate slow
   // target-definition requests on first paint; the lightweight target refresh
   // runs later via refreshDetailProbeTargetsNow / realtime refresh.
+  const configuredTargets = resolvedServer.agent_config?.ping_targets;
+  const hasExplicitlyEmptyPingTargets = Array.isArray(configuredTargets) && configuredTargets.length === 0;
   const externalPingPromise = settleWithin(
-    fetchPingTargetHistory(resolvedServer.id, targetHistoryHours, historyLimit),
+    hasExplicitlyEmptyPingTargets
+      ? Promise.resolve({ server_id: resolvedServer.id, targets: [], configured: false, not_configured: true })
+      : fetchPingTargetHistory(resolvedServer.id, targetHistoryHours, historyLimit),
     fetchBudgetMs,
     'ping-history',
   );
@@ -1945,14 +1949,13 @@ async function renderDetailPage(serverId) {
     fetchBudgetMs,
     'process-history',
   );
-  const [traffic, ping, probeHistory] = await Promise.all([
-    settleWithin(fetchJson(`${API_ROOT}/api/v1/traffic/public/${resolvedServer.id}`, { timeoutMs: 1200 }), fetchBudgetMs, 'traffic'),
-    settleWithin(fetchPing(resolvedServer), fetchBudgetMs, 'ping'),
+  const [traffic, probeHistory] = await Promise.all([
+    settleWithin(fetchJson(`${API_ROOT}/api/v1/traffic/public/${resolvedServer.id}`, { timeoutMs: 1200, cacheMs: 5000 }), fetchBudgetMs, 'traffic'),
     settleWithin(fetchServerHistory(resolvedServer.id, historyDays, historyLimit, detailBucketMinutes), fetchBudgetMs, 'server-history'),
   ]);
 
   const trafficData = traffic.status === 'fulfilled' ? traffic.value : null;
-  const pingData = ping.status === 'fulfilled' ? ping.value : null;
+  const pingData = null;
   const probeHistoryData = probeHistory.status === 'fulfilled' ? probeHistory.value : null;
   const historyData = probeHistoryData;
   // The first paint intentionally uses cached PING data (if any). The two
@@ -2154,6 +2157,7 @@ async function renderDetailPage(serverId) {
   // otherwise every chart is born with its complete initial dataset.
   window.__DBG__.DETAIL_TRACE.push('before-charts');
   await repaintDetailChartsFromCache();
+  detailGrid.querySelectorAll('.fleet-chart-card.chart-loading').forEach((card) => card.classList.remove('chart-loading'));
   window.__DBG__.DETAIL_PROGRESSIVE_COMMIT = {
     at: new Date().toISOString(),
     resourceRows: detailCache.resourceRows.length,

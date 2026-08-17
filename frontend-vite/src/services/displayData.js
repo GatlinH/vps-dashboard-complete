@@ -112,8 +112,16 @@ export function normalizeServer(s) {
 }
 
 
+const recentGetRequests = new Map();
+
 export async function fetchJson(url, options = {}) {
-  const { timeoutMs = 2500, ...fetchOptions } = options || {};
+  const { timeoutMs = 2500, cacheMs = 0, ...fetchOptions } = options || {};
+  const method = String(fetchOptions.method || 'GET').toUpperCase();
+  const cacheKey = method === 'GET' && cacheMs > 0 ? String(url) : '';
+  const cached = cacheKey ? recentGetRequests.get(cacheKey) : null;
+  if (cached && Date.now() - cached.createdAt < cacheMs) return cached.promise;
+
+  const request = (async () => {
   const controller = new AbortController();
   const upstreamSignal = fetchOptions.signal;
   let timeoutId = null;
@@ -133,6 +141,15 @@ export async function fetchJson(url, options = {}) {
     if (timeoutId) clearTimeout(timeoutId);
     if (upstreamSignal) upstreamSignal.removeEventListener('abort', abortFromUpstream);
   }
+  })();
+
+  if (cacheKey) {
+    recentGetRequests.set(cacheKey, { createdAt: Date.now(), promise: request });
+    request.catch(() => {
+      if (recentGetRequests.get(cacheKey)?.promise === request) recentGetRequests.delete(cacheKey);
+    });
+  }
+  return request;
 }
 
 
@@ -140,7 +157,7 @@ export async function fetchServerHistory(serverId, days = 1, limit = 720, bucket
   const root = window.__DBG__.API_ROOT || (location.port === 5000 ? `${location.protocol}//${location.hostname}:5000` : location.origin);
   const bucketParam = bucketMinutes ? `&bucket_minutes=${encodeURIComponent(bucketMinutes)}` : '';
   const metricParam = metric ? `&metric=${encodeURIComponent(metric)}` : '';
-  return fetchJson(`${root}/api/v1/servers/public/${serverId}/history?days=${days}${bucketParam}&limit=${limit}${metricParam}`, { timeoutMs: Math.max(1200, limit > 1000 ? 12000 : 1200) });
+  return fetchJson(`${root}/api/v1/servers/public/${serverId}/history?days=${days}${bucketParam}&limit=${limit}${metricParam}`, { timeoutMs: Math.max(1200, limit > 1000 ? 12000 : 1200), cacheMs: 5000 });
 }
 
 // Dedicated raw CPU/RAM series. The server filters null resource rows before
@@ -160,13 +177,13 @@ export function fetchNetworkTimeline(serverId, limit = 120) {
 export async function fetchPingTargets(serverId, count = 1, source = '') {
   const root = window.__DBG__.API_ROOT || (location.port === 5000 ? `${location.protocol}//${location.hostname}:5000` : location.origin);
   const sourceParam = source ? `&source=${encodeURIComponent(source)}` : '';
-  return fetchJson(`${root}/api/v1/probe/public/ping-targets/${serverId}?count=${count}${sourceParam}`, { timeoutMs: 9000 });
+  return fetchJson(`${root}/api/v1/probe/public/ping-targets/${serverId}?count=${count}${sourceParam}`, { timeoutMs: 9000, cacheMs: 5000 });
 }
 
 export async function fetchPingTargetHistory(serverId, hours = 12, limit = 2000, source = '') {
   const root = window.__DBG__.API_ROOT || (location.port === 5000 ? `${location.protocol}//${location.hostname}:5000` : location.origin);
   const sourceParam = source ? `&source=${encodeURIComponent(source)}` : '';
-  return fetchJson(`${root}/api/v1/probe/public/ping-targets/${serverId}/history?hours=${hours}&limit=${limit}${sourceParam}`, { timeoutMs: 9000 });
+  return fetchJson(`${root}/api/v1/probe/public/ping-targets/${serverId}/history?hours=${hours}&limit=${limit}${sourceParam}`, { timeoutMs: 9000, cacheMs: 5000 });
 }
 
 export async function fetchPing(_resolvedServer) {

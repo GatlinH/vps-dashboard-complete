@@ -1114,6 +1114,17 @@ html,body{scrollbar-width:thin!important;}
   min-height:330px!important;
   padding:18px!important;
 }
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.chart-loading{
+  animation:chart-loading-pulse 1.5s ease-in-out infinite;
+  opacity:.5;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.chart-loading canvas{
+  visibility:hidden;
+}
+@keyframes chart-loading-pulse{
+  0%,100%{opacity:.42;}
+  50%{opacity:.62;}
+}
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-head{
   font-size:14px!important;
   margin-bottom:12px!important;
