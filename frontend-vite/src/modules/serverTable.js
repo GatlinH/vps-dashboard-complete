@@ -14,7 +14,7 @@ import { toDisplay, calcResidualValue, getMonthlyPrice, getBillingMonths, update
 import { fmtGb, getTrafficPct, getTrafficUsed } from '../utils/traffic.js';
 import { renderSunBadge, renderMoonPanel } from '../ui/sunMoonEntry.js';
 import { fetchJson, fetchPingTargetHistory, fetchPingTargets, fetchServerHistory, fetchResourceTimeline, enrichServersWithIpGeo, normalizeServer } from '../services/displayData.js';
-import { LANGUAGE_PACKS, applyLanguage, configureLanguageSwitcher, currentLanguage, safeStorageGet, safeStorageRemove, safeStorageSet, setLanguage, setTheme, t, toggleTheme } from '../core/preferences.js';
+import { LANGUAGE_PACKS, applyLanguage, configureLanguageSwitcher, currentLanguage, safeStorageGet, safeStorageSet, setLanguage, setTheme, t, toggleTheme } from '../core/preferences.js';
 import { renderPublicOverviewPage as renderPublicOverviewPageModule } from '../pages/overviewPage.js';
 import { detailLoadingShell, renderDetailConsole, renderDetailNotFound } from '../pages/detailPage.js';
 import { appendDetailLiveMetrics, renderDetailMonitorCharts as renderDetailMonitorChartsModule } from '../pages/detailCharts.js';
@@ -1880,7 +1880,16 @@ async function renderDetailPage(serverId) {
   const detailBucketMinutes = getDetailHistoryBucketMinutes(detailDays);
   try {
   const requestedId = Number(serverId);
-  const server = state.servers.find((item) => Number(item.id) === requestedId);
+  let server = state.servers.find((item) => Number(item.id) === requestedId);
+  if (!server && state.servers.length === 0 && requestedId) {
+    try {
+      server = await fetchPublicLiveServer(requestedId);
+      state.servers = [server];
+      console.info(`[detail] resolved server ${requestedId} from public live fallback`);
+    } catch (error) {
+      console.warn(`[detail] public live fallback failed for server ${requestedId}`, error);
+    }
+  }
   const fallbackServer = !server && state.servers.length === 1 ? state.servers[0] : null;
   const resolvedServer = server || fallbackServer;
   window.__DBG__.DETAIL_TRACE.push('server:' + (resolvedServer ? resolvedServer.id : 'missing'));
@@ -2240,8 +2249,48 @@ async function loadServers() {
     renderMoonPanel();
   } catch (error) {
     window.__DBG__.LAST_LOAD_ERROR = { message: error?.message || String(error), stack: error?.stack || '' };
-    console.warn('[display] public servers fetch failed, fallback to seeded state', error);
+    console.warn('[display] public servers fetch failed', error);
+    const cached = safeStorageGet('vps_servers');
+    if (cached) {
+      try {
+        const rows = JSON.parse(cached);
+        if (Array.isArray(rows) && rows.length) {
+          state.servers = rows.map(normalizeServer);
+          state.serversSource = 'localStorage vps_servers fallback';
+          console.info(`[display] loaded ${state.servers.length} servers from localStorage fallback`);
+          renderSunBadge();
+          renderMoonPanel();
+          return;
+        }
+      } catch (cacheError) {
+        console.warn('[display] localStorage server fallback is invalid', cacheError);
+      }
+    }
+
+    if (selectedServerId) {
+      try {
+        const server = await fetchPublicLiveServer(selectedServerId);
+        state.servers = [server];
+        state.serversSource = `/api/v1/servers/public/${selectedServerId}/live fallback`;
+        console.info(`[display] loaded server ${selectedServerId} from public live fallback`);
+        renderSunBadge();
+        renderMoonPanel();
+      } catch (liveError) {
+        console.warn(`[display] public live fallback failed for server ${selectedServerId}`, liveError);
+      }
+    }
   }
+}
+
+async function fetchPublicLiveServer(serverId) {
+  const payload = await fetchJson(`${API_ROOT}/api/v1/servers/public/${serverId}/live`, { timeoutMs: 1200 });
+  const source = payload?.server || payload?.live;
+  if (!source || typeof source !== 'object') throw new Error('Public live response did not include server data');
+  return normalizeServer({
+    name: `VPS #${serverId}`,
+    ...source,
+    id: source.id ?? source.server_id ?? serverId,
+  });
 }
 
 
@@ -2606,7 +2655,6 @@ window.__DBG__.LOAD_SERVERS = loadServers;
 
 export async function mountServerTableApp() {
   window.__DBG__.BOOT_TRACE = ['boot:start'];
-  safeStorageRemove('vps_servers');
   setTheme(safeStorageGet('display_theme', 'dark') || 'dark');
   applyLanguage();
   await refreshExchangeRates();
