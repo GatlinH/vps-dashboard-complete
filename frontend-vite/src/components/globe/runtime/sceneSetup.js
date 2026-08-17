@@ -8,9 +8,18 @@ export const CESIUM_THEME_COLORS = Object.freeze({
 export function applyCesiumTheme(viewer, theme = document.documentElement.getAttribute('data-theme')) {
   const palette = CESIUM_THEME_COLORS[theme] || CESIUM_THEME_COLORS.dark;
   if (!viewer?.scene?.globe) return false;
-  viewer.scene.backgroundColor = Cesium.Color.fromCssColorString(palette.background);
-  viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString(palette.base);
-  viewer.scene.requestRender();
+  const scene = viewer.scene;
+  const isLightTheme = theme === 'light';
+
+  scene.backgroundColor = Cesium.Color.fromCssColorString(palette.background);
+  scene.globe.baseColor = Cesium.Color.fromCssColorString(palette.base);
+  if (scene.skyBox) scene.skyBox.show = !isLightTheme;
+  if (scene.skyAtmosphere) {
+    scene.skyAtmosphere.show = true;
+    scene.skyAtmosphere.brightnessShift = isLightTheme ? 0.25 : 0.0;
+    scene.skyAtmosphere.hueShift = isLightTheme ? -0.02 : 0.0;
+  }
+  scene.requestRender();
   return true;
 }
 
@@ -22,8 +31,6 @@ export function setupCesiumScene(viewer, {
   const scene = viewer.scene;
   const globe = scene.globe;
 
-  // Theme state is renderer-owned, not a CSS-only body background.
-  applyCesiumTheme(viewer);
   // Avoid pale tile seams near poles; applyCesiumTheme supplies the theme base.
   globe.showGroundAtmosphere = true;
   globe.enableLighting = false;
@@ -49,6 +56,9 @@ export function setupCesiumScene(viewer, {
   if (scene.moon) scene.moon.show = false;
   if (scene.skyBox) scene.skyBox.show = true;
   if (scene.skyAtmosphere) scene.skyAtmosphere.show = true;
+  // Theme state is renderer-owned, not a CSS-only body background. Apply it
+  // after the scene defaults so light mode can disable the sky box.
+  applyCesiumTheme(viewer);
   scene.light = Cesium.DirectionalLight
     ? new Cesium.DirectionalLight({
       direction: Cesium.Cartesian3.normalize(new Cesium.Cartesian3(-0.35, -0.45, -0.82), new Cesium.Cartesian3()),
