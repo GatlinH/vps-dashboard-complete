@@ -7,7 +7,6 @@ import '../globals/dashboardGlobals.js';
 
 const API_ROOT = window.__DBG__.API_ROOT || (location.port === "5000" ? `${location.protocol}//${location.hostname}:5000` : location.origin);
 const BASE = `${API_ROOT}/api/v1`
-const API_SCHEMA_VERSION = '2026-04-23'
 
 /**
  * 通用 GET 请求（无鉴权头）

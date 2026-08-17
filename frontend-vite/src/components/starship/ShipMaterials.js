@@ -88,7 +88,6 @@ async _rehydrateGltfTextures(gltf) {
       attempted += 1;
       // metalness/roughness share one texture object; load once
       if (loaded[s.slot]) continue;
-      // eslint-disable-next-line no-await-in-loop
       const tex = await loadTextureByIndex(s.index, s.colorSpace);
       if (tex) {
         loaded[s.slot] = tex;

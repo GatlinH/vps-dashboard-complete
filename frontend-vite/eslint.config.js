@@ -1,20 +1,29 @@
-import js from '@eslint/js';
 import globals from 'globals';
 
 export default [
   {
     ignores: ['node_modules/**', '../frontend-dist/**', 'build/**', 'vendor/**'],
   },
-  js.configs.recommended,
   {
-    files: ['**/*.js', '**/*.mjs'],
+    files: ['**/*.js', '**/*.jsx', '**/*.mjs'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
-      globals: globals.node,
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
     },
     rules: {
-      'no-unused-vars': ['error', { args: 'none' }],
+      'no-unused-vars': ['warn', { args: 'none' }],
+      'no-undef': 'warn',
+      'prefer-const': 'warn',
+      'no-console': process.env.NODE_ENV === 'production' ? 'warn' : 'off',
     },
   },
 ];

@@ -306,7 +306,7 @@ export class StarshipShowcase {
       this._normalizeUserModel(this.ship);
 
       // Inventory BEFORE rehydrate
-      let texStatsBefore = { total: 0, withMap: 0, withNormal: 0, withEmissiveMap: 0, samples: [] };
+      const texStatsBefore = { total: 0, withMap: 0, withNormal: 0, withEmissiveMap: 0, samples: [] };
       this.ship.traverse((obj) => {
         if (!obj.isMesh || !obj.material) return;
         const srcMats = Array.isArray(obj.material) ? obj.material : [obj.material];
@@ -332,7 +332,7 @@ export class StarshipShowcase {
       this._dbgSet('starshipTextureRehydrate', rehydrate);
 
       // Inventory AFTER rehydrate, before semantic mutation
-      let texStats = { total: 0, withMap: 0, withNormal: 0, withEmissiveMap: 0, samples: [] };
+      const texStats = { total: 0, withMap: 0, withNormal: 0, withEmissiveMap: 0, samples: [] };
       this.ship.traverse((obj) => {
         if (!obj.isMesh || !obj.material) return;
         const srcMats = Array.isArray(obj.material) ? obj.material : [obj.material];
