@@ -335,7 +335,7 @@ export default function GlobeStarmap({
       const entry = { image, loaded: false, failed: false };
       image.onload = () => { entry.loaded = true; };
       image.onerror = () => { entry.failed = true; };
-      image.src = `https://flagcdn.com/w40/${key}.png`;
+      image.src = `https://flagcdn.com/w20/${key}.png`;
       flagImages.set(key, entry);
       return entry;
     };
@@ -603,7 +603,7 @@ export default function GlobeStarmap({
           const flag = getFlagImage(code);
           const labelX = p.px + sz + 4;
           if (flag?.loaded) {
-            ctx.drawImage(flag.image, labelX, p.py - 10, 28, 20);
+            ctx.drawImage(flag.image, labelX, p.py - 7, 18, 13);
             ctx.fillText(` ${name}`, labelX + 30, p.py + 5);
           } else {
             ctx.fillText(`${code ? `[${code}]` : s.flag || ""} ${name}`, labelX, p.py + 4);

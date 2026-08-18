@@ -3408,3 +3408,11 @@ body.admin-bridge-mode {
   margin-right: 5px;
   color: rgba(98, 245, 238, .55);
 }
+
+html[data-theme=light] .fleet-starmap-panel {
+  background: linear-gradient(180deg, #f7efdc, #e8dbc0) !important;
+  border-color: rgba(67,101,104,.34) !important;
+}
+html[data-theme=light] .fleet-panel {
+  background: linear-gradient(180deg, rgba(247,239,220,.78), rgba(232,219,192,.74)) !important;
+}
