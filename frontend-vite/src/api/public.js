@@ -40,6 +40,11 @@ export async function listServersPublic() {
   return publicGet('/servers/')
 }
 
+/** Fetch the complete public server detail snapshot. */
+export async function getServerDetail(serverId, days = 1) {
+  return publicGet(`/servers/public/${serverId}/detail?days=${days}`)
+}
+
 /** 获取国家矢量地图数据 */
 export async function getCountries() {
   return publicGet('/geo/countries')

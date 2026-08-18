@@ -5,7 +5,7 @@ import '../styles/detail-starfleet-console.css';
 import '../styles/detail-starmap-background.css';
 
 import { state } from '../store/state.js';
-import { listServersPublic } from '../api/public.js';
+import { getServerDetail, listServersPublic } from '../api/public.js';
 import { CesiumGlobe } from '../components/CesiumGlobe.js';
 import { StarshipShowcase } from '../components/StarshipShowcase.js';
 import { TrafficChart } from '../components/TrafficChart.js';
@@ -19,7 +19,7 @@ import { renderPublicOverviewPage as renderPublicOverviewPageModule } from '../p
 import { detailLoadingShell, renderDetailConsole, renderDetailNotFound } from '../pages/detailPage.js';
 import { appendDetailLiveMetrics, renderDetailMonitorCharts as renderDetailMonitorChartsModule } from '../pages/detailCharts.js';
 import { getDetailHistoryBucketMinutes, getDetailHistoryPointLimit, setDetailHistoryDays as setDetailHistoryDaysModule, syncDetailHistoryStateFromStorage } from '../detail/historyRange.js';
-import { getDetailHeavyRefreshAt, getDetailPingTargetsFetchedAt, setDetailHeavyRefreshAt, setDetailPingTargetsFetchedAt, startDetailRefreshTimer, stopDetailRefreshTimer } from '../detail/refreshState.js';
+import { getDetailHeavyRefreshAt, setDetailHeavyRefreshAt, setDetailPingTargetsFetchedAt, startDetailRefreshTimer, stopDetailRefreshTimer } from '../detail/refreshState.js';
 import { detailCache } from '../detail/detailCache.js';
 import { createDetailPingSampleCache } from '../detail/sampleCache.js';
 import { mergeResourceTimelineHistory, resourceHistoryRequest, resourceTimelineRows, shouldReplaceResourceTimeline } from '../detail/resourceTimeline.js';
@@ -1908,60 +1908,19 @@ async function renderDetailPage(serverId) {
   document.documentElement.classList.remove('detail-pending');
   bindTopbarEvents(app);
   updateRateDisplay();
-  const isMobileDetail = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
   const historyDays = detailDays === 0 ? 6 / 24 : detailDays;
   // Fixed range budgets: 1d/5m=288 points, 4d/20m=288, 7d/1h=168.
   // Never return a full raw one-second day (21,600 rows / multi-MB JSON).
   const historyLimit = getDetailHistoryPointLimit(detailDays);
-  const targetHistoryHours = detailDays === 0 ? 6 : detailDays * 24;
-  const settleWithin = (promise, timeoutMs, label) => Promise.race([
-    promise.then((value) => ({ status: 'fulfilled', value }), (reason) => ({ status: 'rejected', reason })),
-    new Promise((resolve) => setTimeout(() => resolve({ status: 'rejected', reason: new Error(`${label || 'detail'} timeout`) }), timeoutMs)),
-  ]);
-  // First paint must never wait a full detail-history timeout. Render current
-  // server snapshot after a short budget; the immediate background refresh below
-  // backfills persisted series in place without holding cards/charts hostage.
-  const fetchBudgetMs = isMobileDetail ? 1200 : 1800;
   window.__DBG__.DETAIL_TRACE.push('before-fetches');
-  // servers/history returns cpu/ram/disk/net_up/net_down/latency — a superset of
-  // traffic/history. Fetch it once (server-history) and derive the network
-  // series from the same rows instead of scanning ProbeResult twice on load.
-  // Critical path: static details + compact telemetry only. PING history is
-  // deliberately started in parallel but must not hold the page/stellar map
-  // hostage to a slow peer-history query.
-  // History responses already include target metadata. Avoid separate slow
-  // target-definition requests on first paint; the lightweight target refresh
-  // runs later via refreshDetailProbeTargetsNow / realtime refresh.
-  const configuredTargets = resolvedServer.agent_config?.ping_targets;
-  const hasExplicitlyEmptyPingTargets = Array.isArray(configuredTargets) && configuredTargets.length === 0;
-  const externalPingPromise = settleWithin(
-    hasExplicitlyEmptyPingTargets
-      ? Promise.resolve({ server_id: resolvedServer.id, targets: [], configured: false, not_configured: true })
-      : fetchPingTargetHistory(resolvedServer.id, targetHistoryHours, historyLimit),
-    fetchBudgetMs,
-    'ping-history',
-  );
-  const peerPingPromise = settleWithin(
-    fetchPingTargetHistory(resolvedServer.id, targetHistoryHours, historyLimit, 'agent'),
-    fetchBudgetMs,
-    'vps-probe-history',
-  );
-  // Fixed one-hour process monitor is independent of the selected history range.
   const resourceRequest = resourceHistoryRequest();
-  const resourceHistoryPromise = settleWithin(
-    fetchResourceTimeline(resolvedServer.id, resourceRequest.limit),
-    fetchBudgetMs,
-    'resource-history',
-  );
-  const processHistoryPromise = settleWithin(
-    fetchServerHistory(resolvedServer.id, 1, 720, 0, 'process_count'),
-    fetchBudgetMs,
-    'process-history',
-  );
-  const [traffic, probeHistory] = await Promise.all([
-    settleWithin(fetchJson(`${API_ROOT}/api/v1/traffic/public/${resolvedServer.id}`, { timeoutMs: 1200, cacheMs: 5000 }), fetchBudgetMs, 'traffic'),
-    settleWithin(fetchServerHistory(resolvedServer.id, historyDays, historyLimit, detailBucketMinutes), fetchBudgetMs, 'server-history'),
-  ]);
+  const detailPayload = await getServerDetail(resolvedServer.id, detailDays);
+  const traffic = { status: 'fulfilled', value: detailPayload.traffic };
+  const probeHistory = { status: 'fulfilled', value: detailPayload.history };
+  const resourceHistoryPromise = Promise.resolve({ status: 'fulfilled', value: { data: detailPayload.resource_timeline || [] } });
+  const processHistoryPromise = Promise.resolve({ status: 'fulfilled', value: { data: detailPayload.process_history || [] } });
+  const externalPingPromise = Promise.resolve({ status: 'fulfilled', value: detailPayload.ping_history });
+  const peerPingPromise = Promise.resolve({ status: 'fulfilled', value: null });
 
   const trafficData = traffic.status === 'fulfilled' ? traffic.value : null;
   const pingData = null;
@@ -1969,8 +1928,8 @@ async function renderDetailPage(serverId) {
   const historyData = probeHistoryData;
   // The first paint intentionally uses cached PING data (if any). The two
   // background promises below redraw only the charts/table when ready.
-  const pingTargetsData = detailCache.pingTargets;
-  const pingTargetHistoryData = detailCache.pingTargetHistory;
+  const pingTargetsData = detailPayload.ping_targets || detailCache.pingTargets;
+  const pingTargetHistoryData = detailPayload.ping_history || detailCache.pingTargetHistory;
   const vpsProbeTargetsData = detailCache.vpsProbeTargets;
   const vpsProbeHistoryData = detailCache.vpsProbeHistory;
 
@@ -2540,47 +2499,26 @@ async function refreshDetailRealtime(serverId) {
   // CPU/memory/process chart data promptly without increasing PING probe cadence.
   const doHeavy = now - getDetailHeavyRefreshAt() > 20_000;
   if (doHeavy) {
-    const shouldRefreshPingTargets = !detailCache.pingTargets?.targets?.length || now - getDetailPingTargetsFetchedAt() > 15000;
-    // PING is optional for a telemetry redraw. Bound it independently so a slow
-    // target lookup cannot postpone CPU/network/freshness by tens of seconds.
-    const settleRealtimePing = (promise) => Promise.race([
-      promise,
-      new Promise((resolve) => setTimeout(() => resolve(null), 1800)),
-    ]);
-    // server-history is a superset of traffic/history; fetch it once and derive
-    // the network series from the same rows instead of a second ProbeResult scan.
-    const [traffic, probeHistory, resourceHistory, processHistory, pingTargets, pingTargetHistory] = await Promise.allSettled([
-      fetchJson(`${API_ROOT}/api/v1/traffic/public/${current.id}`, { timeoutMs: 1000 }),
-      fetchServerHistory(current.id, getDetailHistoryDays(), getDetailHistoryPointLimit(getDetailHistoryDays()), getDetailHistoryBucketMinutes(getDetailHistoryDays())),
-      // CPU/memory and process charts use a separate raw one-hour window.
-      fetchResourceTimeline(current.id, resourceHistoryRequest().limit),
-      fetchServerHistory(current.id, 1, 720, 0, 'process_count'),
-      shouldRefreshPingTargets ? settleRealtimePing(fetchPingTargets(current.id, 3)) : Promise.resolve(detailCache.pingTargets),
-      shouldRefreshPingTargets ? settleRealtimePing(fetchPingTargetHistory(current.id, getDetailHistoryDays() * 24, getDetailHistoryPointLimit(getDetailHistoryDays()))) : Promise.resolve(detailCache.pingTargetHistory),
-    ]);
-    detailCache.traffic = traffic.status === 'fulfilled' ? traffic.value : detailCache.traffic;
-    const heavyProbeData = probeHistory.status === 'fulfilled' ? probeHistory.value?.data : null;
+    const detailPayload = await getServerDetail(current.id, getDetailHistoryDays());
+    detailCache.traffic = detailPayload.traffic || detailCache.traffic;
+    const heavyProbeData = detailPayload.history?.data || null;
     detailCache.historyRows = normalizeHistory24h(heavyProbeData || detailCache.historyRows || []);
     detailCache.probeRows = normalizePersistedRows(heavyProbeData || detailCache.probeRows || [], Math.max(1, getDetailHistoryDays()) * 24);
     if (detailCache.probeRows.length) detailCache.networkRows = detailCache.probeRows;
-    if (resourceHistory.status === 'fulfilled') {
-      const rows = resourceTimelineRows(resourceHistory.value?.data || []);
-      if (rows.length) detailCache.resourceRows = mergeResourceTimelineHistory(detailCache.resourceRows, rows);
-    }
-    if (processHistory.status === 'fulfilled') {
-      const rows = normalizePersistedRows(processHistory.value?.data || [], 1);
-      if (rows.length) detailCache.processRows = rows;
-    }
-    if (pingTargets.status === 'fulfilled' && (pingTargets.value?.targets?.length || pingTargets.value?.unavailable)) {
-      detailCache.pingTargets = pingTargets.value;
+    const resourceRows = resourceTimelineRows(detailPayload.resource_timeline || []);
+    if (resourceRows.length) detailCache.resourceRows = mergeResourceTimelineHistory(detailCache.resourceRows, resourceRows);
+    const processRows = normalizePersistedRows(detailPayload.process_history || [], 1);
+    if (processRows.length) detailCache.processRows = processRows;
+    if (detailPayload.ping_targets?.targets?.length || detailPayload.ping_targets?.unavailable) {
+      detailCache.pingTargets = detailPayload.ping_targets;
       setDetailPingTargetsFetchedAt(now);
       window.__DBG__.DETAIL_PING_TARGETS = detailCache.pingTargets;
-      if (pingTargets.value?.targets?.length) recordLivePingSamples(pingTargets.value, now, current.id);
+      if (detailPayload.ping_targets?.targets?.length) recordLivePingSamples(detailPayload.ping_targets, now, current.id);
     }
-    if (pingTargetHistory.status === 'fulfilled' && (pingTargetHistory.value?.targets?.length || pingTargetHistory.value?.unavailable)) {
-      detailCache.pingTargetHistory = pingTargetHistory.value;
+    if (detailPayload.ping_history?.targets?.length || detailPayload.ping_history?.unavailable) {
+      detailCache.pingTargetHistory = detailPayload.ping_history;
       window.__DBG__.DETAIL_PING_TARGET_HISTORY = detailCache.pingTargetHistory;
-      if (pingTargetHistory.value?.targets?.length) seedPingSamplesFromHistory(pingTargetHistory.value, current.id);
+      if (detailPayload.ping_history?.targets?.length) seedPingSamplesFromHistory(detailPayload.ping_history, current.id);
     }
     setDetailHeavyRefreshAt(now);
   }
