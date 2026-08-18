@@ -2232,7 +2232,15 @@ const initializeDetailCharts = createDetailChartInitializer({
   getPingSampleCache: () => detailPingSamples.store,
 });
 function renderDetailMonitorCharts(args) {
-  return initializeDetailCharts(args);
+  return initializeDetailCharts(args).then((result) => {
+    const historyRows = Array.isArray(args?.probeRows) ? args.probeRows : [];
+    const timestamps = historyRows.map((row) => rowTimeMs(row, NaN)).filter(Number.isFinite).sort((a, b) => a - b);
+    detailLivePollMode = timestamps.length > 10 && timestamps[timestamps.length - 1] - timestamps[0] > 30_000
+      ? 'update'
+      : 'accumulate';
+    window.__DBG__.DETAIL_LIVE_POLL_MODE = detailLivePollMode;
+    return result;
+  });
 }
 
 async function loadServers() {
@@ -2295,6 +2303,7 @@ async function fetchPublicLiveServer(serverId) {
 
 
 let detailRefreshInFlight = false;
+let detailLivePollMode = 'accumulate';
 const detailPingSamples = createDetailPingSampleCache({ pingStepValue });
 const DETAIL_PING_SAMPLE_WINDOW_MS = detailPingSamples.windowMs;
 function loadStoredPingSamples(serverId) { detailPingSamples.loadStored(serverId); }
@@ -2407,7 +2416,7 @@ async function refreshDetailLivePoint(serverId) {
     const live = payload?.live;
     const timeMs = rowTimeMs({ created_at: live?.updated_at }, NaN);
     if (!live || !Number.isFinite(timeMs) || timeMs <= Number(detailCache.liveUpdatedAt || 0)) return false;
-    const appended = appendDetailLiveMetrics(live, { detailCharts });
+    const appended = appendDetailLiveMetrics(live, { detailCharts, mode: detailLivePollMode });
     detailCache.liveUpdatedAt = timeMs;
     if (appended) {
       // Advance the cache watermark with the exact point appended to Chart.js.

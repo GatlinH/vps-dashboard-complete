@@ -518,7 +518,7 @@ function aggregateRateRowsForDisplay(rows = [], bucketMs = 60 * 1000) {
 }
 
 export function appendDetailLiveMetrics(live, deps) {
-  const { detailCharts } = deps || {};
+  const { detailCharts, mode = 'update' } = deps || {};
   let timestampText = String(live?.updated_at || '').trim();
   // API timestamps are UTC; Date.parse would interpret a timezone-less ISO value
   // as browser-local time and make live freshness appear stale in some zones.
@@ -539,8 +539,35 @@ export function appendDetailLiveMetrics(live, deps) {
     if (!dataset) return false;
     const points = Array.isArray(dataset.data) ? dataset.data : (dataset.data = []);
     const last = points[points.length - 1];
-    if (Number(last?.x) >= timestamp) return false;
-    points.push({ x: timestamp, rawX: timestamp, y: formatter(numeric), samples: 1 });
+    const firstTimestamp = Number(points[0]?.x);
+    const lastTimestamp = Number(last?.x);
+    const hasSubstantialHistory = mode === 'update'
+      && points.length > 10
+      && Number.isFinite(firstTimestamp)
+      && Number.isFinite(lastTimestamp)
+      && lastTimestamp - firstTimestamp > 30_000;
+    const point = { x: timestamp, rawX: timestamp, y: formatter(numeric), samples: 1 };
+    let changed = false;
+
+    if (!last) {
+      points.push(point);
+      changed = true;
+    } else if (hasSubstantialHistory) {
+      if (timestamp - lastTimestamp > 4_000) {
+        points.push(point);
+      } else if (timestamp >= lastTimestamp) {
+        points[points.length - 1] = point;
+      } else {
+        // Never move a history-backed chart backwards for a delayed live response.
+        return false;
+      }
+      changed = true;
+    } else if (timestamp > lastTimestamp) {
+      // Fresh installs accumulate every distinct live sample until persisted
+      // history arrives and the caller switches the poll to update mode.
+      points.push(point);
+      changed = true;
+    }
     const x = chart.options?.scales?.x;
     if (x) {
       // This runs every 5s and OVERWRITES whatever bounds the render pass chose,
@@ -562,7 +589,8 @@ export function appendDetailLiveMetrics(live, deps) {
         window.__DBG__ = window.__DBG__ || {};
         window.__DBG__.DETAIL_LIVE_AXIS = window.__DBG__.DETAIL_LIVE_AXIS || {};
         const first = Number(points[0]?.x);
-        const dataSpanMs = Number.isFinite(first) ? Math.max(0, timestamp - first) : 0;
+        const newest = Number(points[points.length - 1]?.x);
+        const dataSpanMs = Number.isFinite(first) && Number.isFinite(newest) ? Math.max(0, newest - first) : 0;
         window.__DBG__.DETAIL_LIVE_AXIS[id] = {
           at: new Date(timestamp).toISOString(),
           spanMs: span,
@@ -570,12 +598,14 @@ export function appendDetailLiveMetrics(live, deps) {
           stepMs: x.ticks?.stepSize || null,
           dataSpanMs,
           points: points.length,
+          mode: hasSubstantialHistory ? 'update' : 'accumulate',
           fixedWindow: true,
         };
       } catch {}
     }
+    // Bounds advance on every poll, including a replacement-suppressed sample.
     chart.update('none');
-    return true;
+    return changed;
   };
 
   const cpu = append('detailCpuChart', live.cpu_use, (v) => Math.max(0, Math.min(100, v)));
