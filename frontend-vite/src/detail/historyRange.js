@@ -1,9 +1,9 @@
 import '../globals/dashboardGlobals.js';
 // Point-budget contract: larger windows use coarser persisted buckets.
 // Supported windows: 1/4/7 days (bounded raw minute buckets) and 30/90 days
-// (served by hourly materialized telemetry rollups). Default window is 1 day.
+// (served by hourly materialized telemetry rollups). Default window is realtime.
 const DETAIL_HISTORY_BUCKETS = { 0: 0, 1: 5, 4: 20, 7: 60, 30: 60, 90: 180 };
-const DEFAULT_DETAIL_HISTORY_DAYS = 1;
+const DEFAULT_DETAIL_HISTORY_DAYS = 0;
 
 export function getDetailHistoryDays() {
   const raw = Number(window.__DBG__.DETAIL_HISTORY_DAYS ?? DEFAULT_DETAIL_HISTORY_DAYS);
@@ -41,12 +41,9 @@ export function getDetailHistoryPointLimit(days = getDetailHistoryDays()) {
 }
 
 export function syncDetailHistoryStateFromStorage(initialDays = DEFAULT_DETAIL_HISTORY_DAYS) {
-  let raw = (window.__DBG__.DETAIL_HISTORY_DAYS ?? initialDays);
-  try { raw = localStorage.getItem('detailHistoryDays') || raw; } catch (_) {}
-  const stored = Number(raw);
-  const d = Object.prototype.hasOwnProperty.call(DETAIL_HISTORY_BUCKETS, stored) ? stored : DEFAULT_DETAIL_HISTORY_DAYS;
-  window.__DBG__.DETAIL_HISTORY_DAYS = d;
-  return d;
+  try { localStorage.removeItem('detailHistoryDays'); } catch (_) {}
+  window.__DBG__.DETAIL_HISTORY_DAYS = DEFAULT_DETAIL_HISTORY_DAYS;
+  return DEFAULT_DETAIL_HISTORY_DAYS;
 }
 
 export { DETAIL_HISTORY_BUCKETS, DEFAULT_DETAIL_HISTORY_DAYS };

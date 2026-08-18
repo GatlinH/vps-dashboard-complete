@@ -335,7 +335,7 @@ export default function GlobeStarmap({
       const entry = { image, loaded: false, failed: false };
       image.onload = () => { entry.loaded = true; };
       image.onerror = () => { entry.failed = true; };
-      image.src = `https://flagcdn.com/w20/${key}.png`;
+      image.src = `https://flagcdn.com/w40/${key}.png`;
       flagImages.set(key, entry);
       return entry;
     };
@@ -595,16 +595,16 @@ export default function GlobeStarmap({
         if (isH) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke(); }
 
         // Label
-        if (S.zoom > 0.6) {
+        if (S.zoom > 0.3) {
           ctx.fillStyle = lightMode ? "rgba(18,50,56,0.95)" : "rgba(226,232,240,0.9)";
-          ctx.font = `${isH ? 11 : 10}px monospace`;
+          ctx.font = `${isH ? 14 : 13}px monospace`;
           const name = s.isCluster ? (s.clusterLabel || s.name) : s.name;
           const code = countryCodeFromFlag(s.flag);
           const flag = getFlagImage(code);
           const labelX = p.px + sz + 4;
           if (flag?.loaded) {
-            ctx.drawImage(flag.image, labelX, p.py - 7, 20, 14);
-            ctx.fillText(` ${name}`, labelX + 22, p.py + 4);
+            ctx.drawImage(flag.image, labelX, p.py - 10, 28, 20);
+            ctx.fillText(` ${name}`, labelX + 30, p.py + 5);
           } else {
             ctx.fillText(`${code ? `[${code}]` : s.flag || ""} ${name}`, labelX, p.py + 4);
           }
