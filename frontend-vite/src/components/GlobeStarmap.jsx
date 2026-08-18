@@ -317,6 +317,28 @@ export default function GlobeStarmap({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
+    const flagImages = new Map();
+    const countryCodeFromFlag = flag => {
+      const chars = Array.from(String(flag || ""));
+      const regional = chars.filter(ch => {
+        const cp = ch.codePointAt(0);
+        return cp >= 0x1f1e6 && cp <= 0x1f1ff;
+      });
+      if (regional.length < 2) return "";
+      return regional.slice(0, 2).map(ch => String.fromCharCode(ch.codePointAt(0) - 0x1f1e6 + 65)).join("");
+    };
+    const getFlagImage = code => {
+      if (!code || typeof Image === "undefined") return null;
+      const key = code.toLowerCase();
+      if (flagImages.has(key)) return flagImages.get(key);
+      const image = new Image();
+      const entry = { image, loaded: false, failed: false };
+      image.onload = () => { entry.loaded = true; };
+      image.onerror = () => { entry.failed = true; };
+      image.src = `https://flagcdn.com/w20/${key}.png`;
+      flagImages.set(key, entry);
+      return entry;
+    };
     const W = internalWidth, H = internalHeight;
     const cx = W / 2;
     // Visual centering: keep globe balanced inside the canvas at the 0.68 default zoom.
@@ -576,8 +598,16 @@ export default function GlobeStarmap({
         if (S.zoom > 0.6) {
           ctx.fillStyle = lightMode ? "rgba(18,50,56,0.95)" : "rgba(226,232,240,0.9)";
           ctx.font = `${isH ? 11 : 10}px monospace`;
-          const label = s.isCluster ? `${s.flag} ${s.clusterLabel || s.name}` : `${s.flag} ${s.name}`;
-          ctx.fillText(label, p.px + sz + 4, p.py + 4);
+          const name = s.isCluster ? (s.clusterLabel || s.name) : s.name;
+          const code = countryCodeFromFlag(s.flag);
+          const flag = getFlagImage(code);
+          const labelX = p.px + sz + 4;
+          if (flag?.loaded) {
+            ctx.drawImage(flag.image, labelX, p.py - 7, 20, 14);
+            ctx.fillText(` ${name}`, labelX + 22, p.py + 4);
+          } else {
+            ctx.fillText(`${code ? `[${code}]` : s.flag || ""} ${name}`, labelX, p.py + 4);
+          }
         }
       });
 
@@ -627,7 +657,9 @@ export default function GlobeStarmap({
       // The detail starmap is an overlay inside the detail page. Its canvas draws
       // the globe only; an opaque component shell would mask the operator-selected
       // site/detail background and make this one panel ignore theme/background.
-      background: "transparent",
+      background: isLight
+        ? "linear-gradient(180deg, #f7efdc, #e8dbc0)"
+        : "linear-gradient(180deg, rgba(5,27,42,.88), rgba(2,11,21,.84))",
       color: isLight ? "#203438" : "#e2e8f0",
       fontFamily: "'Noto Sans SC', sans-serif",
       padding: "1.25rem",
