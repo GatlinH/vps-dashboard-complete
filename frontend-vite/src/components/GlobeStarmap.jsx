@@ -102,22 +102,40 @@ function latLngToTile(lat, lng, z) {
 const STATUS_COLOR = { online: "#38ef7d", warn: "#ff9f43", offline: "#ff6b6b" };
 const STATUS_LABEL = { online: "在线", warn: "预警", offline: "离线" };
 
-function currentTheme() {
+function currentTheme(el) {
   if (typeof document === "undefined") return "dark";
-  return document.documentElement.getAttribute("data-theme") || document.body?.dataset?.theme || "dark";
+  // parentElement starts search from parent, skipping the element itself
+  const node = el?.parentElement?.closest?.("[data-theme]");
+  return node?.getAttribute("data-theme")
+    || document.documentElement.getAttribute("data-theme")
+    || "dark";
 }
 
-function useDocumentTheme() {
-  const [theme, setTheme] = useState(currentTheme);
+// CSS owns every starmap surface colour. The canvas bitmap is the one surface
+// CSS cannot paint, so the renderer reads the same custom property.
+function readCssVar(el, name, fallback) {
+  if (typeof window === "undefined" || !el) return fallback;
+  const value = window.getComputedStyle(el).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
+function useDocumentTheme(ref) {
+  const [theme, setTheme] = useState(() => currentTheme(ref?.current));
   useEffect(() => {
     if (typeof document === "undefined") return undefined;
-    const update = () => setTheme(currentTheme());
+    const update = () => setTheme(currentTheme(ref?.current));
+    update();
+    const nearest = ref?.current?.closest?.("[data-theme]");
     const observer = new MutationObserver(update);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-    if (document.body) observer.observe(document.body, { attributes: true, attributeFilter: ["data-theme"] });
+    if (nearest) {
+      observer.observe(nearest, { attributes: true, attributeFilter: ["data-theme"] });
+    } else {
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+      if (document.body) observer.observe(document.body, { attributes: true, attributeFilter: ["data-theme"] });
+    }
     window.addEventListener("storage", update);
     return () => { observer.disconnect(); window.removeEventListener("storage", update); };
-  }, []);
+  }, [ref]);
   return theme;
 }
 
@@ -209,7 +227,8 @@ export default function GlobeStarmap({
   originServerId = null,
 }) {
   const servers = Array.isArray(serversProp) ? serversProp : [];
-  const theme = useDocumentTheme();
+  const rootRef = useRef(null);
+  const theme = useDocumentTheme(rootRef);
   const isLight = theme === "light";
 
   // ── UI state ──────────────────────────────────────────────────────────────
@@ -335,7 +354,7 @@ export default function GlobeStarmap({
       const entry = { image, loaded: false, failed: false };
       image.onload = () => { entry.loaded = true; };
       image.onerror = () => { entry.failed = true; };
-      image.src = `https://flagcdn.com/w20/${key}.png`;
+      image.src = `https://flagcdn.com/w40/${key}.png`;
       flagImages.set(key, entry);
       return entry;
     };
@@ -437,10 +456,11 @@ export default function GlobeStarmap({
       const r  = baseRadius * S.zoom;
       const ls = S.liveServers;
 
-      const lightMode = currentTheme() === "light";
-      // Transparent canvas: the detail panel's configured background remains
-      // visible around the globe instead of this renderer painting a dark slab.
-      ctx.clearRect(0, 0, W, H);
+      const lightMode = currentTheme(canvas) === "light";
+      // CSS cannot paint a canvas bitmap, so read the themed surface colour from
+      // the same custom property the stylesheet uses and fill it here.
+      ctx.fillStyle = readCssVar(canvas, "--starmap-canvas-bg", lightMode ? "#e8dbc0" : "#050812");
+      ctx.fillRect(0, 0, W, H);
       // Ocean sphere
       const sph = ctx.createRadialGradient(cx - r*0.35, cy - r*0.35, r*0.08, cx, cy, r);
       if (lightMode) {
@@ -602,9 +622,9 @@ export default function GlobeStarmap({
           const code = countryCodeFromFlag(s.flag);
           const flag = getFlagImage(code);
           const labelX = p.px + sz + 4;
-          if (flag?.loaded) {
+          if (flag?.loaded && flag?.image) {
             ctx.drawImage(flag.image, labelX, p.py - 7, 18, 13);
-            ctx.fillText(` ${name}`, labelX + 30, p.py + 5);
+            ctx.fillText(` ${name}`, labelX + 20, p.py + 5);
           } else {
             ctx.fillText(`${code ? `[${code}]` : s.flag || ""} ${name}`, labelX, p.py + 4);
           }
@@ -653,7 +673,7 @@ export default function GlobeStarmap({
   };
 
   return (
-    <div style={{
+    <div ref={rootRef} style={{
       // The detail starmap is an overlay inside the detail page. Its canvas draws
       // the globe only; an opaque component shell would mask the operator-selected
       // site/detail background and make this one panel ignore theme/background.
@@ -706,7 +726,7 @@ export default function GlobeStarmap({
       </div>
 
       {/* ── Globe + Legend + Tooltip ── */}
-      <div style={{ position: "relative", display: "flex", justifyContent: "center" }}>
+      <div style={{ position: "relative", display: "flex", justifyContent: "center", borderRadius: 16, padding: 8 }}>
         <canvas
           ref={canvasRef}
           width={internalWidth}
@@ -715,7 +735,6 @@ export default function GlobeStarmap({
             display: "block",
             cursor: "grab",
             borderRadius: 16,
-            border: "1px solid rgba(99,179,237,0.15)",
             maxWidth: "100%",
             width: `${width}px`,
             height: `${height}px`,

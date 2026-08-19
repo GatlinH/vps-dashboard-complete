@@ -1353,7 +1353,6 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .data-fre
 }
 .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount > div,
 .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount > div > div{
-  background:transparent!important;
 }
 .detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel{
   min-height:560px!important;
@@ -3934,8 +3933,6 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
   clip-path:none!important;
   border-radius:18px!important;
   overflow:hidden!important;
-  background:linear-gradient(180deg,rgba(5,27,42,.82),rgba(2,11,21,.78))!important;
-  border:1px solid rgba(98,245,238,.28)!important;
   padding-bottom:18px!important;
 }
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel:after{
@@ -3960,8 +3957,6 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
   clip-path:none!important;
   border-radius:20px!important;
   overflow:hidden!important;
-  background:linear-gradient(180deg,rgba(5,27,42,.88),rgba(2,11,21,.84))!important;
-  border:0!important;
   padding-bottom:22px!important;
   box-shadow:0 0 20px rgba(38,221,220,.10), inset 0 0 18px rgba(38,221,220,.045)!important;
 }
@@ -3969,7 +3964,6 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
   content:""!important;
   position:absolute!important;
   inset:0!important;
-  border:1px solid rgba(98,245,238,.36)!important;
   border-radius:20px!important;
   pointer-events:none!important;
   z-index:20!important;
@@ -4004,7 +3998,6 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .d
   max-height:calc(100% - 62px)!important;
   border-radius:18px!important;
   overflow:hidden!important;
-  background:rgba(7,11,20,.92)!important;
 }
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
   display:flex!important;
@@ -4014,7 +4007,6 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .d
   padding:10px!important;
   border-radius:18px!important;
   overflow:hidden!important;
-  background:#070b14!important;
   box-sizing:border-box!important;
 }
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div > div:first-child{
@@ -4029,8 +4021,6 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .d
   justify-content:center!important;
   border-radius:18px!important;
   overflow:hidden!important;
-  background:#050812!important;
-  border:1px solid rgba(99,179,237,.18)!important;
   box-sizing:border-box!important;
 }
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
@@ -4041,8 +4031,6 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .d
   max-height:100%!important;
   aspect-ratio:860/440!important;
   border-radius:18px!important;
-  border:0!important;
-  background:#050812!important;
 }
 
 /* FINAL-VPS-STARMAP-BOTTOM-GAP-20260629 */

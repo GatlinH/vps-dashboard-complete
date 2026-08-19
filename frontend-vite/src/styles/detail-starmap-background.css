@@ -1,33 +1,61 @@
 /*
- * Final detail-page starmap background contract.
+ * Detail-page starmap surfaces — single source of truth for colour.
  *
- * GlobeStarmap only paints the sphere and nodes. The surrounding viewport must
- * remain transparent so the active detail/site background is visible. This lives
- * after legacy main.css overrides and targets all three layers: mount, React
- * wrappers, and the canvas element itself.
+ * Layer stack (outermost → innermost):
+ *   .fleet-starmap-panel            static board from detailPage.js
+ *   .detail-globe-starmap-mount     React mount point
+ *     > div                         GlobeStarmap root
+ *       > div:nth-child(2)          globe viewport
+ *         canvas                    rendered globe (pixels filled in JS)
+ *
+ * Layout/sizing for these layers lives in main.css
+ * (FINAL-VPS-STARMAP-VISUAL-BALANCE). Colour lives only here so the two themes
+ * can never drift apart. Loaded last (see modules/serverTable.js import order),
+ * so plain class selectors are enough — no !important escalation needed.
+ *
+ * JS reads --starmap-canvas-bg via getComputedStyle to fill the canvas bitmap,
+ * which CSS cannot reach.
  */
-/* The panel is the actual detail-page background board. It must react to the
-   document theme; the starmap mount/canvas below stay transparent so this board
-   is what shows around the globe. */
-html[data-theme="dark"] body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel {
-  background: linear-gradient(180deg, rgba(5,27,42,.88), rgba(2,11,21,.84)) !important;
-  border-color: rgba(98,245,238,.30) !important;
-}
-html[data-theme="light"] body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel {
-  background: linear-gradient(180deg, #f7efdc, #e8dbc0) !important;
-  border-color: rgba(67,101,104,.34) !important;
-  box-shadow: 0 10px 28px rgba(87,67,36,.12), inset 0 0 0 1px rgba(255,255,255,.42) !important;
+
+:root,
+html[data-theme="dark"] {
+  --starmap-board: linear-gradient(180deg, rgba(5,27,42,.88), rgba(2,11,21,.84));
+  --starmap-board-border: rgba(98,245,238,.30);
+  --starmap-mount-bg: rgba(7,11,20,.92);
+  --starmap-shell-bg: #070b14;
+  --starmap-viewport-bg: #050812;
+  --starmap-viewport-border: rgba(99,179,237,.18);
+  --starmap-canvas-bg: #050812;
 }
 
-html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount,
-html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div,
-html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div > div,
-html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas {
-  background: transparent !important;
-  background-image: none !important;
+html[data-theme="light"] {
+  --starmap-board: linear-gradient(180deg, #f7efdc, #e8dbc0);
+  --starmap-board-border: rgba(67,101,104,.34);
+  --starmap-mount-bg: #e8dbc0;
+  --starmap-shell-bg: #f7efdc;
+  --starmap-viewport-bg: #e8dbc0;
+  --starmap-viewport-border: rgba(67,101,104,.28);
+  --starmap-canvas-bg: #e8dbc0;
 }
 
-/* Canvas is an isolated paint surface: force alpha clear before the globe draw. */
-html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas {
-  background-color: transparent !important;
+.fleet-starmap-panel {
+  background: var(--starmap-board);
+  border-color: var(--starmap-board-border);
+}
+
+.detail-globe-starmap-mount {
+  background: var(--starmap-mount-bg);
+}
+
+.detail-globe-starmap-mount > div {
+  background: var(--starmap-shell-bg);
+}
+
+.detail-globe-starmap-mount > div > div:nth-child(2) {
+  background: var(--starmap-viewport-bg);
+  border: 1px solid var(--starmap-viewport-border);
+}
+
+.detail-globe-starmap-mount canvas {
+  background: var(--starmap-canvas-bg);
 }
