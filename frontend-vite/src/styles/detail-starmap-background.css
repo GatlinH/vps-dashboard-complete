@@ -1,28 +1,31 @@
 /*
- * Detail-page starmap surfaces — single source of truth for colour.
+ * Starmap surfaces — single source of truth for colour.
  *
  * Layer stack (outermost → innermost):
- *   .fleet-starmap-panel            static board from detailPage.js
- *   .detail-globe-starmap-mount     React mount point
- *     > div                         GlobeStarmap root
- *       > div:nth-child(2)          globe viewport
- *         canvas                    rendered globe (pixels filled in JS)
+ *   .fleet-starmap-panel        static board from detailPage.js
+ *   .detail-globe-starmap-mount React mount point (transparent passthrough)
+ *     .globe-starmap-root       GlobeStarmap component shell
+ *       .globe-starmap-viewport globe viewport
+ *         canvas                rendered globe (pixels filled in JS)
  *
- * Layout/sizing for these layers lives in main.css
- * (FINAL-VPS-STARMAP-VISUAL-BALANCE). Colour lives only here so the two themes
- * can never drift apart. Loaded last (see modules/serverTable.js import order),
- * so plain class selectors are enough — no !important escalation needed.
+ * Layout/sizing lives in main.css (FINAL-VPS-STARMAP-*) and
+ * detail-starfleet-console.css. Colour lives only here, so the two themes can
+ * never drift apart. Loaded last (see modules/serverTable.js import order), so
+ * plain class selectors win without !important escalation.
+ *
+ * The component carries its own semantic classes rather than being reached
+ * through `> div > div:nth-child(n)`, so colour does not depend on either the
+ * host page or the component's internal DOM shape.
  *
  * JS reads --starmap-canvas-bg via getComputedStyle to fill the canvas bitmap,
- * which CSS cannot reach.
+ * the one surface CSS cannot paint.
  */
 
 :root,
 html[data-theme="dark"] {
   --starmap-board: linear-gradient(180deg, rgba(5,27,42,.88), rgba(2,11,21,.84));
   --starmap-board-border: rgba(98,245,238,.30);
-  --starmap-mount-bg: rgba(7,11,20,.92);
-  --starmap-shell-bg: #070b14;
+  --starmap-fg: #e2e8f0;
   --starmap-viewport-bg: #050812;
   --starmap-viewport-border: rgba(99,179,237,.18);
   --starmap-canvas-bg: #050812;
@@ -31,8 +34,7 @@ html[data-theme="dark"] {
 html[data-theme="light"] {
   --starmap-board: linear-gradient(180deg, #f7efdc, #e8dbc0);
   --starmap-board-border: rgba(67,101,104,.34);
-  --starmap-mount-bg: #e8dbc0;
-  --starmap-shell-bg: #f7efdc;
+  --starmap-fg: #203438;
   --starmap-viewport-bg: #e8dbc0;
   --starmap-viewport-border: rgba(67,101,104,.28);
   --starmap-canvas-bg: #e8dbc0;
@@ -43,19 +45,22 @@ html[data-theme="light"] {
   border-color: var(--starmap-board-border);
 }
 
+/* The mount is a pure layout wrapper: it must show the board behind it instead
+   of stacking a second opaque frame on top. */
 .detail-globe-starmap-mount {
-  background: var(--starmap-mount-bg);
+  background: transparent;
 }
 
-.detail-globe-starmap-mount > div {
-  background: var(--starmap-shell-bg);
+.globe-starmap-root {
+  background: var(--starmap-board);
+  color: var(--starmap-fg);
 }
 
-.detail-globe-starmap-mount > div > div:nth-child(2) {
+.globe-starmap-viewport {
   background: var(--starmap-viewport-bg);
   border: 1px solid var(--starmap-viewport-border);
 }
 
-.detail-globe-starmap-mount canvas {
+.globe-starmap-root canvas {
   background: var(--starmap-canvas-bg);
 }

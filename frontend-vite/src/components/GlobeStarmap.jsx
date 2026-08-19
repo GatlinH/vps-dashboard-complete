@@ -673,14 +673,9 @@ export default function GlobeStarmap({
   };
 
   return (
-    <div ref={rootRef} style={{
-      // The detail starmap is an overlay inside the detail page. Its canvas draws
-      // the globe only; an opaque component shell would mask the operator-selected
-      // site/detail background and make this one panel ignore theme/background.
-      background: isLight
-        ? "linear-gradient(180deg, #f7efdc, #e8dbc0)"
-        : "linear-gradient(180deg, rgba(5,27,42,.88), rgba(2,11,21,.84))",
-      color: isLight ? "#203438" : "#e2e8f0",
+    <div ref={rootRef} className="globe-starmap-root" style={{
+      // Colour (background/foreground) lives in detail-starmap-background.css so
+      // the two themes cannot drift apart; only layout is set inline here.
       fontFamily: "'Noto Sans SC', sans-serif",
       padding: "1.25rem",
       borderRadius: 16,
@@ -726,7 +721,7 @@ export default function GlobeStarmap({
       </div>
 
       {/* ── Globe + Legend + Tooltip ── */}
-      <div style={{ position: "relative", display: "flex", justifyContent: "center", borderRadius: 16, padding: 8 }}>
+      <div className="globe-starmap-viewport" style={{ position: "relative", display: "flex", justifyContent: "center", borderRadius: 16, padding: 8 }}>
         <canvas
           ref={canvasRef}
           width={internalWidth}

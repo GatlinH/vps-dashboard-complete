@@ -917,8 +917,6 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .data-fre
   grid-template-columns:minmax(560px,1fr) minmax(300px,380px)!important;
   min-height:470px!important;
 }
-html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe{
-}
 html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-probe-globe-tooltip{
   background:rgba(248,241,222,.94);
   color:#26343b;
@@ -1056,9 +1054,6 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-st
 html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount{
   box-shadow:0 10px 28px rgba(87,67,36,.12), inset 0 0 0 1px rgba(255,255,255,.42)!important;
 }
-html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe canvas,
-html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
-}
 html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe .quantum-globe-copy,
 html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe .quantum-globe-legend{
   color:#1e3d42!important;
@@ -1087,9 +1082,6 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-ch
 
 
 /* detail-day-final-readability-pass-20260608 */
-html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe canvas,
-html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
-}
 html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-chart-head strong,
 html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .network-legend,
 html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-table th,
@@ -1551,8 +1543,6 @@ html, body, #app{
 }
 html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-starmap-title{
   color:#064f58!important;
-}
-html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
 }
 @media (max-width:900px){
   .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix > .network-throughput-card{min-height:400px!important;}
