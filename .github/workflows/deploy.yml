@@ -54,8 +54,10 @@ jobs:
           IMAGE_REVISION: ${{ github.sha }}
           IMAGE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
           RELEASE_VERSION: ${{ github.ref_name }}
-          COMPOSE_SHA256: ${{ hashFiles('docker-compose.yml') }}
         run: |
+          COMPOSE_SHA256=$(sha256sum docker-compose.yml | cut -d' ' -f1)
+          echo "COMPOSE_SHA256=$COMPOSE_SHA256" >> "$GITHUB_ENV"
+          export COMPOSE_SHA256
           npm --prefix frontend-vite ci
           npm --prefix frontend-vite run build
           python3 scripts/release/build_provenance.py
@@ -74,6 +76,6 @@ jobs:
             IMAGE_REVISION=${{ github.sha }}
             IMAGE_SOURCE=${{ github.server_url }}/${{ github.repository }}
             RELEASE_VERSION=${{ github.ref_name }}
-            COMPOSE_SHA256=${{ hashFiles('docker-compose.yml') }}
+            COMPOSE_SHA256=${{ env.COMPOSE_SHA256 }}
           cache-from: type=gha,scope=dashboard
           cache-to: type=gha,mode=max,scope=dashboard
