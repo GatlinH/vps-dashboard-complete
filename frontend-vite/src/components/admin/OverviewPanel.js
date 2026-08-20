@@ -1,9 +1,6 @@
 import { fetchServers } from '../../api/servers.js';
 import { getKomariPanelUrl } from '../../config/externalLinks.js';
-
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>\"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[ch]));
-}
+import { escapeHtmlText as escapeHtml } from '../../utils/escapeHtml.js';
 
 
 export class OverviewPanel {

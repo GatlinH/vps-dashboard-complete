@@ -1,0 +1,15 @@
+{
+  "total": 6255,
+  "files": {
+    "globe.css": 2,
+    "styles/admin-legacy-overrides.css": 274,
+    "styles/admin.css": 1660,
+    "styles/base.css": 11,
+    "styles/detail-starfleet-console.css": 1841,
+    "styles/detail-starmap-background.css": 1,
+    "styles/globe.css": 290,
+    "styles/main.css": 2079,
+    "styles/pages.css": 2,
+    "styles/starfleet-theme.css": 95
+  }
+}

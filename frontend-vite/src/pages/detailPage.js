@@ -1,9 +1,6 @@
 import { state } from '../store/state.js';
 import { LANGUAGE_PACKS, currentLanguage, t } from '../core/preferences.js';
-
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>\"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[ch]));
-}
+import { escapeHtmlAttribute, escapeHtmlText as escapeHtml } from '../utils/escapeHtml.js';
 
 function firstText(...values) {
   for (const value of values) {
@@ -47,7 +44,7 @@ function renderRuntimeEnvironmentCard(server) {
     ['envArch', normalizeArchitectureLabel(server?.arch || meta.arch || cfg.arch)],
     ['envCpuModel', firstText(server?.cpu_model, server?.cpu_name, meta.cpu_model, meta.cpu_name, cfg.cpu_model, cfg.cpu_name)],
   ];
-  return `<section class="probe-card runtime-env-card" aria-label="${escapeHtml(t('envRuntime'))}">
+  return `<section class="probe-card runtime-env-card" aria-label="${escapeHtmlAttribute(t('envRuntime'))}">
     <div class="probe-card-head"><h2 data-i18n="envRuntime">${t('envRuntime')}</h2><span>ENV • 01</span></div>
     <div class="runtime-env-grid">
       ${fields.map(([key, value]) => `<div class="runtime-env-field"><span data-i18n="${key}">${escapeHtml(t(key))}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}
@@ -163,10 +160,10 @@ export function renderDetailConsole(ctx) {
         </div>
         <div class="fleet-status-bank">
           <div><span data-i18n="sector">${t('sector')}</span><strong>${escapeHtml(resolvedServer.city || resolvedServer.region || resolvedServer.location || 'Unknown')}</strong></div>
-          <div><span data-i18n="systemCore">${t('systemCore')}</span><strong data-i18n-core-status="${escapeHtml(resolvedServer.status || '')}">${resolvedServer.status === 'online' ? t('coreStable') : t('coreAlert')}</strong></div>
-          <div><span data-i18n="runtime">${t('runtime')}</span><strong data-i18n-uptime-raw="${escapeHtml(String(resolvedServer.uptime ?? ''))}" data-i18n-uptime-since="${escapeHtml(String(resolvedServer.agent_key_created_at ?? ''))}">${h.formatZhDuration(resolvedServer.uptime, resolvedServer.agent_key_created_at)}</strong></div>
-          <div><span data-i18n="expiry">${t('expiry')}</span><strong data-i18n-expiry-raw="${escapeHtml(String(resolvedServer.expiry ?? ''))}">${h.formatExpiryCountdown(resolvedServer.expiry)}</strong></div>
-          <div class="fleet-online ${resolvedServer.status}"><strong data-i18n-status-label="${escapeHtml(resolvedServer.status || '')}">${h.statusLabel(resolvedServer.status)}</strong><span data-i18n-heartbeat>Agent / ${t('heartbeat')}</span></div>
+          <div><span data-i18n="systemCore">${t('systemCore')}</span><strong data-i18n-core-status="${escapeHtmlAttribute(resolvedServer.status || '')}">${resolvedServer.status === 'online' ? t('coreStable') : t('coreAlert')}</strong></div>
+          <div><span data-i18n="runtime">${t('runtime')}</span><strong data-i18n-uptime-raw="${escapeHtmlAttribute(String(resolvedServer.uptime ?? ''))}" data-i18n-uptime-since="${escapeHtmlAttribute(String(resolvedServer.agent_key_created_at ?? ''))}">${h.formatZhDuration(resolvedServer.uptime, resolvedServer.agent_key_created_at)}</strong></div>
+          <div><span data-i18n="expiry">${t('expiry')}</span><strong data-i18n-expiry-raw="${escapeHtmlAttribute(String(resolvedServer.expiry ?? ''))}">${h.formatExpiryCountdown(resolvedServer.expiry)}</strong></div>
+          <div class="fleet-online ${resolvedServer.status}"><strong data-i18n-status-label="${escapeHtmlAttribute(resolvedServer.status || '')}">${h.statusLabel(resolvedServer.status)}</strong><span data-i18n-heartbeat>Agent / ${t('heartbeat')}</span></div>
         </div>
       </header>
 

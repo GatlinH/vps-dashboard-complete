@@ -139,7 +139,7 @@ services:
       # Deployment-neutral direct bind. Default preserves IPv4; operators may set
       # GUNICORN_BIND='[::]:5000' and PUBLIC_BIND_ADDRESS='[::]' explicitly.
       GUNICORN_BIND: ${GUNICORN_BIND:-0.0.0.0:5000}
-      TRUST_PROXY: ${TRUST_PROXY:-1}
+      TRUST_PROXY: ${TRUST_PROXY:-0}
       FORCE_HTTPS: ${FORCE_HTTPS:-0}
       JWT_COOKIE_SECURE: ${JWT_COOKIE_SECURE:-0}
       JWT_BLOCKLIST_FAIL_OPEN: ${JWT_BLOCKLIST_FAIL_OPEN:-0}

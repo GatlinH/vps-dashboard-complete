@@ -322,6 +322,11 @@ def create_app(**config_overrides):
             'version': '1.0.0',
         }, status_code
 
+    @app.get('/api/v1/revision')
+    def revision():
+        from services.release_provenance import load_provenance
+        return load_provenance()
+
     return app
 
 

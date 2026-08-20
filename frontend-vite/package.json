@@ -16,6 +16,8 @@
     "test:cesium-module-workers": "node scripts/verify-cesium-module-workers.mjs",
     "test:cesium-starship-home": "node scripts/verify-single-renderer-home.mjs",
     "test:single-renderer-home": "node scripts/verify-single-renderer-home.mjs",
+    "check:css-important": "node scripts/check-css-important.mjs",
+    "check:source-surfaces": "node scripts/check-source-surfaces.mjs",
     "lint": "eslint src/",
     "lint:js": "eslint src/",
     "lint:css": "stylelint 'src/**/*.css'",
@@ -27,7 +29,6 @@
   },
   "dependencies": {
     "@deck.gl/core": "^9.3.6",
-    "@deck.gl/geo-layers": "^9.3.6",
     "@deck.gl/layers": "^9.3.6",
     "@luma.gl/core": "^9.3.6",
     "cesium": "1.143",

@@ -4,6 +4,7 @@
  */
 import { fetchTgConfig, saveTgConfig, testTg, sendTgMessage, exportTgBundle, fetchTgAlerts, saveTgAlerts, createTgAlertRule, updateTgAlertRule, toggleTgAlertRule, deleteTgAlertRule } from '../../api/telegram.js';
 import { getNotificationSettings } from '../../api/admin.js';
+import { escapeHtmlAttribute, escapeHtmlText } from '../../utils/escapeHtml.js';
 
 export class TelegramPanel {
   constructor(mountId) {
@@ -96,7 +97,7 @@ export class TelegramPanel {
   }
 
   _renderBotOptions() {
-    const opts = (this._bots || []).map(b => `<option value="${b.id}">${this._escapeHtml(b.name || `Telegram 机器人 ${b.id}`)}</option>`).join('');
+    const opts = (this._bots || []).map(b => `<option value="${b.id}">${escapeHtmlText(b.name || `Telegram 机器人 ${b.id}`)}</option>`).join('');
     const html = opts || '<option value="">Telegram</option>';
     if (this._q('#tp-rule-bot')) {
       this._q('#tp-rule-bot').innerHTML = this._ruleChannelOptionsHtml();
@@ -119,7 +120,7 @@ export class TelegramPanel {
     Object.keys(channels).forEach(key => add(key, this._channelLabel(key)));
     /* rule-channel-dedup-20260611: 渠道下拉只列通知渠道，不再列具体 bot 实例（避免与 telegram 选项重合，去掉“默认机器人”重复项） */
     if (!rows.length) rows.push({ value: 'notify:telegram', label: 'telegram' });
-    return rows.map(r => `<option value="${this._escapeHtml(r.value)}">${this._escapeHtml(r.label)}</option>`).join('');
+    return rows.map(r => `<option value="${escapeHtmlAttribute(r.value)}">${escapeHtmlText(r.label)}</option>`).join('');
   }
 
   _channelLabel(name) {
@@ -268,10 +269,6 @@ export class TelegramPanel {
     this._renderRuleList();
   }
 
-  _escapeHtml(value) {
-    return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-  }
-
   _renderRuleList() {
     const el = this._q('#tp-rules-list');
     if (!el) return;
@@ -281,14 +278,14 @@ export class TelegramPanel {
     }
     el.innerHTML = this._rules.map((r) => {
       const id = Number(r.id) || 0;
-      const name = this._escapeHtml(r.name || r.rule_type || '规则');
-      const ruleType = this._escapeHtml(r.rule_type || 'unknown');
-      const scope = r.scope === 'server' ? `节点 ${this._escapeHtml(r.server_id || '')}` : '全局';
-      const threshold = this._escapeHtml(r.threshold ?? '—');
-      const cooldown = this._escapeHtml(r.cool_down_s ?? '—');
-      const botName = this._escapeHtml(this._ruleChannelDisplay(r));
-      const target = this._escapeHtml(this._ruleTargetDisplay(r));
-      const note = this._escapeHtml(r.note || '—');
+      const name = escapeHtmlText(r.name || r.rule_type || '规则');
+      const ruleType = escapeHtmlText(r.rule_type || 'unknown');
+      const scope = r.scope === 'server' ? `节点 ${escapeHtmlText(r.server_id || '')}` : '全局';
+      const threshold = escapeHtmlText(r.threshold ?? '—');
+      const cooldown = escapeHtmlText(r.cool_down_s ?? '—');
+      const botName = escapeHtmlText(this._ruleChannelDisplay(r));
+      const target = escapeHtmlText(this._ruleTargetDisplay(r));
+      const note = escapeHtmlText(r.note || '—');
       return `
       <div class="ping-server-item" style="align-items:flex-start;gap:12px">
         <div style="flex:1;min-width:0">
@@ -381,7 +378,7 @@ export class TelegramPanel {
     if (!el) return;
     const v = channelValue ?? this._q('#tp-rule-bot')?.value ?? '';
     const targets = this._targetsForRuleChannel(v);
-    el.innerHTML = targets.map(t => `<option value="${this._escapeHtml(t.value)}">${this._escapeHtml(t.label)}</option>`).join('');
+    el.innerHTML = targets.map(t => `<option value="${escapeHtmlAttribute(t.value)}">${escapeHtmlText(t.label)}</option>`).join('');
     const wanted = selected || targets[0]?.value || '';
     el.value = targets.some(t => t.value === wanted) ? wanted : (targets[0]?.value || '');
   }

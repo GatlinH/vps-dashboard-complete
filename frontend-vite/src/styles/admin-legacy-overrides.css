@@ -1,9 +1,9 @@
 /*
  * Legacy admin overrides consolidated from the dated hotfix chain.
  *
- * Keep source sections in their original import order: the cascade is preserved
- * byte-for-byte within each section. New dated hotfix files are forbidden; move
- * stable rules into admin.css or a named component stylesheet instead.
+ * FROZEN HISTORICAL CASCADE: do not add declarations or sections to this file.
+ * Keep source sections in their original import order. New dated hotfix files
+ * are forbidden; move stable rules into admin.css or a named component stylesheet.
  */
 
 /* Source: hermes_admin_polish_20260706.css */

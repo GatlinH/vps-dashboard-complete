@@ -15,6 +15,7 @@ services:
     environment:
       # API is reached by optional frontend through the Docker network.
       TRUST_PROXY: ${TRUST_PROXY:-1}
+      PROXY_FIX_X_FOR: ${PROXY_FIX_X_FOR:-1}
 
   frontend:
     image: nginx:1.27-alpine
