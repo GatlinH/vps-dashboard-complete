@@ -146,3 +146,20 @@ certbot renew --dry-run
 ---
 
 *最后更新：请在每次部署前更新此文件的完成状态。*
+# Live release provenance verification
+
+After the deployed service is healthy, compare its public revision endpoint with the
+built artifact, source commit, image revision label, frontend bundle, and Compose file:
+
+```bash
+python3 scripts/release/verify_provenance.py \
+  --runtime-url https://dashboard.example.com \
+  --artifact release-provenance.json \
+  --source-sha "$GIT_SHA" \
+  --image-revision "$IMAGE_REVISION_LABEL" \
+  --frontend-root frontend-dist \
+  --compose docker-compose.yml
+```
+
+`--runtime-url` is required for live verification. `--offline` is reserved for
+pre-build checks where no runtime exists and does not claim to verify deployment state.

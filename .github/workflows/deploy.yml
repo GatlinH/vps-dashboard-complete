@@ -48,6 +48,19 @@ jobs:
             type=sha,format=long
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
+      - name: Verify release provenance source
+        env:
+          GIT_SHA: ${{ github.sha }}
+          IMAGE_REVISION: ${{ github.sha }}
+          IMAGE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
+          RELEASE_VERSION: ${{ github.ref_name }}
+          COMPOSE_SHA256: ${{ hashFiles('docker-compose.yml') }}
+        run: |
+          npm --prefix frontend-vite ci
+          npm --prefix frontend-vite run build
+          python3 scripts/release/build_provenance.py
+          python3 scripts/release/verify_provenance.py --offline --artifact release-provenance.json --source-sha "${{ github.sha }}" --image-revision "${{ github.sha }}"
+
       - name: Build and push dashboard image
         uses: docker/build-push-action@v7
         with:
@@ -56,5 +69,11 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            IMAGE_REVISION=${{ github.sha }}
+            IMAGE_SOURCE=${{ github.server_url }}/${{ github.repository }}
+            RELEASE_VERSION=${{ github.ref_name }}
+            COMPOSE_SHA256=${{ hashFiles('docker-compose.yml') }}
           cache-from: type=gha,scope=dashboard
           cache-to: type=gha,mode=max,scope=dashboard
