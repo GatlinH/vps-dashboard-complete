@@ -1,4 +1,5 @@
 import '../globals/dashboardGlobals.js';
+import { escapeHtmlAttribute, escapeHtmlText as escapeHtml } from '../utils/escapeHtml.js';
 import { login as publicLogin, getOAuthProviders, oauthLoginUrl, verifyEmailToken, resetPasswordWithToken } from '../api/auth.js';
 import '../styles/main.css';
 import '../styles/detail-starfleet-console.css';
@@ -61,7 +62,7 @@ function renderTokenActionShell(title, message, extra = '') {
   document.body.classList.add('front-login-page-mode');
   if (!app) return null;
   app.innerHTML = `
-    <main class="standalone-login-scene login-orbital-scene" aria-label="${escapeHtml(title)}">
+    <main class="standalone-login-scene login-orbital-scene" aria-label="${escapeHtmlAttribute(title)}">
       <div class="login-cosmos-gradient"></div><div class="login-orbit-grid"></div><div class="login-login-sun"></div>
       <section class="modal front-login-modal astro-login-modal" style="position:relative;margin:12vh auto;max-width:520px">
         <div class="astro-login-kicker">VPS Star Atlas</div>
@@ -1712,10 +1713,6 @@ function initQuantumProbeGlobe(server, rows = []) {
   canvas.addEventListener('touchmove', e => { if (!stateGlobe.dragging || !e.touches[0]) return; const t=e.touches[0]; stateGlobe.rotY = wrapAngle(stateGlobe.rotY + (t.clientX-stateGlobe.lastX)*0.007/stateGlobe.zoom); stateGlobe.rotX = wrapAngle(stateGlobe.rotX + (t.clientY-stateGlobe.lastY)*0.007/stateGlobe.zoom); stateGlobe.lastX=t.clientX; stateGlobe.lastY=t.clientY; }, { passive: true });
   canvas.addEventListener('touchend', () => setDrag(false, stateGlobe.lastX, stateGlobe.lastY), { passive: true });
   draw();
-}
-
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>\"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[ch]));
 }
 
 function detailLocationToLatLng(loc = '') {

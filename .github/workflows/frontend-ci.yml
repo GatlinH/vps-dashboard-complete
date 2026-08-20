@@ -40,6 +40,10 @@ jobs:
         working-directory: frontend-vite
         run: npm run check:css-important
 
+      - name: Check source surfaces
+        working-directory: frontend-vite
+        run: npm run check:source-surfaces
+
       - name: Build frontend
         working-directory: frontend-vite
         run: npm run build

@@ -171,13 +171,6 @@ export function fetchResourceTimeline(serverId, limit = 900) {
   return fetchServerHistory(serverId, 1 / 24, limit, 0, 'resource_timeline');
 }
 
-// Dedicated 6h network series. The backend filters null throughput rows and
-// returns a bounded 3-minute timeline, so first paint does not wait on the
-// selected 1/4/7/30/90-day history aggregation.
-export function fetchNetworkTimeline(serverId, limit = 120) {
-  return fetchServerHistory(serverId, 1, limit, 0, 'network_timeline');
-}
-
 export async function fetchPingTargets(serverId, count = 1, source = '') {
   const root = window.__DBG__.API_ROOT || (location.port === 5000 ? `${location.protocol}//${location.hostname}:5000` : location.origin);
   const sourceParam = source ? `&source=${encodeURIComponent(source)}` : '';
@@ -188,12 +181,6 @@ export async function fetchPingTargetHistory(serverId, hours = 12, limit = 2000,
   const root = window.__DBG__.API_ROOT || (location.port === 5000 ? `${location.protocol}//${location.hostname}:5000` : location.origin);
   const sourceParam = source ? `&source=${encodeURIComponent(source)}` : '';
   return fetchJson(`${root}/api/v1/probe/public/ping-targets/${serverId}/history?hours=${hours}&limit=${limit}${sourceParam}`, { timeoutMs: 9000, cacheMs: 5000 });
-}
-
-export async function fetchPing(_resolvedServer) {
-  // Public/detail PING is sourced only from persisted, operator-configured
-  // agent ping_targets. Never turn a visitor page view into an outbound probe.
-  return null;
 }
 
 

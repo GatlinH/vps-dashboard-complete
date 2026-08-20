@@ -7,10 +7,7 @@ import {
   fetchAgentInstallCommand,
 } from '../../api/servers.js';
 import { getKomariPanelUrl } from '../../config/externalLinks.js';
-
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>\"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[ch]));
-}
+import { escapeHtmlAttribute, escapeHtmlText as escapeHtml } from '../../utils/escapeHtml.js';
 
 export class AgentPanel {
   constructor(mountId) {
@@ -103,7 +100,7 @@ export class AgentPanel {
 
   _renderServerOptions() {
     const sel = this._el.querySelector('#ap-server');
-    sel.innerHTML = this._servers.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.flag || '🌐')} ${escapeHtml(s.name)}</option>`).join('');
+    sel.innerHTML = this._servers.map(s => `<option value="${escapeHtmlAttribute(s.id)}">${escapeHtml(s.flag || '🌐')} ${escapeHtml(s.name)}</option>`).join('');
   }
 
   async _loadOverview() {
