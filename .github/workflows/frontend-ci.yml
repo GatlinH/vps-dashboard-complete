@@ -36,6 +36,10 @@ jobs:
         working-directory: frontend-vite
         run: npm ci
 
+      - name: Check CSS priority ratchet
+        working-directory: frontend-vite
+        run: npm run check:css-important
+
       - name: Build frontend
         working-directory: frontend-vite
         run: npm run build
