@@ -3,6 +3,7 @@
 """
 import json
 import logging
+import math
 import secrets
 import shlex
 from datetime import datetime, timezone, date, timedelta
@@ -61,6 +62,7 @@ _CACHE_KEY_ADMIN  = "vps:servers:admin"      # 全量字段（含 IP、价格等
 # otherwise a pre-mask Redis entry can outlive the code rollout briefly.
 _CACHE_KEY_PUBLIC = "vps:servers:public:v2"  # 公开字段（IP 已脱敏）
 _CACHE_TTL = 30  # seconds
+_DETAIL_CACHE_TTL = 5
 
 FIELD_MAX_LEN = {
     "name": 128, "ip": 45, "location": 128,
@@ -120,6 +122,34 @@ def _parse_history_pagination():
     if offset is None or offset < 0:
         raise ValidationError("offset 不能为负数", field="offset")
     return days, limit, offset
+
+
+def _detail_query_params():
+    days = request.args.get("days", 1, type=int)
+    if days is None or days < 0 or days > 365:
+        raise ValidationError("days 取值范围为 0-365", field="days")
+
+    default_buckets = {0: 0, 1: 5, 4: 20, 7: 60, 30: 60, 90: 180}
+    if days in default_buckets:
+        bucket_minutes = default_buckets[days]
+    elif days <= 4:
+        bucket_minutes = 20
+    elif days <= 30:
+        bucket_minutes = 60
+    else:
+        bucket_minutes = 180
+    requested_bucket = request.args.get("bucket_minutes", type=int)
+    if requested_bucket is not None:
+        if requested_bucket < 0 or requested_bucket > 1440:
+            raise ValidationError("bucket_minutes 取值范围为 0-1440", field="bucket_minutes")
+        bucket_minutes = requested_bucket
+
+    history_days = 1 if days == 0 else days
+    default_limit = 3600 if days == 0 else max(1, math.ceil(days * 24 * 60 / max(1, bucket_minutes)))
+    limit = request.args.get("limit", default_limit, type=int)
+    if limit is None or limit <= 0 or limit > 21600:
+        raise ValidationError("limit 取值范围为 1-21600", field="limit")
+    return days, history_days, limit, bucket_minutes
 
 
 # ── 列表 ──────────────────────────────────────────────────────────────────────
@@ -604,10 +634,14 @@ def get_public_live_snapshot(sid):
     Unlike the public server-list cache this is intentionally a single-row read:
     the browser polls it every 5s, but only appends when ``updated_at`` advances.
     """
+    return jsonify(live=_build_public_live_payload(sid))
+
+
+def _build_public_live_payload(sid):
     server = db.session.get(Server, sid)
     if not server:
         raise ValidationError("服务器不存在", field="server_id")
-    return jsonify(live={
+    return {
         "server_id": server.id,
         "updated_at": server.updated_at.isoformat() if server.updated_at else None,
         "cpu_use": server.cpu_use,
@@ -617,7 +651,48 @@ def get_public_live_snapshot(sid):
         "net_down": server.net_down,
         "process_count": server.process_count,
         "status": server.status,
-    })
+    }
+
+
+@servers_bp.get("/public/<int:sid>/detail")
+@jwt_required(optional=True)
+def get_public_server_detail(sid):
+    """Return the complete public detail-page snapshot in one cached response."""
+    server = db.session.get(Server, sid)
+    if not server:
+        raise ValidationError("服务器不存在", field="server_id")
+
+    days, history_days, limit, bucket_minutes = _detail_query_params()
+    cache_key = f"vps:servers:public:detail:v1:{sid}:{days}:{limit}:{bucket_minutes}"
+    try:
+        cached = extensions.redis_client.get(cache_key)
+        if cached:
+            return jsonify(json.loads(cached))
+    except Exception:
+        pass
+
+    from api.probe import build_public_ping_history_payload, build_public_ping_targets_payload
+    from api.traffic import _build_traffic_payload
+
+    ping_hours = 6 if days == 0 else max(1, days * 24)
+    payload = {
+        "server": server.to_dict(public_only=True),
+        "live": _build_public_live_payload(sid),
+        "history": build_public_history_payload(sid, history_days, limit, 0, bucket_minutes, "", 6 if days == 0 else None),
+        "resource_timeline": build_public_history_payload(sid, 1, 900, 0, None, "resource_timeline").get("data", []),
+        "process_history": build_public_history_payload(sid, 1, 720, 0, None, "process_count").get("data", []),
+        "traffic": _build_traffic_payload(server),
+        "ping_targets": build_public_ping_targets_payload(sid, count=1),
+        "ping_history": build_public_ping_history_payload(sid, hours=ping_hours, limit=limit),
+    }
+    try:
+        extensions.redis_client.setex(
+            cache_key, _DETAIL_CACHE_TTL,
+            json.dumps(payload, ensure_ascii=False, default=str),
+        )
+    except Exception:
+        pass
+    return jsonify(payload)
 
 
 @servers_bp.get("/public/<int:sid>/history")
@@ -631,10 +706,26 @@ def get_public_history(sid):
         raise InternalServerError(error_detail=str(e))
 
     days, limit, offset = _parse_history_pagination()
-    bucket_minutes = request.args.get("bucket_minutes", type=int)
+    return jsonify(build_public_history_payload(
+        sid, days, limit, offset,
+        request.args.get("bucket_minutes", type=int),
+        str(request.args.get("metric") or "").strip().lower(),
+        request.args.get("hours", type=float),
+    ))
+
+
+def build_public_history_payload(sid, days, limit, offset=0, bucket_minutes=None, metric="", history_hours=None):
+    def jsonify(**kwargs):
+        return kwargs
+    try:
+        Server.query.get_or_404(sid)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise InternalServerError(error_detail=str(e))
     # The process monitor is a fixed one-hour realtime series, independent of
     # the selected long-history range/rollup tier.
-    metric = str(request.args.get("metric") or "").strip().lower()
+    metric = str(metric or "").strip().lower()
     if metric == "process_count":
         since = datetime.now(timezone.utc) - timedelta(hours=1)
         # ProbeResult also contains scheduler and network-probe rows, which do
@@ -734,7 +825,10 @@ def get_public_history(sid):
             data=data, total=len(data), count=len(data), metric="network_timeline",
             hours=hours, history_source="raw", bucketed=True, bucket_minutes=bucket_minutes,
         )
-    since = datetime.now(timezone.utc) - timedelta(days=days)
+    since = datetime.now(timezone.utc) - (
+        timedelta(hours=max(1, min(history_hours, days * 24)))
+        if history_hours is not None else timedelta(days=days)
+    )
     # Long windows are served from bounded materialized hourly summaries. Raw
     # ProbeResult remains the source for short diagnostics and for deployments
     # which have not accumulated rollups yet.
@@ -758,6 +852,39 @@ def get_public_history(sid):
     if bucket_minutes:
         bucket_minutes = max(1, min(1440, int(bucket_minutes)))
         bucket_seconds = bucket_minutes * 60
+        if db.session.get_bind().dialect.name != "mysql":
+            raw_rows = base_query.order_by(ProbeResult.created_at.asc()).limit(21600).all()
+            fields = ("cpu_use", "ram_use", "disk_use", "net_up", "net_down", "process_count", "latency_ms")
+            buckets = {}
+            for row in raw_rows:
+                timestamp = row.created_at
+                if timestamp.tzinfo is None:
+                    timestamp = timestamp.replace(tzinfo=timezone.utc)
+                bucket_ts = int(timestamp.timestamp() // bucket_seconds * bucket_seconds)
+                item = buckets.setdefault(bucket_ts, {field: [] for field in fields})
+                for field in fields:
+                    value = getattr(row, field)
+                    if value is not None:
+                        item[field].append(float(value))
+            data = []
+            for bucket_ts, item in sorted(buckets.items())[offset:offset + limit]:
+                timestamp = datetime.fromtimestamp(bucket_ts, timezone.utc).isoformat()
+                serialized = {
+                    "server_id": sid,
+                    "created_at": timestamp,
+                    "timestamp": timestamp,
+                    "samples": max((len(values) for values in item.values()), default=0),
+                    "bucket_minutes": bucket_minutes,
+                }
+                for field, values in item.items():
+                    value = sum(values) / len(values) if values else None
+                    serialized[field] = round(value) if field == "process_count" and value is not None else value
+                data.append(serialized)
+            return jsonify(
+                data=data, total=total, bucketed=True,
+                bucket_minutes=bucket_minutes, days=days, limit=limit,
+                offset=offset, count=len(data),
+            )
         bucket_expr = mysql_epoch_bucket_expression(ProbeResult.created_at, bucket_seconds=bucket_seconds)
         rows = (
             db.session.query(
