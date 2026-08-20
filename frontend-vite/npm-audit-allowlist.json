@@ -1,0 +1,5 @@
+{
+  "entries": [
+    {"package": "nanoid", "advisory": "GHSA-2v37-7h3g-55p8", "rationale": "Transitive Vite toolchain dependency; upgrade requires coordinated major release.", "expires": "2026-12-31"}
+  ]
+}

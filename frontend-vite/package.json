@@ -29,7 +29,6 @@
   },
   "dependencies": {
     "@deck.gl/core": "^9.3.6",
-    "@deck.gl/geo-layers": "^9.3.6",
     "@deck.gl/layers": "^9.3.6",
     "@luma.gl/core": "^9.3.6",
     "cesium": "1.143",

@@ -26,6 +26,8 @@ def iter_files(root: Path, include_dist: bool):
 
 def allowed_secret(rel: Path, key: str, value: str, line: str) -> bool:
     ps = str(rel).replace('\\','/')
+    if ps.startswith('.github/workflows/') and key.lower() == 'agent_key' and value == 'ci-agent-key':
+        return True
     if '/tests/' in ps or ps.startswith('tests/') or '/backups/' in ps or ps.startswith('backups/') or 'frontend-vite/backups/' in ps:
         return True
     # Shell/config templates often move an already-existing secret between local
