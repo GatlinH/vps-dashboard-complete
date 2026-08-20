@@ -3,6 +3,13 @@
   padding:14px !important; min-height:100vh; overflow-x:auto;
   background: radial-gradient(circle at 18% 10%, rgba(0,180,190,.16), transparent 34%), #020812 !important;
 }
+
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.chart-loading {
+  animation: chart-loading-pulse 1.5s ease-in-out infinite;
+  opacity: .5;
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.chart-loading canvas { visibility: hidden; }
+@keyframes chart-loading-pulse { 0%, 100% { opacity: .42; } 50% { opacity: .62; } }
 .detail-page-shell:has(.fleet-detail-console) .detail-page-hero{display:none!important}
 .detail-page-grid:has(.fleet-detail-console){display:block!important; max-width:none!important; width:100%;}
 .fleet-detail-console{--cyan:#62f5ee;--cyan2:#25b9d8;--muted:#8fb7c1;--amber:#ffb15d;--panel:rgba(2,16,27,.74);--line:rgba(98,245,238,.34);width:100%;min-height:820px;position:relative;display:grid;grid-template-columns:minmax(205px,.82fr) minmax(390px,1.45fr) minmax(430px,1.7fr);grid-template-rows:92px auto 1fr 38px;gap:8px;padding:10px;color:#d7ffff;font:11px/1.32 "Roboto Condensed","DIN Condensed","JetBrains Mono",monospace;letter-spacing:.03em;background:linear-gradient(180deg,rgba(4,13,24,.94),rgba(1,8,15,.98)),repeating-linear-gradient(0deg,rgba(98,245,238,.035) 0 1px,transparent 1px 7px),repeating-linear-gradient(90deg,rgba(98,245,238,.025) 0 1px,transparent 1px 72px);box-shadow:inset 0 0 90px rgba(0,255,240,.07),0 0 70px rgba(0,0,0,.75)}
@@ -66,7 +73,6 @@
   background:repeating-linear-gradient(180deg,transparent 0 5px,rgba(98,245,238,.04) 5px 6px);
   mix-blend-mode:screen;
 }
-
 /* Dense target-screen pass */
 .detail-page-shell:has(.fleet-detail-console){
   min-height:100vh!important;
@@ -881,10 +887,6 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .data-fre
   min-height:430px!important;
   width:100%!important;
   overflow:hidden!important;
-  border:0!important;
-  background:
-    radial-gradient(circle at 50% 50%,rgba(98,245,238,.10),transparent 48%),
-    linear-gradient(180deg,rgba(3,18,30,.22),rgba(0,5,10,.04))!important;
   box-shadow:none!important;
 }
 .detail-page-shell:has(.fleet-detail-console) .detail-probe-globe-canvas{
@@ -915,15 +917,11 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .data-fre
 .detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe .quantum-globe-copy{
   z-index:4!important;
   border-left:1px solid rgba(98,245,238,.40);
-  background:rgba(1,10,17,.48)!important;
   color:#dfffff!important;
 }
 .detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid{
   grid-template-columns:minmax(560px,1fr) minmax(300px,380px)!important;
   min-height:470px!important;
-}
-html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe{
-  background:radial-gradient(circle at 50% 50%,rgba(32,110,132,.12),transparent 48%),linear-gradient(180deg,rgba(236,229,208,.30),rgba(244,238,220,.08))!important;
 }
 html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-probe-globe-tooltip{
   background:rgba(248,241,222,.94);
@@ -956,13 +954,11 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-p
   width: 100%;
   box-sizing: border-box;
   padding: 0 !important;
-  background: transparent !important;
 }
 .detail-globe-starmap-mount canvas {
   width: 100% !important;
   height: auto !important;
   min-height: 360px;
-  background: #070b14;
 }
 
 
@@ -1062,20 +1058,11 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .probe-re
 html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe,
 html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-starmap-panel,
 html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount{
-  background:linear-gradient(180deg,#f7efdc,#e8dbc0)!important;
-  border-color:rgba(67,101,104,.34)!important;
   box-shadow:0 10px 28px rgba(87,67,36,.12), inset 0 0 0 1px rgba(255,255,255,.42)!important;
-}
-html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe canvas,
-html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
-  filter:brightness(1.18) contrast(.92) saturate(.82)!important;
-  opacity:.72!important;
 }
 html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe .quantum-globe-copy,
 html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe .quantum-globe-legend{
-  background:rgba(255,250,235,.84)!important;
   color:#1e3d42!important;
-  border-color:rgba(43,91,96,.26)!important;
 }
 .detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid,
 .detail-page-shell:has(.fleet-detail-console) .fleet-panel,
@@ -1101,12 +1088,6 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-ch
 
 
 /* detail-day-final-readability-pass-20260608 */
-html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe canvas,
-html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
-  filter:brightness(1.07) contrast(1.06) saturate(.96)!important;
-  opacity:1!important;
-  background:linear-gradient(180deg,#edf3e6,#d8e3d2)!important;
-}
 html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-chart-head strong,
 html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .network-legend,
 html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-table th,
@@ -1560,10 +1541,7 @@ html, body, #app{
   height:440px!important;
   min-height:440px!important;
   max-height:none!important;
-  filter:none!important;
-  opacity:1!important;
   image-rendering:auto!important;
-  background:#070b14!important;
 }
 .detail-page-shell:has(.fleet-detail-console) .quantum-doc-globe,
 .detail-page-shell:has(.fleet-detail-console) [data-doc-globe="1"]{
@@ -1571,11 +1549,6 @@ html, body, #app{
 }
 html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-starmap-title{
   color:#064f58!important;
-}
-html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
-  filter:none!important;
-  opacity:1!important;
-  background:#eef3e7!important;
 }
 @media (max-width:900px){
   .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix > .network-throughput-card{min-height:400px!important;}

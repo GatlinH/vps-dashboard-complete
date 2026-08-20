@@ -166,14 +166,22 @@ _persist_ping_target_results = _probe_history._persist_ping_target_results
 _fetch_ping_target_history = _probe_history._fetch_ping_target_history
 
 
+def build_public_ping_history_payload(sid, hours=12, limit=2000, source="public"):
+    result = _public_ping_history_response(sid, hours, limit, source)
+    response = result[0] if isinstance(result, tuple) else result
+    return response.get_json()
+
 @probe_bp.get("/public/ping-targets/<int:sid>/history")
 def public_ping_targets_history(sid):
+    return _public_ping_history_response(sid)
+
+def _public_ping_history_response(sid, hours=None, limit=None, source=None):
     server = Server.query.get(sid)
     # Long views are served from hourly aggregates and may span 90 days. Raw
     # target samples remain capped at one week for bounded storage/query cost.
-    hours = max(1, min(int(request.args.get("hours", 12)), 2160))
-    limit = max(1, min(int(request.args.get("limit", 2000)), 10000))
-    source = str(request.args.get("source") or "public").strip().lower()
+    hours = max(1, min(int(hours if hours is not None else request.args.get("hours", 12)), 2160))
+    limit = max(1, min(int(limit if limit is not None else request.args.get("limit", 2000)), 10000))
+    source = str(source if source is not None else request.args.get("source") or "public").strip().lower()
     if not server:
         resp = jsonify({"server_id": sid, "hours": hours, "targets": [], "derived_from": "server not found", "configured": False, "not_configured": True})
         resp.headers["Cache-Control"] = "no-store"
@@ -263,12 +271,20 @@ def public_ping_targets_history(sid):
     return resp
 
 
+def build_public_ping_targets_payload(sid, count=1, source="public"):
+    result = _public_ping_targets_response(sid, count, source)
+    response = result[0] if isinstance(result, tuple) else result
+    return response.get_json()
+
 @probe_bp.get("/public/ping-targets/<int:sid>")
 def public_ping_targets(sid):
+    return _public_ping_targets_response(sid)
+
+def _public_ping_targets_response(sid, count=None, source=None):
     server = Server.query.get(sid)
-    count = min(max(int(request.args.get("count", 1)), 1), 4)
+    count = min(max(int(count if count is not None else request.args.get("count", 1)), 1), 4)
     timeout = min(float(current_app.config.get("PROBE_TIMEOUT_S", 5)), 5.0)
-    source = str(request.args.get("source") or "public").strip().lower()
+    source = str(source if source is not None else request.args.get("source") or "public").strip().lower()
     if not server:
         payload = {"server_id": sid, "targets": [], "derived_from": "server not found", "configured": False, "not_configured": True, "cache_ttl": _ping_targets_cache_ttl()}
         resp = jsonify(payload)

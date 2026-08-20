@@ -1,17 +1,24 @@
 import '../globals/dashboardGlobals.js';
 let detailRefreshTimer = null;
 let detailHeavyRefreshAt = 0;
-let detailPingTargetsFetchedAt = 0;
+let detailVisibilityHandler = null;
 
 export function stopDetailRefreshTimer() {
   if (detailRefreshTimer) clearInterval(detailRefreshTimer);
+  if (detailVisibilityHandler && typeof document !== 'undefined') document.removeEventListener('visibilitychange', detailVisibilityHandler);
+  detailVisibilityHandler = null;
   detailRefreshTimer = null;
   window.__DBG__.DETAIL_REFRESH_ACTIVE = false;
 }
 
 export function startDetailRefreshTimer(callback, intervalMs = 5000) {
   stopDetailRefreshTimer();
-  detailRefreshTimer = setInterval(callback, intervalMs);
+  const tick = () => { if (typeof document === 'undefined' || !document.hidden) callback(); };
+  detailRefreshTimer = setInterval(tick, intervalMs);
+  if (typeof document !== 'undefined') {
+    detailVisibilityHandler = () => { if (!document.hidden) callback(); };
+    document.addEventListener('visibilitychange', detailVisibilityHandler);
+  }
   window.__DBG__.DETAIL_REFRESH_ACTIVE = true;
   window.__DBG__.DETAIL_REFRESH_INTERVAL_MS = intervalMs;
   window.__DBG__.DETAIL_SOURCE_SAMPLE_MS = intervalMs;
@@ -25,13 +32,4 @@ export function getDetailHeavyRefreshAt() {
 export function setDetailHeavyRefreshAt(value = Date.now()) {
   detailHeavyRefreshAt = Number(value) || 0;
   return detailHeavyRefreshAt;
-}
-
-export function getDetailPingTargetsFetchedAt() {
-  return detailPingTargetsFetchedAt;
-}
-
-export function setDetailPingTargetsFetchedAt(value = Date.now()) {
-  detailPingTargetsFetchedAt = Number(value) || 0;
-  return detailPingTargetsFetchedAt;
 }

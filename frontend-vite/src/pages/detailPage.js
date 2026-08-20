@@ -59,6 +59,7 @@ function renderRuntimeEnvironmentCard(server) {
 export function detailLoadingShell(resolvedServer = {}) {
   const serverName = escapeHtml(firstText(resolvedServer.name, 'VPS 节点'));
   const location = escapeHtml(firstText(resolvedServer.city, resolvedServer.region, resolvedServer.location, '定位信息同步中'));
+  const ip = escapeHtml(firstText(resolvedServer.ip, resolvedServer.public_ip, 'IP 同步中'));
   const status = escapeHtml(firstText(resolvedServer.status, '状态同步中'));
   const metricLabels = ['运行环境', '告警概览', '资源负载', '网络流量'];
   const chartLabels = ['网络吞吐量', 'PING 延迟', 'CPU 使用率', '内存使用率'];
@@ -89,7 +90,7 @@ export function detailLoadingShell(resolvedServer = {}) {
               <div class="fleet-node-caption">
                 <div class="fleet-micro">NODE / 同步中</div>
                 <h1>${serverName}</h1>
-                <p>${location} · ${status}</p>
+                <p>${location} · ${ip} · ${status}</p>
                 <span class="detail-loading-status" role="status">正在同步实时与历史指标</span>
               </div>
             </div>
@@ -173,11 +174,11 @@ export function renderDetailConsole(ctx) {
 
       ${h.renderRealtimeResourcePanels(resolvedServer, trafficData, upSeries, downSeries, displayCpuSeries, displayRamSeries, renderRuntimeEnvironmentCard(resolvedServer))}
       <main class="fleet-chart-matrix">
-        <div class="fleet-chart-card compact-metric-card network-throughput-card"><div class="fleet-chart-head"><span data-i18n-chart="network">${t('chartNetworkThroughput')} · ${wideWindowLabel} · ${sampleLabel}</span><strong>↑ ${h.detailRateValue(displayUpSeries, resolvedServer.net_up)} · ↓ ${h.detailRateValue(displayDownSeries, resolvedServer.net_down)}</strong></div><div class="network-legend"><i class="up"></i><span data-i18n="chartUp">${t('chartUp')}</span> <i class="down"></i><span data-i18n="chartDown">${t('chartDown')}</span></div><div class="network-chart-surface"><canvas id="detailNetworkChart"></canvas></div></div>
-        <div class="fleet-chart-card compact-metric-card ping-multi-card"><div class="fleet-chart-head"><span data-i18n-chart="ping">${t('chartPingLatency')} · ${wideWindowLabel} · ${t('chartDropLeavesGap')}</span><strong class="detail-ping-target-count">${targetCount} ${Number(targetCount) === 1 ? t('chartTargetOne') : t('chartTargets')}</strong></div><canvas id="detailPingChart"></canvas></div>
-        <div class="fleet-chart-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span data-i18n-chart="cpu">${t('chartCpuUsage')} · ${t('chartHours1')} · ${t('chartRealtimeSampling')}</span><strong>${h.detailMetricValue(displayCpuSeries, resolvedServer.cpu_use, '%')}</strong></div><canvas id="detailCpuChart"></canvas></div>
-        <div class="fleet-chart-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span data-i18n-chart="memory">${t('chartMemoryUsage')} · ${t('chartHours1')} · ${t('chartRealtimeSampling')}</span><strong>${h.detailMetricValue(displayRamSeries, resolvedServer.ram_use, '%')}</strong></div><canvas id="detailMemoryChart"></canvas></div>
-        <div class="fleet-chart-card pseudo process-count-card compact-metric-card resource-mini-card"><div class="fleet-chart-head"><span data-i18n-chart="process">${t('chartProcessCount')} · ${t('chartHours1')}</span><strong>${processMeta.countText}</strong></div><div class="process-count-meta"><span>${processMeta.count == null ? t('waitingAgentProcessCount') : t('processTotalsOnly')}</span><span class="process-count-latest">${processMeta.count == null ? t('noSamplesAvailable') : t('hostLevelMonitoring')}</span></div><canvas id="detailProcessCountChart"></canvas></div>
+        <div class="fleet-chart-card compact-metric-card network-throughput-card chart-loading"><div class="fleet-chart-head"><span data-i18n-chart="network">${t('chartNetworkThroughput')} · ${wideWindowLabel} · ${sampleLabel}</span><strong>↑ ${h.detailRateValue(displayUpSeries, resolvedServer.net_up)} · ↓ ${h.detailRateValue(displayDownSeries, resolvedServer.net_down)}</strong></div><div class="network-legend"><i class="up"></i><span data-i18n="chartUp">${t('chartUp')}</span> <i class="down"></i><span data-i18n="chartDown">${t('chartDown')}</span></div><div class="network-chart-surface"><canvas id="detailNetworkChart"></canvas></div></div>
+        <div class="fleet-chart-card compact-metric-card ping-multi-card chart-loading"><div class="fleet-chart-head"><span data-i18n-chart="ping">${t('chartPingLatency')} · ${wideWindowLabel} · ${t('chartDropLeavesGap')}</span><strong class="detail-ping-target-count">${targetCount} ${Number(targetCount) === 1 ? t('chartTargetOne') : t('chartTargets')}</strong></div><canvas id="detailPingChart"></canvas></div>
+        <div class="fleet-chart-card compact-metric-card resource-mini-card chart-loading"><div class="fleet-chart-head"><span data-i18n-chart="cpu">${t('chartCpuUsage')} · ${t('chartHours1')} · ${t('chartRealtimeSampling')}</span><strong>${h.detailMetricValue(displayCpuSeries, resolvedServer.cpu_use, '%')}</strong></div><canvas id="detailCpuChart"></canvas></div>
+        <div class="fleet-chart-card compact-metric-card resource-mini-card chart-loading"><div class="fleet-chart-head"><span data-i18n-chart="memory">${t('chartMemoryUsage')} · ${t('chartHours1')} · ${t('chartRealtimeSampling')}</span><strong>${h.detailMetricValue(displayRamSeries, resolvedServer.ram_use, '%')}</strong></div><canvas id="detailMemoryChart"></canvas></div>
+        <div class="fleet-chart-card pseudo process-count-card compact-metric-card resource-mini-card chart-loading"><div class="fleet-chart-head"><span data-i18n-chart="process">${t('chartProcessCount')} · ${t('chartHours1')}</span><strong>${processMeta.countText}</strong></div><div class="process-count-meta"><span>${processMeta.count == null ? t('waitingAgentProcessCount') : t('processTotalsOnly')}</span><span class="process-count-latest">${processMeta.count == null ? t('noSamplesAvailable') : t('hostLevelMonitoring')}</span></div><canvas id="detailProcessCountChart"></canvas></div>
       </main>
 
       <section class="fleet-right-zone">

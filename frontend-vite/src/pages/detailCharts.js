@@ -2,6 +2,7 @@ import '../globals/dashboardGlobals.js';
 // Chart text is drawn into the canvas, so it is invisible to the DOM i18n pass
 // and must be resolved through t() at draw time.
 import { t } from '../core/preferences.js';
+import { coldStartAxisBounds } from '../detail/telemetryAxis.js';
 function ensureDenseSeries(series) {
   return (Array.isArray(series) ? series : []).map(Number).filter((v) => Number.isFinite(v));
 }
@@ -518,7 +519,7 @@ function aggregateRateRowsForDisplay(rows = [], bucketMs = 60 * 1000) {
 }
 
 export function appendDetailLiveMetrics(live, deps) {
-  const { detailCharts } = deps || {};
+  const { detailCharts, mode = 'update' } = deps || {};
   let timestampText = String(live?.updated_at || '').trim();
   // API timestamps are UTC; Date.parse would interpret a timezone-less ISO value
   // as browser-local time and make live freshness appear stale in some zones.
@@ -534,8 +535,35 @@ export function appendDetailLiveMetrics(live, deps) {
     if (!dataset) return false;
     const points = Array.isArray(dataset.data) ? dataset.data : (dataset.data = []);
     const last = points[points.length - 1];
-    if (Number(last?.x) >= timestamp) return false;
-    points.push({ x: timestamp, rawX: timestamp, y: formatter(numeric), samples: 1 });
+    const firstTimestamp = Number(points[0]?.x);
+    const lastTimestamp = Number(last?.x);
+    const hasSubstantialHistory = mode === 'update'
+      && points.length > 10
+      && Number.isFinite(firstTimestamp)
+      && Number.isFinite(lastTimestamp)
+      && lastTimestamp - firstTimestamp > 30_000;
+    const point = { x: timestamp, rawX: timestamp, y: formatter(numeric), samples: 1 };
+    let changed = false;
+
+    if (!last) {
+      points.push(point);
+      changed = true;
+    } else if (hasSubstantialHistory) {
+      if (timestamp - lastTimestamp > 4_000) {
+        points.push(point);
+      } else if (timestamp >= lastTimestamp) {
+        points[points.length - 1] = point;
+      } else {
+        // Never move a history-backed chart backwards for a delayed live response.
+        return false;
+      }
+      changed = true;
+    } else if (timestamp > lastTimestamp) {
+      // Fresh installs accumulate every distinct live sample until persisted
+      // history arrives and the caller switches the poll to update mode.
+      points.push(point);
+      changed = true;
+    }
     const x = chart.options?.scales?.x;
     if (x) {
       // This runs every 5s and OVERWRITES whatever bounds the render pass chose,
@@ -546,13 +574,12 @@ export function appendDetailLiveMetrics(live, deps) {
       // a card headed "1 hour". Anchor to the newest sample, floor the drawn span,
       // and re-derive stepSize so the 5 ticks stay distinct.
       const fullSpan = 60 * 60 * 1000;
-      const minVisibleSpan = 10 * 60 * 1000;
-      const first = Number(points[0]?.x);
-      const spanned = Number.isFinite(first) ? Math.max(0, timestamp - first) : 0;
-      const span = Math.min(fullSpan, Math.max(spanned, minVisibleSpan));
-      x.max = timestamp;
-      x.min = timestamp - span;
-      if (x.ticks) x.ticks.stepSize = Math.max(60 * 1000, Math.round(span / 4));
+      const axisBounds = coldStartAxisBounds(hasSubstantialHistory ? [] : points.map((point) => Number(point?.x)), fullSpan, timestamp);
+      const span = axisBounds.max - axisBounds.min;
+      const spanned = Number.isFinite(points[0]?.x) ? Math.max(0, timestamp - Number(points[0].x)) : 0;
+      x.max = axisBounds.max;
+      x.min = axisBounds.min;
+      if (x.ticks) x.ticks.stepSize = axisBounds.step;
       // The render pass writes DETAIL_CHART_DEBUG.smallXBounds, but this 5s path
       // overwrites the axis afterwards, so that snapshot cannot prove what is on
       // screen. Record the post-append bounds per chart instead.
@@ -566,12 +593,15 @@ export function appendDetailLiveMetrics(live, deps) {
           stepMs: x.ticks?.stepSize || null,
           dataSpanMs: spanned,
           points: points.length,
-          floored: spanned < minVisibleSpan,
+          floored: false,
+          mode: hasSubstantialHistory || axisBounds.mode === 'rolling-after-full-window' ? 'rolling' : 'accumulate',
+          fixedWindow: true,
         };
       } catch {}
     }
+    // Bounds advance on every poll, including a replacement-suppressed sample.
     chart.update('none');
-    return true;
+    return changed;
   };
 
   const cpu = append('detailCpuChart', live.cpu_use, (v) => Math.max(0, Math.min(100, v)));
@@ -679,18 +709,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   // whose latest/earliest sample differed from the others look truncated.
   const seriesOwnBounds = (points = []) => {
     const fullSpan = telemetryHours * 60 * 60 * 1000;
-    const xs = (Array.isArray(points) ? points : []).map((p) => Number(p?.x)).filter(Number.isFinite).sort((a, b) => a - b);
-    if (!xs.length) return { min: axis12hBounds.min, max: axis12hBounds.max, step: axis12hBounds.step, mode: 'fallback-shared-axis' };
-    const dataFirst = xs[0];
-    const dataLast = xs[xs.length - 1];
-    // CPU/RAM charts promise a one-hour timeline. The newest real persisted
-    // sample is the right edge; the left edge is exactly one hour before it.
-    // Collapsing to a 10-minute "minimum visible span" makes a sparse/cold series
-    // look like it starts at the right and destroys the declared time contract.
-    const spanned = Math.max(0, dataLast - dataFirst);
-    const max = dataLast;
-    const min = max - fullSpan;
-    return { min, max, step: Math.max(60 * 1000, Math.round(fullSpan / 4)), mode: 'fixed-window-ending-at-last-sample', spanMs: fullSpan, dataSpanMs: spanned };
+    return coldStartAxisBounds((Array.isArray(points) ? points : []).map((point) => Number(point?.x)), fullSpan, Date.now());
   };
   const cpuAxisBounds = seriesOwnBounds(cpuDisplaySeries);
   const ramAxisBounds = seriesOwnBounds(ramDisplaySeries);
