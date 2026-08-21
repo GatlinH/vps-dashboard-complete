@@ -46,7 +46,7 @@
     "workbox-strategies": "7.4.1"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.5",
+    "@eslint/js": "^10.0.1",
     "esbuild": "0.28.1",
     "eslint": "^9.39.5",
     "globals": "^15.15.0",
