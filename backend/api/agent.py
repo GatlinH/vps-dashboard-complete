@@ -27,13 +27,39 @@ _UNKNOWN_AGENT_EVENT_LAST = {}
 
 def _record_unknown_agent_event_once(source, reason, interval=300, sample_uuid=None):
     """Bound unknown-agent DB writes by source/reason; fail closed on errors."""
+    try:
+        interval = float(current_app.config.get("AGENT_UNKNOWN_EVENT_INTERVAL_SECONDS", interval))
+    except Exception:
+        interval = float(interval)
+    interval = max(1.0, interval)
     now = time.monotonic()
     key = (str(source or 'unknown'), str(reason or 'unknown'))
+    redis_key = f"agent:unknown-event:{key[0]}:{key[1]}"
+    deduped = False
+    redis = getattr(extensions, "redis_client", None)
+    if redis is not None and hasattr(redis, "set"):
+        try:
+            # Redis provides cross-process atomic dedupe with expiry.
+            accepted = redis.set(redis_key, "1", nx=True, ex=int(interval))
+            if accepted:
+                deduped = True
+            else:
+                return False
+        except Exception:
+            # Redis outages must not break authentication; use bounded local cache.
+            deduped = False
     with _UNKNOWN_AGENT_EVENT_LOCK:
-        last = _UNKNOWN_AGENT_EVENT_LAST.get(key, 0)
-        if now - last < interval:
-            return False
-        _UNKNOWN_AGENT_EVENT_LAST[key] = now
+        if not deduped:
+            expired = [k for k, ts in _UNKNOWN_AGENT_EVENT_LAST.items() if now - ts >= interval]
+            for expired_key in expired:
+                _UNKNOWN_AGENT_EVENT_LAST.pop(expired_key, None)
+            if len(_UNKNOWN_AGENT_EVENT_LAST) >= 10000:
+                oldest = min(_UNKNOWN_AGENT_EVENT_LAST, key=_UNKNOWN_AGENT_EVENT_LAST.get)
+                _UNKNOWN_AGENT_EVENT_LAST.pop(oldest, None)
+            last = _UNKNOWN_AGENT_EVENT_LAST.get(key, 0)
+            if now - last < interval:
+                return False
+            _UNKNOWN_AGENT_EVENT_LAST[key] = now
     try:
         record_ops_event('agent_register_failed', '未知 Agent 认领失败', message=reason,
                          level='error', payload={'source': key[0], 'reason': key[1], 'sample_uuid': sample_uuid})
@@ -465,7 +491,7 @@ def _authenticate_agent(payload: dict) -> tuple[Server, str]:
     server = Server.query.filter_by(uuid=uuid).first()
     if not server:
         _record_unknown_agent_event_once(audit_client_ip(), "unknown agent",
-                                         sample_uuid=request.headers.get('X-Agent-UUID'))
+                                         sample_uuid=uuid)
         raise AuthenticationError("unknown agent")
 
     ts = request.headers.get("X-Agent-Timestamp", "")
