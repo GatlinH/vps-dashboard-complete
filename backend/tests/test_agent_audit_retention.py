@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
-from flask import request
+from flask import Flask, request
 
 import extensions
 from app import create_app
@@ -48,20 +48,30 @@ def test_all_agent_routes_use_trusted_agent_key():
     assert source.count('key_func=_agent_rate_limit_key') >= 4
 
 
-def test_actual_audit_after_request_agent_statuses(app):
-    app.config['TESTING'] = True
-    app.add_url_rule('/api/v1/agent/test', 'agent_test', lambda: ('x', request.args.get('code', 401)), methods=['POST'])
+def test_actual_audit_after_request_agent_statuses(tmp_path):
+    uri = f"sqlite:///{tmp_path / 'audit-middleware.db'}"
+    app = Flask(__name__)
+    app.config.update(TESTING=True, SQLALCHEMY_DATABASE_URI=uri,
+                      SQLALCHEMY_TRACK_MODIFICATIONS=False,
+                      SECRET_KEY='s' * 40)
+    db.init_app(app)
+    AuditMiddleware(app)
+    app.add_url_rule('/api/v1/agent/test', 'agent_test', lambda: ('x', int(request.args.get('code', 401))), methods=['POST'])
     app.add_url_rule('/api/v1/auth/test', 'auth_test', lambda: ('x', 401), methods=['POST'])
     with app.app_context():
+        db.create_all()
         before = AuditLog.query.count()
     client = app.test_client()
     for code in (401, 403, 429):
         client.post(f'/api/v1/agent/test?code={code}')
-    assert AuditLog.query.count() == before
+    with app.app_context():
+        assert AuditLog.query.count() == before
     client.post('/api/v1/agent/test?code=202')
-    assert AuditLog.query.count() == before + 1
+    with app.app_context():
+        assert AuditLog.query.count() == before + 1
     client.post('/api/v1/auth/test')
-    assert AuditLog.query.count() == before + 2
+    with app.app_context():
+        assert AuditLog.query.count() == before + 2
 
 
 def test_retention_real_sqlite_dry_run_and_batch(tmp_path):
