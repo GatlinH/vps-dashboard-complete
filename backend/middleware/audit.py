@@ -62,6 +62,7 @@ class AuditMiddleware:
         def after_request(response):
             """记录审计日志"""
             try:
+                request._audit_response = response
                 # 检查是否需要审计
                 if not self._should_audit():
                     return response
@@ -107,7 +108,18 @@ class AuditMiddleware:
         if request.path in self.IGNORED_PATHS:
             return False
 
+        if self.is_routine_failed_agent_request():
+            return False
+
         return True
+
+    @staticmethod
+    def is_routine_failed_agent_request(response=None) -> bool:
+        """Return true for expected unauthenticated agent protocol noise."""
+        response = response or getattr(request, '_audit_response', None)
+        status = getattr(response, 'status_code', None)
+        return (request.path.startswith('/api/v1/agent/') and
+                status in {401, 403, 429})
 
     def _get_actor_info(self):
         """获取操作人信息（user_id/username/role）"""

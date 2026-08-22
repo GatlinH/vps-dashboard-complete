@@ -22,6 +22,27 @@ import base64
 _RELEASE_VERSION_RE = re.compile(r"^agent-v[0-9A-Za-z][0-9A-Za-z._-]{0,127}$")
 _RELEASE_FILE_RE = re.compile(r"^(?:manifest\.(?:json|sig)|vps-dashboard-agent-linux-(?:amd64|arm64))$")
 
+_UNKNOWN_AGENT_EVENT_LOCK = threading.Lock()
+_UNKNOWN_AGENT_EVENT_LAST = {}
+
+def _record_unknown_agent_event_once(source, reason, interval=300, sample_uuid=None):
+    """Bound unknown-agent DB writes by source/reason; fail closed on errors."""
+    now = time.monotonic()
+    key = (str(source or 'unknown'), str(reason or 'unknown'))
+    with _UNKNOWN_AGENT_EVENT_LOCK:
+        last = _UNKNOWN_AGENT_EVENT_LAST.get(key, 0)
+        if now - last < interval:
+            return False
+        _UNKNOWN_AGENT_EVENT_LAST[key] = now
+    try:
+        record_ops_event('agent_register_failed', '未知 Agent 认领失败', message=reason,
+                         level='error', payload={'source': key[0], 'reason': key[1], 'sample_uuid': sample_uuid})
+        db.session.commit()
+        return True
+    except Exception:
+        db.session.rollback()
+        return False
+
 
 def _pinned_agent_release_public_key() -> str:
     """Return the image/source-pinned Ed25519 trust anchor, never a served key."""
@@ -212,10 +233,7 @@ def _enforce_transport_security():
 
 
 def _agent_rate_limit_key() -> str:
-    uuid = request.headers.get("X-Agent-UUID", "").strip()
-    if uuid:
-        return f"agent:{uuid}"
-    return f"ip:{request.remote_addr or 'unknown'}"
+    return f"agent-ip:{request.remote_addr or 'unknown'}"
 
 
 def _hmac_digest(secret: str, body: bytes, ts: str, nonce: str) -> str:
@@ -446,11 +464,8 @@ def _authenticate_agent(payload: dict) -> tuple[Server, str]:
 
     server = Server.query.filter_by(uuid=uuid).first()
     if not server:
-        try:
-            record_ops_event("agent_register_failed", "未知 Agent 认领失败", message="unknown agent", level="error", payload={"uuid": uuid})
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
+        _record_unknown_agent_event_once(audit_client_ip(), "unknown agent",
+                                         sample_uuid=request.headers.get('X-Agent-UUID'))
         raise AuthenticationError("unknown agent")
 
     ts = request.headers.get("X-Agent-Timestamp", "")
