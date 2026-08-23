@@ -115,11 +115,12 @@ class AuditMiddleware:
 
     @staticmethod
     def is_routine_failed_agent_request(response=None) -> bool:
-        """Return true for expected unauthenticated agent protocol noise."""
+        """Suppress only requests classified as unknown-UUID scanner noise."""
         response = response or getattr(request, '_audit_response', None)
         status = getattr(response, 'status_code', None)
         return (request.path.startswith('/api/v1/agent/') and
-                status in {401, 403, 429})
+                status in {401, 403, 429} and
+                getattr(g, 'agent_security_classification', None) == 'unknown_scanner_noise')
 
     def _get_actor_info(self):
         """获取操作人信息（user_id/username/role）"""
