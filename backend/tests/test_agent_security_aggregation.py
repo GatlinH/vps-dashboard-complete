@@ -1,6 +1,9 @@
 from datetime import datetime, timedelta, timezone
+from concurrent.futures import ThreadPoolExecutor
 import time
 
+from flask import Flask
+from sqlalchemy.dialects import mysql
 from werkzeug.security import generate_password_hash
 
 from extensions import db
@@ -58,11 +61,60 @@ def test_missing_uuid_is_diagnostic_event_and_aggregate(client, app):
 
 def test_aggregate_helper_does_not_commit_independently(app):
     from unittest.mock import patch
-    from api.agent import _security_aggregate
     with app.test_request_context('/api/v1/agent/push', environ_base={'REMOTE_ADDR': '203.0.113.9'}):
-        with patch('api.agent.db.session.commit') as commit:
-            _security_aggregate('missing_uuid', 401)
+        with patch.object(db.session, 'commit') as commit:
+            record_agent_security_aggregate(source='203.0.113.9', endpoint='/api/v1/agent/push',
+                                            reason='missing_uuid', status=401)
         commit.assert_not_called()
+
+
+def test_sqlite_atomic_upsert_survives_concurrent_writers(tmp_path):
+    concurrent_app = Flask(__name__)
+    concurrent_app.config.update(
+        TESTING=True,
+        SECRET_KEY='concurrent-aggregate-test-secret-32chars',
+        SQLALCHEMY_DATABASE_URI=f"sqlite:///{tmp_path / 'aggregate.db'}",
+        SQLALCHEMY_ENGINE_OPTIONS={'connect_args': {'timeout': 30}},
+        SQLALCHEMY_TRACK_MODIFICATIONS=False,
+    )
+    db.init_app(concurrent_app)
+    hour = datetime(2026, 1, 1, 10, 15, tzinfo=timezone.utc)
+    with concurrent_app.app_context():
+        db.create_all()
+
+    def increment(i):
+        with concurrent_app.app_context():
+            record_agent_security_aggregate(
+                source='203.0.113.9', endpoint='/api/v1/agent/push', reason='unknown_agent',
+                status=401, uuid=f'rotating-{i % 20}', known_agent=i % 7 == 0,
+                server_id=42 if i % 7 == 0 else None, now=hour,
+            )
+            db.session.commit()
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(increment, range(80)))
+
+    with concurrent_app.app_context():
+        row = AgentSecurityAggregate.query.one()
+        assert row.request_count == 80
+        assert 1 <= row.unique_uuid_count <= 20
+        assert row.uuid_bitmap.bit_length() <= 63
+        assert row.known_agent is True
+        assert row.server_id == 42
+
+
+def test_mysql_upsert_compiles_to_single_atomic_statement(app):
+    """Guard the production branch against a regression to query-then-insert."""
+    table = AgentSecurityAggregate.__table__
+    from sqlalchemy.dialects.mysql import insert
+    stmt = insert(table).values(
+        bucket_start=datetime(2026, 1, 1), source_hash='a' * 64, endpoint='/agent',
+        reason='x', status=401, request_count=1, unique_uuid_count=0, uuid_bitmap=0,
+        first_seen=datetime(2026, 1, 1), last_seen=datetime(2026, 1, 1),
+        known_agent=False,
+    ).on_duplicate_key_update(request_count=table.c.request_count + 1)
+    sql = str(stmt.compile(dialect=mysql.dialect()))
+    assert 'ON DUPLICATE KEY UPDATE' in sql
 
 
 def test_known_uuid_invalid_key_retains_event_and_aggregate(client, app):

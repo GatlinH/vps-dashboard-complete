@@ -322,32 +322,72 @@ class AgentSecurityAggregate(db.Model):
 
 def record_agent_security_aggregate(*, source, endpoint, reason, status, uuid=None,
                                     known_agent=False, server_id=None, now=None):
-    """Increment one hourly bucket. Bitmap cardinality is bounded at 64 slots."""
+    """Atomically increment one hourly bucket without owning the transaction."""
     from flask import current_app
-    now = now or datetime.now(timezone.utc)
-    now = now.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    from sqlalchemy import and_, case, func, or_
+    from sqlalchemy.dialects.mysql import insert as mysql_insert
+    from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+    observed_at = now or datetime.now(timezone.utc)
+    bucket_start = observed_at.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
     secret = str(current_app.config.get('SECRET_KEY', '')).encode()
     source_hash = hmac.new(secret, str(source or '').encode(), hashlib.sha256).hexdigest()
-    row = AgentSecurityAggregate.query.filter_by(bucket_start=now, source_hash=source_hash,
-        endpoint=str(endpoint)[:120], reason=str(reason)[:64], status=int(status)).first()
-    if row is None:
-        row = AgentSecurityAggregate(bucket_start=now, source_hash=source_hash,
-            endpoint=str(endpoint)[:120], reason=str(reason)[:64], status=int(status),
-            first_seen=now, last_seen=now, known_agent=bool(known_agent), server_id=server_id)
-        db.session.add(row)
-    row.request_count = int(row.request_count or 0) + 1
-    row.last_seen = datetime.now(timezone.utc)
-    row.known_agent = bool(row.known_agent or known_agent)
-    row.server_id = server_id or row.server_id
+    endpoint = str(endpoint)[:120]
+    reason = str(reason)[:64]
+    status = int(status)
+    sample_uuid = str(uuid)[:24] if uuid else None
+    bit = 0
     if uuid:
         digest = hmac.new(secret, str(uuid).encode(), hashlib.sha256).digest()
         bit = 1 << (digest[0] % 63)
-        bitmap = int(row.uuid_bitmap or 0)
-        if not bitmap & bit:
-            row.unique_uuid_count = min(63, int(row.unique_uuid_count or 0) + 1)
-            row.uuid_bitmap = bitmap | bit
-        row.sample_uuid = str(uuid)[:24]
-    return row
+
+    values = dict(bucket_start=bucket_start, source_hash=source_hash, endpoint=endpoint,
+                  reason=reason, status=status, request_count=1,
+                  unique_uuid_count=1 if bit else 0, uuid_bitmap=bit,
+                  first_seen=observed_at, last_seen=observed_at,
+                  sample_uuid=sample_uuid, known_agent=bool(known_agent), server_id=server_id)
+    table = AgentSecurityAggregate.__table__
+    dialect = db.session.get_bind().dialect.name
+    if dialect in ('mysql', 'pymysql', 'mariadb'):
+        stmt = mysql_insert(table).values(**values)
+        # MySQL evaluates assignments left-to-right, so cardinality must inspect
+        # the old bitmap before uuid_bitmap is updated below it.
+        stmt = stmt.on_duplicate_key_update(
+            request_count=table.c.request_count + 1,
+            unique_uuid_count=case(
+                (and_(bit != 0, table.c.uuid_bitmap.op('&')(bit) == 0),
+                 func.least(63, table.c.unique_uuid_count + 1)),
+                else_=table.c.unique_uuid_count),
+            uuid_bitmap=table.c.uuid_bitmap.op('|')(bit),
+            first_seen=func.least(table.c.first_seen, observed_at),
+            last_seen=func.greatest(table.c.last_seen, observed_at),
+            sample_uuid=func.coalesce(sample_uuid, table.c.sample_uuid),
+            known_agent=or_(table.c.known_agent, bool(known_agent)),
+            server_id=func.coalesce(server_id, table.c.server_id),
+        )
+    elif dialect == 'sqlite':
+        stmt = sqlite_insert(table).values(**values)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=['bucket_start', 'source_hash', 'endpoint', 'reason', 'status'],
+            set_={
+                'request_count': table.c.request_count + 1,
+                'unique_uuid_count': case(
+                    (and_(bit != 0, table.c.uuid_bitmap.op('&')(bit) == 0),
+                     func.min(63, table.c.unique_uuid_count + 1)),
+                    else_=table.c.unique_uuid_count),
+                'uuid_bitmap': table.c.uuid_bitmap.op('|')(bit),
+                'first_seen': func.min(table.c.first_seen, observed_at),
+                'last_seen': func.max(table.c.last_seen, observed_at),
+                'sample_uuid': func.coalesce(sample_uuid, table.c.sample_uuid),
+                'known_agent': or_(table.c.known_agent, bool(known_agent)),
+                'server_id': func.coalesce(server_id, table.c.server_id),
+            })
+    else:  # Tests and local development use SQLite; production uses MySQL.
+        raise RuntimeError(f'unsupported aggregate upsert dialect: {dialect}')
+    db.session.execute(stmt)
+    return AgentSecurityAggregate.query.filter_by(
+        bucket_start=bucket_start, source_hash=source_hash, endpoint=endpoint,
+        reason=reason, status=status).one()
 
 
 def record_ops_event(event_type, title, message='', level='info', server_id=None, rule_id=None, payload=None):
