@@ -122,7 +122,10 @@ def test_agent_auth_failure_audit_records_untrusted_peer_only(client, app):
             .first()
         )
         assert event is not None, "agent auth failure should be audited"
+        assert event.classification == "diagnostic_agent_auth"
+        assert (event.payload or {}).get("reason") == "missing_uuid"
         recorded = str((event.payload or {}).get("remote_addr") or "")
+        assert recorded == "203.0.113.11"
         assert "198.51.100.66" not in recorded, (
             f"spoofed forwarded header leaked into audit payload: {recorded!r}"
         )

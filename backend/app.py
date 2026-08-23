@@ -1,9 +1,11 @@
 import logging
 import os
 import time
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 from flask import Flask, abort, g, request, send_from_directory
+import click
 from flask_cors import CORS
 from flasgger import Swagger as Flasgger
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -145,12 +147,7 @@ def _register_request_logger(app: Flask):
             )
             ip_for_audit = audit_client_ip()[:120]
             ua_for_audit = (request.headers.get("User-Agent") or "")[:180]
-            noisy_internal_agent = (
-                request.path == "/api/v1/agent/push"
-                and response.status_code == 401
-                and ip_for_audit.startswith("172.18.")
-                and "Python-urllib" in ua_for_audit
-            )
+            noisy_internal_agent = getattr(g, 'agent_security_classification', None) == 'unknown_scanner_noise'
             if request.path != "/health" and not noisy_internal_agent and (suspicious_path or sensitive_failure):
                 from models.models import record_ops_event
                 from extensions import db
@@ -326,6 +323,28 @@ def create_app(**config_overrides):
     def revision():
         from services.release_provenance import load_provenance
         return load_provenance()
+
+    @app.cli.command("retention-cleanup")
+    @click.option("--retention-days", type=click.IntRange(min=0), default=None,
+                  help="Override retention window in days (defaults to app config).")
+    @click.option("--batch-size", type=click.IntRange(min=1), default=None,
+                  help="Maximum rows deleted per batch.")
+    @click.option("--dry-run", is_flag=True,
+                  help="Report eligible rows without deleting anything.")
+    def retention_cleanup_command(retention_days, batch_size, dry_run):
+        """Delete expired AuditLog/OpsEvent rows in bounded batches.
+
+        Example: ``flask retention-cleanup --dry-run``.
+        """
+        from services.retention_cleanup import cleanup_audit_and_ops
+
+        kwargs = {"dry_run": dry_run}
+        if retention_days is not None:
+            kwargs["retention_days"] = retention_days
+        if batch_size is not None:
+            kwargs["batch_size"] = batch_size
+        result = cleanup_audit_and_ops(app, **kwargs)
+        click.echo(json.dumps(result, default=str, sort_keys=True))
 
     return app
 

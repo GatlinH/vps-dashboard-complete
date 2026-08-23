@@ -29,6 +29,10 @@ def custom_key_func():
     1. 如果请求携带了有效的 JWT token，则按 User ID 限流
     2. 否则，降级按 IP 限流
     """
+    # Agent authentication headers (including UUID) are attacker-controlled until
+    # authentication succeeds; always key these endpoints by the trusted address.
+    if request.path.startswith('/api/v1/agent/'):
+        return f"agent-ip:{get_remote_address()}"
     try:
         # 尝试在不强制要求 token 的情况下验证 JWT
         # 这样不会拦截非登录接口，但能获取到已登录用户的身份

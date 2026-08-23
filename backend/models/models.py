@@ -6,6 +6,8 @@
 """
 import logging
 import os
+import hashlib
+import hmac
 from datetime import datetime, timezone, date
 from extensions import db
 from models.audit_log import AuditLog  # re-export for backward compatibility
@@ -282,6 +284,7 @@ class OpsEvent(db.Model):
     title = db.Column(db.String(255), nullable=False)
     message = db.Column(db.Text, default='')
     payload = db.Column(db.JSON, nullable=False, default=dict)
+    classification = db.Column(db.String(32), nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
 
     __table_args__ = (
@@ -295,6 +298,96 @@ class OpsEvent(db.Model):
             title=self.title, message=self.message, payload=self.payload or {},
             created_at=self.created_at.isoformat() if self.created_at else None,
         )
+
+
+class AgentSecurityAggregate(db.Model):
+    """Bounded hourly security telemetry; source identity is HMAC'd, never raw IP."""
+    __tablename__ = "agent_security_aggregates"
+    id = db.Column(db.BigInteger().with_variant(db.Integer, 'sqlite'), primary_key=True, autoincrement=True)
+    bucket_start = db.Column(db.DateTime, nullable=False, index=True)
+    source_hash = db.Column(db.String(64), nullable=False)
+    endpoint = db.Column(db.String(120), nullable=False)
+    reason = db.Column(db.String(64), nullable=False)
+    status = db.Column(db.Integer, nullable=False)
+    request_count = db.Column(db.Integer, nullable=False, default=0)
+    unique_uuid_count = db.Column(db.Integer, nullable=False, default=0)
+    uuid_bitmap = db.Column(db.BigInteger().with_variant(db.Integer, 'sqlite'), nullable=False, default=0)
+    first_seen = db.Column(db.DateTime, nullable=False)
+    last_seen = db.Column(db.DateTime, nullable=False)
+    sample_uuid = db.Column(db.String(24), nullable=True)
+    known_agent = db.Column(db.Boolean, nullable=False, default=False)
+    server_id = db.Column(db.Integer, nullable=True, index=True)
+    __table_args__ = (db.UniqueConstraint('bucket_start', 'source_hash', 'endpoint', 'reason', 'status', name='uq_agent_sec_aggregate'),)
+
+
+def record_agent_security_aggregate(*, source, endpoint, reason, status, uuid=None,
+                                    known_agent=False, server_id=None, now=None):
+    """Atomically increment one hourly bucket without owning the transaction."""
+    from flask import current_app
+    from sqlalchemy import and_, case, func, or_
+    from sqlalchemy.dialects.mysql import insert as mysql_insert
+    from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+    observed_at = now or datetime.now(timezone.utc)
+    bucket_start = observed_at.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    secret = str(current_app.config.get('SECRET_KEY', '')).encode()
+    source_hash = hmac.new(secret, str(source or '').encode(), hashlib.sha256).hexdigest()
+    endpoint = str(endpoint)[:120]
+    reason = str(reason)[:64]
+    status = int(status)
+    sample_uuid = str(uuid)[:24] if uuid else None
+    bit = 0
+    if uuid:
+        digest = hmac.new(secret, str(uuid).encode(), hashlib.sha256).digest()
+        bit = 1 << (digest[0] % 63)
+
+    values = dict(bucket_start=bucket_start, source_hash=source_hash, endpoint=endpoint,
+                  reason=reason, status=status, request_count=1,
+                  unique_uuid_count=1 if bit else 0, uuid_bitmap=bit,
+                  first_seen=observed_at, last_seen=observed_at,
+                  sample_uuid=sample_uuid, known_agent=bool(known_agent), server_id=server_id)
+    table = AgentSecurityAggregate.__table__
+    dialect = db.session.get_bind().dialect.name
+    if dialect in ('mysql', 'pymysql', 'mariadb'):
+        stmt = mysql_insert(table).values(**values)
+        # MySQL evaluates assignments left-to-right, so cardinality must inspect
+        # the old bitmap before uuid_bitmap is updated below it.
+        stmt = stmt.on_duplicate_key_update(
+            request_count=table.c.request_count + 1,
+            unique_uuid_count=case(
+                (and_(bit != 0, table.c.uuid_bitmap.op('&')(bit) == 0),
+                 func.least(63, table.c.unique_uuid_count + 1)),
+                else_=table.c.unique_uuid_count),
+            uuid_bitmap=table.c.uuid_bitmap.op('|')(bit),
+            first_seen=func.least(table.c.first_seen, observed_at),
+            last_seen=func.greatest(table.c.last_seen, observed_at),
+            sample_uuid=func.coalesce(sample_uuid, table.c.sample_uuid),
+            known_agent=or_(table.c.known_agent, bool(known_agent)),
+            server_id=func.coalesce(server_id, table.c.server_id),
+        )
+    elif dialect == 'sqlite':
+        stmt = sqlite_insert(table).values(**values)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=['bucket_start', 'source_hash', 'endpoint', 'reason', 'status'],
+            set_={
+                'request_count': table.c.request_count + 1,
+                'unique_uuid_count': case(
+                    (and_(bit != 0, table.c.uuid_bitmap.op('&')(bit) == 0),
+                     func.min(63, table.c.unique_uuid_count + 1)),
+                    else_=table.c.unique_uuid_count),
+                'uuid_bitmap': table.c.uuid_bitmap.op('|')(bit),
+                'first_seen': func.min(table.c.first_seen, observed_at),
+                'last_seen': func.max(table.c.last_seen, observed_at),
+                'sample_uuid': func.coalesce(sample_uuid, table.c.sample_uuid),
+                'known_agent': or_(table.c.known_agent, bool(known_agent)),
+                'server_id': func.coalesce(server_id, table.c.server_id),
+            })
+    else:  # Tests and local development use SQLite; production uses MySQL.
+        raise RuntimeError(f'unsupported aggregate upsert dialect: {dialect}')
+    db.session.execute(stmt)
+    return AgentSecurityAggregate.query.filter_by(
+        bucket_start=bucket_start, source_hash=source_hash, endpoint=endpoint,
+        reason=reason, status=status).one()
 
 
 def record_ops_event(event_type, title, message='', level='info', server_id=None, rule_id=None, payload=None):
