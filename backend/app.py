@@ -147,12 +147,7 @@ def _register_request_logger(app: Flask):
             )
             ip_for_audit = audit_client_ip()[:120]
             ua_for_audit = (request.headers.get("User-Agent") or "")[:180]
-            noisy_internal_agent = (
-                request.path == "/api/v1/agent/push"
-                and response.status_code == 401
-                and ip_for_audit.startswith("172.18.")
-                and "Python-urllib" in ua_for_audit
-            )
+            noisy_internal_agent = getattr(g, 'agent_security_classification', None) == 'unknown_scanner_noise'
             if request.path != "/health" and not noisy_internal_agent and (suspicious_path or sensitive_failure):
                 from models.models import record_ops_event
                 from extensions import db

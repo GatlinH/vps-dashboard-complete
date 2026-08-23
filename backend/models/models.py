@@ -6,6 +6,8 @@
 """
 import logging
 import os
+import hashlib
+import hmac
 from datetime import datetime, timezone, date
 from extensions import db
 from models.audit_log import AuditLog  # re-export for backward compatibility
@@ -282,6 +284,7 @@ class OpsEvent(db.Model):
     title = db.Column(db.String(255), nullable=False)
     message = db.Column(db.Text, default='')
     payload = db.Column(db.JSON, nullable=False, default=dict)
+    classification = db.Column(db.String(32), nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
 
     __table_args__ = (
@@ -295,6 +298,56 @@ class OpsEvent(db.Model):
             title=self.title, message=self.message, payload=self.payload or {},
             created_at=self.created_at.isoformat() if self.created_at else None,
         )
+
+
+class AgentSecurityAggregate(db.Model):
+    """Bounded hourly security telemetry; source identity is HMAC'd, never raw IP."""
+    __tablename__ = "agent_security_aggregates"
+    id = db.Column(db.BigInteger().with_variant(db.Integer, 'sqlite'), primary_key=True, autoincrement=True)
+    bucket_start = db.Column(db.DateTime, nullable=False, index=True)
+    source_hash = db.Column(db.String(64), nullable=False)
+    endpoint = db.Column(db.String(120), nullable=False)
+    reason = db.Column(db.String(64), nullable=False)
+    status = db.Column(db.Integer, nullable=False)
+    request_count = db.Column(db.Integer, nullable=False, default=0)
+    unique_uuid_count = db.Column(db.Integer, nullable=False, default=0)
+    uuid_bitmap = db.Column(db.BigInteger().with_variant(db.Integer, 'sqlite'), nullable=False, default=0)
+    first_seen = db.Column(db.DateTime, nullable=False)
+    last_seen = db.Column(db.DateTime, nullable=False)
+    sample_uuid = db.Column(db.String(24), nullable=True)
+    known_agent = db.Column(db.Boolean, nullable=False, default=False)
+    server_id = db.Column(db.Integer, nullable=True, index=True)
+    __table_args__ = (db.UniqueConstraint('bucket_start', 'source_hash', 'endpoint', 'reason', 'status', name='uq_agent_sec_aggregate'),)
+
+
+def record_agent_security_aggregate(*, source, endpoint, reason, status, uuid=None,
+                                    known_agent=False, server_id=None, now=None):
+    """Increment one hourly bucket. Bitmap cardinality is bounded at 64 slots."""
+    from flask import current_app
+    now = now or datetime.now(timezone.utc)
+    now = now.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    secret = str(current_app.config.get('SECRET_KEY', '')).encode()
+    source_hash = hmac.new(secret, str(source or '').encode(), hashlib.sha256).hexdigest()
+    row = AgentSecurityAggregate.query.filter_by(bucket_start=now, source_hash=source_hash,
+        endpoint=str(endpoint)[:120], reason=str(reason)[:64], status=int(status)).first()
+    if row is None:
+        row = AgentSecurityAggregate(bucket_start=now, source_hash=source_hash,
+            endpoint=str(endpoint)[:120], reason=str(reason)[:64], status=int(status),
+            first_seen=now, last_seen=now, known_agent=bool(known_agent), server_id=server_id)
+        db.session.add(row)
+    row.request_count = int(row.request_count or 0) + 1
+    row.last_seen = datetime.now(timezone.utc)
+    row.known_agent = bool(row.known_agent or known_agent)
+    row.server_id = server_id or row.server_id
+    if uuid:
+        digest = hmac.new(secret, str(uuid).encode(), hashlib.sha256).digest()
+        bit = 1 << (digest[0] % 63)
+        bitmap = int(row.uuid_bitmap or 0)
+        if not bitmap & bit:
+            row.unique_uuid_count = min(63, int(row.unique_uuid_count or 0) + 1)
+            row.uuid_bitmap = bitmap | bit
+        row.sample_uuid = str(uuid)[:24]
+    return row
 
 
 def record_ops_event(event_type, title, message='', level='info', server_id=None, rule_id=None, payload=None):

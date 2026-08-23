@@ -15,7 +15,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 import extensions
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, jsonify, request, g, abort
 from pathlib import Path
 import base64
 
@@ -61,13 +61,63 @@ def _record_unknown_agent_event_once(source, reason, interval=300, sample_uuid=N
                 return False
             _UNKNOWN_AGENT_EVENT_LAST[key] = now
     try:
-        record_ops_event('agent_register_failed', '未知 Agent 认领失败', message=reason,
-                         level='error', payload={'source': key[0], 'reason': key[1], 'sample_uuid': sample_uuid})
+        evt = record_ops_event('agent_register_failed', '未知 Agent 认领失败', message=reason,
+                         level='error', payload={'source_hash_only': True, 'reason': key[1], 'sample_uuid': str(sample_uuid or '')[:24], 'request_count': 1})
+        evt.classification = 'unknown_scanner'
         db.session.commit()
         return True
     except Exception:
         db.session.rollback()
         return False
+
+
+def _security_aggregate(reason, status, uuid=None, known_agent=False, server_id=None):
+    record_agent_security_aggregate(
+        source=audit_client_ip(), endpoint=request.path, reason=reason, status=status,
+        uuid=uuid, known_agent=known_agent, server_id=server_id,
+    )
+    db.session.commit()
+
+
+def _record_known_auth_event(server, reason, uuid, **details):
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=int(current_app.config.get('AGENT_KNOWN_EVENT_INTERVAL_SECONDS', 300)))
+    evt = (OpsEvent.query.filter_by(event_type='agent_auth_failed', server_id=server.id,
+            classification='known_agent_auth').filter(OpsEvent.created_at >= cutoff)
+            .order_by(OpsEvent.id.desc()).first())
+    if evt and (evt.payload or {}).get('reason') == reason:
+        payload = dict(evt.payload or {})
+        payload['request_count'] = int(payload.get('request_count', 1)) + 1
+        payload['suppressed_count'] = payload['request_count'] - 1
+        evt.payload = payload
+        flag_modified(evt, 'payload')
+    else:
+        evt = record_ops_event('agent_auth_failed', f'Agent 认证失败 · {server.name}',
+            message=reason, level='warn', server_id=server.id,
+            payload={'uuid': str(uuid)[:24], 'reason': reason, 'request_count': 1, **details})
+        evt.classification = 'known_agent_auth'
+    db.session.commit()
+
+
+def _enforce_authenticated_agent_quota(server_id):
+    """Second-stage trusted-identity quota. Redis failure is fail-open and logged."""
+    limit = int(current_app.config.get('AGENT_AUTHENTICATED_RATE_LIMIT_PER_MINUTE', 120))
+    redis = getattr(extensions, 'redis_client', None)
+    if redis is None:
+        return
+    key = f"agent:authenticated:{server_id}:{int(time.time() // 60)}"
+    try:
+        count = redis.incr(key)
+        if count == 1:
+            redis.expire(key, 70)
+        if count > limit:
+            _security_aggregate('authenticated_rate_limit', 429, known_agent=True, server_id=server_id)
+            db.session.commit()
+            abort(429)
+    except Exception as exc:
+        if getattr(exc, 'code', None) == 429:
+            raise
+        _warn.warning(logger, 'authenticated_quota_unavailable',
+                      'authenticated agent quota unavailable; failing open: %s', exc)
 
 
 def _pinned_agent_release_public_key() -> str:
@@ -102,7 +152,7 @@ from extensions import db
 from middleware.rate_limit import limiter
 from middleware.rbac import admin_required, owner_required
 from middleware.metrics_middleware import record_agent_push, record_agent_poll, record_agent_ack
-from models.models import AgentCommand, Server, format_server_location, record_ops_event
+from models.models import AgentCommand, Server, OpsEvent, format_server_location, record_ops_event, record_agent_security_aggregate
 from utils.errors import AuthenticationError, ValidationError
 from utils.request_context import audit_client_ip
 
@@ -481,15 +531,15 @@ def _authenticate_agent(payload: dict) -> tuple[Server, str]:
     _enforce_transport_security()
     uuid = payload.get("uuid") or request.headers.get("X-Agent-UUID")
     if not uuid:
-        try:
-            record_ops_event("agent_auth_failed", "Agent 认证失败", message="missing uuid", level="warn", payload={"reason": "missing_uuid", "remote_addr": audit_client_ip(), "has_json": bool(payload), "has_agent_key_header": bool(request.headers.get("X-Agent-Key")), "has_uuid_header": bool(request.headers.get("X-Agent-UUID")), "user_agent": request.headers.get("User-Agent", "")[:120]})
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
+        g.agent_security_classification = 'unknown_scanner_noise'
+        _security_aggregate('missing_uuid', 401)
+        _record_unknown_agent_event_once(audit_client_ip(), 'missing_uuid')
         raise AuthenticationError("missing uuid")
 
     server = Server.query.filter_by(uuid=uuid).first()
     if not server:
+        g.agent_security_classification = 'unknown_scanner_noise'
+        _security_aggregate('unknown_agent', 401, uuid=uuid)
         _record_unknown_agent_event_once(audit_client_ip(), "unknown agent",
                                          sample_uuid=uuid)
         raise AuthenticationError("unknown agent")
@@ -499,14 +549,18 @@ def _authenticate_agent(payload: dict) -> tuple[Server, str]:
     sig = request.headers.get("X-Agent-Signature", "")
     agent_key = request.headers.get("X-Agent-Key", "")
     if not all([ts, nonce, sig, agent_key]):
-        try:
-            record_ops_event("agent_auth_failed", f"Agent 认证失败 · {server.name}", message="missing auth headers", level="warn", server_id=server.id, payload={"uuid": uuid, "reason": "missing_auth_headers", "remote_addr": audit_client_ip(), "has_ts": bool(ts), "has_nonce": bool(nonce), "has_sig": bool(sig), "has_key": bool(agent_key), "user_agent": request.headers.get("User-Agent", "")[:120]})
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
+        g.agent_security_classification = 'known_agent_auth_failure'
+        _security_aggregate('missing_auth_headers', 401, uuid=uuid, known_agent=True, server_id=server.id)
+        _record_known_auth_event(server, 'missing_auth_headers', uuid, has_ts=bool(ts), has_nonce=bool(nonce), has_sig=bool(sig), has_key=bool(agent_key))
         raise AuthenticationError("missing auth headers")
 
-    _parse_ts(ts)
+    try:
+        _parse_ts(ts)
+    except AuthenticationError:
+        g.agent_security_classification = 'known_agent_auth_failure'
+        _security_aggregate('clock_skew', 401, uuid=uuid, known_agent=True, server_id=server.id)
+        _record_known_auth_event(server, 'clock_skew', uuid)
+        raise
     _validate_nonce(uuid, nonce)
 
     valid_key = bool(server.agent_key_hash and check_password_hash(server.agent_key_hash, agent_key))
@@ -517,11 +571,9 @@ def _authenticate_agent(payload: dict) -> tuple[Server, str]:
         and check_password_hash(server.agent_key_prev_hash, agent_key)
     )
     if not (valid_key or within_overlap):
-        try:
-            record_ops_event("agent_auth_failed", f"Agent 认证失败 · {server.name}", message="invalid key", level="warn", server_id=server.id, payload={"uuid": uuid, "reason": "invalid_key", "remote_addr": audit_client_ip()})
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
+        g.agent_security_classification = 'known_agent_auth_failure'
+        _security_aggregate('invalid_key', 401, uuid=uuid, known_agent=True, server_id=server.id)
+        _record_known_auth_event(server, 'invalid_key', uuid)
         raise AuthenticationError("invalid key")
 
     expected = _hmac_digest(
@@ -531,14 +583,14 @@ def _authenticate_agent(payload: dict) -> tuple[Server, str]:
         nonce=nonce,
     )
     if not hmac.compare_digest(expected, sig):
-        try:
-            record_ops_event("agent_auth_failed", f"Agent 认证失败 · {server.name}", message="signature mismatch", level="warn", server_id=server.id, payload={"uuid": uuid, "reason": "signature_mismatch", "remote_addr": audit_client_ip()})
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
+        g.agent_security_classification = 'known_agent_auth_failure'
+        _security_aggregate('signature_mismatch', 401, uuid=uuid, known_agent=True, server_id=server.id)
+        _record_known_auth_event(server, 'signature_mismatch', uuid)
         raise AuthenticationError("signature mismatch")
 
     server.agent_key_last_used = _utc_now()
+    g.agent_security_classification = 'known_agent_success'
+    _enforce_authenticated_agent_quota(server.id)
     return server, uuid
 
 
@@ -676,7 +728,7 @@ def agent_push():
     )
 
     try:
-        record_ops_event("agent_push_ok", f"Agent 上报成功 · {server.name}", message="metrics accepted", server_id=server.id, payload={"status": server.status, "ip": server.ip, "uuid": uuid})
+        _security_aggregate('push_heartbeat', 202, uuid=uuid, known_agent=True, server_id=server.id)
         db.session.commit()
     except Exception:
         db.session.rollback()
