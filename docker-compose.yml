@@ -141,7 +141,6 @@ services:
       JWT_BLOCKLIST_FAIL_OPEN: ${JWT_BLOCKLIST_FAIL_OPEN:-0}
       JWT_COOKIE_SAMESITE: ${JWT_COOKIE_SAMESITE:-Strict}
       ADMIN_SETTINGS_FILE: ${ADMIN_SETTINGS_FILE:-/var/lib/vps-dashboard/admin-settings.json}
-      BREAKGLASS_USERNAMES: ${BREAKGLASS_USERNAMES:-}
       PUBLIC_OAUTH_PROVIDER_DISCOVERY: ${PUBLIC_OAUTH_PROVIDER_DISCOVERY:-0}
       AGENT_REQUIRE_TLS: ${AGENT_REQUIRE_TLS:-1}
       # Signed native Agent release store. Empty is fail-closed: install.sh will

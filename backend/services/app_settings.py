@@ -174,8 +174,20 @@ def _read_raw():
     return data
 
 
-def get_admin_settings():
-    return _read_raw()
+def get_admin_settings(redact: bool = False):
+    data = _read_raw()
+    if redact and "login" in data:
+        login = data["login"]
+        encrypted_api_key = str(login.get("api_key") or "").strip()
+        if encrypted_api_key:
+            try:
+                login["api_key"] = _crypto().decrypt(encrypted_api_key)
+            except Exception:
+                login["api_key"] = ""
+        # redact=True: replace with masked version if plaintext was set
+        if "api_key_masked" in login:
+            login["api_key"] = login["api_key_masked"]
+    return data
 
 
 def _write(data):
@@ -233,7 +245,12 @@ def update_admin_settings(section: str, payload: dict):
         _save_secret(section_data, payload, "github_client_secret", "github_client_secret_masked", "github_client_secret_encrypted")
         if "api_key" in payload:
             api_key = str(payload.get("api_key") or "").strip()
-            section_data["api_key"] = _crypto().encrypt(api_key) if api_key else ""
+            if api_key:
+                section_data["api_key"] = _crypto().encrypt(api_key)
+                section_data["api_key_masked"] = _mask(api_key)
+            else:
+                section_data["api_key"] = ""
+                section_data["api_key_masked"] = ""
         for key in ["disable_password_login", "sso_enabled", "github_client_id", "allowed_emails", "sso_provider", "sso_config", "api_key_enabled", "breakglass_enabled"]:
             if key in payload:
                 section_data[key] = _sanitize_value(key, payload.get(key))
