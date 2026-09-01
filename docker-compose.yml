@@ -8,7 +8,6 @@ services:
     env_file:
       - /etc/vps-dashboard/secrets.env
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-}
       MYSQL_DATABASE: ${MYSQL_DB:-vps_dashboard}
     ports:
       - "127.0.0.1:3306:3306"
@@ -54,8 +53,8 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "0"
-      FORCE_HTTPS: ${FORCE_HTTPS:-0}
-      JWT_COOKIE_SECURE: ${JWT_COOKIE_SECURE:-0}
+      FORCE_HTTPS: ${FORCE_HTTPS:-1}
+      JWT_COOKIE_SECURE: ${JWT_COOKIE_SECURE:-1}
       DISABLE_SCHEDULER: "1"
     command:
       - sh
@@ -84,9 +83,6 @@ services:
         fi
     env_file:
       - /etc/vps-dashboard/secrets.env
-    environment:
-      # REDISCLI_AUTH lets redis-cli authenticate automatically in healthcheck
-      REDISCLI_AUTH: ${REDIS_PASSWORD:-}
     logging:
       driver: json-file
       options:
@@ -139,11 +135,11 @@ services:
       # Deployment-neutral direct bind. Default preserves IPv4; operators may set
       # GUNICORN_BIND='[::]:5000' and PUBLIC_BIND_ADDRESS='[::]' explicitly.
       GUNICORN_BIND: ${GUNICORN_BIND:-0.0.0.0:5000}
-      TRUST_PROXY: ${TRUST_PROXY:-0}
-      FORCE_HTTPS: ${FORCE_HTTPS:-0}
-      JWT_COOKIE_SECURE: ${JWT_COOKIE_SECURE:-0}
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+      FORCE_HTTPS: ${FORCE_HTTPS:-1}
+      JWT_COOKIE_SECURE: ${JWT_COOKIE_SECURE:-1}
       JWT_BLOCKLIST_FAIL_OPEN: ${JWT_BLOCKLIST_FAIL_OPEN:-0}
-      JWT_COOKIE_SAMESITE: ${JWT_COOKIE_SAMESITE:-Lax}
+      JWT_COOKIE_SAMESITE: ${JWT_COOKIE_SAMESITE:-Strict}
       ADMIN_SETTINGS_FILE: ${ADMIN_SETTINGS_FILE:-/var/lib/vps-dashboard/admin-settings.json}
       BREAKGLASS_USERNAMES: ${BREAKGLASS_USERNAMES:-}
       PUBLIC_OAUTH_PROVIDER_DISCOVERY: ${PUBLIC_OAUTH_PROVIDER_DISCOVERY:-0}
@@ -156,8 +152,6 @@ services:
       AGENT_ENROLLMENT_KEY: ${AGENT_ENROLLMENT_KEY:-}
       AGENT_PUSH_RATE_LIMIT: ${AGENT_PUSH_RATE_LIMIT:-60 per minute}
       AGENT_POLL_RATE_LIMIT: ${AGENT_POLL_RATE_LIMIT:-120 per minute}
-      WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_HTTP_API_TOKEN:-}
-      WATCHTOWER_HTTP_API_URL: http://watchtower:8080/v1/update
     logging:
       driver: json-file
       options:
