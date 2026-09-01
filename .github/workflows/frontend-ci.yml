@@ -44,6 +44,12 @@ jobs:
         working-directory: frontend-vite
         run: npm run check:css-important
 
+      - name: Check CSS debt measurement ratchet
+        run: python3 scripts/check-css-debt.py
+
+      - name: Check agent task parity
+        run: python3 scripts/check-agent-tasks-parity.py
+
       - name: Check source surfaces
         working-directory: frontend-vite
         run: npm run check:source-surfaces

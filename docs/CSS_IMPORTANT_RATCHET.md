@@ -9,6 +9,12 @@ new CSS files that are absent from the baseline.
 Run the gate with `npm run check:css-important` from `frontend-vite`. Update the
 baseline only in a reviewed change that explains why the count changed.
 
+The repository-wide maintenance measurement is `scripts/check-css-debt.py`.
+It scans `frontend-vite/src/**/*.css` (excluding any `node_modules` or `dist`
+path), counts physical lines using `splitlines()`, and counts literal
+`!important` occurrences. Its JSON output is deterministic and the ratchet
+compares total and per-file occurrence counts; decreases are allowed.
+
 `admin-legacy-overrides.css` is a frozen historical cascade. Do not add rules to
 it or create another override sheet. When touching an affected area, migrate
 stable declarations into the owning component stylesheet. Prefer explicit
