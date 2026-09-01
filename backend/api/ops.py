@@ -298,7 +298,7 @@ def security_scan_log():
 
 def _runtime_oauth():
     base = (os.getenv("FRONTEND_URL") or request.host_url.rstrip("/")).rstrip("/")
-    login = get_admin_settings().get("login", {})
+    login = get_admin_settings(redact=True).get("login", {})
     google_secret = bool(login.get("google_client_secret_encrypted") or os.getenv("GOOGLE_CLIENT_SECRET"))
     github_secret = bool(login.get("github_client_secret_encrypted") or os.getenv("GITHUB_CLIENT_SECRET"))
     return {
@@ -481,7 +481,7 @@ def settings_summary():
         "chat_id_masked": getattr(tg, "to_dict", lambda: {})().get("chat_id_masked", "") if tg else "",
         "prefix": getattr(tg, "prefix", "【VPS星图】") if tg else "【VPS星图】",
     }
-    settings = get_admin_settings()
+    settings = get_admin_settings(redact=True)
     return jsonify(
         oauth=oauth,
         telegram=telegram,
@@ -510,7 +510,7 @@ _ALLOWED_FAVICON_TYPES = {
 
 
 def _site_favicon_info(site=None):
-    site = site or get_admin_settings().get("site", {})
+    site = site or get_admin_settings(redact=True).get("site", {})
     data_url = str(site.get("favicon_data_url") or "").strip()
     if not data_url.startswith("data:"):
         return {"has_custom_icon": False, "favicon_url": "/favicon.ico", "content_type": "image/x-icon", "size": 0}
@@ -532,7 +532,7 @@ def _data_url_to_bytes(data_url: str):
 @ops_bp.get("/settings/site")
 @viewer_or_admin_required
 def get_site_settings():
-    site = get_admin_settings().get("site", {})
+    site = get_admin_settings(redact=True).get("site", {})
     return jsonify(_site_response(site)), 200
 
 
@@ -582,7 +582,7 @@ def revoke_site_share_link():
 
 @ops_bp.get("/settings/site/favicon")
 def get_site_favicon():
-    site = get_admin_settings().get("site", {})
+    site = get_admin_settings(redact=True).get("site", {})
     data_url = str(site.get("favicon_data_url") or "").strip()
     if not data_url.startswith("data:"):
         return Response(status=404)
@@ -626,7 +626,7 @@ def reset_site_favicon():
 @ops_bp.get("/settings/site/backup")
 @admin_required
 def download_site_backup():
-    settings = get_admin_settings()
+    settings = get_admin_settings(redact=True)
     safe_settings = {}
     for section, value in (settings or {}).items():
         if isinstance(value, dict):
@@ -671,14 +671,14 @@ def restore_site_backup():
         if isinstance(payload.get(section), dict):
             update_admin_settings(section, payload[section])
             restored.append(section)
-    site = get_admin_settings().get("site", {})
+    site = get_admin_settings(redact=True).get("site", {})
     return jsonify(msg="备份已恢复", restored=restored, site=_site_response(site)), 200
 
 
 @ops_bp.get("/settings/general")
 @viewer_or_admin_required
 def get_general_settings():
-    return jsonify(get_admin_settings().get("general", {})), 200
+    return jsonify(get_admin_settings(redact=True).get("general", {})), 200
 
 
 @ops_bp.put("/settings/general")
@@ -697,7 +697,7 @@ def update_geoip_database():
     当前部署未配置 MaxMind License 时不伪造下载成功；按钮仍提供后台入口，
     会记录一次更新时间并回报本地 MMDB 文件状态，便于后续接入真实下载任务。
     """
-    settings = get_admin_settings().get("general", {})
+    settings = get_admin_settings(redact=True).get("general", {})
     provider = settings.get("geoip_provider", "ipinfo.io")
     candidates = [
         os.environ.get("GEOIP_MMDB_PATH", ""),
@@ -724,7 +724,7 @@ def update_geoip_database():
 @ops_bp.get("/settings/reverse-proxy/cloudflare")
 @viewer_or_admin_required
 def get_cloudflare_settings():
-    settings = get_admin_settings().get("reverse_proxy", {})
+    settings = get_admin_settings(redact=True).get("reverse_proxy", {})
     return jsonify(_reverse_proxy_response(settings)), 200
 
 
@@ -739,14 +739,14 @@ def put_cloudflare_settings():
 @ops_bp.post("/settings/reverse-proxy/cloudflare/refresh")
 @admin_required
 def refresh_cloudflare_settings():
-    settings = get_admin_settings().get("reverse_proxy", {})
+    settings = get_admin_settings(redact=True).get("reverse_proxy", {})
     return jsonify(_reverse_proxy_response(settings)), 200
 
 
 @ops_bp.get("/settings/login")
 @viewer_or_admin_required
 def get_login_settings():
-    return jsonify(_login_runtime(get_admin_settings().get("login", {}))), 200
+    return jsonify(_login_runtime(get_admin_settings(redact=True).get("login", {}))), 200
 
 
 @ops_bp.put("/settings/login")
@@ -761,7 +761,7 @@ def put_login_settings():
 @ops_bp.post("/settings/notifications/test")
 @admin_required
 def test_notification_settings():
-    settings = get_admin_settings().get("notifications", {})
+    settings = get_admin_settings(redact=True).get("notifications", {})
     channel = str(settings.get("default_channel") or "telegram").strip().lower()
     if channel != "telegram":
         return jsonify(msg="当前仅支持 Telegram 测试发送", channel=channel), 400
@@ -789,7 +789,7 @@ def test_notification_settings():
 @ops_bp.get("/settings/notifications")
 @viewer_or_admin_required
 def get_notification_settings():
-    return jsonify(_redact_sensitive_settings("notifications", get_admin_settings().get("notifications", {}))), 200
+    return jsonify(_redact_sensitive_settings("notifications", get_admin_settings(redact=True).get("notifications", {}))), 200
 
 
 @ops_bp.put("/settings/notifications")

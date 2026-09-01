@@ -68,14 +68,31 @@ def test_login_api_key_is_not_returned_as_plaintext(settings_env):
     assert "plain-text-secret" not in str(section_data)
 
 
-def test_redacted_login_api_key_is_empty_without_mask(settings_env):
+def test_redacted_legacy_login_api_key_uses_placeholder_without_mask(settings_env):
     encrypted = app_settings._crypto().encrypt("plain-text-secret")
     settings_env.parent.mkdir(parents=True)
     settings_env.write_text(json.dumps({"login": {"api_key": encrypted}}))
 
     result = app_settings.get_admin_settings(redact=True)
 
-    assert result["login"]["api_key"] == ""
+    assert result["login"]["api_key"] == "******"
+    assert "plain-text-secret" not in json.dumps(result)
+
+
+def test_empty_api_key_update_preserves_existing_ciphertext(settings_env):
+    app_settings.update_admin_settings("login", {"api_key": "secret-A"})
+    original = json.loads(settings_env.read_text())["login"]["api_key"]
+    app_settings.update_admin_settings("login", {"api_key": ""})
+    stored = json.loads(settings_env.read_text())["login"]["api_key"]
+    assert stored == original
+
+
+def test_api_key_can_be_cleared_explicitly(settings_env):
+    app_settings.update_admin_settings("login", {"api_key": "secret-A"})
+    app_settings.update_admin_settings("login", {"api_key": "", "clear_api_key": True})
+    stored = json.loads(settings_env.read_text())["login"]
+    assert stored["api_key"] == ""
+    assert stored["api_key_masked"] == ""
 
 
 def test_redacted_login_api_key_returns_mask(settings_env):

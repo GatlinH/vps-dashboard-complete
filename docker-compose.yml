@@ -39,7 +39,7 @@ services:
     container_name: vps_schema_init
     user: "1000:1000"
     security_opt: ["no-new-privileges:true"]
-    tmpfs: ["/tmp"]
+    tmpfs: ["/tmp:size=64m,mode=1777"]
     restart: "no"
     depends_on:
       mysql:
@@ -107,7 +107,7 @@ services:
     container_name: vps_api
     user: "1000:1000"
     security_opt: ["no-new-privileges:true"]
-    tmpfs: ["/tmp"]
+    tmpfs: ["/tmp:size=64m,mode=1777"]
     restart: unless-stopped
     labels:
       com.centurylinklabs.watchtower.enable: "true"
@@ -186,7 +186,7 @@ services:
     container_name: vps_agent_consumer
     user: "1000:1000"
     security_opt: ["no-new-privileges:true"]
-    tmpfs: ["/tmp"]
+    tmpfs: ["/tmp:size=64m,mode=1777"]
     restart: unless-stopped
     labels:
       com.centurylinklabs.watchtower.enable: "true"

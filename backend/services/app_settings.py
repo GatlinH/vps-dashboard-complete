@@ -178,7 +178,9 @@ def get_admin_settings(redact: bool = False):
     data = _read_raw()
     if redact and "login" in data:
         login = data["login"]
-        login["api_key"] = login.get("api_key_masked", "")
+        # Legacy files may contain only encrypted api_key. Never expose it;
+        # use a stable placeholder so a read/round-trip cannot imply clearing.
+        login["api_key"] = login.get("api_key_masked") or ("******" if login.get("api_key") else "")
     return data
 
 
@@ -208,6 +210,11 @@ def _write(data):
         except FileNotFoundError:
             pass
         raise
+    finally:
+        try:
+            os.unlink(temporary_path)
+        except FileNotFoundError:
+            pass
 
 
 def _save_secret(section_data: dict, payload: dict, input_key: str, masked_key: str, encrypted_key: str):
@@ -244,7 +251,7 @@ def update_admin_settings(section: str, payload: dict):
                 if api_key != masked:
                     section_data["api_key"] = _crypto().encrypt(api_key)
                     section_data["api_key_masked"] = _mask(api_key)
-            else:
+            elif payload.get("clear_api_key") is True or payload.get("api_key_clear") is True:
                 section_data["api_key"] = ""
                 section_data["api_key_masked"] = ""
         for key in ["disable_password_login", "sso_enabled", "github_client_id", "allowed_emails", "sso_provider", "sso_config", "api_key_enabled", "breakglass_enabled"]:
