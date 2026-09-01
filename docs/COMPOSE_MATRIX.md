@@ -77,7 +77,7 @@ These variables are optional unless marked required:
 | `FRONTEND_DIST_HOST_DIR` | `/var/lib/vps-dashboard/frontend-dist-live` | Host directory mounted as the split frontend's Nginx document root. |
 | `AGENT_RELEASE_HOST_DIR` | `/var/empty/vps-agent-releases` | Read-only host directory containing signed Agent releases. |
 | `GUNICORN_BIND` | `0.0.0.0:5000` | API listen address inside the container. |
-| `TRUST_PROXY` | `1` | Enables trusted reverse-proxy handling. |
+| `TRUST_PROXY` | `0` | Direct deployments do not trust forwarding headers; set to `1` only when deployed behind a reverse proxy. |
 | `FORCE_HTTPS`, `JWT_COOKIE_SECURE` | `0` | HTTPS and secure-cookie behavior; enable when the public route is HTTPS. |
 | `JWT_COOKIE_SAMESITE` | `Lax` | JWT cookie SameSite policy. |
 | `PROBE_TIMEOUT_S` | `5` | Probe timeout in seconds. |

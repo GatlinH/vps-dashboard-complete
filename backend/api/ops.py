@@ -757,7 +757,10 @@ def get_login_settings():
 def put_login_settings():
     payload = request.get_json(silent=True) or {}
     _audit_ops_high_risk("login_settings_updated", "登录安全配置已修改", "login")
-    update_admin_settings("login", payload)
+    try:
+        update_admin_settings("login", payload)
+    except ValueError:
+        return jsonify(error_code="VALIDATION_ERROR", msg="登录设置校验失败"), 400
     return jsonify(_login_runtime(get_admin_settings(redact=True).get("login", {}))), 200
 
 

@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 import pytest
-from flask_jwt_extended import create_access_token
+from flask_jwt_extended import create_access_token, create_refresh_token
 
 
 @pytest.fixture
@@ -157,8 +157,62 @@ def test_login_explicit_set_star_rejected_and_clear_aliases(client, owner_header
     settings_file = tmp_path / 'admin-settings.json'
     monkeypatch.setenv('ADMIN_SETTINGS_FILE', str(settings_file))
     client.put('/api/v1/ops/settings/login', json={'api_key': 'to-clear'}, headers=owner_headers)
-    # The service rejects masked values via ValueError; the current HTTP layer
-    # exposes that validation failure as a 500 without persisting the value.
     rejected = client.put('/api/v1/ops/settings/login', json={'api_key_action': 'set', 'api_key': 'bad*key'}, headers=owner_headers)
-    assert rejected.status_code == 500
+    assert rejected.status_code == 400
+    body = rejected.get_json()
+    assert body['error_code'] == 'VALIDATION_ERROR'
+    assert 'bad*key' not in rejected.get_data(as_text=True)
+    assert 'Traceback' not in rejected.get_data(as_text=True)
+    assert str(settings_file.parent) not in rejected.get_data(as_text=True)
+    before = json.loads(settings_file.read_text())
+    current = client.get('/api/v1/ops/settings/login', headers=owner_headers)
+    assert current.status_code == 200
+    current_data = current.get_json()
+    assert current_data['api_key_set'] is True
+    assert current_data['api_key_masked'] == '********'
+    after = json.loads(settings_file.read_text())
+    assert after == before
+    assert 'bad*key' not in settings_file.read_text()
     assert client.put('/api/v1/ops/settings/login', json={'clear_api_key': True}, headers=owner_headers).get_json()['api_key_set'] is False
+
+
+def test_login_settings_rejects_nonfresh_owner_token(client, test_user, app):
+    with app.app_context():
+        token = create_access_token(identity=str(test_user.id), fresh=False,
+                                    additional_claims={'role': 'owner', 'username': test_user.username})
+    response = client.put('/api/v1/ops/settings/login', json={}, headers={'Authorization': f'Bearer {token}'})
+    assert response.status_code == 401
+    assert response.get_json().get('error_code') == 'FRESH_TOKEN_REQUIRED'
+
+
+def test_refresh_access_token_cannot_update_login_settings(client, test_user, app):
+    with app.app_context():
+        from extensions import db
+        from models.models import User
+        User.query.filter_by(id=test_user.id).update({'role': 'owner'})
+        db.session.commit()
+        refresh = create_refresh_token(identity=str(test_user.id),
+                                      additional_claims={'role': 'owner', 'username': test_user.username})
+    response = client.post('/api/v1/auth/refresh', headers={'Authorization': f'Bearer {refresh}', 'X-Auth-Mode': 'bearer'})
+    assert response.status_code == 200
+    access = response.get_json()['access_token']
+    rejected = client.put('/api/v1/ops/settings/login', json={}, headers={'Authorization': f'Bearer {access}'})
+    assert rejected.status_code == 401
+    assert rejected.get_json().get('error_code') == 'FRESH_TOKEN_REQUIRED'
+
+
+def test_login_settings_missing_master_key_fails_closed(client, owner_headers, monkeypatch, tmp_path):
+    settings_file = tmp_path / 'admin-settings.json'
+    monkeypatch.setenv('ADMIN_SETTINGS_FILE', str(settings_file))
+    assert client.put('/api/v1/ops/settings/login', json={'api_key': 'stored-secret'}, headers=owner_headers).status_code == 200
+    monkeypatch.delenv('MASTER_ENCRYPTION_KEY', raising=False)
+    read = client.get('/api/v1/ops/settings/login', headers=owner_headers)
+    assert read.status_code == 200
+    data = read.get_json()
+    assert data['api_key_set'] is True
+    assert data['api_key_masked'] == ''
+    assert 'stored-secret' not in read.get_data(as_text=True)
+    write = client.put('/api/v1/ops/settings/login', json={'api_key': 'new-secret'}, headers=owner_headers)
+    assert write.status_code == 400
+    assert write.get_json()['error_code'] == 'VALIDATION_ERROR'
+    assert 'new-secret' not in settings_file.read_text()

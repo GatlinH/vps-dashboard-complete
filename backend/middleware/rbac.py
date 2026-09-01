@@ -67,7 +67,7 @@ def owner_required(fn):
             verify_jwt_in_request()
             if get_jwt().get("role") != OWNER_ROLE:
                 return jsonify(msg="权限不足，需要所有者角色"), 403
-            raise
+            return jsonify(error_code="FRESH_TOKEN_REQUIRED", msg="Fresh token required"), 401
         claims = get_jwt()
         if claims.get("role") != OWNER_ROLE:
             return jsonify(msg="权限不足，需要所有者角色"), 403
