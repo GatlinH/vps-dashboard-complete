@@ -339,8 +339,11 @@ def _redact_sensitive_settings(section: str, settings: dict):
         clean.pop("github_client_secret_encrypted", None)
         clean.pop("github_client_secret", None)
         api_key = str(clean.pop("api_key", "") or "").strip()
-        clean["api_key_enabled"] = bool(clean.get("api_key_enabled") or api_key)
-        clean["api_key_masked"] = (api_key[:4] + "****" + api_key[-4:]) if len(api_key) > 8 else ("********" if api_key else "")
+        if "api_key_set" not in clean:
+            clean["api_key_set"] = bool(api_key)
+        clean["api_key_enabled"] = bool(clean.get("api_key_enabled") or clean["api_key_set"])
+        if "api_key_masked" not in clean:
+            clean["api_key_masked"] = (api_key[:4] + "****" + api_key[-4:]) if len(api_key) > 8 else ("********" if api_key else "")
     elif section == "notifications":
         channels = clean.get("channels")
         if isinstance(channels, dict):

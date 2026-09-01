@@ -68,14 +68,17 @@ def test_login_api_key_is_not_returned_as_plaintext(settings_env):
     assert "plain-text-secret" not in str(section_data)
 
 
-def test_redacted_legacy_login_api_key_uses_placeholder_without_mask(settings_env):
+def test_redacted_legacy_login_api_key_uses_explicit_metadata_without_placeholder(settings_env):
     encrypted = app_settings._crypto().encrypt("plain-text-secret")
     settings_env.parent.mkdir(parents=True)
     settings_env.write_text(json.dumps({"login": {"api_key": encrypted}}))
 
     result = app_settings.get_admin_settings(redact=True)
 
-    assert result["login"]["api_key"] == "******"
+    assert result["login"]["api_key_set"] is True
+    assert result["login"]["api_key_masked"] == ""
+    assert "api_key" not in result["login"]
+    assert "******" not in json.dumps(result)
     assert "plain-text-secret" not in json.dumps(result)
 
 
@@ -106,19 +109,41 @@ def test_redacted_login_api_key_returns_mask(settings_env):
 
     result = app_settings.get_admin_settings(redact=True)
 
-    assert result["login"]["api_key"] == "plai****cret"
+    assert result["login"]["api_key_masked"] == "plai****cret"
+    assert result["login"]["api_key_set"] is True
 
 
 def test_login_api_key_mask_round_trip_preserves_ciphertext(settings_env):
     app_settings.update_admin_settings("login", {"api_key": "secret-A"})
     original_ciphertext = json.loads(settings_env.read_text())["login"]["api_key"]
-    masked = app_settings.get_admin_settings(redact=True)["login"]["api_key"]
+    masked = app_settings.get_admin_settings(redact=True)["login"]["api_key_masked"]
 
     app_settings.update_admin_settings("login", {"api_key": masked})
 
     stored_ciphertext = json.loads(settings_env.read_text())["login"]["api_key"]
     assert stored_ciphertext == original_ciphertext
     assert app_settings._crypto().decrypt(stored_ciphertext) == "secret-A"
+
+def test_legacy_api_key_get_put_round_trip_preserves_ciphertext(settings_env):
+    encrypted = app_settings._crypto().encrypt("legacy-secret")
+    settings_env.parent.mkdir(parents=True)
+    settings_env.write_text(json.dumps({"login": {"api_key": encrypted}}))
+    result = app_settings.get_admin_settings(redact=True)
+    app_settings.update_admin_settings("login", {"api_key_enabled": True})
+    stored = json.loads(settings_env.read_text())["login"]
+    assert stored["api_key"] == encrypted
+    assert "******" not in settings_env.read_text()
+
+def test_write_finally_permission_error_does_not_fail_success(settings_env, monkeypatch):
+    real_unlink = app_settings.os.unlink
+    calls = {"n": 0}
+    def unlink(path):
+        calls["n"] += 1
+        if calls["n"] > 1:
+            raise PermissionError("cleanup denied")
+        return real_unlink(path)
+    monkeypatch.setattr(app_settings.os, "unlink", unlink)
+    app_settings._write({"site": {"site_name": "ok"}})
 
 
 @pytest.mark.parametrize(

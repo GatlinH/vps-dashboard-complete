@@ -1,9 +1,12 @@
 import json
 import os
 import tempfile
+import logging
 from copy import deepcopy
 from pathlib import Path
 from urllib.parse import urlsplit
+
+logger = logging.getLogger(__name__)
 
 import bleach
 from utils.crypto import CryptoManager
@@ -178,9 +181,10 @@ def get_admin_settings(redact: bool = False):
     data = _read_raw()
     if redact and "login" in data:
         login = data["login"]
-        # Legacy files may contain only encrypted api_key. Never expose it;
-        # use a stable placeholder so a read/round-trip cannot imply clearing.
-        login["api_key"] = login.get("api_key_masked") or ("******" if login.get("api_key") else "")
+        api_key_set = bool(login.get("api_key"))
+        login.pop("api_key", None)
+        login["api_key_set"] = api_key_set
+        login["api_key_masked"] = login.get("api_key_masked", "") if api_key_set else ""
     return data
 
 
@@ -205,16 +209,14 @@ def _write(data):
                 os.close(fd)
             except OSError:
                 pass
-        try:
-            os.unlink(temporary_path)
-        except FileNotFoundError:
-            pass
         raise
     finally:
         try:
             os.unlink(temporary_path)
         except FileNotFoundError:
             pass
+        except OSError as exc:
+            logger.warning("failed to clean temporary settings file %s: %s", temporary_path, exc)
 
 
 def _save_secret(section_data: dict, payload: dict, input_key: str, masked_key: str, encrypted_key: str):
