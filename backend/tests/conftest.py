@@ -188,6 +188,12 @@ def client(app):
 
 
 @pytest.fixture(autouse=True)
+def test_master_encryption_key(monkeypatch):
+    """为需要加密配置的 HTTP 测试提供专用测试密钥。"""
+    monkeypatch.setenv('MASTER_ENCRYPTION_KEY', 'test-master-encryption-key')
+
+
+@pytest.fixture(autouse=True)
 def reset_db(app):
     """每个测试前重置数据库，确保 admin 用户存在；同时清空 Redis 缓存"""
     with app.app_context():
