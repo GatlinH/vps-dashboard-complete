@@ -4,6 +4,7 @@ backend/middleware/rbac.py  —  基于角色的访问控制
 from functools import wraps
 from flask import jsonify
 from flask_jwt_extended import get_jwt, verify_jwt_in_request
+from flask_jwt_extended.exceptions import FreshTokenRequired
 
 # 角色常量
 OWNER_ROLE  = "owner"
@@ -60,7 +61,13 @@ def owner_required(fn):
     """要求 owner 角色：用于 Agent Key、登录安全策略、用户提权等最高危操作。"""
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        verify_jwt_in_request()
+        try:
+            verify_jwt_in_request(fresh=True)
+        except FreshTokenRequired:
+            verify_jwt_in_request()
+            if get_jwt().get("role") != OWNER_ROLE:
+                return jsonify(msg="权限不足，需要所有者角色"), 403
+            raise
         claims = get_jwt()
         if claims.get("role") != OWNER_ROLE:
             return jsonify(msg="权限不足，需要所有者角色"), 403
