@@ -338,12 +338,12 @@ def _redact_sensitive_settings(section: str, settings: dict):
     elif section == "login":
         clean.pop("github_client_secret_encrypted", None)
         clean.pop("github_client_secret", None)
-        api_key = str(clean.pop("api_key", "") or "").strip()
-        if "api_key_set" not in clean:
-            clean["api_key_set"] = bool(api_key)
-        clean["api_key_enabled"] = bool(clean.get("api_key_enabled") or clean["api_key_set"])
-        if "api_key_masked" not in clean:
-            clean["api_key_masked"] = (api_key[:4] + "****" + api_key[-4:]) if len(api_key) > 8 else ("********" if api_key else "")
+        clean.pop("api_key", None)
+        # get_admin_settings(redact=True) is the sole source of truth for
+        # objective secret state and its server-derived mask.
+        clean["api_key_set"] = bool(clean.get("api_key_set"))
+        clean["api_key_masked"] = str(clean.get("api_key_masked") or "")
+        clean["api_key_enabled"] = bool(clean.get("api_key_enabled", False))
     elif section == "notifications":
         channels = clean.get("channels")
         if isinstance(channels, dict):

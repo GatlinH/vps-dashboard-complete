@@ -37,6 +37,16 @@ def test_write_failure_does_not_truncate_existing_file(settings_env, monkeypatch
 
     assert settings_env.read_text() == original
 
+def test_write_mkstemp_failure_does_not_touch_existing_file(settings_env, monkeypatch):
+    settings_env.parent.mkdir(parents=True)
+    settings_env.write_text("original")
+    def fail_mkstemp(**kwargs):
+        raise OSError("mkstemp failure")
+    monkeypatch.setattr(app_settings.tempfile, "mkstemp", fail_mkstemp)
+    with pytest.raises(OSError, match="mkstemp failure"):
+        app_settings._write({"site": {"site_name": "replacement"}})
+    assert settings_env.read_text() == "original"
+
 
 def test_write_does_not_close_fd_after_fdopen_takes_ownership(settings_env, monkeypatch):
     def fail_rename(source, destination):
@@ -124,6 +134,24 @@ def test_login_api_key_mask_round_trip_preserves_ciphertext(settings_env):
     assert stored_ciphertext == original_ciphertext
     assert app_settings._crypto().decrypt(stored_ciphertext) == "secret-A"
 
+def test_tampered_mask_is_ignored_and_rejected_on_write(settings_env):
+    app_settings.update_admin_settings("login", {"api_key": "secret-A"})
+    original = json.loads(settings_env.read_text())["login"]["api_key"]
+    data = json.loads(settings_env.read_text())
+    data["login"]["api_key_masked"] = "attacker-mask"
+    settings_env.write_text(json.dumps(data))
+    result = app_settings.get_admin_settings(redact=True)
+    assert result["login"]["api_key_masked"] == "********"
+    with pytest.raises(ValueError):
+        app_settings.update_admin_settings("login", {"api_key": "bad**mask"})
+    assert json.loads(settings_env.read_text())["login"]["api_key"] == original
+
+def test_api_key_enabled_is_independent_of_secret_state(settings_env):
+    app_settings.update_admin_settings("login", {"api_key": "secret-A", "api_key_enabled": False})
+    result = app_settings.get_admin_settings(redact=True)["login"]
+    assert result["api_key_set"] is True
+    assert result["api_key_enabled"] is False
+
 def test_legacy_api_key_get_put_round_trip_preserves_ciphertext(settings_env):
     encrypted = app_settings._crypto().encrypt("legacy-secret")
     settings_env.parent.mkdir(parents=True)
@@ -133,6 +161,13 @@ def test_legacy_api_key_get_put_round_trip_preserves_ciphertext(settings_env):
     stored = json.loads(settings_env.read_text())["login"]
     assert stored["api_key"] == encrypted
     assert "******" not in settings_env.read_text()
+
+def test_legacy_masked_placeholder_cannot_change_ciphertext(settings_env):
+    encrypted = app_settings._crypto().encrypt("legacy-secret")
+    settings_env.parent.mkdir(parents=True)
+    settings_env.write_text(json.dumps({"login": {"api_key": encrypted}}))
+    app_settings.update_admin_settings("login", {"api_key": "******"})
+    assert json.loads(settings_env.read_text())["login"]["api_key"] == encrypted
 
 def test_write_finally_permission_error_does_not_fail_success(settings_env, monkeypatch):
     real_unlink = app_settings.os.unlink

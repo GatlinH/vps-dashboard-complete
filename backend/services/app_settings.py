@@ -181,10 +181,20 @@ def get_admin_settings(redact: bool = False):
     data = _read_raw()
     if redact and "login" in data:
         login = data["login"]
-        api_key_set = bool(login.get("api_key"))
+        encrypted = str(login.get("api_key") or "")
+        api_key_set = bool(encrypted)
         login.pop("api_key", None)
         login["api_key_set"] = api_key_set
-        login["api_key_masked"] = login.get("api_key_masked", "") if api_key_set else ""
+        # Only derive a mask from the trusted decrypted value. Legacy entries
+        # without metadata remain set but intentionally expose no mask.
+        if api_key_set and login.get("api_key_masked"):
+            try:
+                secret = _crypto().decrypt(encrypted)
+                login["api_key_masked"] = _mask(secret)
+            except Exception:
+                login["api_key_masked"] = ""
+        else:
+            login["api_key_masked"] = ""
     return data
 
 
@@ -192,10 +202,10 @@ def _write(data):
     settings_file = _settings_file()
     settings_file.parent.mkdir(parents=True, exist_ok=True)
     settings_file.parent.chmod(0o700)
-    fd, temporary_path = tempfile.mkstemp(
-        prefix=f".{settings_file.name}.", dir=str(settings_file.parent)
-    )
+    fd = -1
+    temporary_path = None
     try:
+        fd, temporary_path = tempfile.mkstemp(prefix=f".{settings_file.name}.", dir=str(settings_file.parent))
         os.fchmod(fd, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as temporary_file:
             fd = -1
@@ -203,6 +213,7 @@ def _write(data):
             temporary_file.flush()
             os.fsync(temporary_file.fileno())
         os.rename(temporary_path, settings_file)
+        temporary_path = None
     except Exception:
         if fd >= 0:
             try:
@@ -212,7 +223,8 @@ def _write(data):
         raise
     finally:
         try:
-            os.unlink(temporary_path)
+            if temporary_path:
+                os.unlink(temporary_path)
         except FileNotFoundError:
             pass
         except OSError as exc:
@@ -248,12 +260,26 @@ def update_admin_settings(section: str, payload: dict):
         _save_secret(section_data, payload, "github_client_secret", "github_client_secret_masked", "github_client_secret_encrypted")
         if "api_key" in payload:
             api_key = str(payload.get("api_key") or "").strip()
-            if api_key:
-                masked = section_data.get("api_key_masked", "")
-                if api_key != masked:
-                    section_data["api_key"] = _crypto().encrypt(api_key)
-                    section_data["api_key_masked"] = _mask(api_key)
-            elif payload.get("clear_api_key") is True or payload.get("api_key_clear") is True:
+            current_secret = ""
+            current_cipher = str(section_data.get("api_key") or "")
+            if current_cipher:
+                try:
+                    current_secret = _crypto().decrypt(current_cipher)
+                except Exception:
+                    current_secret = ""
+            trusted_mask = _mask(current_secret) if current_secret and section_data.get("api_key_masked") else ""
+            if not api_key:
+                pass
+            elif trusted_mask and api_key == trusted_mask:
+                pass
+            elif "*" in api_key and not trusted_mask:
+                pass
+            elif "*" in api_key and trusted_mask:
+                raise ValueError("api_key masked value is invalid")
+            else:
+                section_data["api_key"] = _crypto().encrypt(api_key)
+                section_data["api_key_masked"] = _mask(api_key)
+            if (not api_key) and (payload.get("clear_api_key") is True or payload.get("api_key_clear") is True):
                 section_data["api_key"] = ""
                 section_data["api_key_masked"] = ""
         for key in ["disable_password_login", "sso_enabled", "github_client_id", "allowed_emails", "sso_provider", "sso_config", "api_key_enabled", "breakglass_enabled"]:
