@@ -341,8 +341,8 @@ def _redact_sensitive_settings(section: str, settings: dict):
         clean.pop("api_key", None)
         # get_admin_settings(redact=True) is the sole source of truth for
         # objective secret state and its server-derived mask.
-        clean["api_key_set"] = bool(clean.get("api_key_set"))
-        clean["api_key_masked"] = str(clean.get("api_key_masked") or "")
+        clean["api_key_set"] = bool(clean.get("api_key")) or bool(clean.get("api_key_set"))
+        clean["api_key_masked"] = str(clean.get("api_key_masked") or "") if "api_key_masked" in clean else ""
         clean["api_key_enabled"] = bool(clean.get("api_key_enabled", False))
     elif section == "notifications":
         channels = clean.get("channels")
@@ -757,8 +757,8 @@ def get_login_settings():
 def put_login_settings():
     payload = request.get_json(silent=True) or {}
     _audit_ops_high_risk("login_settings_updated", "登录安全配置已修改", "login")
-    saved = update_admin_settings("login", payload)
-    return jsonify(_login_runtime(saved)), 200
+    update_admin_settings("login", payload)
+    return jsonify(_login_runtime(get_admin_settings(redact=True).get("login", {}))), 200
 
 
 @ops_bp.post("/settings/notifications/test")

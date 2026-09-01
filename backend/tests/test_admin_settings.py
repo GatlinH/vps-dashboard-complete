@@ -125,3 +125,36 @@ def test_settings_summary_includes_login_and_notifications(client, auth_headers,
     assert data['login']['github_client_secret_masked'].startswith('gh-s')
     assert data['notifications']['enabled'] is True
     assert data['notifications']['message_prefix'] == '【告警中心】'
+
+
+def test_login_api_key_http_contract(client, owner_headers, monkeypatch, tmp_path):
+    settings_file = tmp_path / 'admin-settings.json'
+    monkeypatch.setenv('ADMIN_SETTINGS_FILE', str(settings_file))
+    put = client.put('/api/v1/ops/settings/login', json={'api_key': 'http-secret-123'}, headers=owner_headers)
+    assert put.status_code == 200
+    body = put.get_json()
+    assert body['api_key_set'] is True
+    assert 'api_key' not in body
+    assert 'http-secret-123' not in put.get_data(as_text=True)
+    assert client.get('/api/v1/ops/settings/login', headers=owner_headers).get_json()['api_key_masked'] == 'http****-123'
+
+
+@pytest.mark.parametrize('payload', [
+    {'api_key': ''}, {'api_key': '******'}, {'api_key': '••••'},
+    {'api_key': 'unchanged'}, {'api_key': '<hidden>'},
+])
+def test_login_placeholders_preserve_ciphertext_http(client, owner_headers, monkeypatch, tmp_path, payload):
+    settings_file = tmp_path / 'admin-settings.json'
+    monkeypatch.setenv('ADMIN_SETTINGS_FILE', str(settings_file))
+    assert client.put('/api/v1/ops/settings/login', json={'api_key': 'legacy-secret'}, headers=owner_headers).status_code == 200
+    original = json.loads(settings_file.read_text())['login']['api_key']
+    assert client.put('/api/v1/ops/settings/login', json=payload, headers=owner_headers).status_code == 200
+    assert json.loads(settings_file.read_text())['login']['api_key'] == original
+
+
+def test_login_explicit_set_star_rejected_and_clear_aliases(client, owner_headers, monkeypatch, tmp_path):
+    settings_file = tmp_path / 'admin-settings.json'
+    monkeypatch.setenv('ADMIN_SETTINGS_FILE', str(settings_file))
+    client.put('/api/v1/ops/settings/login', json={'api_key': 'to-clear'}, headers=owner_headers)
+    assert client.put('/api/v1/ops/settings/login', json={'api_key_action': 'set', 'api_key': 'bad*key'}, headers=owner_headers).status_code == 400
+    assert client.put('/api/v1/ops/settings/login', json={'clear_api_key': True}, headers=owner_headers).get_json()['api_key_set'] is False

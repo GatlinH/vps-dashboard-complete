@@ -187,7 +187,7 @@ def get_admin_settings(redact: bool = False):
         login["api_key_set"] = api_key_set
         # Only derive a mask from the trusted decrypted value. Legacy entries
         # without metadata remain set but intentionally expose no mask.
-        if api_key_set and login.get("api_key_masked"):
+        if api_key_set and "api_key_masked" in login:
             try:
                 secret = _crypto().decrypt(encrypted)
                 login["api_key_masked"] = _mask(secret)
@@ -258,30 +258,20 @@ def update_admin_settings(section: str, payload: dict):
                 section_data[key] = _sanitize_value(key, payload.get(key) or "")
     elif section == "login":
         _save_secret(section_data, payload, "github_client_secret", "github_client_secret_masked", "github_client_secret_encrypted")
-        if "api_key" in payload:
+        action = payload.get("api_key_action")
+        if payload.get("clear_api_key") is True or payload.get("api_key_clear") is True:
+            action = "clear"
+        if action is not None and action not in {"keep", "set", "clear"}:
+            raise ValueError("api_key_action must be keep, set, or clear")
+        if action == "clear":
+            section_data["api_key"] = ""
+            section_data["api_key_masked"] = ""
+        elif action == "set" or (action is None and "api_key" in payload and str(payload.get("api_key") or "").strip() and not any(token in str(payload.get("api_key")) for token in ("*", "••••", "unchanged", "<hidden>"))):
             api_key = str(payload.get("api_key") or "").strip()
-            current_secret = ""
-            current_cipher = str(section_data.get("api_key") or "")
-            if current_cipher:
-                try:
-                    current_secret = _crypto().decrypt(current_cipher)
-                except Exception:
-                    current_secret = ""
-            trusted_mask = _mask(current_secret) if current_secret and section_data.get("api_key_masked") else ""
-            if not api_key:
-                pass
-            elif trusted_mask and api_key == trusted_mask:
-                pass
-            elif "*" in api_key and not trusted_mask:
-                pass
-            elif "*" in api_key and trusted_mask:
-                raise ValueError("api_key masked value is invalid")
-            else:
-                section_data["api_key"] = _crypto().encrypt(api_key)
-                section_data["api_key_masked"] = _mask(api_key)
-            if (not api_key) and (payload.get("clear_api_key") is True or payload.get("api_key_clear") is True):
-                section_data["api_key"] = ""
-                section_data["api_key_masked"] = ""
+            if not api_key or "*" in api_key:
+                raise ValueError("api_key must be a real key when api_key_action=set")
+            section_data["api_key"] = _crypto().encrypt(api_key)
+            section_data["api_key_masked"] = _mask(api_key)
         for key in ["disable_password_login", "sso_enabled", "github_client_id", "allowed_emails", "sso_provider", "sso_config", "api_key_enabled", "breakglass_enabled"]:
             if key in payload:
                 section_data[key] = _sanitize_value(key, payload.get(key))

@@ -134,7 +134,7 @@ def test_login_api_key_mask_round_trip_preserves_ciphertext(settings_env):
     assert stored_ciphertext == original_ciphertext
     assert app_settings._crypto().decrypt(stored_ciphertext) == "secret-A"
 
-def test_tampered_mask_is_ignored_and_rejected_on_write(settings_env):
+def test_tampered_mask_is_ignored_and_placeholder_preserves_ciphertext(settings_env):
     app_settings.update_admin_settings("login", {"api_key": "secret-A"})
     original = json.loads(settings_env.read_text())["login"]["api_key"]
     data = json.loads(settings_env.read_text())
@@ -142,9 +142,11 @@ def test_tampered_mask_is_ignored_and_rejected_on_write(settings_env):
     settings_env.write_text(json.dumps(data))
     result = app_settings.get_admin_settings(redact=True)
     assert result["login"]["api_key_masked"] == "********"
-    with pytest.raises(ValueError):
-        app_settings.update_admin_settings("login", {"api_key": "bad**mask"})
+    app_settings.update_admin_settings("login", {"api_key": "bad**mask"})
     assert json.loads(settings_env.read_text())["login"]["api_key"] == original
+
+    with pytest.raises(ValueError):
+        app_settings.update_admin_settings("login", {"api_key_action": "set", "api_key": "bad**key"})
 
 def test_api_key_enabled_is_independent_of_secret_state(settings_env):
     app_settings.update_admin_settings("login", {"api_key": "secret-A", "api_key_enabled": False})
