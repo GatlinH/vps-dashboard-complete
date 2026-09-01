@@ -178,15 +178,7 @@ def get_admin_settings(redact: bool = False):
     data = _read_raw()
     if redact and "login" in data:
         login = data["login"]
-        encrypted_api_key = str(login.get("api_key") or "").strip()
-        if encrypted_api_key:
-            try:
-                login["api_key"] = _crypto().decrypt(encrypted_api_key)
-            except Exception:
-                login["api_key"] = ""
-        # redact=True: replace with masked version if plaintext was set
-        if "api_key_masked" in login:
-            login["api_key"] = login["api_key_masked"]
+        login["api_key"] = login.get("api_key_masked", "")
     return data
 
 
@@ -200,15 +192,17 @@ def _write(data):
     try:
         os.fchmod(fd, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as temporary_file:
+            fd = -1
             json.dump(data, temporary_file, ensure_ascii=False, indent=2)
             temporary_file.flush()
             os.fsync(temporary_file.fileno())
         os.rename(temporary_path, settings_file)
     except Exception:
-        try:
-            os.close(fd)
-        except OSError:
-            pass
+        if fd >= 0:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
         try:
             os.unlink(temporary_path)
         except FileNotFoundError:
@@ -246,8 +240,10 @@ def update_admin_settings(section: str, payload: dict):
         if "api_key" in payload:
             api_key = str(payload.get("api_key") or "").strip()
             if api_key:
-                section_data["api_key"] = _crypto().encrypt(api_key)
-                section_data["api_key_masked"] = _mask(api_key)
+                masked = section_data.get("api_key_masked", "")
+                if api_key != masked:
+                    section_data["api_key"] = _crypto().encrypt(api_key)
+                    section_data["api_key_masked"] = _mask(api_key)
             else:
                 section_data["api_key"] = ""
                 section_data["api_key_masked"] = ""

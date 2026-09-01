@@ -38,7 +38,8 @@ services:
     image: ghcr.io/gatlinh/vps-dashboard-complete-backend:latest
     container_name: vps_schema_init
     user: "1000:1000"
-    no-new-privileges: true
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp"]
     restart: "no"
     depends_on:
       mysql:
@@ -105,7 +106,8 @@ services:
     image: ghcr.io/gatlinh/vps-dashboard-complete-backend:latest
     container_name: vps_api
     user: "1000:1000"
-    no-new-privileges: true
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp"]
     restart: unless-stopped
     labels:
       com.centurylinklabs.watchtower.enable: "true"
@@ -183,7 +185,8 @@ services:
     image: ghcr.io/gatlinh/vps-dashboard-complete-backend:latest
     container_name: vps_agent_consumer
     user: "1000:1000"
-    no-new-privileges: true
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp"]
     restart: unless-stopped
     labels:
       com.centurylinklabs.watchtower.enable: "true"

@@ -38,6 +38,20 @@ def test_write_failure_does_not_truncate_existing_file(settings_env, monkeypatch
     assert settings_env.read_text() == original
 
 
+def test_write_does_not_close_fd_after_fdopen_takes_ownership(settings_env, monkeypatch):
+    def fail_rename(source, destination):
+        raise OSError("simulated rename failure")
+
+    def fail_close(fd):
+        raise AssertionError(f"unexpected os.close({fd})")
+
+    monkeypatch.setattr(app_settings.os, "rename", fail_rename)
+    monkeypatch.setattr(app_settings.os, "close", fail_close)
+
+    with pytest.raises(OSError, match="simulated rename failure"):
+        app_settings._write({"site": {"site_name": "private"}})
+
+
 def test_login_api_key_is_encrypted_at_rest(settings_env):
     app_settings.update_admin_settings("login", {"api_key": "plain-text-secret"})
 
@@ -52,6 +66,42 @@ def test_login_api_key_is_not_returned_as_plaintext(settings_env):
     )
 
     assert "plain-text-secret" not in str(section_data)
+
+
+def test_redacted_login_api_key_is_empty_without_mask(settings_env):
+    encrypted = app_settings._crypto().encrypt("plain-text-secret")
+    settings_env.parent.mkdir(parents=True)
+    settings_env.write_text(json.dumps({"login": {"api_key": encrypted}}))
+
+    result = app_settings.get_admin_settings(redact=True)
+
+    assert result["login"]["api_key"] == ""
+
+
+def test_redacted_login_api_key_returns_mask(settings_env):
+    encrypted = app_settings._crypto().encrypt("plain-text-secret")
+    settings_env.parent.mkdir(parents=True)
+    settings_env.write_text(
+        json.dumps(
+            {"login": {"api_key": encrypted, "api_key_masked": "plai****cret"}}
+        )
+    )
+
+    result = app_settings.get_admin_settings(redact=True)
+
+    assert result["login"]["api_key"] == "plai****cret"
+
+
+def test_login_api_key_mask_round_trip_preserves_ciphertext(settings_env):
+    app_settings.update_admin_settings("login", {"api_key": "secret-A"})
+    original_ciphertext = json.loads(settings_env.read_text())["login"]["api_key"]
+    masked = app_settings.get_admin_settings(redact=True)["login"]["api_key"]
+
+    app_settings.update_admin_settings("login", {"api_key": masked})
+
+    stored_ciphertext = json.loads(settings_env.read_text())["login"]["api_key"]
+    assert stored_ciphertext == original_ciphertext
+    assert app_settings._crypto().decrypt(stored_ciphertext) == "secret-A"
 
 
 @pytest.mark.parametrize(
