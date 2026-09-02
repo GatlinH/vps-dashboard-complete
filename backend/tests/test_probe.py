@@ -1,5 +1,9 @@
 """Probe API 测试"""
 from unittest.mock import patch, MagicMock
+import logging
+
+import extensions
+import api.probe as probe
 
 
 def test_ping_requires_auth(client):
@@ -36,6 +40,22 @@ def test_ping_rejects_invalid_port(client, auth_headers):
         'port': 70000,
     }, headers=auth_headers)
     assert resp.status_code == 400
+
+
+def test_batch_safety_redis_failure_fails_open(app, monkeypatch, caplog):
+    class FailingRedis:
+        def get(self, key):
+            raise ConnectionError("redis unavailable")
+
+        def setex(self, key, ttl, value):
+            raise ConnectionError("redis unavailable")
+
+    monkeypatch.setattr(extensions, "redis_client", FailingRedis())
+    with app.test_request_context("/api/v1/probe/ping/batch"):
+        with caplog.at_level(logging.WARNING, logger="api.probe"):
+            result = probe._enforce_batch_safety([1, 2, 3], "probe:batch")
+    assert result is None
+    assert any("batch probe rate limiter unavailable" in r.message and "probe:batch" in r.message for r in caplog.records)
 
 
 def test_ping_rejects_invalid_host(client, auth_headers):

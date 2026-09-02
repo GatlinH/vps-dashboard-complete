@@ -1,0 +1,25 @@
+{
+  "total": 42,
+  "files": {
+    "backend/api/aff.py": 3,
+    "backend/api/agent.py": 1,
+    "backend/api/auth.py": 3,
+    "backend/api/auth_account.py": 4,
+    "backend/api/exchange.py": 2,
+    "backend/api/servers.py": 5,
+    "backend/api/traffic.py": 2,
+    "backend/app.py": 1,
+    "backend/middleware/audit.py": 2,
+    "backend/middleware/metrics_middleware.py": 4,
+    "backend/middleware/rate_limit.py": 1,
+    "backend/services/observability/sentry.py": 1,
+    "backend/services/peer_probe.py": 1,
+    "backend/services/ping_target_cache.py": 3,
+    "backend/services/probe_history.py": 1,
+    "backend/services/scheduler.py": 2,
+    "backend/services/scheduler_jobs/health_jobs.py": 3,
+    "backend/services/scheduler_jobs/metrics_jobs.py": 1,
+    "backend/utils/logging_config.py": 1,
+    "backend/workers/agent_consumer.py": 1
+  }
+}

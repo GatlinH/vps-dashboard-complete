@@ -2,6 +2,9 @@
 import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+log = logging.getLogger(__name__)
+
 def _job_traffic_accumulate(app):
     """
     根据当前实时网速（net_up / net_down KB/s）每30秒累加一次流量计数。
@@ -74,4 +77,3 @@ def _job_traffic_alerts(app):
         servers = Server.query.filter(Server.traffic_limit_gb > 0).all()
         for s in servers:
             _check_and_fire_traffic_alert(s)
-

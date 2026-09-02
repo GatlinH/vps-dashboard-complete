@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CSS_SCRIPT = ROOT / "scripts" / "check-css-debt.py"
 TASK_SCRIPT = ROOT / "scripts" / "check-agent-tasks-parity.py"
+SILENT_SCRIPT = ROOT / "scripts" / "check-silent-exceptions.py"
 
 
 def run_script(script, *args, env=None):
@@ -210,3 +211,30 @@ def test_css_missing_baseline_is_explicit_error(tmp_path):
     env = os.environ.copy(); env.pop('CI', None); env.pop('GITHUB_ACTIONS', None)
     r = run_script(CSS_SCRIPT, '--source', src, '--baseline', b, '--update-baseline', '--yes', env=env)
     assert r.returncode == 3 and b.exists()
+
+def test_silent_gate_ruff_unavailable_is_operational_error(tmp_path):
+    env = os.environ.copy(); env["PATH"] = str(tmp_path)
+    env["SILENT_EXC_RUFF"] = str(tmp_path / "missing-ruff")
+    r = subprocess.run(["/usr/bin/python3", str(SILENT_SCRIPT)], cwd=ROOT, text=True, capture_output=True, env=env)
+    assert r.returncode == 2
+    assert "ERROR:" in r.stderr and "Traceback" not in r.stderr
+
+def test_silent_gate_invalid_ruff_json_is_operational_error(tmp_path):
+    fake = tmp_path / "ruff"
+    fake.write_text("#!/bin/sh\necho boom\n")
+    fake.chmod(0o755)
+    env = os.environ.copy(); env["PATH"] = str(tmp_path)
+    env["SILENT_EXC_RUFF"] = str(fake)
+    r = subprocess.run([sys.executable, str(SILENT_SCRIPT)], cwd=ROOT, text=True, capture_output=True, env=env)
+    assert r.returncode == 2
+    assert "ERROR:" in r.stderr and "Traceback" not in r.stderr
+
+
+def test_silent_gate_f821_is_zero_tolerance(tmp_path):
+    fake = tmp_path / "ruff"
+    fake.write_text("#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo ruff; else echo '[{\"code\":\"F821\",\"filename\":\"backend/api/broken.py\",\"location\":{\"row\":7,\"column\":1}},{\"code\":\"S110\",\"filename\":\"backend/api/existing.py\"}]'; fi\n")
+    fake.chmod(0o755)
+    env = os.environ.copy(); env["PATH"] = str(tmp_path); env["SILENT_EXC_RUFF"] = str(fake)
+    r = subprocess.run([sys.executable, str(SILENT_SCRIPT)], cwd=ROOT, text=True, capture_output=True, env=env)
+    assert r.returncode == 1
+    assert "F821" in r.stderr and "backend/api/broken.py" in r.stderr
