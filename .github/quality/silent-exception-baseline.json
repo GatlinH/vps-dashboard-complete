@@ -1,6 +1,6 @@
 {
-  "version": 2,
-  "scanned_files": 40,
+  "version": 3,
+  "ruff_config_sha256": "e7a6475996722d1d9712e78acedf7feb6e0ef2c025af49167a68aa25be149a89",
   "buckets": {
     "S110": {
       "total": 39,

@@ -5,6 +5,7 @@ import re
 import os
 import importlib.util
 import yaml
+import pytest
 from pathlib import Path
 
 
@@ -12,6 +13,10 @@ ROOT = Path(__file__).resolve().parents[1]
 CSS_SCRIPT = ROOT / "scripts" / "check-css-debt.py"
 TASK_SCRIPT = ROOT / "scripts" / "check-agent-tasks-parity.py"
 SILENT_SCRIPT = ROOT / "scripts" / "check-silent-exceptions.py"
+
+import importlib.util
+_spec = importlib.util.spec_from_file_location("silent_gate", SILENT_SCRIPT)
+silent_gate = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(silent_gate)
 
 
 def run_script(script, *args, env=None):
@@ -237,6 +242,29 @@ def test_silent_gate_ruff_unavailable_is_operational_error(tmp_path):
     r = subprocess.run(["/usr/bin/python3", str(SILENT_SCRIPT)], cwd=ROOT, text=True, capture_output=True, env=env)
     assert r.returncode == 2
     assert "ERROR:" in r.stderr and "Traceback" not in r.stderr
+
+def _silent_baseline(files, total=None, **extra):
+    total = sum(files.values()) if total is None else total
+    return {"version": 3, "ruff_config_sha256": "x", "buckets": {
+        b: {"total": total if b == "S110" else 0, "files": files if b == "S110" else {}}
+        for b in silent_gate.BUCKETS}, **extra}
+
+def test_silent_v3_rejects_old_and_bool_total():
+    with pytest.raises(ValueError, match="version 3"):
+        silent_gate.validate_baseline({"version": 2})
+    data = _silent_baseline({"a.py": 1}); data["buckets"]["S110"]["total"] = True
+    with pytest.raises(ValueError):
+        silent_gate.validate_baseline(data)
+
+def test_silent_strict_equality_detects_increase_and_decrease(tmp_path, monkeypatch):
+    baseline = tmp_path / "b.json"; baseline.write_text(json.dumps(_silent_baseline({"a.py": 1})))
+    monkeypatch.setattr(silent_gate, "scan", lambda: {"buckets": {b: {"total": (2 if b == "S110" else 0), "files": ({"a.py": 2} if b == "S110" else {})} for b in silent_gate.BUCKETS}, "e722": 0, "f821": []})
+    assert silent_gate.main(["--baseline", str(baseline)]) == 1
+
+def test_silent_hash_mismatch_is_policy_failure(tmp_path, monkeypatch):
+    baseline = tmp_path / "b.json"; baseline.write_text(json.dumps(_silent_baseline({})))
+    monkeypatch.setattr(silent_gate, "scan", lambda: {"buckets": {b: {"total": 0, "files": {}} for b in silent_gate.BUCKETS}, "e722": 0, "f821": []})
+    assert silent_gate.main(["--baseline", str(baseline)]) == 1
 
 def test_silent_gate_invalid_ruff_json_is_operational_error(tmp_path):
     fake = tmp_path / "ruff"

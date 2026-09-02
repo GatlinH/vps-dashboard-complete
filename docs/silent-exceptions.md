@@ -14,8 +14,9 @@ resolved executable and version.
 
 ## Baseline
 
-Version 2 stores `scanned_files` and independent buckets for S110, S112 and
-BLE001. Each bucket has `total` and a `files` map whose sum must match total.
+Version 3 stores a SHA-256 hash of `backend/ruff.toml` and independent buckets
+for S110, S112 and BLE001. Each bucket has `total` and a `files` map whose sum
+must match total. The gate does not provide a scan-coverage guarantee.
 E722 and F821 remain zero-tolerance invariants. Old top-level `total`/`files`
 baselines are rejected; migrate explicitly with:
 
@@ -23,10 +24,11 @@ baselines are rejected; migrate explicitly with:
 python3 scripts/check-silent-exceptions.py --update-baseline --yes
 ```
 
-Current buckets are S110=39, S112=3, BLE001=213, across 40 scanned files.
-The gate reconciles orphan entries: deleted files print `cleared` and should
-be removed in the same baseline update; existing files with no findings fail.
-It also fails when scanned file coverage drops below the recorded count.
+Current buckets are S110=39, S112=3, BLE001=213. Per-file counts and totals
+must match the baseline exactly. Any increase, decrease, deleted entry, or new
+file fails and requires an explicit baseline update, so improvements leave a
+reviewed baseline diff instead of consuming hidden headroom. Changes to
+`backend/ruff.toml` likewise require updating its hash in the baseline.
 
 ## Hardened bypasses
 

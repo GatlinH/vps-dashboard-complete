@@ -11,16 +11,17 @@ BUCKETS = ("S110", "S112", "BLE001")
 RUFF_VERSION = "0.16.5"
 
 def validate_baseline(data):
-    if not isinstance(data, dict) or data.get("version") != 2 or not isinstance(data.get("scanned_files"), int):
-        raise ValueError("baseline must use version 2 with buckets and scanned_files; run --update-baseline --yes to migrate")
+    if not isinstance(data, dict) or data.get("version") != 3:
+        raise ValueError("baseline must use version 3; run --update-baseline --yes to migrate")
+    if not isinstance(data.get("ruff_config_sha256"), str):
+        raise ValueError("baseline ruff_config_sha256 is required; run --update-baseline --yes to migrate")
     buckets = data.get("buckets")
     if not isinstance(buckets, dict) or set(buckets) != set(BUCKETS):
         raise ValueError("baseline buckets must be exactly S110, S112, BLE001")
-    out = {"version": 2, "scanned_files": data["scanned_files"], "buckets": {}}
-    if data["scanned_files"] < 0: raise ValueError("scanned_files must be nonnegative")
+    out = {"version": 3, "ruff_config_sha256": data["ruff_config_sha256"], "buckets": {}}
     for name in BUCKETS:
         b = buckets[name]
-        if not isinstance(b, dict) or not isinstance(b.get("total"), int) or b["total"] < 0 or not isinstance(b.get("files"), dict):
+        if not isinstance(b, dict) or isinstance(b.get("total"), bool) or not isinstance(b.get("total"), int) or b["total"] < 0 or not isinstance(b.get("files"), dict):
             raise ValueError(f"invalid baseline bucket {name}")
         if any(not isinstance(k,str) or not isinstance(v,int) or isinstance(v,bool) or v < 0 for k,v in b["files"].items()) or b["total"] != sum(b["files"].values()):
             raise ValueError(f"baseline bucket {name} total must equal sum(files.values())")
@@ -32,9 +33,11 @@ def _ruff_command():
     explicit = bool(override) and not (os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"))
     if not explicit:
         override = None
-    candidates = [Path(override)] if explicit else [BACKEND / ".venv/bin/ruff"]
-    if shutil.which("ruff"): candidates.append(Path(shutil.which("ruff")))
-    candidates.append(Path(sys.executable))
+    if explicit:
+        candidates = [Path(override)]
+    else:
+        candidates = [BACKEND / ".venv/bin/ruff"]
+        if shutil.which("ruff"): candidates.append(Path(shutil.which("ruff")))
     for exe in candidates:
         is_py = exe.name.startswith("python")
         cmd = [str(exe), "-m", "ruff", "--version"] if is_py else [str(exe), "--version"]
@@ -65,16 +68,15 @@ def scan():
     except Exception as exc: raise ValueError(f"invalid ruff JSON: {exc}")
     if p.returncode not in (0,1): raise ValueError(f"ruff failed with exit code {p.returncode}")
     if not isinstance(items, list): raise ValueError("invalid ruff JSON: expected array")
-    counts = {b:{} for b in BUCKETS}; e722=0; f821=[]; files=set()
+    counts = {b:{} for b in BUCKETS}; e722=0; f821=[]
     for item in items:
         code=item.get("code"); path=item.get("filename", "")
         if code not in KNOWN: raise ValueError(f"unknown diagnostic {code} in {path}: {item.get('message','')}; scan incomplete, refusing determination")
-        if path: files.add(path)
         if code == "E722": e722 += 1
         elif code == "F821": f821.append((path,item.get("location",{}).get("row")))
         elif code in BUCKETS:
             rel=Path(path).resolve().relative_to(REPO_ROOT).as_posix(); counts[code][rel]=counts[code].get(rel,0)+1
-    return {"buckets": {b:{"total":sum(v.values()),"files":v} for b,v in counts.items()}, "e722":e722,"f821":f821,"scanned_files":len(files)}
+    return {"buckets": {b:{"total":sum(v.values()),"files":v} for b,v in counts.items()}, "e722":e722,"f821":f821}
 
 def main(argv=None):
     ap=argparse.ArgumentParser(allow_abbrev=False); ap.add_argument("--baseline",type=Path,default=DEFAULT_BASELINE); ap.add_argument("--update-baseline",action="store_true"); ap.add_argument("--yes",action="store_true",help=argparse.SUPPRESS); a=ap.parse_args(argv)
@@ -88,19 +90,21 @@ def main(argv=None):
     if measured["f821"]: print("ERROR: F821 count must remain zero: "+", ".join(p for p,_ in measured["f821"]),file=sys.stderr); return 1
     if a.update_baseline:
         if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") or not (a.yes or os.environ.get("SILENT_EXC_BASELINE_WRITE")=="1"): print("ERROR: baseline update requires --yes and is forbidden in CI",file=sys.stderr); return 2
-        data={"version":2,"scanned_files":measured["scanned_files"],"buckets":measured["buckets"]}; a.baseline.parent.mkdir(parents=True,exist_ok=True); a.baseline.write_text(json.dumps(data,indent=2)+"\n"); print(f"Updated baseline: {a.baseline}"); return 3
+        import hashlib
+        digest = hashlib.sha256((BACKEND / "ruff.toml").read_bytes()).hexdigest()
+        data={"version":3,"ruff_config_sha256":digest,"buckets":measured["buckets"]}; a.baseline.parent.mkdir(parents=True,exist_ok=True); a.baseline.write_text(json.dumps(data,indent=2)+"\n"); print(f"Updated baseline: {a.baseline}"); return 3
     errors=[]
-    if measured["scanned_files"] < baseline["scanned_files"]: errors.append(f"scanned={measured['scanned_files']} baseline={baseline['scanned_files']}")
+    import hashlib
+    digest = hashlib.sha256((BACKEND / "ruff.toml").read_bytes()).hexdigest()
+    if digest != baseline["ruff_config_sha256"]: errors.append("ruff.toml changed; review the diff and run --update-baseline --yes")
     for b in BUCKETS:
         bf=baseline["buckets"][b]["files"]; mf=measured["buckets"][b]["files"]
-        for f in set(bf)-set(mf):
-            if (REPO_ROOT/f).exists(): errors.append(f"{f}: exists in tree but produced no findings (excluded/ignored/unscanned?)")
-            else: print(f"cleared: {f}")
-        expected=sum(min(v,mf.get(f,0)) for f,v in bf.items())
-        if sum(mf.values()) > expected: errors.append(f"{b} total exceeds reconciled baseline")
-        for f,c in mf.items():
-            if c > bf.get(f,0): errors.append(f"{b} {f}: {c} exceeds baseline {bf.get(f,0)}")
-        if set(mf)-set(bf): errors.append(f"new files require explicit baseline update in {b}")
+        if measured["buckets"][b]["total"] != baseline["buckets"][b]["total"]:
+            errors.append(f"{b} total mismatch: measured {measured['buckets'][b]['total']} baseline {baseline['buckets'][b]['total']}")
+        for f in sorted(set(bf)|set(mf)):
+            if f not in bf: errors.append(f"{b} {f}: new file requires explicit baseline update")
+            elif f not in mf or mf[f] < bf[f]: errors.append(f"{b} {f}: count decreased; run --update-baseline --yes to record progress")
+            elif mf[f] > bf[f]: errors.append(f"{b} {f}: count increased")
     if errors: print("\n".join("ERROR: "+e for e in errors),file=sys.stderr); return 1
     print("SILENT_EXC_GATE_OK"); return 0
 if __name__ == "__main__": raise SystemExit(main())
