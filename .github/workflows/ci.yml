@@ -52,6 +52,12 @@ jobs:
         working-directory: backend
         run: python -m compileall -q .
 
+      - name: Check silent exception ratchet
+        run: |
+          set -o pipefail
+          python3 scripts/check-silent-exceptions.py | tee /tmp/silent-exc-gate.log
+          grep -q '^SILENT_EXC_GATE_OK$' /tmp/silent-exc-gate.log
+
       - name: Run tests
         working-directory: backend
         env:
