@@ -3,6 +3,7 @@ import subprocess
 import sys
 import re
 import os
+import shutil
 import importlib.util
 import yaml
 import pytest
@@ -13,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CSS_SCRIPT = ROOT / "scripts" / "check-css-debt.py"
 TASK_SCRIPT = ROOT / "scripts" / "check-agent-tasks-parity.py"
 SILENT_SCRIPT = ROOT / "scripts" / "check-silent-exceptions.py"
+CI_ENV_KEYS = ("CI", "GITHUB_ACTIONS", "GITLAB_CI", "JENKINS_URL", "BUILDKITE", "TF_BUILD")
 
 import importlib.util
 _spec = importlib.util.spec_from_file_location("silent_gate", SILENT_SCRIPT)
@@ -207,6 +209,14 @@ def test_ci_gate_steps_use_pipefail_and_no_continue_on_error():
     step = next(s for s in steps if s.get('name') == 'Run repository quality gate tests')
     assert not step.get('continue-on-error') and '|| true' not in step['run']
 
+def test_ruff_version_pins_match_across_gate_sources():
+    script = (ROOT / "scripts/check-silent-exceptions.py").read_text()
+    expected = re.search(r"RUFF_VERSION\s*=\s*['\"]([^'\"]+)", script).group(1)
+    requirements = (ROOT / "backend/requirements-dev.txt").read_text()
+    assert f"ruff=={expected}" in requirements.splitlines()
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+    assert re.search(rf"ruff=={re.escape(expected)}(?:\s|$)", workflow)
+
 def test_css_no_strict_allows_orphan(tmp_path):
     src = write_css_tree(tmp_path, {'a.css': 'x{}\n'})
     b = tmp_path / 'b.json'; b.write_text(json.dumps({'total': 0, 'files': {'gone.css': 0, 'a.css': 0}}))
@@ -239,6 +249,7 @@ def test_css_missing_baseline_is_explicit_error(tmp_path):
 def test_silent_gate_ruff_unavailable_is_operational_error(tmp_path):
     env = os.environ.copy(); env["PATH"] = str(tmp_path)
     env["SILENT_EXC_RUFF"] = str(tmp_path / "missing-ruff")
+    for key in CI_ENV_KEYS: env.pop(key, None)
     r = subprocess.run(["/usr/bin/python3", str(SILENT_SCRIPT)], cwd=ROOT, text=True, capture_output=True, env=env)
     assert r.returncode == 2
     assert "ERROR:" in r.stderr and "Traceback" not in r.stderr
@@ -252,12 +263,14 @@ def _silent_baseline(files, total=None, **extra):
     return {"version": 4, "ruff_config_sha256": silent_gate._config_digest(), "ruff_version": "0.16.5", "buckets": {b: {"total": total if b == "S110" else 0, "files": files if b == "S110" else {}} for b in silent_gate.BUCKETS}, **extra}
 
 def _run_silent(tmp_path, monkeypatch, scan, baseline, *args):
-    for key in ('CI','GITHUB_ACTIONS','GITLAB_CI','JENKINS_URL','BUILDKITE','TF_BUILD'):
+    for key in CI_ENV_KEYS:
         monkeypatch.delenv(key, raising=False)
     path = tmp_path / "b.json"; path.write_text(json.dumps(baseline)); monkeypatch.setattr(silent_gate, "scan", lambda: scan)
     return silent_gate.main(["--baseline", str(path), *args])
 
 def test_silent_real_baseline_passes(tmp_path, monkeypatch, capsys):
+    if not ((ROOT / "backend/.venv/bin/ruff").is_file() or shutil.which("ruff")):
+        pytest.skip("real ruff executable unavailable")
     baseline = tmp_path / "b.json"; baseline.write_text((ROOT / ".github/quality/silent-exception-baseline.json").read_text())
     r = subprocess.run([sys.executable, str(SILENT_SCRIPT), "--baseline", str(baseline)], cwd=ROOT, text=True, capture_output=True)
     assert r.returncode == 0 and "SILENT_EXC_GATE_OK" in r.stdout and "resolved ruff:" in r.stdout
@@ -273,6 +286,7 @@ def test_silent_file_disappeared(tmp_path, monkeypatch, capsys):
 def test_silent_stale_threshold(tmp_path, monkeypatch, capsys):
     r = _run_silent(tmp_path, monkeypatch, _silent_scan(), _silent_baseline({"a.py": 11})); assert r == 1 and "stale" in capsys.readouterr().err
 def test_silent_canary_rule_coverage(tmp_path, monkeypatch, capsys):
+    for key in CI_ENV_KEYS: monkeypatch.delenv(key, raising=False)
     _, env = _fake_ruff(tmp_path, "[]", canary_codes=["E722", "F821", "S110", "S112"])
     monkeypatch.setenv("SILENT_EXC_RUFF", env["SILENT_EXC_RUFF"])
     monkeypatch.setenv("PATH", env["PATH"])
@@ -305,10 +319,13 @@ def test_silent_update_writes_baseline(tmp_path, monkeypatch, capsys):
 def test_silent_increase_requires_allow(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("SILENT_EXC_BASELINE_WRITE", "1"); r = _run_silent(tmp_path, monkeypatch, _silent_scan({"a.py": 2}), _silent_baseline({"a.py": 1}), "--update-baseline", "--yes"); assert r == 2 and "increase detected" in capsys.readouterr().err
 def test_silent_increase_allow_records_justification(tmp_path, monkeypatch, capsys):
+    for key in CI_ENV_KEYS: monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("SILENT_EXC_BASELINE_WRITE", "1"); p=tmp_path/"b.json"; p.write_text(json.dumps(_silent_baseline({"a.py":1}))); monkeypatch.setattr(silent_gate,"scan",lambda:_silent_scan({"a.py":2})); r=silent_gate.main(["--baseline",str(p),"--update-baseline","--yes","--allow-increase","reason"]); d=json.loads(p.read_text()); assert r==3 and "increase_justification" in d and "previous_totals" in d
 def test_silent_ruff_override_interpreter(tmp_path, monkeypatch, capsys):
-    monkeypatch.setenv("SILENT_EXC_RUFF", sys.executable); monkeypatch.delenv("CI", raising=False); r=silent_gate.main([]); assert r==2 and "must point to ruff executable" in capsys.readouterr().err
+    for key in CI_ENV_KEYS: monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("SILENT_EXC_RUFF", sys.executable); r=silent_gate.main([]); assert r==2 and "must point to ruff executable" in capsys.readouterr().err
 def test_silent_v3_update_full_chain(tmp_path, monkeypatch):
+    for key in CI_ENV_KEYS: monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("SILENT_EXC_BASELINE_WRITE","1"); p=tmp_path/"b.json"; p.write_text(json.dumps({"version":3})); monkeypatch.setattr(silent_gate,"scan",lambda:_silent_scan()); assert silent_gate.main(["--baseline",str(p),"--update-baseline","--yes"])==3; assert silent_gate.main(["--baseline",str(p)])==0
 def test_silent_extend_config_rejected(tmp_path, monkeypatch, capsys):
     backend = tmp_path / "backend"; backend.mkdir()
@@ -329,6 +346,7 @@ def test_silent_gate_invalid_ruff_json_is_operational_error(tmp_path):
     fake.chmod(0o755)
     env = os.environ.copy(); env["PATH"] = str(tmp_path)
     env["SILENT_EXC_RUFF"] = str(fake)
+    for key in CI_ENV_KEYS: env.pop(key, None)
     r = subprocess.run([sys.executable, str(SILENT_SCRIPT)], cwd=ROOT, text=True, capture_output=True, env=env)
     assert r.returncode == 2
     assert "SILENT_EXC_RUFF" in r.stderr and "invalid output" in r.stderr and "Traceback" not in r.stderr
@@ -343,6 +361,7 @@ if [ "$1" = "--version" ]; then echo {version}; elif printf '%s\\n' "$@" | /usr/
 ''')
     fake.chmod(0o755)
     env = os.environ.copy(); env["SILENT_EXC_RUFF"] = str(fake); env["PATH"] = str(tmp_path)
+    for key in CI_ENV_KEYS: env.pop(key, None)
     return fake, env
 
 def test_silent_gate_non_json_after_valid_version(tmp_path):
@@ -371,6 +390,7 @@ def test_silent_gate_f821_is_zero_tolerance(tmp_path):
     fake.write_text("#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo 'ruff 0.16.5'; elif printf '%s\\n' \"$@\" | /usr/bin/grep -q -- '--stdin-filename'; then echo '[{\"code\":\"E722\"},{\"code\":\"F821\"},{\"code\":\"S110\"},{\"code\":\"S112\"},{\"code\":\"BLE001\"}]'; else echo '[{\"code\":\"F821\",\"filename\":\"backend/api/broken.py\",\"location\":{\"row\":7,\"column\":1}},{\"code\":\"S110\",\"filename\":\"backend/api/existing.py\"}]'; fi\n")
     fake.chmod(0o755)
     env = os.environ.copy(); env["PATH"] = str(tmp_path); env["SILENT_EXC_RUFF"] = str(fake)
+    for key in CI_ENV_KEYS: env.pop(key, None)
     r = subprocess.run([sys.executable, str(SILENT_SCRIPT)], cwd=ROOT, text=True, capture_output=True, env=env)
     assert r.returncode == 1
     assert "F821" in r.stderr and "backend/api/broken.py" in r.stderr
