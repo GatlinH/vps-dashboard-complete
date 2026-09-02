@@ -570,7 +570,7 @@ def _enforce_batch_safety(server_ids, redis_key_prefix: str):
                     retry_after=retry_after,
                 ), 429
         extensions.redis_client.setex(key, max(1, int(min_interval * 3)), f"{now:.3f}")
-    except Exception:
+    except Exception as exc:
         # Redis 故障时不阻断主流程，仅降级为无间隔保护
         logger.warning("batch probe rate limiter unavailable key=%s: %s", key, exc)
 
