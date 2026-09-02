@@ -100,6 +100,9 @@ def main(argv=None):
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     print(json.dumps(measured, sort_keys=False, indent=2))
+    if args.no_strict and (os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS")):
+        print("ERROR: --no-strict is forbidden in CI", file=sys.stderr)
+        return 2
     if args.update_baseline:
         if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
             print("ERROR: baseline updates are forbidden in CI", file=sys.stderr); return 2
@@ -107,8 +110,12 @@ def main(argv=None):
             print("ERROR: baseline update requires --yes or CSS_BASELINE_WRITE=1", file=sys.stderr); return 2
         if not measured["details"]:
             print("ERROR: refusing to write an empty CSS baseline", file=sys.stderr); return 2
-        args.baseline.parent.mkdir(parents=True, exist_ok=True)
-        args.baseline.write_text(json.dumps({"total": measured["important_total"], "files": {k:v["important"] for k,v in measured["details"].items()}}, indent=2) + "\n", encoding="utf-8")
+        try:
+            args.baseline.parent.mkdir(parents=True, exist_ok=True)
+            args.baseline.write_text(json.dumps({"total": measured["important_total"], "files": {k:v["important"] for k,v in measured["details"].items()}}, indent=2) + "\n", encoding="utf-8")
+        except OSError as exc:
+            print(f"ERROR: cannot write baseline: {args.baseline.resolve()}: {exc}", file=sys.stderr)
+            return 2
         print(f"Updated baseline: {args.baseline}")
         print("WARNING: baseline updated; this run is intentionally non-green (rc=3)", file=sys.stderr)
         return 3

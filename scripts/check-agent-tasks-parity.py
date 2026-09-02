@@ -19,15 +19,22 @@ def main(argv=None):
     if args.files and args.positional:
         print("ERROR: positional paths and --files cannot be combined", file=sys.stderr); return 2
     args.files = args.files or args.positional or [Path(__file__).resolve().parent / "agent_tasks.py", Path(__file__).resolve().parent / "windows/agent_tasks.py"]
-    resolved = [path.resolve() for path in args.files]
+    try:
+        resolved = [path.resolve() for path in args.files]
+    except OSError as exc:
+        bad_path = next((p for p in args.files if p), Path(""))
+        print(f"ERROR: cannot resolve path: {bad_path.resolve()}: {exc}", file=sys.stderr)
+        return 2
     if len(set(resolved)) < len(resolved):
         print("ERROR: duplicate paths do not constitute a valid comparison (重复路径不构成有效比对)", file=sys.stderr)
-        return 1
+        return 2
     try:
         hashes = []
         for path in resolved:
             hashes.append((str(path), digest(path)))
-        stats=[os.stat(p) for p in resolved]
+        stats=[]
+        for path in resolved:
+            stats.append(os.stat(path))
         if len({(s.st_dev,s.st_ino) for s in stats}) < len(stats):
             print("ERROR: files share inode and cannot be compared", file=sys.stderr); return 1
     except (OSError, ValueError) as exc:
@@ -36,7 +43,10 @@ def main(argv=None):
         return 2
     for path, value in hashes:
         print(f"{path} sha256={value}")
-    if len(hashes) < 2 or any(value != hashes[0][1] for _, value in hashes[1:]):
+    if len(hashes) < 2:
+        print("ERROR: at least two paths required", file=sys.stderr)
+        return 2
+    if any(value != hashes[0][1] for _, value in hashes[1:]):
         print("ERROR: agent_tasks.py files differ", file=sys.stderr)
         return 1
     print("AGENT_PARITY_GATE_OK")

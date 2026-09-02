@@ -2,6 +2,8 @@ import json
 import subprocess
 import sys
 import re
+import os
+import yaml
 from pathlib import Path
 
 
@@ -10,12 +12,14 @@ CSS_SCRIPT = ROOT / "scripts" / "check-css-debt.py"
 TASK_SCRIPT = ROOT / "scripts" / "check-agent-tasks-parity.py"
 
 
-def run_script(script, *args):
+def run_script(script, *args, env=None):
+    child_env = os.environ.copy() if env is None else env
     return subprocess.run(
         [sys.executable, str(script), *map(str, args)],
         cwd=ROOT,
         text=True,
         capture_output=True,
+        env=child_env,
     )
 
 
@@ -128,8 +132,15 @@ def test_update_requires_confirmation_and_returns_three(tmp_path):
     r = run_script(CSS_SCRIPT, "--source", src, "--baseline", b, "--update-baseline")
     assert r.returncode == 2
     assert json.loads(b.read_text())["files"] == {"old.css": 1}
-    r = run_script(CSS_SCRIPT, "--source", src, "--baseline", b, "--update-baseline", "--yes")
+    env = os.environ.copy(); env.pop("CI", None); env.pop("GITHUB_ACTIONS", None)
+    r = run_script(CSS_SCRIPT, "--source", src, "--baseline", b, "--update-baseline", "--yes", env=env)
     assert r.returncode == 3
+
+def test_update_baseline_forbidden_in_ci(tmp_path):
+    src = write_css_tree(tmp_path, {"a.css": "x{color:red !important}"})
+    b = tmp_path / "b.json"; b.write_text(json.dumps({"total": 1, "files": {"a.css": 1}}))
+    env = os.environ.copy(); env["CI"] = "true"; env["GITHUB_ACTIONS"] = "true"
+    assert run_script(CSS_SCRIPT, "--source", src, "--baseline", b, "--update-baseline", "--yes", env=env).returncode == 2
 
 def test_css_uppercase_extension_and_case_collision(tmp_path):
     src = write_css_tree(tmp_path, {"Sneaky.CSS": "x{} !important"})
@@ -160,17 +171,29 @@ def test_agent_tasks_parity_passes_and_detects_drift(tmp_path):
     assert run_script(TASK_SCRIPT, first, second).returncode != 0
 
 def test_ci_gate_steps_use_pipefail_and_no_continue_on_error():
-    text = (ROOT / '.github/workflows/ci.yml').read_text()
-    for block in re.findall(r'- name: (?:Check CSS debt measurement ratchet|Check agent task parity).*?(?=\n      - name:|\Z)', text, re.S):
-        if '| tee' in block:
-            assert 'set -o pipefail' in block
-    assert 'continue-on-error' not in text
+    data = yaml.safe_load((ROOT / '.github/workflows/ci.yml').read_text())
+    steps = data['jobs']['frontend']['steps']
+    wanted = {'Check CSS debt measurement ratchet': '^CSS_DEBT_GATE_OK$', 'Check agent task parity': '^AGENT_PARITY_GATE_OK$'}
+    for name, marker in wanted.items():
+        step = next(s for s in steps if s.get('name') == name)
+        run = step['run']; assert 'set -o pipefail' in run and f"grep -q '{marker}'" in run
+        assert not any(x in run for x in ('--no-strict','--update-baseline','--source','--baseline','--yes'))
+        assert not step.get('continue-on-error') and '|| true' not in run
+    step = next(s for s in steps if s.get('name') == 'Run repository quality gate tests')
+    assert not step.get('continue-on-error') and '|| true' not in step['run']
 
 def test_css_no_strict_allows_orphan(tmp_path):
     src = write_css_tree(tmp_path, {'a.css': 'x{}\n'})
     b = tmp_path / 'b.json'; b.write_text(json.dumps({'total': 0, 'files': {'gone.css': 0, 'a.css': 0}}))
-    r = run_script(CSS_SCRIPT, '--source', src, '--baseline', b, '--no-strict')
+    env = os.environ.copy(); env.pop('CI', None); env.pop('GITHUB_ACTIONS', None)
+    r = run_script(CSS_SCRIPT, '--source', src, '--baseline', b, '--no-strict', env=env)
     assert r.returncode == 0
+
+def test_css_no_strict_forbidden_in_ci(tmp_path):
+    src = write_css_tree(tmp_path, {'a.css': 'x{}\n'})
+    b = tmp_path / 'b.json'; b.write_text(json.dumps({'total': 0, 'files': {'gone.css': 0, 'a.css': 0}}))
+    env = os.environ.copy(); env['CI'] = 'true'
+    assert run_script(CSS_SCRIPT, '--source', src, '--baseline', b, '--no-strict', env=env).returncode == 2
 
 def test_parity_non_utf8_is_operational_error(tmp_path):
     a = tmp_path / 'a.py'; b = tmp_path / 'b.py'
@@ -184,5 +207,6 @@ def test_css_missing_baseline_is_explicit_error(tmp_path):
     b = tmp_path / 'missing.json'
     r = run_script(CSS_SCRIPT, '--source', src, '--baseline', b)
     assert r.returncode == 2 and 'baseline file not found' in r.stderr
-    r = run_script(CSS_SCRIPT, '--source', src, '--baseline', b, '--update-baseline', '--yes')
+    env = os.environ.copy(); env.pop('CI', None); env.pop('GITHUB_ACTIONS', None)
+    r = run_script(CSS_SCRIPT, '--source', src, '--baseline', b, '--update-baseline', '--yes', env=env)
     assert r.returncode == 3 and b.exists()
