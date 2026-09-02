@@ -26,6 +26,7 @@ TTL 与令牌剩余有效期一致，过期自动从 Redis 删除，无需手动
 """
 
 import logging
+import math
 import time
 import extensions
 
@@ -198,19 +199,35 @@ def is_user_force_revoked(user_id, token_iat: float) -> bool:
         True 表示该 token 被用户级强制下线覆盖，应视为已失效。
         False 表示未被强制下线或 token 在强制下线后签发（仍有效）。
     """
+    key = f"{_PREFIX_USER}{user_id}:forced_at"
     try:
-        key = f"{_PREFIX_USER}{user_id}:forced_at"
         val = extensions.redis_client.get(key)
-        if val is None:
-            return False
-        forced_at = float(val)
-        return float(token_iat) < forced_at
-    except Exception:
+    except Exception as exc:
+        logger.error("读取用户强制下线标记失败: user_id=%s, error=%s", user_id, exc)
+        raise
+    if val is None:
         return False
+    try:
+        forced_at = float(val)
+        token_timestamp = float(token_iat)
+        if not math.isfinite(forced_at) or not math.isfinite(token_timestamp):
+            raise ValueError("non-finite timestamp")
+    except (ValueError, TypeError) as exc:
+        logger.error(
+            "用户强制下线标记损坏: user_id=%s, key=%s, forced_at=%r, token_iat=%r, error=%s",
+            user_id, key, val, token_iat, exc,
+        )
+        raise ValueError(f"invalid forced_at for user_id={user_id}") from exc
+    return token_timestamp < forced_at
 
 
 def wait_until_user_tokens_can_be_issued(user_id) -> None:
-    """Wait out the sub-second revocation boundary before issuing a new JWT."""
+    """Wait out the revocation boundary before issuing a JWT.
+
+    Redis failures are logged and issuance continues intentionally to preserve
+    login availability; callers must accept that the boundary could not be
+    enforced in this failure mode.
+    """
     try:
         key = f"{_PREFIX_USER}{user_id}:forced_at"
         val = extensions.redis_client.get(key)
@@ -219,8 +236,11 @@ def wait_until_user_tokens_can_be_issued(user_id) -> None:
         delay = float(val) - time.time()
         if delay > 0:
             time.sleep(min(delay + 0.01, 1.1))
-    except Exception:
-        return
+    except Exception as exc:
+        logger.warning(
+            "等待用户 token 签发边界失败，将继续签发: user_id=%s, error=%s",
+            user_id, exc,
+        )
 
 
 # ── 统计（调试用） ────────────────────────────────────────────────────────────
