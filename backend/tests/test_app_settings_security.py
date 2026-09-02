@@ -1,6 +1,8 @@
 import json
 import stat
 
+from importlib.metadata import version
+
 import pytest
 
 from middleware import rbac
@@ -196,6 +198,20 @@ def test_sanitize_html_removes_unsafe_content(unsafe_html, forbidden):
 
 def test_sanitize_html_preserves_safe_paragraphs():
     assert app_settings._sanitize_html("<p>hello</p>") == "<p>hello</p>"
+
+
+def test_sanitize_html_removes_formaction_and_javascript_protocol():
+    sanitized = app_settings._sanitize_html(
+        '<form formaction="javascript:alert(1)"><button>submit</button></form>'
+    ).lower()
+
+    assert "formaction" not in sanitized
+    assert "javascript:" not in sanitized
+
+
+def test_bleach_version_is_patched():
+    major, minor, patch = (int(part) for part in version("bleach").split(".")[:3])
+    assert (major, minor, patch) >= (6, 4, 0)
 
 
 def test_crypto_rejects_missing_master_key(monkeypatch):
