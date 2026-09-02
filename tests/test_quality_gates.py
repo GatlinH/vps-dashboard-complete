@@ -273,7 +273,19 @@ def test_silent_file_disappeared(tmp_path, monkeypatch, capsys):
 def test_silent_stale_threshold(tmp_path, monkeypatch, capsys):
     r = _run_silent(tmp_path, monkeypatch, _silent_scan(), _silent_baseline({"a.py": 11})); assert r == 1 and "stale" in capsys.readouterr().err
 def test_silent_canary_rule_coverage(tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(silent_gate, "scan", lambda: (_ for _ in ()).throw(ValueError("rule coverage lost"))); r = silent_gate.main(["--baseline", str(tmp_path/"x")]); assert r == 2 and "rule coverage lost" in capsys.readouterr().err
+    _, env = _fake_ruff(tmp_path, "[]", canary_codes=["E722", "F821", "S110", "S112"])
+    monkeypatch.setenv("SILENT_EXC_RUFF", env["SILENT_EXC_RUFF"])
+    monkeypatch.setenv("PATH", env["PATH"])
+    baseline = tmp_path / "b.json"; baseline.write_text(json.dumps(_silent_baseline({})))
+    r = silent_gate.main(["--baseline", str(baseline)])
+    err = capsys.readouterr().err
+    assert r == 2 and "rule coverage lost" in err and "BLE001" in err
+    _, env = _fake_ruff(tmp_path, "[]", canary_codes=[])
+    monkeypatch.setenv("SILENT_EXC_RUFF", env["SILENT_EXC_RUFF"]); monkeypatch.setenv("PATH", env["PATH"])
+    baseline = tmp_path / "b.json"; baseline.write_text(json.dumps(_silent_baseline({})))
+    r = silent_gate.main(["--baseline", str(baseline)])
+    err = capsys.readouterr().err
+    assert r == 2 and "rule coverage lost" in err and all(code in err for code in ("E722", "F821", "S110", "S112", "BLE001"))
 def test_silent_hash_mismatch(tmp_path, monkeypatch, capsys):
     b = _silent_baseline({}); b["ruff_config_sha256"] = "bad"; r = _run_silent(tmp_path, monkeypatch, _silent_scan(), b); assert r == 1 and "ruff.toml changed" in capsys.readouterr().err
 def test_silent_ruff_version_mismatch(tmp_path, monkeypatch, capsys):
@@ -299,7 +311,15 @@ def test_silent_ruff_override_interpreter(tmp_path, monkeypatch, capsys):
 def test_silent_v3_update_full_chain(tmp_path, monkeypatch):
     monkeypatch.setenv("SILENT_EXC_BASELINE_WRITE","1"); p=tmp_path/"b.json"; p.write_text(json.dumps({"version":3})); monkeypatch.setattr(silent_gate,"scan",lambda:_silent_scan()); assert silent_gate.main(["--baseline",str(p),"--update-baseline","--yes"])==3; assert silent_gate.main(["--baseline",str(p)])==0
 def test_silent_extend_config_rejected(tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(silent_gate, "scan", lambda: (_ for _ in ()).throw(ValueError("ruff.toml must not contain extend"))); r=silent_gate.main(["--baseline", str(tmp_path/"x")]); assert r==2 and "extend" in capsys.readouterr().err
+    backend = tmp_path / "backend"; backend.mkdir()
+    (backend / "ruff.toml").write_text('target-version = "py311"\nextend = "shared.toml"\n[lint]\nselect = ["E722"]\n')
+    (backend / "requirements-dev.txt").write_text("ruff==0.16.5\n")
+    _, env = _fake_ruff(tmp_path, "[]")
+    monkeypatch.setattr(silent_gate, "BACKEND", backend)
+    monkeypatch.setenv("SILENT_EXC_RUFF", env["SILENT_EXC_RUFF"]); monkeypatch.setenv("PATH", env["PATH"])
+    baseline = tmp_path / "b.json"; baseline.write_text(json.dumps(_silent_baseline({})))
+    r = silent_gate.main(["--baseline", str(baseline)])
+    assert r == 2 and "extend" in capsys.readouterr().err
 def test_silent_f821_location(tmp_path, monkeypatch, capsys):
     r=_run_silent(tmp_path, monkeypatch, _silent_scan(f821=[("backend/api/broken.py",7)]), _silent_baseline({})); assert r==1 and re.search(r"backend/api/broken.py:7", capsys.readouterr().err)
 
@@ -313,9 +333,11 @@ def test_silent_gate_invalid_ruff_json_is_operational_error(tmp_path):
     assert r.returncode == 2
     assert "SILENT_EXC_RUFF" in r.stderr and "invalid output" in r.stderr and "Traceback" not in r.stderr
 
-def _fake_ruff(tmp_path, payload, version="ruff 0.16.5", rc=0):
+def _fake_ruff(tmp_path, payload, version="ruff 0.16.5", rc=0, canary_codes=None):
     fake = tmp_path / "ruff"
     canary='[{"code":"E722","filename":"canary.py","location":{"row":1}},{"code":"F821","filename":"canary.py","location":{"row":2}},{"code":"S110","filename":"canary.py","location":{"row":3}},{"code":"S112","filename":"canary.py","location":{"row":4}},{"code":"BLE001","filename":"canary.py","location":{"row":5}}]'
+    if canary_codes is not None:
+        canary = json.dumps([{"code": code, "filename": "canary.py", "location": {"row": i + 1}} for i, code in enumerate(canary_codes)])
     fake.write_text(f'''#!/bin/sh
 if [ "$1" = "--version" ]; then echo {version}; elif printf '%s\\n' "$@" | /usr/bin/grep -q -- '--stdin-filename'; then echo '{canary}'; else echo '{payload}'; exit {rc}; fi
 ''')
