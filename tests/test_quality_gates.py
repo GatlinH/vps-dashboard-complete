@@ -3,6 +3,7 @@ import subprocess
 import sys
 import re
 import os
+import importlib.util
 import yaml
 from pathlib import Path
 
@@ -43,6 +44,24 @@ def test_css_debt_unchanged_passes_and_emits_stable_json(tmp_path):
     assert payload["files"] == 2
     assert payload["important_total"] == 1
     assert list(payload["details"]) == ["a.css", "z.css"]
+
+
+def test_css_measure_sorts_details_when_walk_is_unsorted(tmp_path, monkeypatch):
+    src = write_css_tree(tmp_path, {"z.css": "a { color: red !important; }\n", "a.css": "b {}\n"})
+    spec = importlib.util.spec_from_file_location("css_gate", CSS_SCRIPT)
+    css_gate = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(css_gate)
+    real_walk = css_gate.os.walk
+
+    def reversed_walk(*args, **kwargs):
+        for root, dirs, files in real_walk(*args, **kwargs):
+            yield root, dirs, list(reversed(files))
+
+    monkeypatch.setattr(css_gate.os, "walk", reversed_walk)
+    measured = css_gate.measure(src)
+    assert list(measured["details"]) == ["a.css", "z.css"]
+    assert measured["important_total"] == 1
+    assert measured["files"] == 2
 
 
 def test_css_debt_increase_fails_and_decrease_passes(tmp_path):
