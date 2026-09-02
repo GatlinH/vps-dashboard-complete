@@ -32,7 +32,8 @@ def _read_cpu_counters():
         idle = vals[3] + (vals[4] if len(vals) > 4 else 0)
         total = sum(vals)
         return idle, total
-    except Exception:
+    except Exception as exc:
+        log.warning("local cpu counters unavailable: %s", exc)
         return None
 
 
@@ -48,7 +49,8 @@ def _read_mem_percent():
         if not total or available is None:
             return None
         return max(0.0, min(100.0, (total - available) / total * 100.0))
-    except Exception:
+    except Exception as exc:
+        log.warning("local memory metrics unavailable: %s", exc)
         return None
 
 
@@ -59,7 +61,8 @@ def _default_net_interface():
                 parts = line.split()
                 if len(parts) >= 4 and parts[1] == "00000000" and int(parts[3], 16) & 2:
                     return parts[0]
-    except Exception:
+    except Exception as exc:
+        log.warning("default network interface unavailable: %s", exc)
         pass
     return None
 
@@ -126,8 +129,8 @@ def _collect_local_host_metrics():
     try:
         usage = shutil.disk_usage("/")
         metrics["disk_use"] = round(usage.used / usage.total * 100.0, 2) if usage.total else None
-    except Exception:
-        pass
+    except Exception as exc:
+        log.warning("local disk metrics unavailable: %s", exc)
 
     net_now = _read_net_bytes()
     now = time.time()
@@ -277,8 +280,8 @@ def _job_tcp_ping(app):
             if latency_ms is not None:
                 try:
                     vps_probe_latency_ms.observe(latency_ms)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    log.warning("probe latency metric update failed server_id=%s: %s", s.id, exc)
 
         # 更新服务器状态指标
         try:
@@ -287,8 +290,8 @@ def _job_tcp_ping(app):
             vps_servers_total.set(total)
             vps_servers_online.set(online)
             vps_servers_offline.set(total - online)
-        except Exception:
-            pass
+        except Exception as exc:
+            log.warning("probe server metrics update failed: %s", exc)
 
         try:
             db.session.commit()
@@ -337,8 +340,8 @@ def _job_fetch_probes(app):
                     if fail_count >= 3 and s.status != "offline":
                         s.status = "offline"
                         log.warning(f"服务器 {s.id}({s.name}) 连续 {fail_count} 次探针失败，标记 offline")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    log.warning("probe failure counter update failed server_id=%s: %s", s.id, exc)
                 continue
 
             for k, v in metrics.items():
@@ -357,8 +360,8 @@ def _job_fetch_probes(app):
                 )
                 # 成功：清除失败计数
                 redis_client.delete(fail_key)
-            except Exception:
-                pass
+            except Exception as exc:
+                log.warning("probe metrics cache update failed server_id=%s: %s", s.id, exc)
 
             updated_ids.append(str(s.id))
 

@@ -7,6 +7,7 @@ import time
 from datetime import datetime, timezone, timedelta
 import json
 import os
+import logging
 from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, request, jsonify, current_app
@@ -32,6 +33,7 @@ from services.peer_probe import (
     _load_ping_targets,
 )
 probe_bp = Blueprint("probe", __name__)
+logger = logging.getLogger(__name__)
 
 
 IP_GEO_CACHE_VERSION = "v4"
@@ -82,7 +84,7 @@ def _is_public_probe_hostname(hostname: str) -> bool:
         return False
     try:
         infos = socket.getaddrinfo(name, None)
-    except Exception:
+    except Exception as exc:
         return False
     for info in infos:
         sockaddr = info[4] or ()
@@ -121,7 +123,8 @@ def _probe_stats(protocol: str, host: str, port: int, count: int, timeout: float
     resolution_host = (urlparse(_http_probe_url(host)).hostname or "") if protocol == "http" else host
     try:
         infos = resolve_public_host_addresses(resolution_host, port)
-    except Exception:
+    except Exception as exc:
+        logger.warning("probe target resolution failed host=%s: %s", host, exc)
         infos = []
     if infos:
         connect_host = str(infos[0][4][0])
@@ -569,7 +572,7 @@ def _enforce_batch_safety(server_ids, redis_key_prefix: str):
         extensions.redis_client.setex(key, max(1, int(min_interval * 3)), f"{now:.3f}")
     except Exception:
         # Redis 故障时不阻断主流程，仅降级为无间隔保护
-        pass
+        logger.warning("batch probe rate limiter unavailable key=%s: %s", key, exc)
 
     return None
 
@@ -642,8 +645,8 @@ def ping_batch():
     # 清 Redis 缓存
     try:
         extensions.redis_client.delete("vps:servers:admin", "vps:servers:public")
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("probe server cache invalidation failed: %s", exc)
 
     return jsonify(results=results)
 
@@ -793,16 +796,16 @@ def fetch_probe():
                 probe_cache_ttl,
                 json.dumps(metrics, ensure_ascii=False),
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("probe metrics cache write failed server_id=%s: %s", s.id, exc)
 
         updated.append(str(s.id))
 
     db.session.commit()
     try:
         extensions.redis_client.delete("vps:servers:admin", "vps:servers:public")
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("probe cache invalidation failed: %s", exc)
 
     return jsonify(updated=updated, errors=errors)
 
@@ -841,16 +844,16 @@ def ip_info():
             resp.headers["X-Cache"] = "HIT"
             resp.headers["Cache-Control"] = f"public, max-age={int(current_app.config.get('IP_INFO_CACHE_TTL', 3600))}"
             return resp
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("ip info cache read failed key=%s: %s", cache_k, exc)
 
     try:
         data = lookup_ip_geo(ip)
         try:
             ttl = int(current_app.config.get("IP_INFO_CACHE_TTL", 3600))
             extensions.redis_client.setex(cache_k, ttl, json.dumps(data, ensure_ascii=False))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("ip info cache write failed key=%s: %s", cache_k, exc)
         resp = jsonify(data)
         resp.headers["X-Cache"] = "MISS"
         resp.headers["Cache-Control"] = f"public, max-age={int(current_app.config.get('IP_INFO_CACHE_TTL', 3600))}"

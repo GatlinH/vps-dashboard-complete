@@ -10,6 +10,7 @@
 """
 import json
 import requests
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, Response, jsonify, request, current_app
 
@@ -18,6 +19,7 @@ from api.probe import lookup_ip_geo
 from middleware.rbac import viewer_or_admin_required
 
 geo_bp = Blueprint("geo", __name__)
+logger = logging.getLogger(__name__)
 
 CARTO_SERVERS = ["a", "b", "c"]
 CARTO_TEMPLATE = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
@@ -38,7 +40,8 @@ def _short_window_allow_or_reject(rate_key: str, limit: int, window_sec: int) ->
         if current == 1:
             extensions.redis_client.expire(rate_key, window_sec)
         return current <= limit
-    except Exception:
+    except Exception as exc:
+        logger.warning("geo rate limiter unavailable rate_key=%s: %s", rate_key, exc)
         return True
 
 
@@ -79,7 +82,8 @@ def tile_proxy(z, x, y):
                 mimetype="image/png",
                 headers={"X-Cache": "HIT", "Cache-Control": f"public, max-age={ttl}"},
             )
-    except Exception:
+    except Exception as exc:
+        logger.warning("tile cache read failed key=%s: %s", cache_key, exc)
         pass
 
     s_char = CARTO_SERVERS[(x + y) % 3]
@@ -93,7 +97,8 @@ def tile_proxy(z, x, y):
 
         try:
             extensions.redis_client.setex(cache_key, ttl, img_bytes)
-        except Exception:
+        except Exception as exc:
+            logger.warning("tile cache write failed key=%s: %s", cache_key, exc)
             pass
 
         return Response(
@@ -121,8 +126,8 @@ def countries():
         cached = extensions.redis_client.get(cache_key)
         if cached:
             return Response(cached, status=200, mimetype="application/json", headers={"X-Cache": "HIT"})
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("countries cache read failed key=%s: %s", cache_key, exc)
 
     try:
         resp = requests.get(WORLD_ATLAS_URL, timeout=15)
@@ -131,8 +136,8 @@ def countries():
         try:
             extensions.redis_client.setex(cache_key, ttl, raw)
             extensions.redis_client.setex(stale_key, ttl * 2, raw)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("countries cache write failed key=%s: %s", cache_key, exc)
         return Response(raw, status=200, mimetype="application/json", headers={"X-Cache": "MISS"})
     except requests.RequestException as e:
         try:
@@ -144,8 +149,8 @@ def countries():
                     mimetype="application/json",
                     headers={"X-Cache": "STALE", "X-Geo-Degraded": "1"},
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("countries stale cache read failed key=%s: %s", stale_key, exc)
 
         payload = _provider_degraded_payload(
             provider="world-atlas-cdn",
@@ -173,15 +178,15 @@ def ip_geo(ip=None):
         cached = extensions.redis_client.get(cache_key)
         if cached:
             return jsonify(json.loads(cached))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("ip geo cache read failed key=%s: %s", cache_key, exc)
 
     try:
         data = lookup_ip_geo(ip)
         try:
             extensions.redis_client.setex(cache_key, 3600, json.dumps(data, ensure_ascii=False))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("ip geo cache write failed key=%s: %s", cache_key, exc)
         return jsonify(data)
     except ValueError as e:
         return jsonify(error=str(e)), 400
@@ -290,16 +295,16 @@ def _get_server_coords(server) -> tuple[float, float]:
         if cached:
             d = json.loads(cached)
             return d["lat"], d["lon"]
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("coordinate cache lookup failed key=%s: %s", cache_key, exc)
 
     if location in location_fallbacks:
         lat, lon = location_fallbacks[location]
         coords = {"lat": lat, "lon": lon, "source": "location_exact"}
         try:
             extensions.redis_client.setex(cache_key, 86400, json.dumps(coords))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("coordinate cache write failed key=%s: %s", cache_key, exc)
         return lat, lon
 
     if ip:
@@ -311,10 +316,10 @@ def _get_server_coords(server) -> tuple[float, float]:
                 coords = {"lat": d["lat"], "lon": d["lon"], "source": "ip"}
                 try:
                     extensions.redis_client.setex(cache_key, 86400, json.dumps(coords))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("coordinate cache write failed key=%s: %s", cache_key, exc)
                 return d["lat"], d["lon"]
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("coordinate provider failed ip=%s: %s", ip, exc)
 
     return (35.0, 105.0)
