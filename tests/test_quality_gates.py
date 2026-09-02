@@ -61,6 +61,21 @@ def test_css_empty_scan_fails(tmp_path):
     baseline = tmp_path / "b.json"; baseline.write_text(json.dumps({"total": 0, "files": {}}))
     assert run_script(CSS_SCRIPT, "--source", src, "--baseline", baseline).returncode != 0
 
+def test_css_scan_below_baseline_floor_fails_with_counts(tmp_path):
+    src = write_css_tree(tmp_path, {"only.css": "x{}\n"})
+    baseline = tmp_path / "b.json"
+    baseline.write_text(json.dumps({"total": 0, "files": {f"f{i}.css": 0 for i in range(14)}}))
+    result = run_script(CSS_SCRIPT, "--source", src, "--baseline", baseline)
+    assert result.returncode != 0
+    assert "scanned=1" in result.stderr and "expected=14" in result.stderr
+
+def test_css_empty_baseline_allows_nonempty_source(tmp_path):
+    src = write_css_tree(tmp_path, {"new.css": "x{}\n"})
+    baseline = tmp_path / "b.json"
+    baseline.write_text(json.dumps({"total": 0, "files": {}}))
+    result = run_script(CSS_SCRIPT, "--source", src, "--baseline", baseline)
+    assert "fewer files than baseline" not in result.stderr
+
 def test_baseline_sum_mismatch_fails(tmp_path):
     src = write_css_tree(tmp_path, {"a.css": "x{}\n"})
     b = tmp_path / "b.json"; b.write_text(json.dumps({"total": 2, "files": {"a.css": 1}}))
@@ -83,6 +98,17 @@ def test_parity_same_file_does_not_pass(tmp_path):
     p = tmp_path / "a.py"; p.write_text("x")
     assert run_script(TASK_SCRIPT, "--files", p).returncode != 0
 
+def test_parity_duplicate_paths_rejected(tmp_path):
+    p = tmp_path / "a.py"; p.write_text("x")
+    result = run_script(TASK_SCRIPT, "--files", p, p)
+    assert result.returncode != 0
+    assert "duplicate paths" in result.stderr.lower()
+
+def test_parity_resolved_duplicate_paths_rejected():
+    result = run_script(TASK_SCRIPT, "--files", "scripts/agent_tasks.py", "scripts/../scripts/agent_tasks.py")
+    assert result.returncode != 0
+    assert "duplicate paths" in result.stderr.lower()
+
 def test_parity_crlf_normalized(tmp_path):
     a = tmp_path / "a.py"; b = tmp_path / "b.py"
     a.write_text("x\ny\n"); b.write_bytes(b"x\r\ny\r\n")
@@ -92,7 +118,7 @@ def test_orphan_warning_and_strict_failure(tmp_path):
     src = write_css_tree(tmp_path, {"a.css": "x{}\n"})
     b = tmp_path / "b.json"; b.write_text(json.dumps({"total": 0, "files": {"gone.css": 0, "a.css": 0}}))
     r = run_script(CSS_SCRIPT, "--source", src, "--baseline", b)
-    assert r.returncode == 0 and "WARNING" in r.stderr
+    assert r.returncode != 0 and "WARNING" in r.stderr
     assert run_script(CSS_SCRIPT, "--strict", "--source", src, "--baseline", b).returncode != 0
 
 

@@ -34,9 +34,12 @@ def check(measured, baseline, strict=False):
     baseline_files = baseline.get("files", {})
     if baseline.get("total", 0) != sum(baseline_files.values()):
         errors.append("baseline total does not equal sum of baseline files")
-    expected_files = len(set(baseline_files) & set(measured.get("details", {})))
-    if not measured.get("details") or measured.get("files", 0) < expected_files:
-        errors.append("CSS scan found fewer files than baseline; refusing fail-open")
+    expected_files = len(baseline_files)
+    scanned_files = measured.get("files", 0)
+    if not measured.get("details"):
+        errors.append("CSS scan found no files; refusing fail-open")
+    elif expected_files and scanned_files < expected_files:
+        errors.append(f"CSS scan found fewer files than baseline: scanned={scanned_files} expected={expected_files}")
     if measured["important_total"] > baseline.get("total", 0):
         errors.append(f"total: {measured['important_total']} exceeds baseline {baseline['total']}")
     for name, item in measured["details"].items():
