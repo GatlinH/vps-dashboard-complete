@@ -48,8 +48,8 @@ in this order:
 4. the current interpreter with `-m ruff`.
 
 If none is usable, it returns 2 and asks for `ruff==0.16.5` from
-`requirements-dev.txt`. In CI for this repository, the executable is
-`backend/.venv/bin/ruff`.
+`requirements-dev.txt`. In CI, `backend/.venv` is not present; resolution
+falls through to the Ruff installed on `PATH` from `requirements-dev.txt`.
 
 ## Updating the baseline
 
@@ -63,6 +63,36 @@ python3 scripts/check-silent-exceptions.py --update-baseline --yes
 ```
 
 ## Known blind spots
+
+These are measured bypasses in the current gate, with concrete remediation planned:
+
+1. `# noqa` suppression is not disabled because the scan does not pass
+   `--ignore-noqa`. For example, `except Exception:  # noqa: S110, BLE001` produces
+   zero diagnostics, so a one-line comment can erase any debt from the gate.
+2. Ruff respects `.gitignore` and does not scan ignored, untracked paths. Adding a
+   debt-bearing file path to `.gitignore` makes every diagnostic in that file vanish,
+   lowers the count, and can make the gate pass.
+3. A syntax-error file is treated as clean by the counter. Ruff 0.16.5 reports
+   `invalid-syntax`, but the counting loop only recognizes E722/F821/S110/S112 and
+   silently drops that diagnostic. Making `backend/api/servers.py` syntactically
+   invalid removed its five S110 findings, dropping the total from 42 to 37 and
+   passing the ratchet.
+4. `SILENT_EXC_RUFF` can self-attest. It is the first executable candidate, CI does
+   not ignore it, and only a successful `--version` exit code is checked. A shell
+   stub can print `ruff 0.16.5`, replay fabricated baseline S110 records during
+   `check`, and return 0 with `SILENT_EXC_GATE_OK`; pull requests can inject this
+   variable through their branch workflow.
+5. The metric is misaligned: BLE001 is selected in `ruff.toml` but excluded from the
+   ratchet. `except Exception:` with logging or `return None` yields only BLE001,
+   while `pass` yields S110 plus BLE001. Rewriting `except: pass` to
+   `except: return None` lowers the S110 count and passes while the defect remains,
+   so the 62-to-42 reduction cannot currently distinguish remediation from moving
+   debt into the BLE001 bucket.
+
+Next-batch hardening: add `--ignore-noqa`, `--respect-gitignore=false`, an explicit
+`--config`, and `--no-cache`; validate Ruff identity and version (and ignore
+`SILENT_EXC_RUFF` in CI); treat unknown diagnostic codes and nonzero Ruff exits as
+fatal; include BLE001 in bucketed ratchets; and reconcile orphaned baseline entries.
 
 The gate ratchet covers only S110 and S112. Patterns such as `except: return` with a
 sentinel (`None`, `False`, `0`, `[]`, etc.) are outside those rules. Hermes'
