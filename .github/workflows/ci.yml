@@ -113,11 +113,13 @@ jobs:
 
       - name: Check CSS debt measurement ratchet
         run: |
+          set -o pipefail
           python3 scripts/check-css-debt.py | tee /tmp/css-gate.log
           grep -q '^CSS_DEBT_GATE_OK$' /tmp/css-gate.log
 
       - name: Check agent task parity
         run: |
+          set -o pipefail
           python3 scripts/check-agent-tasks-parity.py | tee /tmp/parity-gate.log
           grep -q '^AGENT_PARITY_GATE_OK$' /tmp/parity-gate.log
 

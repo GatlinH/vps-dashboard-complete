@@ -59,7 +59,8 @@ def validate_baseline(baseline):
 def check(measured, baseline, strict=True):
     errors = []
     baseline_files = baseline.get("files", {})
-    expected_files = len(baseline_files)
+    orphans = sorted(set(baseline_files) - set(measured.get("details", {})))
+    expected_files = len(baseline_files) if strict else len(baseline_files) - len(orphans)
     scanned_files = measured.get("files", 0)
     if not measured.get("details"):
         errors.append("CSS scan found no files; refusing fail-open")
@@ -71,7 +72,6 @@ def check(measured, baseline, strict=True):
         current = item["important"]
         if current > baseline_files.get(name, 0):
             errors.append(f"{name}: {current} exceeds baseline {baseline_files.get(name, 0)}")
-    orphans = sorted(set(baseline_files) - set(measured["details"]))
     if strict and orphans:
         errors.append("baseline orphan files: " + ", ".join(orphans))
     elif orphans:
@@ -92,6 +92,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         measured = measure(args.source)
+        if not args.baseline.exists() and not args.update_baseline:
+            print(f"ERROR: baseline file not found: {args.baseline.resolve()}", file=sys.stderr)
+            return 2
         baseline = validate_baseline(json.loads(args.baseline.read_text(encoding="utf-8"))) if args.baseline.exists() else {"total": 0, "files": {}}
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

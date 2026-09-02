@@ -1,6 +1,7 @@
 import json
 import subprocess
 import sys
+import re
 from pathlib import Path
 
 
@@ -157,3 +158,31 @@ def test_agent_tasks_parity_passes_and_detects_drift(tmp_path):
     assert "sha256" in result.stdout
     second.write_text("drift\n")
     assert run_script(TASK_SCRIPT, first, second).returncode != 0
+
+def test_ci_gate_steps_use_pipefail_and_no_continue_on_error():
+    text = (ROOT / '.github/workflows/ci.yml').read_text()
+    for block in re.findall(r'- name: (?:Check CSS debt measurement ratchet|Check agent task parity).*?(?=\n      - name:|\Z)', text, re.S):
+        if '| tee' in block:
+            assert 'set -o pipefail' in block
+    assert 'continue-on-error' not in text
+
+def test_css_no_strict_allows_orphan(tmp_path):
+    src = write_css_tree(tmp_path, {'a.css': 'x{}\n'})
+    b = tmp_path / 'b.json'; b.write_text(json.dumps({'total': 0, 'files': {'gone.css': 0, 'a.css': 0}}))
+    r = run_script(CSS_SCRIPT, '--source', src, '--baseline', b, '--no-strict')
+    assert r.returncode == 0
+
+def test_parity_non_utf8_is_operational_error(tmp_path):
+    a = tmp_path / 'a.py'; b = tmp_path / 'b.py'
+    a.write_text('x'); b.write_bytes(b'\xff\xfe')
+    r = run_script(TASK_SCRIPT, '--files', a, b)
+    assert r.returncode == 2
+    assert 'ERROR:' in r.stderr and 'Traceback' not in r.stderr
+
+def test_css_missing_baseline_is_explicit_error(tmp_path):
+    src = write_css_tree(tmp_path, {'a.css': 'x{}\n'})
+    b = tmp_path / 'missing.json'
+    r = run_script(CSS_SCRIPT, '--source', src, '--baseline', b)
+    assert r.returncode == 2 and 'baseline file not found' in r.stderr
+    r = run_script(CSS_SCRIPT, '--source', src, '--baseline', b, '--update-baseline', '--yes')
+    assert r.returncode == 3 and b.exists()

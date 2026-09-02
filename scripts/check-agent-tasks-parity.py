@@ -24,12 +24,15 @@ def main(argv=None):
         print("ERROR: duplicate paths do not constitute a valid comparison (重复路径不构成有效比对)", file=sys.stderr)
         return 1
     try:
-        hashes = [(str(path), digest(path)) for path in resolved]
+        hashes = []
+        for path in resolved:
+            hashes.append((str(path), digest(path)))
         stats=[os.stat(p) for p in resolved]
         if len({(s.st_dev,s.st_ino) for s in stats}) < len(stats):
             print("ERROR: files share inode and cannot be compared", file=sys.stderr); return 1
-    except OSError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
+    except (OSError, ValueError) as exc:
+        bad_path = path if 'path' in locals() else (resolved[0] if resolved else Path(""))
+        print(f"ERROR: cannot read {Path(bad_path).resolve()}: {exc}", file=sys.stderr)
         return 2
     for path, value in hashes:
         print(f"{path} sha256={value}")
