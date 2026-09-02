@@ -25,7 +25,7 @@ def measure(source: Path):
                 print(f"INFO: excluding {p}", file=sys.stderr); continue
             if p.is_symlink(): errors.append(f"symlink directory not scanned: {p}"); continue
             kept.append(d)
-        dirs[:] = kept
+        dirs[:] = sorted(kept)
         for name in files:
             path=rootp/name
             if path.suffix.lower() != ".css": continue
@@ -44,7 +44,7 @@ def measure(source: Path):
         "files": len(details),
         "physical_lines": sum(item["lines"] for item in details.values()),
         "important_total": sum(item["important"] for item in details.values()),
-        "details": details,
+        "details": dict(sorted(details.items())),
     }
 
 
