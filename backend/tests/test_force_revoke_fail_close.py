@@ -9,9 +9,13 @@ from utils import token_blocklist
 @pytest.mark.parametrize("value", [b"corrupted", b"", b"[123]"])
 def test_force_revoke_corrupt_forced_at_raises(app, value):
     with app.app_context():
-        extensions.redis_client.set("revoked:user:100:forced_at", value)
-        with pytest.raises((ValueError, TypeError, ConnectionError)):
-            token_blocklist.is_user_force_revoked(100, 0)
+        key = "revoked:user:100:forced_at"
+        extensions.redis_client.set(key, value)
+        try:
+            with pytest.raises((ValueError, TypeError, ConnectionError)):
+                token_blocklist.is_user_force_revoked(100, 0)
+        finally:
+            extensions.redis_client.delete(key)
 
 
 def test_force_revoke_redis_error_raises(app, monkeypatch):
@@ -40,8 +44,8 @@ def _loader(app):
 @pytest.mark.parametrize("fail_open, expected", [(False, True), (True, False)])
 def test_loader_respects_fail_open_for_force_revoke_errors(app, monkeypatch, fail_open, expected):
     with app.app_context():
-        app.config["TESTING"] = False
-        app.config["JWT_BLOCKLIST_FAIL_OPEN"] = fail_open
+        monkeypatch.setitem(app.config, "TESTING", False)
+        monkeypatch.setitem(app.config, "JWT_BLOCKLIST_FAIL_OPEN", fail_open)
         monkeypatch.setattr(token_blocklist, "is_token_revoked", lambda *a, **k: False)
         monkeypatch.setattr(token_blocklist, "is_user_force_revoked", lambda *a, **k: (_ for _ in ()).throw(ConnectionError("redis down")))
         result = _loader(app)({"alg": "HS256"}, {"jti": "j", "sub": "1", "iat": 0, "type": "access"})
