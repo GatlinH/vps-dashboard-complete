@@ -243,28 +243,65 @@ def test_silent_gate_ruff_unavailable_is_operational_error(tmp_path):
     assert r.returncode == 2
     assert "ERROR:" in r.stderr and "Traceback" not in r.stderr
 
+def _silent_scan(files=None, totals=None, e722=None, f821=None):
+    files = files or {}; totals = totals or {}
+    return {"buckets": {b: {"total": totals.get(b, sum(files.values()) if b == "S110" else 0), "files": files if b == "S110" else {}} for b in silent_gate.BUCKETS}, "e722": e722 or [], "f821": f821 or []}
+
 def _silent_baseline(files, total=None, **extra):
     total = sum(files.values()) if total is None else total
-    return {"version": 4, "ruff_config_sha256": "x", "ruff_version": "0.16.5", "buckets": {
-        b: {"total": total if b == "S110" else 0, "files": files if b == "S110" else {}}
-        for b in silent_gate.BUCKETS}, **extra}
+    return {"version": 4, "ruff_config_sha256": silent_gate._config_digest(), "ruff_version": "0.16.5", "buckets": {b: {"total": total if b == "S110" else 0, "files": files if b == "S110" else {}} for b in silent_gate.BUCKETS}, **extra}
 
-def test_silent_v3_rejects_old_and_bool_total():
-    with pytest.raises(ValueError, match="version 4"):
-        silent_gate.validate_baseline({"version": 2})
-    data = _silent_baseline({"a.py": 1}); data["buckets"]["S110"]["total"] = True
-    with pytest.raises(ValueError):
-        silent_gate.validate_baseline(data)
+def _run_silent(tmp_path, monkeypatch, scan, baseline, *args):
+    for key in ('CI','GITHUB_ACTIONS','GITLAB_CI','JENKINS_URL','BUILDKITE','TF_BUILD'):
+        monkeypatch.delenv(key, raising=False)
+    path = tmp_path / "b.json"; path.write_text(json.dumps(baseline)); monkeypatch.setattr(silent_gate, "scan", lambda: scan)
+    return silent_gate.main(["--baseline", str(path), *args])
 
-def test_silent_strict_equality_detects_increase_and_decrease(tmp_path, monkeypatch):
-    baseline = tmp_path / "b.json"; baseline.write_text(json.dumps(_silent_baseline({"a.py": 1})))
-    monkeypatch.setattr(silent_gate, "scan", lambda: {"buckets": {b: {"total": (2 if b == "S110" else 0), "files": ({"a.py": 2} if b == "S110" else {})} for b in silent_gate.BUCKETS}, "e722": 0, "f821": []})
-    assert silent_gate.main(["--baseline", str(baseline)]) == 1
+def test_silent_real_baseline_passes(tmp_path, monkeypatch, capsys):
+    baseline = tmp_path / "b.json"; baseline.write_text((ROOT / ".github/quality/silent-exception-baseline.json").read_text())
+    r = subprocess.run([sys.executable, str(SILENT_SCRIPT), "--baseline", str(baseline)], cwd=ROOT, text=True, capture_output=True)
+    assert r.returncode == 0 and "SILENT_EXC_GATE_OK" in r.stdout and "resolved ruff:" in r.stdout
 
-def test_silent_hash_mismatch_is_policy_failure(tmp_path, monkeypatch):
-    baseline = tmp_path / "b.json"; baseline.write_text(json.dumps(_silent_baseline({})))
-    monkeypatch.setattr(silent_gate, "scan", lambda: {"buckets": {b: {"total": 0, "files": {}} for b in silent_gate.BUCKETS}, "e722": 0, "f821": []})
-    assert silent_gate.main(["--baseline", str(baseline)]) == 1
+def test_silent_count_increased(tmp_path, monkeypatch, capsys):
+    r = _run_silent(tmp_path, monkeypatch, _silent_scan({"a.py": 2}), _silent_baseline({"a.py": 1})); assert r == 1 and "count increased" in capsys.readouterr().err
+def test_silent_new_file(tmp_path, monkeypatch, capsys):
+    r = _run_silent(tmp_path, monkeypatch, _silent_scan({"b.py": 1}), _silent_baseline({"a.py": 1})); assert r == 1 and "new file requires explicit baseline update" in capsys.readouterr().err
+def test_silent_count_decreased(tmp_path, monkeypatch, capsys):
+    r = _run_silent(tmp_path, monkeypatch, _silent_scan({"a.py": 1}), _silent_baseline({"a.py": 2})); assert r == 0 and "progress:" in capsys.readouterr().out
+def test_silent_file_disappeared(tmp_path, monkeypatch, capsys):
+    r = _run_silent(tmp_path, monkeypatch, _silent_scan(), _silent_baseline({"a.py": 1})); assert r == 0 and "progress:" in capsys.readouterr().out
+def test_silent_stale_threshold(tmp_path, monkeypatch, capsys):
+    r = _run_silent(tmp_path, monkeypatch, _silent_scan(), _silent_baseline({"a.py": 11})); assert r == 1 and "stale" in capsys.readouterr().err
+def test_silent_canary_rule_coverage(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(silent_gate, "scan", lambda: (_ for _ in ()).throw(ValueError("rule coverage lost"))); r = silent_gate.main(["--baseline", str(tmp_path/"x")]); assert r == 2 and "rule coverage lost" in capsys.readouterr().err
+def test_silent_hash_mismatch(tmp_path, monkeypatch, capsys):
+    b = _silent_baseline({}); b["ruff_config_sha256"] = "bad"; r = _run_silent(tmp_path, monkeypatch, _silent_scan(), b); assert r == 1 and "ruff.toml changed" in capsys.readouterr().err
+def test_silent_ruff_version_mismatch(tmp_path, monkeypatch, capsys):
+    b = _silent_baseline({}); b["ruff_version"] = "0.1.0"; r = _run_silent(tmp_path, monkeypatch, _silent_scan(), b); assert r == 2 and "ruff_version" in capsys.readouterr().err
+def test_silent_unknown_top_level_key(tmp_path, monkeypatch, capsys):
+    b = _silent_baseline({}); b["wat"] = 1; r = _run_silent(tmp_path, monkeypatch, _silent_scan(), b); assert r == 2 and "unknown top-level baseline key" in capsys.readouterr().err
+def test_silent_zero_file_value(tmp_path, monkeypatch, capsys):
+    b = _silent_baseline({"a.py": 0}); r = _run_silent(tmp_path, monkeypatch, _silent_scan(), b); assert r == 2 and "files >= 1" in capsys.readouterr().err
+def test_silent_v3_rejected(tmp_path, monkeypatch, capsys):
+    b = _silent_baseline({}); b["version"] = 3; r = _run_silent(tmp_path, monkeypatch, _silent_scan(), b); assert r == 2 and "version 4" in capsys.readouterr().err
+def test_silent_update_ci_forbidden(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("CI", "true"); r = _run_silent(tmp_path, monkeypatch, _silent_scan(), _silent_baseline({}), "--update-baseline", "--yes"); assert r == 2 and "forbidden in CI" in capsys.readouterr().err
+def test_silent_update_requires_yes_and_token(tmp_path, monkeypatch, capsys):
+    r = _run_silent(tmp_path, monkeypatch, _silent_scan(), _silent_baseline({}), "--update-baseline"); assert r == 2 and "requires --yes" in capsys.readouterr().err
+def test_silent_update_writes_baseline(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("SILENT_EXC_BASELINE_WRITE", "1"); r = _run_silent(tmp_path, monkeypatch, _silent_scan({"a.py": 1}), _silent_baseline({"a.py": 1}), "--update-baseline", "--yes"); assert r == 3 and "->" in capsys.readouterr().out
+def test_silent_increase_requires_allow(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("SILENT_EXC_BASELINE_WRITE", "1"); r = _run_silent(tmp_path, monkeypatch, _silent_scan({"a.py": 2}), _silent_baseline({"a.py": 1}), "--update-baseline", "--yes"); assert r == 2 and "increase detected" in capsys.readouterr().err
+def test_silent_increase_allow_records_justification(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("SILENT_EXC_BASELINE_WRITE", "1"); p=tmp_path/"b.json"; p.write_text(json.dumps(_silent_baseline({"a.py":1}))); monkeypatch.setattr(silent_gate,"scan",lambda:_silent_scan({"a.py":2})); r=silent_gate.main(["--baseline",str(p),"--update-baseline","--yes","--allow-increase","reason"]); d=json.loads(p.read_text()); assert r==3 and "increase_justification" in d and "previous_totals" in d
+def test_silent_ruff_override_interpreter(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("SILENT_EXC_RUFF", sys.executable); monkeypatch.delenv("CI", raising=False); r=silent_gate.main([]); assert r==2 and "must point to ruff executable" in capsys.readouterr().err
+def test_silent_v3_update_full_chain(tmp_path, monkeypatch):
+    monkeypatch.setenv("SILENT_EXC_BASELINE_WRITE","1"); p=tmp_path/"b.json"; p.write_text(json.dumps({"version":3})); monkeypatch.setattr(silent_gate,"scan",lambda:_silent_scan()); assert silent_gate.main(["--baseline",str(p),"--update-baseline","--yes"])==3; assert silent_gate.main(["--baseline",str(p)])==0
+def test_silent_extend_config_rejected(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(silent_gate, "scan", lambda: (_ for _ in ()).throw(ValueError("ruff.toml must not contain extend"))); r=silent_gate.main(["--baseline", str(tmp_path/"x")]); assert r==2 and "extend" in capsys.readouterr().err
+def test_silent_f821_location(tmp_path, monkeypatch, capsys):
+    r=_run_silent(tmp_path, monkeypatch, _silent_scan(f821=[("backend/api/broken.py",7)]), _silent_baseline({})); assert r==1 and re.search(r"backend/api/broken.py:7", capsys.readouterr().err)
 
 def test_silent_gate_invalid_ruff_json_is_operational_error(tmp_path):
     fake = tmp_path / "ruff"
