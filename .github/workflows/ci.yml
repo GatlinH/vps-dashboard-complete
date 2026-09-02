@@ -53,6 +53,8 @@ jobs:
         run: python -m compileall -q .
 
       - name: Check silent exception ratchet
+        env:
+          CI: "true"
         run: |
           set -o pipefail
           python3 scripts/check-silent-exceptions.py | tee /tmp/silent-exc-gate.log
