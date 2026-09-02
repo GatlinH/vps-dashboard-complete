@@ -93,6 +93,14 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend-vite/package-lock.json
 
+      - name: Set up Python for quality gate tests
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.11'
+
+      - name: Install quality gate test dependencies
+        run: python -m pip install pytest==9.1.1 PyYAML==6.0.2
+
       - name: Install frontend deps
         working-directory: frontend-vite
         run: npm ci
@@ -110,6 +118,21 @@ jobs:
       - name: Check CSS priority ratchet
         working-directory: frontend-vite
         run: npm run check:css-important
+
+      - name: Check CSS debt measurement ratchet
+        run: |
+          set -o pipefail
+          python3 scripts/check-css-debt.py | tee /tmp/css-gate.log
+          grep -q '^CSS_DEBT_GATE_OK$' /tmp/css-gate.log
+
+      - name: Check agent task parity
+        run: |
+          set -o pipefail
+          python3 scripts/check-agent-tasks-parity.py | tee /tmp/parity-gate.log
+          grep -q '^AGENT_PARITY_GATE_OK$' /tmp/parity-gate.log
+
+      - name: Run repository quality gate tests
+        run: python3 -m pytest tests/test_quality_gates.py -q
 
       - name: Check source surfaces
         working-directory: frontend-vite
