@@ -6,22 +6,24 @@ from pathlib import Path
 
 
 def digest(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    text = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument("first", nargs="?", type=Path, default=Path("scripts/agent_tasks.py"))
-    parser.add_argument("second", nargs="?", type=Path, default=Path("scripts/windows/agent_tasks.py"))
+    parser.add_argument("positional", nargs="*", type=Path)
+    parser.add_argument("--files", nargs="+", type=Path)
     args = parser.parse_args(argv)
+    args.files = args.files or args.positional or [Path("scripts/agent_tasks.py"), Path("scripts/windows/agent_tasks.py")]
     try:
-        hashes = {str(args.first): digest(args.first), str(args.second): digest(args.second)}
+        hashes = [(str(path), digest(path)) for path in args.files]
     except OSError as exc:
         print(str(exc), file=sys.stderr)
         return 2
-    for path, value in hashes.items():
+    for path, value in hashes:
         print(f"{path} sha256={value}")
-    if len(set(hashes.values())) != 1:
+    if len(hashes) < 2 or len({value for _, value in hashes}) != 1:
         print("ERROR: agent_tasks.py files differ", file=sys.stderr)
         return 1
     return 0

@@ -30,7 +30,7 @@ def write_css_tree(tmp_path, files):
 def test_css_debt_unchanged_passes_and_emits_stable_json(tmp_path):
     src = write_css_tree(tmp_path, {"z.css": "a { color: red !important; }\n", "a.css": "b {}\n"})
     baseline = tmp_path / "baseline.json"
-    baseline.write_text(json.dumps({"total": 1, "files": {"z.css": 1}}))
+    baseline.write_text(json.dumps({"total": 1, "files": {"z.css": 1, "a.css": 0}}))
     result = run_script(CSS_SCRIPT, "--source", src, "--baseline", baseline)
     assert result.returncode == 0
     payload = json.loads(result.stdout)
@@ -52,6 +52,48 @@ def test_css_debt_invalid_directory_fails(tmp_path):
     result = run_script(CSS_SCRIPT, "--source", tmp_path / "missing")
     assert result.returncode != 0
     assert "CSS source directory" in result.stderr
+
+def test_real_css_gate_passes():
+    assert run_script(CSS_SCRIPT).returncode == 0
+
+def test_css_empty_scan_fails(tmp_path):
+    src = tmp_path / "src"; src.mkdir()
+    baseline = tmp_path / "b.json"; baseline.write_text(json.dumps({"total": 0, "files": {}}))
+    assert run_script(CSS_SCRIPT, "--source", src, "--baseline", baseline).returncode != 0
+
+def test_baseline_sum_mismatch_fails(tmp_path):
+    src = write_css_tree(tmp_path, {"a.css": "x{}\n"})
+    b = tmp_path / "b.json"; b.write_text(json.dumps({"total": 2, "files": {"a.css": 1}}))
+    assert run_script(CSS_SCRIPT, "--source", src, "--baseline", b).returncode != 0
+
+def test_new_zero_important_file_fails(tmp_path):
+    src = write_css_tree(tmp_path, {"a.css": "x{}\n"})
+    b = tmp_path / "b.json"; b.write_text(json.dumps({"total": 0, "files": {}}))
+    assert run_script(CSS_SCRIPT, "--source", src, "--baseline", b).returncode != 0
+
+def test_important_variant_counted(tmp_path):
+    src = write_css_tree(tmp_path, {"a.css": "x{a: b ! IMPORTANT}\n"})
+    b = tmp_path / "b.json"; b.write_text(json.dumps({"total": 1, "files": {"a.css": 1}}))
+    assert run_script(CSS_SCRIPT, "--source", src, "--baseline", b).returncode == 0
+
+def test_real_parity_passes():
+    assert run_script(TASK_SCRIPT).returncode == 0
+
+def test_parity_same_file_does_not_pass(tmp_path):
+    p = tmp_path / "a.py"; p.write_text("x")
+    assert run_script(TASK_SCRIPT, "--files", p).returncode != 0
+
+def test_parity_crlf_normalized(tmp_path):
+    a = tmp_path / "a.py"; b = tmp_path / "b.py"
+    a.write_text("x\ny\n"); b.write_bytes(b"x\r\ny\r\n")
+    assert run_script(TASK_SCRIPT, "--files", a, b).returncode == 0
+
+def test_orphan_warning_and_strict_failure(tmp_path):
+    src = write_css_tree(tmp_path, {"a.css": "x{}\n"})
+    b = tmp_path / "b.json"; b.write_text(json.dumps({"total": 0, "files": {"gone.css": 0, "a.css": 0}}))
+    r = run_script(CSS_SCRIPT, "--source", src, "--baseline", b)
+    assert r.returncode == 0 and "WARNING" in r.stderr
+    assert run_script(CSS_SCRIPT, "--strict", "--source", src, "--baseline", b).returncode != 0
 
 
 def test_agent_tasks_parity_passes_and_detects_drift(tmp_path):

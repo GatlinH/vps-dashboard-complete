@@ -117,6 +117,9 @@ jobs:
       - name: Check agent task parity
         run: python3 scripts/check-agent-tasks-parity.py
 
+      - name: Run repository quality gate tests
+        run: python3 -m pytest tests/test_quality_gates.py -q
+
       - name: Check source surfaces
         working-directory: frontend-vite
         run: npm run check:source-surfaces

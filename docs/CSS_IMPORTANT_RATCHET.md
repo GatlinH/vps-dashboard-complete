@@ -12,8 +12,13 @@ baseline only in a reviewed change that explains why the count changed.
 The repository-wide maintenance measurement is `scripts/check-css-debt.py`.
 It scans `frontend-vite/src/**/*.css` (excluding any `node_modules` or `dist`
 path), counts physical lines using `splitlines()`, and counts literal
-`!important` occurrences. Its JSON output is deterministic and the ratchet
-compares total and per-file occurrence counts; decreases are allowed.
+`!important` occurrences using `!\s*important` (case-insensitive). This conservative
+count includes comments and cannot cover `!/*comment*/important`; review remains the
+backstop. Its JSON output is deterministic and the ratchet compares total and per-file
+occurrence counts; decreases are allowed. `physical_lines` is informational only.
+Use `python3 scripts/check-css-debt.py --update-baseline` for a reviewed baseline update.
+Missing baseline files warn by default and fail with `--strict`; newly discovered files
+always require an explicit update.
 
 `admin-legacy-overrides.css` is a frozen historical cascade. Do not add rules to
 it or create another override sheet. When touching an affected area, migrate
