@@ -3,6 +3,7 @@ import logging
 import pytest
 
 import extensions
+from app import create_app
 from utils import token_blocklist
 
 
@@ -36,20 +37,23 @@ def test_force_revoke_normal_boundaries(app):
         assert token_blocklist.is_user_force_revoked(102, 0) is False
 
 
-def _loader(app):
-    from extensions import jwt
-    return jwt._token_in_blocklist_callback
-
-
 @pytest.mark.parametrize("fail_open, expected", [(False, True), (True, False)])
-def test_loader_respects_fail_open_for_force_revoke_errors(app, monkeypatch, fail_open, expected):
-    with app.app_context():
-        monkeypatch.setitem(app.config, "TESTING", False)
-        monkeypatch.setitem(app.config, "JWT_BLOCKLIST_FAIL_OPEN", fail_open)
-        monkeypatch.setattr(token_blocklist, "is_token_revoked", lambda *a, **k: False)
-        monkeypatch.setattr(token_blocklist, "is_user_force_revoked", lambda *a, **k: (_ for _ in ()).throw(ConnectionError("redis down")))
-        result = _loader(app)({"alg": "HS256"}, {"jti": "j", "sub": "1", "iat": 0, "type": "access"})
-        assert result is expected
+def test_loader_respects_fail_open_for_force_revoke_errors(monkeypatch, fail_open, expected):
+    previous_loader = extensions.jwt._token_in_blocklist_callback
+    dedicated_app = create_app(
+        TESTING=False,
+        JWT_BLOCKLIST_FAIL_OPEN=fail_open,
+        SQLALCHEMY_DATABASE_URI="sqlite:///:memory:",
+    )
+    try:
+        loader = extensions.jwt._token_in_blocklist_callback
+        with dedicated_app.app_context():
+            monkeypatch.setattr(token_blocklist, "is_token_revoked", lambda *a, **k: False)
+            monkeypatch.setattr(token_blocklist, "is_user_force_revoked", lambda *a, **k: (_ for _ in ()).throw(ConnectionError("redis down")))
+            result = loader({"alg": "HS256"}, {"jti": "j", "sub": "1", "iat": 0, "type": "access"})
+            assert result is expected
+    finally:
+        extensions.jwt._token_in_blocklist_callback = previous_loader
 
 
 def test_wait_logs_redis_error(app, monkeypatch, caplog):
