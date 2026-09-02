@@ -43,27 +43,40 @@ def canary(ruff):
     found={x.get('code') for x in items}; miss=sorted(KNOWN-found)
     if miss: raise ValueError('rule coverage lost: '+', '.join(miss))
 def scan():
-    if 'extend' in (BACKEND/'ruff.toml').read_text(encoding='utf-8').splitlines(): raise ValueError('backend/ruff.toml must not contain extend')
+    if any(re.match(r'^\s*extend\s*=', line) for line in (BACKEND/'ruff.toml').read_text(encoding='utf-8').splitlines()): raise ValueError('backend/ruff.toml must not contain extend; it can introduce config outside the hashed coverage')
     req=(BACKEND/'requirements-dev.txt').read_text(encoding='utf-8')
     if f'ruff=={RUFF_VERSION}' not in req.splitlines(): raise ValueError('requirements-dev.txt must pin ruff=='+RUFF_VERSION)
     r=_ruff_command(); canary(r); p=_run(r+['check','--output-format','json','--ignore-noqa','--no-respect-gitignore','--no-cache','--config',str((BACKEND/'ruff.toml').resolve()),'.'])
     if p.returncode not in (0,1): raise ValueError(f'ruff failed with exit code {p.returncode}: {p.stderr[:500]}')
     try: items=json.loads(p.stdout)
     except Exception as e: raise ValueError(f'invalid ruff JSON: {e}; ruff stderr: {p.stderr[:500]}')
-    c={b:{} for b in BUCKETS}; e7=0; f8=[]
+    c={b:{} for b in BUCKETS}; e7=[]; f8=[]
     for i in items:
         code=i.get('code'); path=i.get('filename','')
         if code not in KNOWN: raise ValueError(f'unknown diagnostic {code} in {path}')
-        if code=='E722': e7+=1
-        elif code=='F821': f8.append(path)
+        row=i.get('location',{}).get('row','?')
+        if code=='E722': e7.append((path,row))
+        elif code=='F821': f8.append((path,row))
         elif code in BUCKETS:
             rel=Path(path).resolve().relative_to(REPO_ROOT).as_posix(); c[code][rel]=c[code].get(rel,0)+1
     return {'buckets':{b:{'total':sum(v.values()),'files':v} for b,v in c.items()},'e722':e7,'f821':f8}
 def main(argv=None):
     ap=argparse.ArgumentParser(allow_abbrev=False); ap.add_argument('--baseline',type=Path,default=DEFAULT_BASELINE); ap.add_argument('--update-baseline',action='store_true'); ap.add_argument('--yes',action='store_true'); ap.add_argument('--allow-increase'); a=ap.parse_args(argv)
-    try: measured=scan(); old=validate_baseline(json.loads(a.baseline.read_text())) if a.baseline.exists() else None
+    try:
+        measured=scan(); old=None
+        if a.baseline.exists():
+            try: old=validate_baseline(json.loads(a.baseline.read_text()))
+            except (OSError,ValueError,json.JSONDecodeError) as e:
+                if not a.update_baseline: raise
+                print(f'WARNING: unable to validate existing baseline; skipping direction checks: {e}', file=sys.stderr)
+    
     except (OSError,ValueError,json.JSONDecodeError) as e: print('ERROR: '+str(e),file=sys.stderr); return 2
-    if measured['e722'] or measured['f821']: print('ERROR: zero tolerance violation',file=sys.stderr); return 1
+    if measured['e722'] or measured['f821']:
+        for code, entries in (('E722', measured['e722']), ('F821', measured['f821'])):
+            for path,row in entries:
+                rel=Path(path).resolve().relative_to(REPO_ROOT).as_posix()
+                print(f'ERROR: {code} {rel}:{row}', file=sys.stderr)
+        return 1
     if a.update_baseline:
         if not a.yes or os.environ.get('SILENT_EXC_BASELINE_WRITE')!='1' or any(os.environ.get(x) for x in ('CI','GITHUB_ACTIONS','GITLAB_CI','JENKINS_URL','BUILDKITE','TF_BUILD')): print('ERROR: baseline update requires --yes, SILENT_EXC_BASELINE_WRITE=1, and is forbidden in CI',file=sys.stderr); return 2
         rises=[]

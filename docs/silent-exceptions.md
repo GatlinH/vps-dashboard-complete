@@ -24,11 +24,14 @@ baselines are rejected; migrate explicitly with:
 python3 scripts/check-silent-exceptions.py --update-baseline --yes
 ```
 
-Current buckets are S110=39, S112=3, BLE001=213. Per-file counts and totals
-Per-file counts are monotonic non-increasing: increases and new files fail;
+Current buckets are S110=39, S112=3, BLE001=213. Per-file counts are monotonic
+non-increasing: increases and new files fail;
 decreases and deleted files pass with `progress` output. A same-file increase
 and decrease that nets to zero is a known detection gap. Changes to
-`backend/ruff.toml` likewise require updating its hash in the baseline.
+`backend/ruff.toml` likewise require updating its hash in the baseline. The
+config cannot use an `extend = ...` directive because extended files are
+outside the hash coverage. Zero-tolerance E722/F821 failures report relative
+file paths and line numbers.
 
 ## Hardened bypasses
 

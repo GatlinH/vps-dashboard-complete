@@ -245,12 +245,12 @@ def test_silent_gate_ruff_unavailable_is_operational_error(tmp_path):
 
 def _silent_baseline(files, total=None, **extra):
     total = sum(files.values()) if total is None else total
-    return {"version": 3, "ruff_config_sha256": "x", "buckets": {
+    return {"version": 4, "ruff_config_sha256": "x", "ruff_version": "0.16.5", "buckets": {
         b: {"total": total if b == "S110" else 0, "files": files if b == "S110" else {}}
         for b in silent_gate.BUCKETS}, **extra}
 
 def test_silent_v3_rejects_old_and_bool_total():
-    with pytest.raises(ValueError, match="version 3"):
+    with pytest.raises(ValueError, match="version 4"):
         silent_gate.validate_baseline({"version": 2})
     data = _silent_baseline({"a.py": 1}); data["buckets"]["S110"]["total"] = True
     with pytest.raises(ValueError):
@@ -274,11 +274,14 @@ def test_silent_gate_invalid_ruff_json_is_operational_error(tmp_path):
     env["SILENT_EXC_RUFF"] = str(fake)
     r = subprocess.run([sys.executable, str(SILENT_SCRIPT)], cwd=ROOT, text=True, capture_output=True, env=env)
     assert r.returncode == 2
-    assert "SILENT_EXC_RUFF" in r.stderr and "not parseable" in r.stderr and "Traceback" not in r.stderr
+    assert "SILENT_EXC_RUFF" in r.stderr and "invalid output" in r.stderr and "Traceback" not in r.stderr
 
 def _fake_ruff(tmp_path, payload, version="ruff 0.16.5", rc=0):
     fake = tmp_path / "ruff"
-    fake.write_text(f'#!/bin/sh\nif [ "$1" = "--version" ]; then echo {version}; else echo \'{payload}\'; exit {rc}; fi\n')
+    canary='[{"code":"E722","filename":"canary.py","location":{"row":1}},{"code":"F821","filename":"canary.py","location":{"row":2}},{"code":"S110","filename":"canary.py","location":{"row":3}},{"code":"S112","filename":"canary.py","location":{"row":4}},{"code":"BLE001","filename":"canary.py","location":{"row":5}}]'
+    fake.write_text(f'''#!/bin/sh
+if [ "$1" = "--version" ]; then echo {version}; elif printf '%s\\n' "$@" | /usr/bin/grep -q -- '--stdin-filename'; then echo '{canary}'; else echo '{payload}'; exit {rc}; fi
+''')
     fake.chmod(0o755)
     env = os.environ.copy(); env["SILENT_EXC_RUFF"] = str(fake); env["PATH"] = str(tmp_path)
     return fake, env
@@ -306,7 +309,7 @@ def test_silent_gate_version_rejected(tmp_path):
 
 def test_silent_gate_f821_is_zero_tolerance(tmp_path):
     fake = tmp_path / "ruff"
-    fake.write_text("#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo 'ruff 0.16.5'; else echo '[{\"code\":\"F821\",\"filename\":\"backend/api/broken.py\",\"location\":{\"row\":7,\"column\":1}},{\"code\":\"S110\",\"filename\":\"backend/api/existing.py\"}]'; fi\n")
+    fake.write_text("#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo 'ruff 0.16.5'; elif printf '%s\\n' \"$@\" | /usr/bin/grep -q -- '--stdin-filename'; then echo '[{\"code\":\"E722\"},{\"code\":\"F821\"},{\"code\":\"S110\"},{\"code\":\"S112\"},{\"code\":\"BLE001\"}]'; else echo '[{\"code\":\"F821\",\"filename\":\"backend/api/broken.py\",\"location\":{\"row\":7,\"column\":1}},{\"code\":\"S110\",\"filename\":\"backend/api/existing.py\"}]'; fi\n")
     fake.chmod(0o755)
     env = os.environ.copy(); env["PATH"] = str(tmp_path); env["SILENT_EXC_RUFF"] = str(fake)
     r = subprocess.run([sys.executable, str(SILENT_SCRIPT)], cwd=ROOT, text=True, capture_output=True, env=env)
