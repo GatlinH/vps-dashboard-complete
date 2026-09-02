@@ -1,93 +1,106 @@
 #!/usr/bin/env python3
 """Ruff-based ratchet gate for silently swallowed exceptions."""
-import argparse, json, os, shutil, subprocess, sys
+import argparse, json, os, re, shutil, subprocess, sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BACKEND = REPO_ROOT / "backend"
 DEFAULT_BASELINE = REPO_ROOT / ".github/quality/silent-exception-baseline.json"
+KNOWN = {"E722", "F821", "S110", "S112", "BLE001"}
+BUCKETS = ("S110", "S112", "BLE001")
+RUFF_VERSION = "0.16.5"
 
 def validate_baseline(data):
-    if not isinstance(data, dict): raise ValueError("baseline must be an object")
-    files = data.get("files"); total = data.get("total")
-    if not isinstance(files, dict) or any(not isinstance(k, str) or isinstance(v, bool) or not isinstance(v, int) or v < 0 for k,v in files.items()):
-        raise ValueError("baseline files must be a string-to-nonnegative-int object")
-    if isinstance(total, bool) or not isinstance(total, int) or total < 0 or total != sum(files.values()):
-        raise ValueError("baseline total must equal sum of files")
-    return {"total": total, "files": files}
+    if not isinstance(data, dict) or data.get("version") != 2 or not isinstance(data.get("scanned_files"), int):
+        raise ValueError("baseline must use version 2 with buckets and scanned_files; run --update-baseline --yes to migrate")
+    buckets = data.get("buckets")
+    if not isinstance(buckets, dict) or set(buckets) != set(BUCKETS):
+        raise ValueError("baseline buckets must be exactly S110, S112, BLE001")
+    out = {"version": 2, "scanned_files": data["scanned_files"], "buckets": {}}
+    if data["scanned_files"] < 0: raise ValueError("scanned_files must be nonnegative")
+    for name in BUCKETS:
+        b = buckets[name]
+        if not isinstance(b, dict) or not isinstance(b.get("total"), int) or b["total"] < 0 or not isinstance(b.get("files"), dict):
+            raise ValueError(f"invalid baseline bucket {name}")
+        if any(not isinstance(k,str) or not isinstance(v,int) or isinstance(v,bool) or v < 0 for k,v in b["files"].items()) or b["total"] != sum(b["files"].values()):
+            raise ValueError(f"baseline bucket {name} total must equal sum(files.values())")
+        out["buckets"][name] = {"total": b["total"], "files": b["files"]}
+    return out
 
 def _ruff_command():
     override = os.environ.get("SILENT_EXC_RUFF")
-    candidates = [Path(override)] if override else [BACKEND / ".venv/bin/ruff"]
-    path_ruff = shutil.which("ruff")
-    if path_ruff: candidates.append(Path(path_ruff))
+    explicit = bool(override) and not (os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"))
+    if not explicit:
+        override = None
+    candidates = [Path(override)] if explicit else [BACKEND / ".venv/bin/ruff"]
+    if shutil.which("ruff"): candidates.append(Path(shutil.which("ruff")))
+    candidates.append(Path(sys.executable))
     for exe in candidates:
-        try:
-            probe = subprocess.run([str(exe), "--version"], cwd=BACKEND, text=True, capture_output=True)
-        except OSError:
+        is_py = exe.name.startswith("python")
+        cmd = [str(exe), "-m", "ruff", "--version"] if is_py else [str(exe), "--version"]
+        try: p = subprocess.run(cmd, cwd=BACKEND, text=True, capture_output=True)
+        except OSError as exc:
+            if explicit: raise ValueError(f"SILENT_EXC_RUFF={exe} is unusable: {exc}")
             continue
-        if probe.returncode == 0:
-            return [str(exe)]
-    try:
-        probe = subprocess.run([sys.executable, "-m", "ruff", "--version"], cwd=BACKEND, text=True, capture_output=True)
-    except OSError:
-        probe = None
-    if probe is not None and probe.returncode == 0:
-        return [sys.executable, "-m", "ruff"]
-    raise ValueError("ruff unavailable; install ruff==0.16.5 from requirements-dev.txt")
+        m = re.search(r"ruff\s+(\d+\.\d+\.\d+)", p.stdout)
+        if p.returncode != 0:
+            if explicit: raise ValueError(f"SILENT_EXC_RUFF={exe} is unusable: --version exited {p.returncode}")
+            continue
+        if not m:
+            if explicit: raise ValueError(f"SILENT_EXC_RUFF={exe} is unusable: version output not parseable: {p.stdout.strip()!r}")
+            continue
+        if m.group(1) != RUFF_VERSION:
+            if explicit: raise ValueError(f"SILENT_EXC_RUFF={exe} is unusable: ruff version {m.group(1)} does not match required {RUFF_VERSION}")
+            continue
+        resolved = " ".join(cmd[:-1]) if is_py else str(exe.resolve())
+        print(f"resolved ruff: {resolved} {m.group(1)}")
+        return [str(exe), "-m", "ruff"] if is_py else [str(exe)]
+    raise ValueError(f"ruff unavailable; install ruff=={RUFF_VERSION}")
 
 def scan():
-    cmd = _ruff_command() + ["check", "--output-format", "json", "."]
+    cmd = _ruff_command() + ["check", "--output-format", "json", "--ignore-noqa", "--no-respect-gitignore", "--no-cache", "--config", str((BACKEND / "ruff.toml").resolve()), "."]
     try: p = subprocess.run(cmd, cwd=BACKEND, text=True, capture_output=True)
     except OSError as exc: raise ValueError(f"ruff unavailable: {exc}")
-    if any(x in p.stderr.lower() for x in ("no module named", "not found", "error:")):
-        raise ValueError(f"ruff failed to start: {p.stderr.strip()}")
     try: items = json.loads(p.stdout)
-    except (json.JSONDecodeError, TypeError) as exc: raise ValueError(f"invalid ruff JSON: {exc}")
+    except Exception as exc: raise ValueError(f"invalid ruff JSON: {exc}")
+    if p.returncode not in (0,1): raise ValueError(f"ruff failed with exit code {p.returncode}")
     if not isinstance(items, list): raise ValueError("invalid ruff JSON: expected array")
-    counts = {}; e722 = 0; f821 = []
+    counts = {b:{} for b in BUCKETS}; e722=0; f821=[]; files=set()
     for item in items:
-        code = item.get("code"); path = item.get("filename", "")
+        code=item.get("code"); path=item.get("filename", "")
+        if code not in KNOWN: raise ValueError(f"unknown diagnostic {code} in {path}: {item.get('message','')}; scan incomplete, refusing determination")
+        if path: files.add(path)
         if code == "E722": e722 += 1
-        elif code == "F821":
-            loc = item.get("location", {}).get("row")
-            f821.append((path, loc))
-        elif code in {"S110", "S112"}:
-            rel = Path(path).resolve().relative_to(REPO_ROOT).as_posix()
-            counts[rel] = counts.get(rel, 0) + 1
-    return {"total": sum(counts.values()), "files": counts, "e722": e722, "f821": f821}
+        elif code == "F821": f821.append((path,item.get("location",{}).get("row")))
+        elif code in BUCKETS:
+            rel=Path(path).resolve().relative_to(REPO_ROOT).as_posix(); counts[code][rel]=counts[code].get(rel,0)+1
+    return {"buckets": {b:{"total":sum(v.values()),"files":v} for b,v in counts.items()}, "e722":e722,"f821":f821,"scanned_files":len(files)}
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(allow_abbrev=False)
-    ap.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
-    ap.add_argument("--update-baseline", action="store_true"); ap.add_argument("--yes", action="store_true", help=argparse.SUPPRESS)
-    args = ap.parse_args(argv)
+    ap=argparse.ArgumentParser(allow_abbrev=False); ap.add_argument("--baseline",type=Path,default=DEFAULT_BASELINE); ap.add_argument("--update-baseline",action="store_true"); ap.add_argument("--yes",action="store_true",help=argparse.SUPPRESS); a=ap.parse_args(argv)
     try:
-        measured = scan()
-        if not args.baseline.exists() and not args.update_baseline: raise ValueError(f"baseline file not found: {args.baseline.resolve()}")
-        baseline = validate_baseline(json.loads(args.baseline.read_text())) if args.baseline.exists() else {"total":0,"files":{}}
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
-        print(f"ERROR: {exc}", file=sys.stderr); return 2
-    print(json.dumps(measured, indent=2, sort_keys=True))
-    if measured["e722"]: print(f"ERROR: E722 count must remain zero (found {measured['e722']})", file=sys.stderr); return 1
-    if measured["f821"]:
-        for path, row in measured["f821"]:
-            suffix = f":{row}" if row else ""
-            print(f"ERROR: F821 count must remain zero: {path}{suffix}", file=sys.stderr)
-        return 1
-    if args.update_baseline:
-        if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"): print("ERROR: baseline updates are forbidden in CI", file=sys.stderr); return 2
-        if not (args.yes or os.environ.get("SILENT_EXC_BASELINE_WRITE") == "1"): print("ERROR: baseline update requires --yes or SILENT_EXC_BASELINE_WRITE=1", file=sys.stderr); return 2
-        if not measured["files"]: print("ERROR: refusing to write an empty silent-exception baseline", file=sys.stderr); return 2
-        args.baseline.parent.mkdir(parents=True, exist_ok=True); args.baseline.write_text(json.dumps({"total":measured["total"],"files":measured["files"]}, indent=2)+"\n")
-        print(f"Updated baseline: {args.baseline}"); return 3
-    errors=[]; bf=baseline["files"]
-    if not measured["files"]: errors.append("silent-exception scan found no findings; refusing fail-open")
-    if measured["total"] > baseline["total"]: errors.append(f"total: {measured['total']} exceeds baseline {baseline['total']}")
-    for n,c in measured["files"].items():
-        if c > bf.get(n, 0): errors.append(f"{n}: {c} exceeds baseline {bf.get(n,0)}")
-    new=set(measured["files"])-set(bf)
-    if new: errors.append("new files require explicit baseline update: " + ", ".join(sorted(new)))
-    if errors: print("\n".join("ERROR: "+e for e in errors), file=sys.stderr); return 1
+        measured=scan(); baseline=None
+        if a.baseline.exists() and not a.update_baseline: baseline=validate_baseline(json.loads(a.baseline.read_text()))
+        if baseline is None and not a.update_baseline: raise ValueError(f"baseline file not found: {a.baseline.resolve()}")
+    except (OSError,ValueError,json.JSONDecodeError) as e: print(f"ERROR: {e}",file=sys.stderr); return 2
+    print(json.dumps(measured,indent=2,sort_keys=True))
+    if measured["e722"]: print(f"ERROR: E722 count must remain zero (found {measured['e722']})",file=sys.stderr); return 1
+    if measured["f821"]: print("ERROR: F821 count must remain zero: "+", ".join(p for p,_ in measured["f821"]),file=sys.stderr); return 1
+    if a.update_baseline:
+        if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") or not (a.yes or os.environ.get("SILENT_EXC_BASELINE_WRITE")=="1"): print("ERROR: baseline update requires --yes and is forbidden in CI",file=sys.stderr); return 2
+        data={"version":2,"scanned_files":measured["scanned_files"],"buckets":measured["buckets"]}; a.baseline.parent.mkdir(parents=True,exist_ok=True); a.baseline.write_text(json.dumps(data,indent=2)+"\n"); print(f"Updated baseline: {a.baseline}"); return 3
+    errors=[]
+    if measured["scanned_files"] < baseline["scanned_files"]: errors.append(f"scanned={measured['scanned_files']} baseline={baseline['scanned_files']}")
+    for b in BUCKETS:
+        bf=baseline["buckets"][b]["files"]; mf=measured["buckets"][b]["files"]
+        for f in set(bf)-set(mf):
+            if (REPO_ROOT/f).exists(): errors.append(f"{f}: exists in tree but produced no findings (excluded/ignored/unscanned?)")
+            else: print(f"cleared: {f}")
+        expected=sum(min(v,mf.get(f,0)) for f,v in bf.items())
+        if sum(mf.values()) > expected: errors.append(f"{b} total exceeds reconciled baseline")
+        for f,c in mf.items():
+            if c > bf.get(f,0): errors.append(f"{b} {f}: {c} exceeds baseline {bf.get(f,0)}")
+        if set(mf)-set(bf): errors.append(f"new files require explicit baseline update in {b}")
+    if errors: print("\n".join("ERROR: "+e for e in errors),file=sys.stderr); return 1
     print("SILENT_EXC_GATE_OK"); return 0
 if __name__ == "__main__": raise SystemExit(main())

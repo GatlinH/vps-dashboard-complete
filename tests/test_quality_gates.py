@@ -246,12 +246,39 @@ def test_silent_gate_invalid_ruff_json_is_operational_error(tmp_path):
     env["SILENT_EXC_RUFF"] = str(fake)
     r = subprocess.run([sys.executable, str(SILENT_SCRIPT)], cwd=ROOT, text=True, capture_output=True, env=env)
     assert r.returncode == 2
-    assert "ERROR:" in r.stderr and "Traceback" not in r.stderr
+    assert "SILENT_EXC_RUFF" in r.stderr and "not parseable" in r.stderr and "Traceback" not in r.stderr
+
+def _fake_ruff(tmp_path, payload, version="ruff 0.16.5", rc=0):
+    fake = tmp_path / "ruff"
+    fake.write_text(f'#!/bin/sh\nif [ "$1" = "--version" ]; then echo {version}; else echo \'{payload}\'; exit {rc}; fi\n')
+    fake.chmod(0o755)
+    env = os.environ.copy(); env["SILENT_EXC_RUFF"] = str(fake); env["PATH"] = str(tmp_path)
+    return fake, env
+
+def test_silent_gate_non_json_after_valid_version(tmp_path):
+    _, env = _fake_ruff(tmp_path, "boom")
+    r = run_script(SILENT_SCRIPT, env=env)
+    assert r.returncode == 2 and "invalid ruff JSON" in r.stderr
+
+def test_silent_gate_invalid_and_unknown_codes(tmp_path):
+    for code in ("invalid-syntax", "Z999", "null"):
+        _, env = _fake_ruff(tmp_path, json.dumps([{"code": None if code == "null" else code, "filename": "backend/x.py"}]))
+        r = run_script(SILENT_SCRIPT, env=env)
+        assert r.returncode == 2
+
+def test_silent_gate_ruff_nonzero_json(tmp_path):
+    _, env = _fake_ruff(tmp_path, "[]", rc=2)
+    assert run_script(SILENT_SCRIPT, env=env).returncode == 2
+
+def test_silent_gate_version_rejected(tmp_path):
+    for version in ("ruff 0.1.0", "ruff"):
+        _, env = _fake_ruff(tmp_path, "[]", version=version)
+        assert run_script(SILENT_SCRIPT, env=env).returncode == 2
 
 
 def test_silent_gate_f821_is_zero_tolerance(tmp_path):
     fake = tmp_path / "ruff"
-    fake.write_text("#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo ruff; else echo '[{\"code\":\"F821\",\"filename\":\"backend/api/broken.py\",\"location\":{\"row\":7,\"column\":1}},{\"code\":\"S110\",\"filename\":\"backend/api/existing.py\"}]'; fi\n")
+    fake.write_text("#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo 'ruff 0.16.5'; else echo '[{\"code\":\"F821\",\"filename\":\"backend/api/broken.py\",\"location\":{\"row\":7,\"column\":1}},{\"code\":\"S110\",\"filename\":\"backend/api/existing.py\"}]'; fi\n")
     fake.chmod(0o755)
     env = os.environ.copy(); env["PATH"] = str(tmp_path); env["SILENT_EXC_RUFF"] = str(fake)
     r = subprocess.run([sys.executable, str(SILENT_SCRIPT)], cwd=ROOT, text=True, capture_output=True, env=env)
