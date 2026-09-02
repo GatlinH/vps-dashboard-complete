@@ -22,8 +22,9 @@ result. Do not compare the baseline directly with a command that adds
 `--exclude` changes the scanned set as well, so the numbers will necessarily
 differ.
 
-E722 is not part of the baseline. It must always be zero; any bare `except`
-causes the gate to return 1. BLE001 is present in `ruff.toml`'s select list so
+E722 and F821 are not part of the baseline. Both must always be zero; any bare
+`except` or undefined name causes the gate to return 1, with file and line
+reported for F821. BLE001 is present in `ruff.toml`'s select list so
 developers can inspect it locally, but it is not included in the baseline gate.
 The current count is 213 (Hermes measurement); this batch does not remediate
 it and there is no gate/ratchet protecting that count.
@@ -63,7 +64,7 @@ python3 scripts/check-silent-exceptions.py --update-baseline --yes
 
 ## Known blind spots
 
-The gate covers only S110 and S112. Patterns such as `except: return` with a
+The gate ratchet covers only S110 and S112. Patterns such as `except: return` with a
 sentinel (`None`, `False`, `0`, `[]`, etc.) are outside those rules. Hermes'
 precise AST scan found 109 silently swallowed exceptions in backend production
 code: 83 `pass`, 10 `return False`, 9 `return None`, 5 `continue`, 4 empty

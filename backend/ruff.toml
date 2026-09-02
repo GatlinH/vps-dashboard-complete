@@ -1,4 +1,4 @@
 target-version = "py311"
 exclude = [".venv", "__pycache__", "migrations", "tests"]
 [lint]
-select = ["E722", "S110", "S112", "BLE001"]
+select = ["E722", "F821", "S110", "S112", "BLE001"]

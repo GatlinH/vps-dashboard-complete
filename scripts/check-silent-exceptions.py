@@ -45,14 +45,17 @@ def scan():
     try: items = json.loads(p.stdout)
     except (json.JSONDecodeError, TypeError) as exc: raise ValueError(f"invalid ruff JSON: {exc}")
     if not isinstance(items, list): raise ValueError("invalid ruff JSON: expected array")
-    counts = {}; e722 = 0
+    counts = {}; e722 = 0; f821 = []
     for item in items:
         code = item.get("code"); path = item.get("filename", "")
         if code == "E722": e722 += 1
+        elif code == "F821":
+            loc = item.get("location", {}).get("row")
+            f821.append((path, loc))
         elif code in {"S110", "S112"}:
             rel = Path(path).resolve().relative_to(REPO_ROOT).as_posix()
             counts[rel] = counts.get(rel, 0) + 1
-    return {"total": sum(counts.values()), "files": counts, "e722": e722}
+    return {"total": sum(counts.values()), "files": counts, "e722": e722, "f821": f821}
 
 def main(argv=None):
     ap = argparse.ArgumentParser(allow_abbrev=False)
@@ -67,6 +70,11 @@ def main(argv=None):
         print(f"ERROR: {exc}", file=sys.stderr); return 2
     print(json.dumps(measured, indent=2, sort_keys=True))
     if measured["e722"]: print(f"ERROR: E722 count must remain zero (found {measured['e722']})", file=sys.stderr); return 1
+    if measured["f821"]:
+        for path, row in measured["f821"]:
+            suffix = f":{row}" if row else ""
+            print(f"ERROR: F821 count must remain zero: {path}{suffix}", file=sys.stderr)
+        return 1
     if args.update_baseline:
         if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"): print("ERROR: baseline updates are forbidden in CI", file=sys.stderr); return 2
         if not (args.yes or os.environ.get("SILENT_EXC_BASELINE_WRITE") == "1"): print("ERROR: baseline update requires --yes or SILENT_EXC_BASELINE_WRITE=1", file=sys.stderr); return 2

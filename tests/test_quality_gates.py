@@ -228,3 +228,13 @@ def test_silent_gate_invalid_ruff_json_is_operational_error(tmp_path):
     r = subprocess.run([sys.executable, str(SILENT_SCRIPT)], cwd=ROOT, text=True, capture_output=True, env=env)
     assert r.returncode == 2
     assert "ERROR:" in r.stderr and "Traceback" not in r.stderr
+
+
+def test_silent_gate_f821_is_zero_tolerance(tmp_path):
+    fake = tmp_path / "ruff"
+    fake.write_text("#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo ruff; else echo '[{\"code\":\"F821\",\"filename\":\"backend/api/broken.py\",\"location\":{\"row\":7,\"column\":1}},{\"code\":\"S110\",\"filename\":\"backend/api/existing.py\"}]'; fi\n")
+    fake.chmod(0o755)
+    env = os.environ.copy(); env["PATH"] = str(tmp_path); env["SILENT_EXC_RUFF"] = str(fake)
+    r = subprocess.run([sys.executable, str(SILENT_SCRIPT)], cwd=ROOT, text=True, capture_output=True, env=env)
+    assert r.returncode == 1
+    assert "F821" in r.stderr and "backend/api/broken.py" in r.stderr

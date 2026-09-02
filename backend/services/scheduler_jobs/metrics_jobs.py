@@ -12,6 +12,7 @@ def _job_traffic_accumulate(app):
     旧代码把它当 MB/s，累计流量会被放大约 1024 倍。
     """
     from extensions import db, redis_client
+    log = logging.getLogger(__name__)
     from models.models import Server
     with app.app_context():
         servers = Server.query.filter(Server.status != 'offline').all()
@@ -50,6 +51,7 @@ def _job_monthly_traffic_reset(app):
     与调度器时区不一致时，date.today() 返回错误日期导致重置时机偏差。
     """
     from api.traffic import check_monthly_resets
+    log = logging.getLogger(__name__)
     tz_name = app.config.get("SCHEDULER_TIMEZONE", "Asia/Shanghai")
     try:
         tz = ZoneInfo(tz_name)
@@ -74,4 +76,3 @@ def _job_traffic_alerts(app):
         servers = Server.query.filter(Server.traffic_limit_gb > 0).all()
         for s in servers:
             _check_and_fire_traffic_alert(s)
-

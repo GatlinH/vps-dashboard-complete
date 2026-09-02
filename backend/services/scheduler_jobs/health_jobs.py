@@ -14,7 +14,7 @@ def _job_check_alerts(app):
     当 ALERT_COOLDOWN_BACKEND=db 时：降级使用原 last_fired 逻辑（兼容/回滚路径）。
     """
     from extensions import db, redis_client as _redis
-    from models.models import Server, AlertRule, TelegramConfig
+    from models.models import Server, AlertRule, TelegramConfig, ProbeResult
     from services.alert_cooldown import check_and_set_cooldown
     from middleware.metrics_middleware import record_cooldown_check
 
@@ -84,7 +84,7 @@ def _job_check_alerts(app):
                         condition_args = ("bandwidth", current_kbs, rule.threshold)
                 elif rule.rule_type == "consecutive_failures":
                     try:
-                        fail_count = int(redis_client.get(f"vps:probe_fail:{s.id}") or 0)
+                        fail_count = int(_redis.get(f"vps:probe_fail:{s.id}") or 0)
                     except Exception:
                         fail_count = 0
                     if fail_count >= int(rule.threshold or 3):

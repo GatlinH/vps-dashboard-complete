@@ -5,6 +5,8 @@
 """
 from flask import request
 from sqlalchemy.orm import Query
+from api.servers import servers_bp
+from models.models import Server
 
 class QueryHelper:
     """查询辅助类"""

@@ -72,6 +72,7 @@ class ConfigValidator:
 # 在 app.py 中使用
 if __name__ == "__main__":
     from utils.config_validator import ConfigValidator
+    from app import create_app
     
     valid, errors = ConfigValidator.validate()
     if not valid:
