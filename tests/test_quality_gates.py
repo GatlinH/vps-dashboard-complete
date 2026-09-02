@@ -33,7 +33,7 @@ def test_css_debt_unchanged_passes_and_emits_stable_json(tmp_path):
     baseline.write_text(json.dumps({"total": 1, "files": {"z.css": 1, "a.css": 0}}))
     result = run_script(CSS_SCRIPT, "--source", src, "--baseline", baseline)
     assert result.returncode == 0
-    payload = json.loads(result.stdout)
+    payload = json.JSONDecoder().raw_decode(result.stdout)[0]
     assert payload["files"] == 2
     assert payload["important_total"] == 1
     assert list(payload["details"]) == ["a.css", "z.css"]
@@ -118,8 +118,33 @@ def test_orphan_warning_and_strict_failure(tmp_path):
     src = write_css_tree(tmp_path, {"a.css": "x{}\n"})
     b = tmp_path / "b.json"; b.write_text(json.dumps({"total": 0, "files": {"gone.css": 0, "a.css": 0}}))
     r = run_script(CSS_SCRIPT, "--source", src, "--baseline", b)
-    assert r.returncode != 0 and "WARNING" in r.stderr
-    assert run_script(CSS_SCRIPT, "--strict", "--source", src, "--baseline", b).returncode != 0
+    assert r.returncode != 0 and "baseline orphan" in r.stderr
+    assert run_script(CSS_SCRIPT, "--source", src, "--baseline", b).returncode != 0
+
+def test_update_requires_confirmation_and_returns_three(tmp_path):
+    src = write_css_tree(tmp_path, {"a.css": "x{color:red !important}"})
+    b = tmp_path / "b.json"; b.write_text(json.dumps({"total": 1, "files": {"old.css": 1}}))
+    r = run_script(CSS_SCRIPT, "--source", src, "--baseline", b, "--update-baseline")
+    assert r.returncode == 2
+    assert json.loads(b.read_text())["files"] == {"old.css": 1}
+    r = run_script(CSS_SCRIPT, "--source", src, "--baseline", b, "--update-baseline", "--yes")
+    assert r.returncode == 3
+
+def test_css_uppercase_extension_and_case_collision(tmp_path):
+    src = write_css_tree(tmp_path, {"Sneaky.CSS": "x{} !important"})
+    b = tmp_path / "b.json"; b.write_text(json.dumps({"total": 0, "files": {}}))
+    assert run_script(CSS_SCRIPT, "--source", src, "--baseline", b).returncode != 0
+    write_css_tree(tmp_path, {"a.css": "x{}", "A.CSS": "x{}"})
+    assert run_script(CSS_SCRIPT, "--source", src, "--baseline", b).returncode != 0
+
+def test_parity_hardlink_rejected(tmp_path):
+    a=tmp_path/"a.py"; b=tmp_path/"b.py"; a.write_text("x"); b.hardlink_to(a)
+    assert run_script(TASK_SCRIPT, "--files", a, b).returncode != 0
+
+def test_parity_defaults_are_repo_anchored(tmp_path):
+    fake=tmp_path/"scripts"; fake.mkdir(); (fake/"agent_tasks.py").write_text("FAKE"); (fake/"windows").mkdir(); (fake/"windows/agent_tasks.py").write_text("FAKE")
+    r=subprocess.run([sys.executable,str(TASK_SCRIPT)],cwd=tmp_path,text=True,capture_output=True)
+    assert r.returncode == 0 and str((ROOT/"scripts/agent_tasks.py").resolve()) in r.stdout
 
 
 def test_agent_tasks_parity_passes_and_detects_drift(tmp_path):
