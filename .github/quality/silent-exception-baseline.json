@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "ruff_config_sha256": "e7a6475996722d1d9712e78acedf7feb6e0ef2c025af49167a68aa25be149a89",
   "buckets": {
     "S110": {
@@ -79,5 +79,6 @@
         "backend/workers/agent_consumer.py": 3
       }
     }
-  }
+  },
+  "ruff_version": "0.16.5"
 }
