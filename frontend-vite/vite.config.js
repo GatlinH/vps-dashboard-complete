@@ -38,6 +38,32 @@ function precompressAssets() {
   };
 }
 
+function manualChunks(id) {
+  if (id.includes('node_modules/chart.js')) return 'chart';
+  if (id.includes('node_modules/cesium') || id.includes('node_modules/@cesium/')) return 'cesium';
+  if ([
+    '/src/components/CesiumGlobe.js',
+    '/src/components/CesiumDeckGlobe.js',
+    '/src/components/cesium-lod-apply.js',
+    '/src/components/cesium-lod-state.js',
+    '/src/components/globe/globeLod.js',
+    '/src/components/globe/globeViewState.js',
+    '/src/components/globe/imageryProviders.js',
+    '/src/components/globe/maptilerLayer.js',
+    '/src/components/globe/runtime/imageryStack.js',
+    '/src/components/globe/runtime/labelOverlay.js',
+    '/src/components/globe/runtime/renderLoop.js',
+    '/src/components/globe/runtime/sceneRuntimeState.js',
+    '/src/components/globe/runtime/sceneSetup.js',
+    '/src/components/globe/runtime/terrainClamp.js',
+    '/src/components/globe/runtime/visitorBeacon.js',
+    '/src/components/globe/vpsEntities.js',
+  ].some((path) => id.includes(path))) return 'cesium';
+  if (id.includes('node_modules/@deck.gl') || id.includes('node_modules/@luma.gl')) return 'deckgl';
+  if (id.includes('node_modules')) return 'vendor';
+  if (id.includes('/src/components/')) return 'components';
+}
+
 export default defineConfig({
   envDir: '..',   // 从仓库根读取 .env(集中管理密钥)
   define: {
@@ -65,13 +91,18 @@ export default defineConfig({
         admin: resolve(__dirname, 'admin.html'),
       },
       output: {
-        manualChunks(id) {
-          if (id.includes('node_modules/chart.js')) return 'chart';
-          if (id.includes('node_modules/cesium') || id.includes('node_modules/@cesium/engine')) return 'cesium';
-          if (id.includes('/src/components/CesiumGlobe.js')) return 'cesium';
-          if (id.includes('node_modules/@deck.gl') || id.includes('node_modules/@luma.gl')) return 'deckgl';
-          if (id.includes('node_modules')) return 'vendor';
-          if (id.includes('/src/components/')) return 'components';
+        codeSplitting: {
+          groups: [
+            {
+              name: 'cesium',
+              test: (id) => manualChunks(id) === 'cesium',
+              includeDependenciesRecursively: false,
+            },
+            ...['chart', 'deckgl', 'vendor', 'components'].map((name) => ({
+              name,
+              test: (id) => manualChunks(id) === name,
+            })),
+          ],
         },
         chunkFileNames: 'assets/[name]-[hash].js',
         entryFileNames: 'assets/[name]-[hash].js',

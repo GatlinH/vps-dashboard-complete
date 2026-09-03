@@ -499,6 +499,8 @@ async function getGlobe() {
     globePromise = null;
     return null;
   });
+
+  return globePromise;
 }
 
 let solarEscapeHandler = null;

@@ -379,15 +379,22 @@ async def check_c():
 async def check_d_problems():
     """Cesium must be absent on first paint."""
     dom_cesium = await js("!!document.querySelector('.cesium-viewer')")
-    cesium_net = [u for u in NET_URLS if ("cesium" in u.lower() or "Cesium" in u) and "/Widgets/" in u]
+    cesium_net = [u for u in NET_URLS if "cesium" in u.lower()]
     if not dom_cesium and not cesium_net:
         print("PASS: D - Cesium absent on first paint")
         return True
     detail = []
     if dom_cesium:
         detail.append(".cesium-viewer present in DOM")
-    if cesium_net:
-        detail.append("%d cesium asset request(s), e.g. %s" % (len(cesium_net), cesium_net[0][:120]))
+    cesium_js = [u for u in cesium_net if u.lower().split("?", 1)[0].endswith(".js")]
+    cesium_css = [u for u in cesium_net if u.lower().split("?", 1)[0].endswith(".css")]
+    cesium_other = [u for u in cesium_net if u not in cesium_js and u not in cesium_css]
+    if cesium_js:
+        detail.append("Cesium JS requested early: %s" % ", ".join(cesium_js))
+    if cesium_css:
+        detail.append("Cesium stylesheet requested early: %s" % ", ".join(cesium_css))
+    if cesium_other:
+        detail.append("other Cesium resource(s) requested early: %s" % ", ".join(cesium_other))
     print("FAIL: D - Cesium loaded on first paint (%s)" % "; ".join(detail))
     return False
 
