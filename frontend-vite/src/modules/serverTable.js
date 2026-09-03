@@ -491,21 +491,48 @@ function getGlobe() {
   return globe;
 }
 
+let solarEscapeHandler = null;
+
+function showSolarSystem() {
+  const globeEl = document.getElementById('globe-container');
+  const systemEl = document.getElementById('solar-system-container');
+  if (globeEl) globeEl.style.display = 'none';
+  if (systemEl) systemEl.style.display = '';
+  solarSystem?.resume?.();
+}
+
+function showCesiumGlobe() {
+  const systemEl = document.getElementById('solar-system-container');
+  const globeEl = document.getElementById('globe-container');
+  if (systemEl) systemEl.style.display = 'none';
+  if (globeEl) globeEl.style.display = '';
+  solarSystem?.pause?.();
+  getGlobe()?.updateServers(state.servers);
+}
+
+function isCesiumVisible() {
+  const globeEl = document.getElementById('globe-container');
+  return !!globeEl && globeEl.style.display !== 'none';
+}
+
 function initGlobe() {
   solarSystem?.destroy?.();
   solarSystem = new SolarSystem('#solar-system-container', {
-    onEarthClick: () => { const system = document.getElementById('solar-system-container'); const cesium = document.getElementById('globe-container'); if (system) system.style.display = 'none'; if (cesium) cesium.style.display = ''; getGlobe()?.updateServers(state.servers); },
-    onSunClick: () => { if (typeof window.openFrontLogin === 'function') window.openFrontLogin(); else location.href = '/?login=1'; },
+    onEarthClick: () => showCesiumGlobe(),
+    onSunClick: () => {
+      if (typeof window.openFrontLogin === 'function') window.openFrontLogin();
+      else location.href = '/?login=1';
+    },
     onMoonClick: () => window.openMoonOverview?.(),
   });
-  if (!window.__solarEscapeHandler) window.__solarEscapeHandler = (event) => {
-    if (event.key !== 'Escape' || !solarSystem || document.getElementById('globe-container')?.style.display === 'none') return;
-    document.getElementById('globe-container')?.style.setProperty('display', 'none');
-    const system = document.getElementById('solar-system-container'); if (system) system.style.display = '';
-    solarSystem.running = true;
+  // Drop the handler from a previous initGlobe() call so listeners cannot stack up.
+  if (solarEscapeHandler) document.removeEventListener('keydown', solarEscapeHandler);
+  solarEscapeHandler = (event) => {
+    if (event.key !== 'Escape') return;
+    if (!isCesiumVisible()) return;
+    showSolarSystem();
   };
-  document.addEventListener('keydown', window.__solarEscapeHandler);
-  window.addEventListener('beforeunload', () => { if (window.__solarEscapeHandler) document.removeEventListener('keydown', window.__solarEscapeHandler); });
+  document.addEventListener('keydown', solarEscapeHandler);
 }
 
 const API_ROOT = window.__DBG__.API_ROOT || (location.port === "5000" ? `${location.protocol}//${location.hostname}:5000` : location.origin);
