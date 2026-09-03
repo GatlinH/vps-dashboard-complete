@@ -17,7 +17,7 @@
     "test:cesium-starship-home": "node scripts/verify-single-renderer-home.mjs",
     "test:single-renderer-home": "node scripts/verify-single-renderer-home.mjs",
     "test:solar-system-home": "node scripts/verify-solar-system-home.mjs",
-    "test:solar-system-behavior": "node scripts/verify-solar-system-behavior.mjs",
+    "test:solar-system-behavior": "python3 scripts/verify_solar_system_behavior.py",
     "check:css-important": "node scripts/check-css-important.mjs",
     "check:source-surfaces": "node scripts/check-source-surfaces.mjs",
     "lint": "eslint src/",
