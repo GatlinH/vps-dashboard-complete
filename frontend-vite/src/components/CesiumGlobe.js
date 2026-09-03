@@ -1256,3 +1256,4 @@ export class CesiumGlobe {
     if (this.container) this.container.replaceChildren();
   }
 }
+import 'cesium/Build/Cesium/Widgets/widgets.css';

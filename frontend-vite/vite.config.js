@@ -146,7 +146,7 @@ export default defineConfig({
       injectManifest: {
         injectionPoint: 'self.__WB_MANIFEST',
         globPatterns: ['**/*.{js,css,html,svg,woff,woff2}'],
-        globIgnores: ['**/node_modules/**/*'],
+        globIgnores: ['**/node_modules/**/*', '**/cesium/**/*', '**/assets/cesium-*'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
       },
       devOptions: {
