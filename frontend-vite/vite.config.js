@@ -67,7 +67,8 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules/chart.js')) return 'chart';
-          if (id.includes('node_modules/cesium')) return undefined;
+          if (id.includes('node_modules/cesium') || id.includes('node_modules/@cesium/engine')) return 'cesium';
+          if (id.includes('/src/components/CesiumGlobe.js')) return 'cesium';
           if (id.includes('node_modules/@deck.gl') || id.includes('node_modules/@luma.gl')) return 'deckgl';
           if (id.includes('node_modules')) return 'vendor';
           if (id.includes('/src/components/')) return 'components';
@@ -95,6 +96,15 @@ export default defineConfig({
       rebuildCesium: true,
       cesiumBaseUrl: '/cesium',
     }),
+    {
+      name: 'remove-cesium-widget-link',
+      enforce: 'post',
+      transformIndexHtml(html) {
+        return html
+          .replace(/<link[^>]+href=["']\/cesium\/Widgets\/widgets\.css["'][^>]*>/gi, '')
+          .replace(/<link[^>]+rel=["']modulepreload["'][^>]+href=["'][^"']*cesium-[^"']+["'][^>]*>/gi, '');
+      },
+    },
     VitePWA({
       injectRegister: false,
       registerType: 'autoUpdate',

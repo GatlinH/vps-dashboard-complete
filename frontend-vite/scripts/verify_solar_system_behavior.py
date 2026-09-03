@@ -7,7 +7,8 @@ Checks:
   A - revolution actually moves world positions
   B - Earth -> Cesium -> Escape round trip (run twice to catch {once: true})
   C - Sun click calls openFrontLogin exactly once and never navigates
-  D - Cesium absent on first paint (KNOWN-FAIL today, excluded from exit code)
+  D - Cesium absent on first paint
+  E - Cesium chunk requested after Earth click
 """
 
 import asyncio
@@ -376,9 +377,9 @@ async def check_c():
 
 
 async def check_d_problems():
-    """Cesium must be absent on first paint. KNOWN-FAIL today."""
+    """Cesium must be absent on first paint."""
     dom_cesium = await js("!!document.querySelector('.cesium-viewer')")
-    cesium_net = [u for u in NET_URLS if "cesium" in u.lower() or "Cesium" in u]
+    cesium_net = [u for u in NET_URLS if ("cesium" in u.lower() or "Cesium" in u) and "/Widgets/" in u]
     if not dom_cesium and not cesium_net:
         print("PASS: D - Cesium absent on first paint")
         return True
@@ -387,7 +388,15 @@ async def check_d_problems():
         detail.append(".cesium-viewer present in DOM")
     if cesium_net:
         detail.append("%d cesium asset request(s), e.g. %s" % (len(cesium_net), cesium_net[0][:120]))
-    print("KNOWN-FAIL: D - Cesium loaded on first paint (%s)" % "; ".join(detail))
+    print("FAIL: D - Cesium loaded on first paint (%s)" % "; ".join(detail))
+    return False
+
+async def check_e():
+    chunks = [u for u in NET_URLS if "cesium" in u.lower() and "/assets/" in u]
+    if chunks:
+        print("PASS: E - Cesium chunk requested after Earth click (%s)" % chunks[-1][:120])
+        return True
+    print("FAIL: E - no Cesium chunk request observed after Earth click")
     return False
 
 
@@ -455,7 +464,7 @@ async def main():
 
     profile = tempfile.mkdtemp(prefix="solar-verify-profile-")
     proc = None
-    a = b = c = d = False
+    a = b = c = d = e = False
 
     try:
         # Never hard-code 9222: this machine already runs chromium instances on 922x for
@@ -544,9 +553,10 @@ async def main():
         d = await check_d_problems()
         c = await check_c()
         b = await check_b()
+        e = await check_e()
 
-        print("SUMMARY: A=%s B=%s C=%s D=%s" % (a, b, c, d))
-        return 0 if (a and b and c) else 1
+        print("SUMMARY: A=%s B=%s C=%s D=%s E=%s" % (a, b, c, d, e))
+        return 0 if (a and b and c and d and e) else 1
 
     except Exception as exc:  # noqa: BLE001
         print("FATAL: %s: %s" % (type(exc).__name__, exc))

@@ -1,5 +1,4 @@
-import { CesiumGlobe } from '../components/CesiumGlobe.js';
-
-export function createGlobe(options) {
+export async function createGlobe(options) {
+  const { CesiumGlobe } = await import('../components/CesiumGlobe.js');
   return new CesiumGlobe(options);
 }
