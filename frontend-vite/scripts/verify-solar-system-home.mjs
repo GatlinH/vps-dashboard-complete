@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const table = readFileSync(new URL('../src/modules/serverTable.js', import.meta.url), 'utf8');
+const solar = readFileSync(new URL('../src/components/SolarSystem.js', import.meta.url), 'utf8');
+const entry = readFileSync(new URL('../src/ui/sunMoonEntry.js', import.meta.url), 'utf8');
+const css = readFileSync(new URL('../src/styles/starfleet-theme.css', import.meta.url), 'utf8');
+assert.match(table, /id="solar-system-container"/);
+assert.doesNotMatch(table, /globeSunMount|globeMoonRoot|globeMoonPanel/);
+assert.doesNotMatch(table, /renderSunBadge|renderMoonPanel/);
+assert.match(solar, /onSunClick/); assert.match(solar, /onMoonClick/); assert.match(solar, /onEarthClick/);
+assert.match(table, /openFrontLogin/); assert.match(table, /openMoonOverview/); assert.match(table, /new CesiumGlobe/);
+assert.equal((solar.match(/new THREE\.WebGLRenderer/g) || []).length, 1);
+assert.equal((solar.match(/requestAnimationFrame/g) || []).length, 1);
+assert.match(table, /modelUrl: '\/globe\/xinjian1\.glb\?v=20260728'/); assert.match(table, /fallbackModelUrl: ''/);
+assert.match(entry, /export function renderSunBadge/); assert.match(entry, /export function renderMoonPanel/);
+assert.doesNotMatch(css, /\.starship-gltf-stage\s*\{[^}]*inset:\s*0/);
+console.log('solar system home contract: ok');

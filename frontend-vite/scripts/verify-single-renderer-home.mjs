@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+const mainSource = readFileSync(new URL('../src/modules/serverTable.js', import.meta.url), 'utf8');
 const showcaseSource = readFileSync(new URL('../src/components/StarshipShowcase.js', import.meta.url), 'utf8');
 const engineSource = readFileSync(new URL('../src/components/starship/EngineFX.js', import.meta.url), 'utf8');
 const bussardSource = readFileSync(new URL('../src/components/starship/BussardFX.js', import.meta.url), 'utf8');
