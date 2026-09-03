@@ -8,12 +8,12 @@ import '../styles/detail-starmap-background.css';
 import { state } from '../store/state.js';
 import { listServersPublic, getServerDetail } from '../api/public.js';
 import { CesiumGlobe } from '../components/CesiumGlobe.js';
+import { SolarSystem } from '../components/SolarSystem.js';
 import { StarshipShowcase } from '../components/StarshipShowcase.js';
 import { TrafficChart } from '../components/TrafficChart.js';
 import { mountGlobeStarmap } from '../components/GlobeStarmapMount.jsx';
 import { toDisplay, calcResidualValue, getMonthlyPrice, getBillingMonths, updateRateDisplay, refreshExchangeRates } from '../utils/currency.js';
 import { fmtGb, getTrafficPct, getTrafficUsed } from '../utils/traffic.js';
-import { renderSunBadge, renderMoonPanel } from '../ui/sunMoonEntry.js';
 import { fetchJson, fetchPingTargetHistory, fetchPingTargets, fetchServerHistory, fetchResourceTimeline, enrichServersWithIpGeo, normalizeServer } from '../services/displayData.js';
 import { LANGUAGE_PACKS, applyLanguage, configureLanguageSwitcher, currentLanguage, safeStorageGet, safeStorageRemove, safeStorageSet, setLanguage, setTheme, t, toggleTheme } from '../core/preferences.js';
 import { renderPublicOverviewPage as renderPublicOverviewPageModule } from '../pages/overviewPage.js';
@@ -36,6 +36,7 @@ import { createDetailChartInitializer } from '../modules/chartInit.js';
 import { bindDisplayEventHandlers } from '../modules/eventHandlers.js';
 
 let globe = null;
+let solarSystem = null;
 let starshipShowcase = null;
 const serversChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('vps-servers') : null;
 window.__DBG__.STATE = state;
@@ -360,16 +361,15 @@ function mountDisplayPage() {
   const app = document.getElementById('pageRoot');
   app.innerHTML = `
     <section class="display-page-fullscreen globe-only-page" id="page-globe">
-      <div id="globe-container" class="display-globe-fullscreen immersive-globe-canvas-wrap three-globe-host"></div>
+      <div id="solar-system-container" class="display-globe-fullscreen immersive-globe-canvas-wrap three-globe-host"></div>
+      <div id="globe-container" class="display-globe-fullscreen immersive-globe-canvas-wrap three-globe-host" style="display:none"></div>
       <div class="photo-space-showcase" aria-hidden="true">
         <div class="photo-nebula-field"></div>
         <div id="starship-gltf-stage" class="starship-gltf-stage"></div>
       </div>
       <div class="globe-overlay-layer">
-        <div id="globeSunMount"></div>
         <div class="globe-focus-badge" id="globeFocusBadge"></div>
         <div class="globe-tooltip" id="globeTooltip"></div>
-        <div class="globe-moon-root" id="globeMoonRoot"><div id="globeMoonPanel"></div></div>
       </div>
     </section>`;
 }
@@ -487,17 +487,23 @@ function getGlobe() {
       starshipShowcase = null;
     }
   }
-  renderSunBadge();
-  renderMoonPanel();
   window.__DBG__.globe = globe;
   return globe;
 }
 
 function initGlobe() {
-  const instance = getGlobe();
-  instance.updateServers(state.servers);
-  renderSunBadge();
-  renderMoonPanel();
+  solarSystem?.destroy?.();
+  solarSystem = new SolarSystem('#solar-system-container', {
+    onEarthClick: () => { const system = document.getElementById('solar-system-container'); const cesium = document.getElementById('globe-container'); if (system) system.style.display = 'none'; if (cesium) cesium.style.display = ''; getGlobe()?.updateServers(state.servers); },
+    onSunClick: () => window.openFrontLogin?.() || (location.href = '/?login=1'),
+    onMoonClick: () => window.openMoonOverview?.(),
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !solarSystem) return;
+    document.getElementById('globe-container')?.style.setProperty('display', 'none');
+    const system = document.getElementById('solar-system-container'); if (system) system.style.display = '';
+    globe?.destroy?.(); globe = null;
+  }, { once: true });
 }
 
 const API_ROOT = window.__DBG__.API_ROOT || (location.port === "5000" ? `${location.protocol}//${location.hostname}:5000` : location.origin);
@@ -2145,8 +2151,6 @@ async function loadServers() {
     window.__DBG__.LAST_SERVER_PAYLOAD = payload;
     console.log('[display] loaded servers', state.servers.map(s => s.name));
     safeStorageSet('vps_servers', JSON.stringify(state.servers));
-    renderSunBadge();
-    renderMoonPanel();
   } catch (error) {
     window.__DBG__.LAST_LOAD_ERROR = { message: error?.message || String(error), stack: error?.stack || '' };
     console.warn('[display] public servers fetch failed, fallback to seeded state', error);
@@ -2489,7 +2493,6 @@ const dashboardTab = createDashboardTab({
   loadServers,
   getMountedGlobe: () => globe,
   renderOverview: renderPublicOverviewPage,
-  renderMoonPanel,
 });
 const { refresh: refreshDisplayServers, startRefresh: startSoftRefresh } = dashboardTab;
 
