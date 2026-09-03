@@ -11,6 +11,14 @@ assert.match(solar, /onSunClick/); assert.match(solar, /onMoonClick/); assert.ma
 assert.match(table, /openFrontLogin/); assert.match(table, /openMoonOverview/); assert.match(table, /new CesiumGlobe/);
 assert.equal((solar.match(/new THREE\.WebGLRenderer/g) || []).length, 1);
 assert.equal((solar.match(/requestAnimationFrame/g) || []).length, 1);
+assert.match(solar, /PointLight/);
+assert.match(solar, /LineLoop|RingGeometry/);
+assert.ok((solar.match(/name:'[^']+'/g) || []).length >= 4);
+assert.match(solar, /position\.set\(Math\.cos/);
+assert.doesNotMatch(table, /onSunClick:[^\n]*\|\|/);
+const initGlobe = table.slice(table.indexOf('function initGlobe'), table.indexOf('\n}\n\nconst API_ROOT'));
+assert.doesNotMatch(initGlobe, /once:\s*true/);
+assert.match(solar, /dispose/);
 assert.match(table, /modelUrl: '\/globe\/xinjian1\.glb\?v=20260728'/); assert.match(table, /fallbackModelUrl: ''/);
 assert.match(entry, /export function renderSunBadge/); assert.match(entry, /export function renderMoonPanel/);
 assert.doesNotMatch(css, /\.starship-gltf-stage\s*\{[^}]*inset:\s*0/);

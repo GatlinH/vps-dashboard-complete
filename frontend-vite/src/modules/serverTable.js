@@ -495,15 +495,17 @@ function initGlobe() {
   solarSystem?.destroy?.();
   solarSystem = new SolarSystem('#solar-system-container', {
     onEarthClick: () => { const system = document.getElementById('solar-system-container'); const cesium = document.getElementById('globe-container'); if (system) system.style.display = 'none'; if (cesium) cesium.style.display = ''; getGlobe()?.updateServers(state.servers); },
-    onSunClick: () => window.openFrontLogin?.() || (location.href = '/?login=1'),
+    onSunClick: () => { if (typeof window.openFrontLogin === 'function') window.openFrontLogin(); else location.href = '/?login=1'; },
     onMoonClick: () => window.openMoonOverview?.(),
   });
-  document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape' || !solarSystem) return;
+  if (!window.__solarEscapeHandler) window.__solarEscapeHandler = (event) => {
+    if (event.key !== 'Escape' || !solarSystem || document.getElementById('globe-container')?.style.display === 'none') return;
     document.getElementById('globe-container')?.style.setProperty('display', 'none');
     const system = document.getElementById('solar-system-container'); if (system) system.style.display = '';
-    globe?.destroy?.(); globe = null;
-  }, { once: true });
+    solarSystem.running = true;
+  };
+  document.addEventListener('keydown', window.__solarEscapeHandler);
+  window.addEventListener('beforeunload', () => { if (window.__solarEscapeHandler) document.removeEventListener('keydown', window.__solarEscapeHandler); });
 }
 
 const API_ROOT = window.__DBG__.API_ROOT || (location.port === "5000" ? `${location.protocol}//${location.hostname}:5000` : location.origin);

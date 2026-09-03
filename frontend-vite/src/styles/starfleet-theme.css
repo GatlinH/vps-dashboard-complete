@@ -514,11 +514,11 @@ body::after {
   .photo-moon-body { width: 56px; height: 56px; }
 }
 .starship-gltf-stage {
-  right: 3vw !important;
-  top: 4vh !important;
-  width: 36vw !important;
-  height: 30vw !important;
-  opacity: 1 !important;
+  right: 3vw;
+  top: 4vh;
+  width: 36vw;
+  height: 30vw;
+  opacity: 1;
 }
 .starship-gltf-stage::before { opacity: .22 !important; }
 .starship-registry-label {
@@ -526,6 +526,9 @@ body::after {
   top: 31% !important;
   opacity: .92 !important;
   transform: perspective(720px) rotateX(9deg) rotateY(-17deg) rotateZ(-7deg) translate(-50%, -50%) !important;
+}
+@media (max-width: 900px) {
+  .starship-gltf-stage { top: 2vh !important; right: 2vw !important; width: 48vw !important; height: 40vw !important; }
 }
 .photo-space-showcase { z-index: 5; }
 .showcase-caption { opacity: .72 !important; }
