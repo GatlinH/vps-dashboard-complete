@@ -7,7 +7,6 @@ import '../styles/detail-starmap-background.css';
 
 import { state } from '../store/state.js';
 import { listServersPublic, getServerDetail } from '../api/public.js';
-import { CesiumGlobe } from '../components/CesiumGlobe.js';
 import { SolarSystem } from '../components/SolarSystem.js';
 import { StarshipShowcase } from '../components/StarshipShowcase.js';
 import { TrafficChart } from '../components/TrafficChart.js';
@@ -36,6 +35,7 @@ import { createDetailChartInitializer } from '../modules/chartInit.js';
 import { bindDisplayEventHandlers } from '../modules/eventHandlers.js';
 
 let globe = null;
+let globePromise = null;
 let solarSystem = null;
 let starshipShowcase = null;
 const serversChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('vps-servers') : null;
@@ -447,8 +447,13 @@ function handleGlobeNodeSelection(server, clusterMembers, cluster) {
   if (typeof globe?.expandClusterFanout === 'function' && hasFanoutCentroid) showClusterFanout(fanoutCluster, selection.members);
 }
 
-function getGlobe() {
+async function getGlobe() {
   if (globe) return globe;
+  if (globePromise) return globePromise;
+  globePromise = import('../components/CesiumGlobe.js').then(({ CesiumGlobe }) => {
+  if (!document.querySelector('link[data-cesium-widgets]')) {
+    const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = '/cesium/Widgets/widgets.css'; link.dataset.cesiumWidgets = '1'; document.head.appendChild(link);
+  }
   // Cesium earth only. Starship stays on independent Three.js StarshipShowcase —
   // Enterprise GLB is not Cesium-compatible (attribute validation fails).
   globe = new CesiumGlobe('#globe-container', state.servers, {
@@ -489,6 +494,13 @@ function getGlobe() {
   }
   window.__DBG__.globe = globe;
   return globe;
+  }).catch((error) => {
+    window.__DBG__.cesiumLoadError = String(error?.message || error);
+    globePromise = null;
+    return null;
+  });
+
+  return globePromise;
 }
 
 let solarEscapeHandler = null;
@@ -501,13 +513,15 @@ function showSolarSystem() {
   solarSystem?.resume?.();
 }
 
-function showCesiumGlobe() {
+async function showCesiumGlobe() {
   const systemEl = document.getElementById('solar-system-container');
   const globeEl = document.getElementById('globe-container');
+  const loaded = await getGlobe();
+  if (!loaded) return;
   if (systemEl) systemEl.style.display = 'none';
   if (globeEl) globeEl.style.display = '';
   solarSystem?.pause?.();
-  getGlobe()?.updateServers(state.servers);
+  loaded.updateServers(state.servers);
 }
 
 function isCesiumVisible() {

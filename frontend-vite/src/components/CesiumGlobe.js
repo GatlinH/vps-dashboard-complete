@@ -22,7 +22,6 @@ import { getDashboardDebug, getGlobeRuntimeDebug } from '../utils/debugState.js'
  *  - resize() / destroy()
  */
 import * as Cesium from 'cesium';
-import 'cesium/Build/Cesium/Widgets/widgets.css';
 import { getServerCoords } from './globe-utils.js';
 import { applyCesiumTheme } from './globe/runtime/sceneSetup.js';
 import { rebuildVpsEntities } from './globe/vpsEntities.js';
