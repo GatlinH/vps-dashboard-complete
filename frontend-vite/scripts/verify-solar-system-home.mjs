@@ -11,6 +11,19 @@ assert.match(solar, /onSunClick/); assert.match(solar, /onMoonClick/); assert.ma
 assert.match(table, /openFrontLogin/); assert.match(table, /openMoonOverview/); assert.match(table, /new CesiumGlobe/);
 assert.equal((solar.match(/new THREE\.WebGLRenderer/g) || []).length, 1);
 assert.equal((solar.match(/requestAnimationFrame/g) || []).length, 1);
+const constructorStart = solar.indexOf('constructor(');
+const resumeStart = solar.indexOf('resume() {');
+assert.ok(constructorStart >= 0 && resumeStart > constructorStart, 'constructor/resume definitions not found');
+const constructorBlock = solar.slice(constructorStart, resumeStart);
+const resumeBlock = solar.slice(resumeStart, solar.indexOf('pause() {', resumeStart));
+assert.match(constructorBlock, /this\._tick\s*=\s*this\._tick\.bind\(this\)/);
+assert.doesNotMatch(resumeBlock, /this\._tick\s*=\s*this\._tick\.bind\(this\)/);
+assert.match(solar, /太阳（前往登录）/);
+assert.match(solar, /地球（进入三维地球）/);
+assert.match(solar, /月球（进入总览）/);
+assert.match(solar, /name\s*===\s*['"]Sun['"]/);
+assert.match(solar, /name\s*===\s*['"]Earth['"]/);
+assert.match(solar, /name\s*===\s*['"]Moon['"]/);
 assert.match(solar, /PointLight/);
 assert.match(solar, /LineLoop|RingGeometry/);
 // Planet count. An earlier revision matched /name:'[^']+'/g, which counted a quoting

@@ -288,7 +288,7 @@ async def check_b():
     # visibility, which is what the handler actually toggles.
     all_ok = True
     for attempt in (1, 2):
-        if not await click_hit("Earth", 1, "Earth (round %d)" % attempt):
+        if not await click_hit("地球", 1, "Earth (round %d)" % attempt):
             print("FAIL: B - Earth hit target missing on round %d" % attempt)
             return False
         if not await wait_for(
@@ -350,7 +350,7 @@ async def check_c():
     )
     before = len(NET_URLS)
 
-    if not await click_hit("Sun", 0, "Sun"):
+    if not await click_hit("太阳", 0, "Sun"):
         print("FAIL: C - Sun hit target missing")
         return False
 

@@ -58,6 +58,7 @@ export class SolarSystem {
     this._buildHitButtons();
     this._bindEvents();
 
+    this._tick = this._tick.bind(this);
     this.clock = new THREE.Clock();
     this.resume();
   }
@@ -289,9 +290,9 @@ export class SolarSystem {
     }
 
     const targets = [
-      { mesh: this.sun, label: 'Sun', handler: this.options.onSunClick },
-      { mesh: this.earth, label: 'Earth', handler: () => this._approachEarth() },
-      { mesh: this.moon, label: 'Moon', handler: this.options.onMoonClick }
+      { mesh: this.sun, name: 'Sun', ariaLabel: '太阳（前往登录）' },
+      { mesh: this.earth, name: 'Earth', ariaLabel: '地球（进入三维地球）' },
+      { mesh: this.moon, name: 'Moon', ariaLabel: '月球（进入总览）' }
     ];
 
     targets.forEach((target) => {
@@ -302,7 +303,7 @@ export class SolarSystem {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'solar-system-hit';
-      button.setAttribute('aria-label', target.label);
+      button.setAttribute('aria-label', target.ariaLabel);
       button.style.position = 'absolute';
       button.style.padding = '0';
       button.style.margin = '0';
@@ -311,7 +312,7 @@ export class SolarSystem {
       button.style.cursor = 'pointer';
       button.style.transform = 'translate(-50%, -50%)';
 
-      const onActivate = () => this._activate(target.label);
+      const onActivate = () => this._activate(target.name);
       button.addEventListener('click', onActivate);
 
       this.container.appendChild(button);
@@ -512,7 +513,6 @@ export class SolarSystem {
     this.running = true;
     this.clock.getDelta();
 
-    this._tick = this._tick.bind(this);
     this._tick();
 
     return this;
