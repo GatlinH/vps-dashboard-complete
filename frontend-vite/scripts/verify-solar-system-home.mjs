@@ -13,12 +13,39 @@ assert.equal((solar.match(/new THREE\.WebGLRenderer/g) || []).length, 1);
 assert.equal((solar.match(/requestAnimationFrame/g) || []).length, 1);
 assert.match(solar, /PointLight/);
 assert.match(solar, /LineLoop|RingGeometry/);
-assert.ok((solar.match(/name:'[^']+'/g) || []).length >= 4);
-assert.match(solar, /position\.set\(Math\.cos/);
-assert.doesNotMatch(table, /onSunClick:[^\n]*\|\|/);
-const initGlobe = table.slice(table.indexOf('function initGlobe'), table.indexOf('\n}\n\nconst API_ROOT'));
-assert.doesNotMatch(initGlobe, /once:\s*true/);
+// Planet count. An earlier revision matched /name:'[^']+'/g, which counted a quoting
+// style rather than planets and broke the moment the table gained spaces after colons.
+const planetTable = solar.slice(solar.indexOf('PLANET_TABLE'), solar.indexOf('];', solar.indexOf('PLANET_TABLE')));
+assert.ok((planetTable.match(/name\s*:\s*['"][^'"]+['"]/g) || []).length >= 4);
+
+// Planet revolution must be position-driven. The previous regex
+// /angle\+=.*position\.set\(Math\.cos/ was satisfied by the moon's motion code alone,
+// so it stayed green even when the planets were reverted to `rotation.y += k`.
+// Anchor on the _advanceBodies definition: the iteration over every tracked body must
+// accumulate an angle and derive the position from it, so faking planet motion breaks this.
+const advanceStart = solar.indexOf('_advanceBodies(dt) {');
+assert.ok(advanceStart > 0, '_advanceBodies(dt) definition not found');
+const advance = solar.slice(advanceStart, advanceStart + 1200);
+assert.match(advance, /this\.bodies\s*\.?\s*forEach|for\s*\(\s*const\s+\w+\s+of\s+this\.bodies\s*\)/);
+assert.match(advance, /angle\s*\+=\s*\w+\.speed\s*\*\s*dt/);
+assert.match(advance, /Math\.cos\(\s*\w+\.angle\s*\)/);
+assert.match(advance, /Math\.sin\(\s*\w+\.angle\s*\)/);
+assert.match(advance, /position\.set\(/);
+
+// Escape handling and the sun entry must not regress to their earlier broken forms.
+assert.doesNotMatch(table, /openFrontLogin\?\.\(\)\s*\|\|/);
+assert.doesNotMatch(table, /once:\s*true/);
+assert.doesNotMatch(table, /solarSystem\.running\s*=/);
+assert.doesNotMatch(table, /window\.__solarEscapeHandler/);
+assert.match(table, /solarSystem\?\.resume\?\.\(\)/);
+assert.match(table, /solarSystem\?\.pause\?\.\(\)/);
+
+// Scene lifecycle and observability.
 assert.match(solar, /dispose/);
+assert.match(solar, /pause\(/);
+assert.match(solar, /resume\(/);
+assert.match(solar, /solar-system-hit/);
+assert.match(solar, /getBodySnapshot/);
 assert.match(table, /modelUrl: '\/globe\/xinjian1\.glb\?v=20260728'/); assert.match(table, /fallbackModelUrl: ''/);
 assert.match(entry, /export function renderSunBadge/); assert.match(entry, /export function renderMoonPanel/);
 assert.doesNotMatch(css, /\.starship-gltf-stage\s*\{[^}]*inset:\s*0/);
