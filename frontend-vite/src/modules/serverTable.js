@@ -451,12 +451,9 @@ async function getGlobe() {
   if (globe) return globe;
   if (globePromise) return globePromise;
   globePromise = import('../components/CesiumGlobe.js').then(({ CesiumGlobe }) => {
-  if (!document.querySelector('link[data-cesium-widgets]')) {
-    const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = '/cesium/Widgets/widgets.css'; link.dataset.cesiumWidgets = '1'; document.head.appendChild(link);
-  }
   // Cesium earth only. Starship stays on independent Three.js StarshipShowcase —
   // Enterprise GLB is not Cesium-compatible (attribute validation fails).
-  globe = new CesiumGlobe('#globe-container', state.servers, {
+  const instance = new CesiumGlobe('#globe-container', state.servers, {
     onNodeClick: handleGlobeNodeSelection,
     onBlankClick: closeClusterInteraction,
     enableStarship: false,
@@ -492,10 +489,12 @@ async function getGlobe() {
       starshipShowcase = null;
     }
   }
+  globe = instance;
   window.__DBG__.globe = globe;
   return globe;
   }).catch((error) => {
     window.__DBG__.cesiumLoadError = String(error?.message || error);
+    document.getElementById('globe-container')?.replaceChildren();
     globePromise = null;
     return null;
   });

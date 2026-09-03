@@ -39,6 +39,17 @@ registerRoute(
   })
 );
 
+// index.html currently unregisters service workers; this route takes effect when SW is enabled again.
+// Cesium is loaded only after entering the globe; cache it on first use.
+registerRoute(
+  ({ url }) => url.origin === self.location.origin
+    && (url.pathname.startsWith('/cesium/') || url.pathname.includes('/assets/cesium-')),
+  new CacheFirst({
+    cacheName: 'cesium-runtime-v1',
+    plugins: [new ExpirationPlugin({ maxAgeSeconds: 2_592_000, maxEntries: 200 })],
+  })
+);
+
 // ── API 调用：始终走网络，不缓存实时资产 / 节点数据 ─────────────────────
 registerRoute(
   ({ url }) => url.pathname.startsWith('/api'),
