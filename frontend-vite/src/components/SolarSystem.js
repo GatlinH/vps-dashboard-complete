@@ -30,6 +30,7 @@ export class SolarSystem {
     this.bodies = [];        // { name, mesh, angle, speed, orbit, spin, parent }
     this.disposables = [];   // geometries + materials to release in destroy()
     this.hitButtons = [];    // { el, body }
+    this._hitWorldScratch = new THREE.Vector3();
 
     this.clock = null;
     this.frameId = 0;
@@ -120,9 +121,8 @@ export class SolarSystem {
     // Home pose: immutable clones so tween math can never mutate them.
     this.baseCameraPosition = this.camera.position.clone();
     this.homeCameraPosition = this._fitHomeCamera(width, height);
-    this.camera.position.copy(this.homeCameraPosition);
-    this.camera.lookAt(this.cameraTarget);
     this.homeCameraTarget = this.cameraTarget.clone();
+    this._snapToHome();
 
     // Point light lives inside the sun so planets get real directional shading.
     this.sunLight = new THREE.PointLight(0xffffff, 2.2, 0, 2);
@@ -478,16 +478,25 @@ export class SolarSystem {
 
   // Project each tracked mesh to screen space and park its hit button there.
   _syncHitButtons() {
+    if (this.disposed || !this.canvas || !this.hitButtons.length) {
+      return;
+    }
+
     const rect = this.canvas.getBoundingClientRect();
     const projected = new THREE.Vector3();
-    const earth = this.hitButtons.find((item) => item.mesh === this.earth);
-    const moon = this.hitButtons.find((item) => item.mesh === this.moon);
+    const entries = this.hitButtons.map((entry) => {
+      const world = entry.mesh.getWorldPosition(this._hitWorldScratch).clone();
+      const ndc = world.clone().project(this.camera);
+      return { entry, world, ndc };
+    });
+    const earthRow = entries.find((item) => item.entry.mesh === this.earth);
+    const moonRow = entries.find((item) => item.entry.mesh === this.moon);
+    const earth = earthRow && earthRow.entry;
+    const moon = moonRow && moonRow.entry;
     let separation = null;
     if (earth && moon) {
-      const erWorld = earth.mesh.getWorldPosition(new THREE.Vector3());
-      const mrWorld = moon.mesh.getWorldPosition(new THREE.Vector3());
-      const er = erWorld.project(this.camera);
-      const mr = mrWorld.project(this.camera);
+      const er = earthRow.ndc;
+      const mr = moonRow.ndc;
       separation = {
         dx: (er.x - mr.x) * rect.width * 0.5,
         dy: -(er.y - mr.y) * rect.height * 0.5,
@@ -495,16 +504,15 @@ export class SolarSystem {
       };
     }
 
-    const sizes = new Map(this.hitButtons.map((entry) => {
+    const sizes = new Map(entries.map(({ entry, world }) => {
       const scale = entry.mesh.geometry.parameters.radius || 1;
-      return [entry, Math.max(24, Math.min(120, (scale * 260) / Math.max(6, this.camera.position.distanceTo(entry.mesh.getWorldPosition(new THREE.Vector3())))))];
+      return [entry, Math.max(24, Math.min(120, (scale * 260) / Math.max(6, this.camera.position.distanceTo(world))))];
     }));
     const earthSize = sizes.get(earth) || 24;
     const moonSize = sizes.get(moon) || 24;
     // Boxes must not overlap: centres need to clear (sizeA + sizeB) / 2. Keep 10% margin.
     const separationThreshold = (earthSize + moonSize) * 0.5 * 1.1;
-    this.hitButtons.forEach((entry) => {
-      projected.copy(entry.mesh.getWorldPosition(new THREE.Vector3())).project(this.camera);
+    entries.forEach(({ entry, ndc: projected }) => {
 
       const visible = projected.z < 1 && projected.x >= -1 && projected.x <= 1 && projected.y >= -1 && projected.y <= 1;
       const left = (projected.x * 0.5 + 0.5) * rect.width;
@@ -540,13 +548,17 @@ export class SolarSystem {
       return this;
     }
 
+    this._snapToHome();
+
+    return this;
+  }
+
+  _snapToHome() {
     this.cameraTween = null;
     this.cameraAtHome = true;
     this.camera.position.copy(this.homeCameraPosition);
     this.cameraTarget.copy(this.homeCameraTarget);
     this.camera.lookAt(this.cameraTarget);
-
-    return this;
   }
 
   resume() {
@@ -595,6 +607,8 @@ export class SolarSystem {
       this.camera.lookAt(this.cameraTarget);
     }
     this.renderer.setSize(width, height, false);
+    // project() reads matrixWorldInverse; only render() refreshes it automatically.
+    this.camera.updateMatrixWorld();
     this._syncHitButtons();
 
     return this;
