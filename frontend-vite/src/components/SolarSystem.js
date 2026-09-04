@@ -4,6 +4,7 @@ import * as THREE from 'three';
 // a single rAF loop that also drives the camera approach tween.
 
 const MOBILE_QUERY = '(max-width: 720px)';
+const TARGET_RADIUS = 24;
 
 // name, radius, orbital radius, angular speed (rad/s), colour, mobile-only-drop flag
 const PLANET_TABLE = [
@@ -115,7 +116,10 @@ export class SolarSystem {
     this.camera.lookAt(this.cameraTarget);
 
     // Home pose: immutable clones so tween math can never mutate them.
-    this.homeCameraPosition = this.camera.position.clone();
+    this.baseCameraPosition = this.camera.position.clone();
+    this.homeCameraPosition = this._fitHomeCamera(width, height);
+    this.camera.position.copy(this.homeCameraPosition);
+    this.camera.lookAt(this.cameraTarget);
     this.homeCameraTarget = this.cameraTarget.clone();
 
     // Point light lives inside the sun so planets get real directional shading.
@@ -133,6 +137,15 @@ export class SolarSystem {
     const width = Math.max(1, Math.round(rect.width || this.container.clientWidth || 640));
     const height = Math.max(1, Math.round(rect.height || this.container.clientHeight || 360));
     return { width, height };
+  }
+
+  _fitHomeCamera(width, height) {
+    const aspect = width / height;
+    const hfovHalf = Math.atan(Math.tan(THREE.MathUtils.degToRad(52) / 2) * aspect);
+    const baseDistance = this.baseCameraPosition.length();
+    const requiredDist = TARGET_RADIUS / Math.tan(hfovHalf);
+    const k = Math.max(1, requiredDist / baseDistance);
+    return this.baseCameraPosition.clone().multiplyScalar(k);
   }
 
   _track(...items) {
@@ -468,12 +481,21 @@ export class SolarSystem {
     this.hitButtons.forEach((entry) => {
       projected.copy(entry.mesh.position).project(this.camera);
 
-      const visible = projected.z < 1;
+      const visible = projected.z < 1 && projected.x >= -1 && projected.x <= 1 && projected.y >= -1 && projected.y <= 1;
       const left = (projected.x * 0.5 + 0.5) * rect.width;
       const top = (-projected.y * 0.5 + 0.5) * rect.height;
 
       const scale = entry.mesh.geometry.parameters.radius || 1;
-      const size = Math.max(24, Math.min(120, (scale * 260) / Math.max(6, this.camera.position.distanceTo(entry.mesh.position))));
+      let size = Math.max(24, Math.min(120, (scale * 260) / Math.max(6, this.camera.position.distanceTo(entry.mesh.position))));
+      const earth = this.hitButtons.find((item) => item.mesh === this.earth);
+      const moon = this.hitButtons.find((item) => item.mesh === this.moon);
+      if (earth && moon) {
+        const er = earth.mesh.position.clone().project(this.camera);
+        const mr = moon.mesh.position.clone().project(this.camera);
+        const dx = (er.x - mr.x) * rect.width * 0.5;
+        const dy = (er.y - mr.y) * rect.height * 0.5;
+        if (Math.hypot(dx, dy) < 14 && (entry === moon || entry === earth)) size = Math.min(size, 12);
+      }
 
       entry.el.style.left = `${left}px`;
       entry.el.style.top = `${top}px`;
@@ -538,6 +560,11 @@ export class SolarSystem {
 
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    this.homeCameraPosition = this._fitHomeCamera(width, height);
+    if (!this.cameraTween) {
+      this.camera.position.copy(this.homeCameraPosition);
+      this.camera.lookAt(this.cameraTarget);
+    }
     this.renderer.setSize(width, height, false);
 
     return this;
