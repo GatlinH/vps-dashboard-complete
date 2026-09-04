@@ -64,8 +64,27 @@ assert.match(solar, /aspect[^\n]*hfovHalf|hfovHalf[^\n]*aspect/, 'FAIL: home cam
 assert.match(solar, /getBodySnapshot/);
 assert.match(solar, /cameraAtHome/);
 assert.match(solar, /_snapToHome\(\)[\s\S]{0,180}this\.cameraTween\s*=\s*null/);
-assert.equal((solar.match(/cameraAtHome\s*=\s*true/g) || []).length, 2,
-  'cameraAtHome=true 写入次数必须恰好为 2；新增写入点会让 _snapToHome 不再是唯一写者，resize 守卫的不变式随之失效');
+function methodSpan(source, signature) {
+  const start = source.indexOf(signature); assert.ok(start >= 0, `method not found: ${signature}`);
+  const open = source.indexOf('{', start); let depth = 0;
+  for (let i = open; i < source.length; i++) {
+    if (source[i] === '{') depth++;
+    else if (source[i] === '}' && --depth === 0) return [start, i + 1];
+  }
+  assert.fail(`unclosed method: ${signature}`);
+}
+const constructorStart2 = solar.indexOf('constructor(');
+const constructorSpan = [constructorStart2, solar.indexOf('resume() {', constructorStart2)];
+const snapStart = solar.indexOf('_snapToHome() {');
+const snapSpan = [snapStart, solar.indexOf('resume() {', snapStart)];
+const trueWrites = [...solar.matchAll(/cameraAtHome\s*(=|\|\|=|\?\?=)\s*true/g)];
+assert.ok(trueWrites.length >= 2, 'cameraAtHome must have true writes in constructor and _snapToHome');
+for (const match of trueWrites) {
+  const p = match.index;
+  assert.ok((p >= constructorSpan[0] && p < constructorSpan[1]) || (p >= snapSpan[0] && p < snapSpan[1]),
+    'cameraAtHome true writes must be confined to constructor and _snapToHome; _snapToHome must be the unique writer or resize() guard invariant can fail');
+}
+assert.doesNotMatch(solar, /Object\.assign\([^)]*cameraAtHome\s*:/, 'Object.assign cameraAtHome write requires manual review');
 assert.match(solar, /this\._syncHitButtons\(\);\s*\n\s*return this;/);
 assert.match(solar, /HOME_FOV/);
 assert.match(solar, /\(earthSize \+ moonSize\) \* 0\.5 \* 1\.1/, 'FAIL: separation threshold must be half-width sum plus 10% margin (* 0.5 * 1.1) to prevent hit-box overlap');

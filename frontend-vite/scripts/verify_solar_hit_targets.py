@@ -54,6 +54,8 @@ async def run_viewport(width, height):
             await js("window.__DBG__.solarSystem.bodies.forEach(b=>b.speed*=8)")
             totals = {n:{'center':[0,0], 'target':[0,0]} for n in LABELS}; geometry = {'ok': 0, 'total': 0}; failures=[]
             for _ in range(260):
+                frame_state = await js("(()=>{const s=window.__DBG__.solarSystem;return {atHome:s.cameraAtHome,tween:!!s.cameraTween}})()")
+                assert frame_state is not None and not (frame_state['atHome'] and frame_state['tween']), f"cameraAtHome and cameraTween both truthy: {frame_state}"
                 rows = await js("""(()=>{const s=window.__DBG__.solarSystem,r=s.canvas.getBoundingClientRect(),es=s.hitButtons.find(e=>e.mesh===s.earth),ms=s.hitButtons.find(e=>e.mesh===s.moon),ep=es.mesh.getWorldPosition(es.mesh.position.clone()).project(s.camera),mp=ms.mesh.getWorldPosition(ms.mesh.position.clone()).project(s.camera),rawGap=Math.hypot((ep.x-mp.x)*r.width*.5,(ep.y-mp.y)*r.height*.5);return Array.from(document.querySelectorAll('button.solar-system-hit')).map(el=>{const label=el.getAttribute('aria-label'),entry=s.hitButtons.find(e=>e.el===el),p=entry.mesh.getWorldPosition(entry.mesh.position.clone()).project(s.camera),tx=r.left+(p.x*.5+.5)*r.width,ty=r.top+(-p.y*.5+.5)*r.height,br=el.getBoundingClientRect(),cx=br.left+br.width/2,cy=br.top+br.height/2,ch=document.elementFromPoint(cx,cy),th=document.elementFromPoint(tx,ty);return [label,ch===el,th===el,getComputedStyle(el).visibility,cx,cy,tx,ty,ch&& (ch.getAttribute('aria-label')||ch.tagName),th&& (th.getAttribute('aria-label')||th.tagName),Math.hypot(cx-tx,cy-ty),rawGap,br.width,br.height]})})()""") or []
                 for label,center_hit,target_hit,vis,cx,cy,tx,ty,owner,target_owner,drift,raw_gap,w,h in rows:
                     if label in totals:
@@ -122,10 +124,12 @@ async def run_resize_scene():
             await js("__DBG__.solarSystem.pause()")
             pre = await js("(()=>{const s=__DBG__.solarSystem;return {pos:s.camera.position.toArray(),dist:s.camera.position.distanceTo(s.homeCameraPosition),calls:__RZ__.calls,home:s.homeCameraPosition.toArray(),aspect:s.camera.aspect,atHome:s.cameraAtHome,tween:!!s.cameraTween,running:s.running}})()")
             if pre is None: raise AssertionError('pre state unavailable')
+            assert not (pre['atHome'] and pre['tween']), f"cameraAtHome and cameraTween both truthy: {pre}"
             await cdp('Emulation.setDeviceMetricsOverride', {'width':1100,'height':913,'deviceScaleFactor':1,'mobile':False})
             await js("(() => { window.dispatchEvent(new Event('resize')); return true; })()")
             post = await js("(()=>{const s=__DBG__.solarSystem;return {pos:s.camera.position.toArray(),dist:s.camera.position.distanceTo(s.homeCameraPosition),calls:__RZ__.calls,home:s.homeCameraPosition.toArray(),aspect:s.camera.aspect,atHome:s.cameraAtHome,tween:!!s.cameraTween,running:s.running}})()")
             if post is None: raise AssertionError('post state unavailable')
+            assert not (post['atHome'] and post['tween']), f"cameraAtHome and cameraTween both truthy: {post}"
             assert post['calls']-pre['calls'] >= 1, f"resize() did not run: pre={pre} post={post}"
             assert post['dist'] > 5, f"resize guard snapped camera home: post_dist={post['dist']} post_pos={post['pos']}"
             assert post['pos'] == pre['pos'], f"camera moved unexpectedly: pre_pos={pre['pos']} post_pos={post['pos']}"
@@ -163,9 +167,12 @@ async def run_tween_resize_scene():
             end=time.time()+40
             while time.time()<end and not await js("!!(window.__DBG__&&__DBG__.solarSystem&&document.querySelectorAll('button.solar-system-hit').length>=3)"): await asyncio.sleep(.2)
             await js("(()=>{const s=__DBG__.solarSystem;window.__RZ__={calls:0};const o=s.resize.bind(s);s.resize=function(...a){__RZ__.calls++;return o(...a)};return true})()")
+            baseline = await js("(()=>Object.fromEntries([...document.querySelectorAll('button.solar-system-hit')].map(e=>[e.getAttribute('aria-label'),getComputedStyle(e).visibility])))()")
             await js("[...document.querySelectorAll('button.solar-system-hit')].find(e=>e.getAttribute('aria-label').includes('地球')).click()")
             immediate=await js("(()=>{const s=__DBG__.solarSystem;return {atHome:s.cameraAtHome,tween:!!s.cameraTween}})()")
             assert immediate is not None and immediate['atHome'] is False and immediate['tween'], f'click state invalid: {immediate}'
+            immediate_vis = await js("(()=>Object.fromEntries([...document.querySelectorAll('button.solar-system-hit')].map(e=>[e.getAttribute('aria-label'),getComputedStyle(e).visibility])))()")
+            assert immediate_vis == baseline, f't=0 visibility changed: baseline={baseline} immediate={immediate_vis} tweenT=0'
             state=None; end=time.time()+15
             while time.time()<end:
                 state=await js("(()=>{const s=__DBG__.solarSystem;return {pos:s.camera.position.toArray(),home:s.homeCameraPosition.toArray(),to:s.cameraTween&&s.cameraTween.to.toArray(),dist:s.camera.position.distanceTo(s.homeCameraPosition),tween:!!s.cameraTween,aspect:s.camera.aspect}})()")
@@ -173,9 +180,24 @@ async def run_tween_resize_scene():
                 await asyncio.sleep(.05)
             assert state and state['tween'] and state['dist']>5, f'tween did not reach probe: {state}'
             before=state
+            t1_vis = None; fallback = False
+            await js("(() => { window.__DBG__.solarSystem.resume(); return true; })()")
+            invariant = await js("(()=>{const s=__DBG__.solarSystem;return {atHome:s.cameraAtHome,tween:!!s.cameraTween}})()")
+            assert invariant is not None and not (invariant['atHome'] and invariant['tween']), f"cameraAtHome and cameraTween both truthy: {invariant}"
+            await js("__DBG__.solarSystem.pause()")
             await cdp('Emulation.setDeviceMetricsOverride', {'width':480,'height':850,'deviceScaleFactor':1,'mobile':False}); await js("window.dispatchEvent(new Event('resize'))")
             after=await js("(()=>{const s=__DBG__.solarSystem;return {pos:s.camera.position.toArray(),home:s.homeCameraPosition.toArray(),to:s.cameraTween&&s.cameraTween.to.toArray(),dist:s.camera.position.distanceTo(s.homeCameraPosition),aspect:s.camera.aspect,calls:__RZ__.calls}})()")
-            assert after is not None and after['calls']>=1 and after['to']==before['to'] and after['dist']>5 and after['home']!=before['home'], f'tween resize invariant failed: before={before} after={after}'
+            assert after is not None and after['calls']>=1 and after['to']==before['to'] and after['dist']>5 and after['home']!=before['home'], f'resize() must not mutate an in-flight tween endpoint: before={before} after={after}'
+            await js("__DBG__.solarSystem.resume()")
+            for _ in range(160):
+                ready = await js("(()=>{const s=__DBG__.solarSystem;return s.cameraTween===null && getComputedStyle(document.querySelector('#globe-container')).display==='none'})()")
+                if ready:
+                    t1_vis = await js("(()=>Object.fromEntries([...document.querySelectorAll('button.solar-system-hit')].map(e=>[e.getAttribute('aria-label'),getComputedStyle(e).visibility])))()")
+                    break
+                await asyncio.sleep(.05)
+            if t1_vis is None:
+                fallback = True; t1_vis = await js("(()=>Object.fromEntries([...document.querySelectorAll('button.solar-system-hit')].map(e=>[e.getAttribute('aria-label'),getComputedStyle(e).visibility])))()")
+            assert t1_vis is not None and t1_vis.get(LABELS[1]) == 'visible', f't=1 Earth must be visible: frames={{t0:{baseline},t1:{t1_vis}}} fallback={fallback}'
             rows=await js("(()=>{const r=__DBG__.solarSystem.canvas.getBoundingClientRect();return [...document.querySelectorAll('button.solar-system-hit')].map(el=>{const b=el.getBoundingClientRect(),x=b.left+b.width/2,y=b.top+b.height/2,v=getComputedStyle(el).visibility;return [el.getAttribute('aria-label'),v,x,y,x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom,document.elementFromPoint(x,y)===el,b.width,b.height]})})()") or []
             violations=sum(1 for _,v,x,y,inside,own,_,__ in rows if v=='visible' and (not inside or not own)); vis=sum(v=='visible' for _,v,*_ in rows)
             assert violations==0, f'visible hit violations={violations} rows={rows}'
@@ -184,7 +206,7 @@ async def run_tween_resize_scene():
             if earth and moon:
                 d=((earth[2]-moon[2])**2+(earth[3]-moon[3])**2)**0.5; overlap=int(d < (earth[6]+moon[6])/2)
             assert overlap==0, f'earth/moon boxes overlap: distance={d if earth and moon else None}'
-            print(f"tween: ran={after['calls']} tweenTo_before={before['to']} tweenTo_after={after['to']} home_before={before['home']} home_after={after['home']} aspect_before={before['aspect']:.4f} aspect_after={after['aspect']:.4f} camera_dist={after['dist']:.3f} visible={vis} violations={violations} overlap={overlap}")
+            print(f"tween: ran={after['calls']} tweenTo_before={before['to']} tweenTo_after={after['to']} home_before={before['home']} home_after={after['home']} aspect_before={before['aspect']:.4f} aspect_after={after['aspect']:.4f} camera_dist={after['dist']:.3f} visible={vis} violations={violations} overlap={overlap} visibility_frames={{t0:{baseline},t1:{t1_vis}}} fallback={fallback}")
     finally:
         chrome.terminate()
         try: chrome.wait(3)
