@@ -66,17 +66,16 @@ assert.match(solar, /cameraAtHome/);
 assert.match(solar, /_snapToHome\(\)[\s\S]{0,180}this\.cameraTween\s*=\s*null/);
 function methodSpan(source, signature) {
   const start = source.indexOf(signature); assert.ok(start >= 0, `method not found: ${signature}`);
-  const open = source.indexOf('{', start); let depth = 0;
+  const closeParams = source.indexOf(')', start);
+  const open = source.indexOf('{', closeParams >= 0 ? closeParams : start); let depth = 0;
   for (let i = open; i < source.length; i++) {
     if (source[i] === '{') depth++;
     else if (source[i] === '}' && --depth === 0) return [start, i + 1];
   }
   assert.fail(`unclosed method: ${signature}`);
 }
-const constructorStart2 = solar.indexOf('constructor(');
-const constructorSpan = [constructorStart2, solar.indexOf('resume() {', constructorStart2)];
-const snapStart = solar.indexOf('_snapToHome() {');
-const snapSpan = [snapStart, solar.indexOf('resume() {', snapStart)];
+const constructorSpan = methodSpan(solar, 'constructor(');
+const snapSpan = methodSpan(solar, '_snapToHome() {');
 const trueWrites = [...solar.matchAll(/cameraAtHome\s*(=|\|\|=|\?\?=)\s*true/g)];
 assert.ok(trueWrites.length >= 2, 'cameraAtHome must have true writes in constructor and _snapToHome');
 for (const match of trueWrites) {
