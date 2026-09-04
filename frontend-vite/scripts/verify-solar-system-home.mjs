@@ -63,6 +63,9 @@ assert.match(solar, /Math\.max\(1,\s*requiredDist\s*\/\s*baseDistance\)/, 'FAIL:
 assert.match(solar, /aspect[^\n]*hfovHalf|hfovHalf[^\n]*aspect/, 'FAIL: home camera fit must use aspect');
 assert.match(solar, /getBodySnapshot/);
 assert.match(solar, /cameraAtHome/);
+assert.match(solar, /_snapToHome\(\)[\s\S]{0,180}this\.cameraTween\s*=\s*null/);
+assert.equal((solar.match(/cameraAtHome\s*=\s*true/g) || []).length, 2,
+  'cameraAtHome=true 写入次数必须恰好为 2；新增写入点会让 _snapToHome 不再是唯一写者，resize 守卫的不变式随之失效');
 assert.match(solar, /this\._syncHitButtons\(\);\s*\n\s*return this;/);
 assert.match(solar, /HOME_FOV/);
 assert.match(solar, /\(earthSize \+ moonSize\) \* 0\.5 \* 1\.1/, 'FAIL: separation threshold must be half-width sum plus 10% margin (* 0.5 * 1.1) to prevent hit-box overlap');

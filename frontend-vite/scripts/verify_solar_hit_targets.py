@@ -140,6 +140,57 @@ async def run_resize_scene():
         except subprocess.TimeoutExpired: chrome.kill()
         shutil.rmtree(profile, ignore_errors=True); httpd.shutdown(); httpd.server_close()
 
+async def run_tween_resize_scene():
+    width, height = 1100, 913
+    httpd = ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Handler, directory=str(DIST)))
+    Thread(target=httpd.serve_forever, daemon=True).start(); http_port = httpd.server_address[1]
+    sock = socket.socket(); sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]; sock.close()
+    profile = tempfile.mkdtemp(prefix='solar-tween-')
+    chrome = subprocess.Popen(['chromium','--headless=new',f'--remote-debugging-port={port}',f'--user-data-dir={profile}','--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader',f'--window-size={width},{height}','about:blank'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        wait_devtools(port); req = urllib.request.Request(f'http://127.0.0.1:{port}/json/new?about%3Ablank', method='PUT')
+        with urllib.request.urlopen(req, timeout=10) as r: tab = json.loads(r.read().decode())
+        async with websockets.connect(tab['webSocketDebuggerUrl'], max_size=None) as ws:
+            i = 0
+            async def cdp(method, params=None):
+                nonlocal i; i += 1; await ws.send(json.dumps({'id':i,'method':method,'params':params or {}}))
+                while True:
+                    m = json.loads(await asyncio.wait_for(ws.recv(),25))
+                    if m.get('id') == i: return m.get('result', {})
+            async def js(expr):
+                r = await cdp('Runtime.evaluate', {'expression':expr,'returnByValue':True,'awaitPromise':True,'userGesture':True}); return r.get('result',{}).get('value')
+            await cdp('Runtime.enable'); await cdp('Emulation.setDeviceMetricsOverride', {'width':width,'height':height,'deviceScaleFactor':1,'mobile':False}); await cdp('Page.navigate', {'url':f'http://127.0.0.1:{http_port}/'})
+            end=time.time()+40
+            while time.time()<end and not await js("!!(window.__DBG__&&__DBG__.solarSystem&&document.querySelectorAll('button.solar-system-hit').length>=3)"): await asyncio.sleep(.2)
+            await js("(()=>{const s=__DBG__.solarSystem;window.__RZ__={calls:0};const o=s.resize.bind(s);s.resize=function(...a){__RZ__.calls++;return o(...a)};return true})()")
+            await js("[...document.querySelectorAll('button.solar-system-hit')].find(e=>e.getAttribute('aria-label').includes('地球')).click()")
+            immediate=await js("(()=>{const s=__DBG__.solarSystem;return {atHome:s.cameraAtHome,tween:!!s.cameraTween}})()")
+            assert immediate is not None and immediate['atHome'] is False and immediate['tween'], f'click state invalid: {immediate}'
+            state=None; end=time.time()+15
+            while time.time()<end:
+                state=await js("(()=>{const s=__DBG__.solarSystem;return {pos:s.camera.position.toArray(),home:s.homeCameraPosition.toArray(),to:s.cameraTween&&s.cameraTween.to.toArray(),dist:s.camera.position.distanceTo(s.homeCameraPosition),tween:!!s.cameraTween,aspect:s.camera.aspect}})()")
+                if state and state['tween'] and state['dist']>5: break
+                await asyncio.sleep(.05)
+            assert state and state['tween'] and state['dist']>5, f'tween did not reach probe: {state}'
+            before=state
+            await cdp('Emulation.setDeviceMetricsOverride', {'width':480,'height':850,'deviceScaleFactor':1,'mobile':False}); await js("window.dispatchEvent(new Event('resize'))")
+            after=await js("(()=>{const s=__DBG__.solarSystem;return {pos:s.camera.position.toArray(),home:s.homeCameraPosition.toArray(),to:s.cameraTween&&s.cameraTween.to.toArray(),dist:s.camera.position.distanceTo(s.homeCameraPosition),aspect:s.camera.aspect,calls:__RZ__.calls}})()")
+            assert after is not None and after['calls']>=1 and after['to']==before['to'] and after['dist']>5 and after['home']!=before['home'], f'tween resize invariant failed: before={before} after={after}'
+            rows=await js("(()=>{const r=__DBG__.solarSystem.canvas.getBoundingClientRect();return [...document.querySelectorAll('button.solar-system-hit')].map(el=>{const b=el.getBoundingClientRect(),x=b.left+b.width/2,y=b.top+b.height/2,v=getComputedStyle(el).visibility;return [el.getAttribute('aria-label'),v,x,y,x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom,document.elementFromPoint(x,y)===el,b.width,b.height]})})()") or []
+            violations=sum(1 for _,v,x,y,inside,own,_,__ in rows if v=='visible' and (not inside or not own)); vis=sum(v=='visible' for _,v,*_ in rows)
+            assert violations==0, f'visible hit violations={violations} rows={rows}'
+            earth=next((r for r in rows if r[0]==LABELS[1] and r[1]=='visible'),None); moon=next((r for r in rows if r[0]==LABELS[2] and r[1]=='visible'),None)
+            overlap=0
+            if earth and moon:
+                d=((earth[2]-moon[2])**2+(earth[3]-moon[3])**2)**0.5; overlap=int(d < (earth[6]+moon[6])/2)
+            assert overlap==0, f'earth/moon boxes overlap: distance={d if earth and moon else None}'
+            print(f"tween: ran={after['calls']} tweenTo_before={before['to']} tweenTo_after={after['to']} home_before={before['home']} home_after={after['home']} aspect_before={before['aspect']:.4f} aspect_after={after['aspect']:.4f} camera_dist={after['dist']:.3f} visible={vis} violations={violations} overlap={overlap}")
+    finally:
+        chrome.terminate()
+        try: chrome.wait(3)
+        except subprocess.TimeoutExpired: chrome.kill()
+        shutil.rmtree(profile, ignore_errors=True); httpd.shutdown(); httpd.server_close()
+
 async def main():
     for w,h in [(1400,913),(900,800),(760,900),(480,850)]:
         result, geometry, failures = await run_viewport(w,h)
@@ -150,4 +201,5 @@ async def main():
         assert result[LABELS[0]]['target'][0]/max(1,result[LABELS[0]]['target'][1]) >= 1.0, f'{w}x{h}: sun target hit ratio below 100%; failures={failures[:3]}'
         assert geometry['ok']/max(1, geometry['total']) >= .995, f'{w}x{h}: earth/moon button boxes overlap; failures={failures[:3]}'
     await run_resize_scene()
+    await run_tween_resize_scene()
 asyncio.run(main())
