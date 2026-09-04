@@ -112,9 +112,23 @@ async def run_resize_scene():
             await js("[...document.querySelectorAll('button.solar-system-hit')].find(e=>e.getAttribute('aria-label').includes('地球')).click()")
             tween = await js("!!window.__DBG__.solarSystem.cameraTween")
             assert tween, 'tween-start: cameraTween already ended'
+            # Wait until the approach has actually moved the camera away from home, otherwise the
+            # assertion cannot distinguish an untouched tween from a snap back to its start point.
+            end = time.time() + 15
+            while time.time() < end:
+                st = await js("(()=>{const s=__DBG__.solarSystem;return {d:s.camera.position.distanceTo(s.homeCameraPosition),live:!!s.cameraTween,pos:s.camera.position.toArray()}})()")
+                if st['live'] and st['d'] > 5:
+                    break
+                if not st['live']:
+                    raise AssertionError(f"tween ended before the camera moved away from home: {st}")
+                await asyncio.sleep(.05)
+            else:
+                raise AssertionError('tween never moved the camera more than 5 units from home')
+            before_pos = st['pos']
             await cdp('Emulation.setDeviceMetricsOverride', {'width':1100,'height':913,'deviceScaleFactor':1,'mobile':False})
             mid = await js("(()=>{const s=__DBG__.solarSystem,d=s.camera.position.distanceTo(s.homeCameraPosition);return {d,pos:s.camera.position.toArray(),home:s.homeCameraPosition.toArray()}})()")
-            assert mid['d'] > 1, f"resize-during-tween: cameraAtHome={await js('!!__DBG__.solarSystem.cameraAtHome')} pos={mid['pos']} home={mid['home']} distance={mid['d']}"
+            assert mid['d'] > 5, f"resize-during-tween: cameraAtHome={await js('!!__DBG__.solarSystem.cameraAtHome')} pos={mid['pos']} home={mid['home']} distance={mid['d']}"
+            assert max(abs(a-b) for a,b in zip(mid['pos'], before_pos)) < 1e-6, f"resize-during-tween: camera moved during resize: cameraAtHome={await js('!!__DBG__.solarSystem.cameraAtHome')} pos={mid['pos']} home={mid['home']} distance={mid['d']}"
             end = time.time()+20
             while time.time()<end and not await js("!!__DBG__.solarSystem.cameraAtHome"): await asyncio.sleep(.1)
             assert await js("getComputedStyle(document.querySelector('#globe-container')).display !== 'none'"), 'cesium: globe not visible'
