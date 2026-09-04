@@ -141,7 +141,7 @@ export class SolarSystem {
 
   _fitHomeCamera(width, height) {
     const aspect = width / height;
-    const hfovHalf = Math.atan(Math.tan(THREE.MathUtils.degToRad(52) / 2) * aspect);
+    const hfovHalf = Math.atan(Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) * aspect);
     const baseDistance = this.baseCameraPosition.length();
     const requiredDist = TARGET_RADIUS / Math.tan(hfovHalf);
     const k = Math.max(1, requiredDist / baseDistance);
@@ -477,6 +477,18 @@ export class SolarSystem {
   _syncHitButtons() {
     const rect = this.canvas.getBoundingClientRect();
     const projected = new THREE.Vector3();
+    const earth = this.hitButtons.find((item) => item.mesh === this.earth);
+    const moon = this.hitButtons.find((item) => item.mesh === this.moon);
+    let separation = null;
+    if (earth && moon) {
+      const er = earth.mesh.position.clone().project(this.camera);
+      const mr = moon.mesh.position.clone().project(this.camera);
+      separation = {
+        dx: (er.x - mr.x) * rect.width * 0.5,
+        dy: -(er.y - mr.y) * rect.height * 0.5,
+        distance: Math.hypot((er.x - mr.x) * rect.width * 0.5, (er.y - mr.y) * rect.height * 0.5),
+      };
+    }
 
     this.hitButtons.forEach((entry) => {
       projected.copy(entry.mesh.position).project(this.camera);
@@ -486,19 +498,21 @@ export class SolarSystem {
       const top = (-projected.y * 0.5 + 0.5) * rect.height;
 
       const scale = entry.mesh.geometry.parameters.radius || 1;
-      let size = Math.max(24, Math.min(120, (scale * 260) / Math.max(6, this.camera.position.distanceTo(entry.mesh.position))));
-      const earth = this.hitButtons.find((item) => item.mesh === this.earth);
-      const moon = this.hitButtons.find((item) => item.mesh === this.moon);
-      if (earth && moon) {
-        const er = earth.mesh.position.clone().project(this.camera);
-        const mr = moon.mesh.position.clone().project(this.camera);
-        const dx = (er.x - mr.x) * rect.width * 0.5;
-        const dy = (er.y - mr.y) * rect.height * 0.5;
-        if (Math.hypot(dx, dy) < 14 && (entry === moon || entry === earth)) size = Math.min(size, 12);
+      const size = Math.max(24, Math.min(120, (scale * 260) / Math.max(6, this.camera.position.distanceTo(entry.mesh.position))));
+      let offsetX = 0;
+      let offsetY = 0;
+      if (separation && separation.distance < 26 && (entry === earth || entry === moon)) {
+        const len = Math.max(0.001, separation.distance);
+        const ux = separation.dx / len;
+        const uy = separation.dy / len;
+        const direction = entry === earth ? 1 : -1;
+        const shift = (26 - separation.distance) * 0.5;
+        offsetX = direction * ux * shift;
+        offsetY = direction * uy * shift;
       }
 
-      entry.el.style.left = `${left}px`;
-      entry.el.style.top = `${top}px`;
+      entry.el.style.left = `${left + offsetX}px`;
+      entry.el.style.top = `${top + offsetY}px`;
       entry.el.style.width = `${size}px`;
       entry.el.style.height = `${size}px`;
       entry.el.style.visibility = visible ? 'visible' : 'hidden';
