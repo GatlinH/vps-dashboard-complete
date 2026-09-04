@@ -57,7 +57,38 @@ assert.match(solar, /dispose/);
 assert.match(solar, /pause\(/);
 assert.match(solar, /resume\(/);
 assert.match(solar, /solar-system-hit/);
+assert.match(solar, /projected\.x\s*>=\s*-1/ , 'FAIL: hit visibility must check projected.x NDC bounds');
+assert.match(solar, /projected\.y\s*>=\s*-1/ , 'FAIL: hit visibility must check projected.y NDC bounds');
+assert.match(solar, /Math\.max\(1,\s*requiredDist\s*\/\s*baseDistance\)/, 'FAIL: home camera must only pull back');
+assert.match(solar, /aspect[^\n]*hfovHalf|hfovHalf[^\n]*aspect/, 'FAIL: home camera fit must use aspect');
 assert.match(solar, /getBodySnapshot/);
+assert.match(solar, /cameraAtHome/);
+assert.match(solar, /_snapToHome\(\)[\s\S]{0,180}this\.cameraTween\s*=\s*null/);
+function methodSpan(source, signature) {
+  const start = source.indexOf(signature); assert.ok(start >= 0, `method not found: ${signature}`);
+  const closeParams = source.indexOf(')', start);
+  const open = source.indexOf('{', closeParams >= 0 ? closeParams : start); let depth = 0;
+  for (let i = open; i < source.length; i++) {
+    if (source[i] === '{') depth++;
+    else if (source[i] === '}' && --depth === 0) return [start, i + 1];
+  }
+  assert.fail(`unclosed method: ${signature}`);
+}
+const constructorSpan = methodSpan(solar, 'constructor(');
+const snapSpan = methodSpan(solar, '_snapToHome() {');
+const trueWrites = [...solar.matchAll(/cameraAtHome\s*(=|\|\|=|\?\?=)\s*true/g)];
+assert.ok(trueWrites.length >= 2, 'cameraAtHome must have true writes in constructor and _snapToHome');
+for (const match of trueWrites) {
+  const p = match.index;
+  assert.ok((p >= constructorSpan[0] && p < constructorSpan[1]) || (p >= snapSpan[0] && p < snapSpan[1]),
+    'cameraAtHome true writes must be confined to constructor and _snapToHome; _snapToHome must be the unique writer or resize() guard invariant can fail');
+}
+assert.doesNotMatch(solar, /Object\.assign\([^)]*cameraAtHome\s*:/, 'Object.assign cameraAtHome write requires manual review');
+assert.match(solar, /this\._syncHitButtons\(\);\s*\n\s*return this;/);
+assert.match(solar, /HOME_FOV/);
+assert.match(solar, /\(earthSize \+ moonSize\) \* 0\.5 \* 1\.1/, 'FAIL: separation threshold must be half-width sum plus 10% margin (* 0.5 * 1.1) to prevent hit-box overlap');
+assert.match(solar, /getWorldPosition/);
+assert.match(solar, /len\s*>=\s*0\.5/);
 assert.match(table, /modelUrl: '\/globe\/xinjian1\.glb\?v=20260728'/); assert.match(table, /fallbackModelUrl: ''/);
 assert.match(entry, /export function renderSunBadge/); assert.match(entry, /export function renderMoonPanel/);
 assert.doesNotMatch(css, /\.starship-gltf-stage\s*\{[^}]*inset:\s*0/);

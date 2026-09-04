@@ -4,6 +4,8 @@ import * as THREE from 'three';
 // a single rAF loop that also drives the camera approach tween.
 
 const MOBILE_QUERY = '(max-width: 720px)';
+const HOME_FOV = 52;
+const TARGET_RADIUS = (19 + 2.6 + 1.25) * 1.1; // world units, 10% fit margin
 
 // name, radius, orbital radius, angular speed (rad/s), colour, mobile-only-drop flag
 const PLANET_TABLE = [
@@ -28,10 +30,12 @@ export class SolarSystem {
     this.bodies = [];        // { name, mesh, angle, speed, orbit, spin, parent }
     this.disposables = [];   // geometries + materials to release in destroy()
     this.hitButtons = [];    // { el, body }
+    this._hitWorldScratch = new THREE.Vector3();
 
     this.clock = null;
     this.frameId = 0;
     this.cameraTween = null; // { t, dur, from, to, lookFrom, lookTo, done }
+    this.cameraAtHome = true;
 
     this.debug = (window.__DBG__ = window.__DBG__ || {});
     this.debug.solarSystem = this;
@@ -109,14 +113,16 @@ export class SolarSystem {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x05060d);
 
-    this.camera = new THREE.PerspectiveCamera(52, width / height, 0.1, 500);
+    this.camera = new THREE.PerspectiveCamera(HOME_FOV, width / height, 0.1, 500);
     this.camera.position.set(0, 26, 48);
     this.cameraTarget = new THREE.Vector3(0, 0, 0);
     this.camera.lookAt(this.cameraTarget);
 
     // Home pose: immutable clones so tween math can never mutate them.
-    this.homeCameraPosition = this.camera.position.clone();
+    this.baseCameraPosition = this.camera.position.clone();
+    this.homeCameraPosition = this._fitHomeCamera(width, height);
     this.homeCameraTarget = this.cameraTarget.clone();
+    this._snapToHome();
 
     // Point light lives inside the sun so planets get real directional shading.
     this.sunLight = new THREE.PointLight(0xffffff, 2.2, 0, 2);
@@ -133,6 +139,15 @@ export class SolarSystem {
     const width = Math.max(1, Math.round(rect.width || this.container.clientWidth || 640));
     const height = Math.max(1, Math.round(rect.height || this.container.clientHeight || 360));
     return { width, height };
+  }
+
+  _fitHomeCamera(width, height) {
+    const aspect = width / height;
+    const hfovHalf = Math.atan(Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) * aspect);
+    const baseDistance = this.baseCameraPosition.length();
+    const requiredDist = TARGET_RADIUS / Math.tan(hfovHalf);
+    const k = Math.max(1, requiredDist / baseDistance);
+    return this.baseCameraPosition.clone().multiplyScalar(k);
   }
 
   _track(...items) {
@@ -384,6 +399,7 @@ export class SolarSystem {
       lookFrom: this.cameraTarget.clone(),
       lookTo: earthPos
     };
+    this.cameraAtHome = false;
   }
 
   _stepCameraTween(dt) {
@@ -462,21 +478,63 @@ export class SolarSystem {
 
   // Project each tracked mesh to screen space and park its hit button there.
   _syncHitButtons() {
+    if (this.disposed || !this.canvas || !this.hitButtons.length) {
+      return;
+    }
+
     const rect = this.canvas.getBoundingClientRect();
     const projected = new THREE.Vector3();
+    const entries = this.hitButtons.map((entry) => {
+      const world = entry.mesh.getWorldPosition(this._hitWorldScratch).clone();
+      const ndc = world.clone().project(this.camera);
+      return { entry, world, ndc };
+    });
+    const earthRow = entries.find((item) => item.entry.mesh === this.earth);
+    const moonRow = entries.find((item) => item.entry.mesh === this.moon);
+    const earth = earthRow && earthRow.entry;
+    const moon = moonRow && moonRow.entry;
+    let separation = null;
+    if (earth && moon) {
+      const er = earthRow.ndc;
+      const mr = moonRow.ndc;
+      separation = {
+        dx: (er.x - mr.x) * rect.width * 0.5,
+        dy: -(er.y - mr.y) * rect.height * 0.5,
+        distance: Math.hypot((er.x - mr.x) * rect.width * 0.5, (er.y - mr.y) * rect.height * 0.5),
+      };
+    }
 
-    this.hitButtons.forEach((entry) => {
-      projected.copy(entry.mesh.position).project(this.camera);
+    const sizes = new Map(entries.map(({ entry, world }) => {
+      const scale = entry.mesh.geometry.parameters.radius || 1;
+      return [entry, Math.max(24, Math.min(120, (scale * 260) / Math.max(6, this.camera.position.distanceTo(world))))];
+    }));
+    const earthSize = sizes.get(earth) || 24;
+    const moonSize = sizes.get(moon) || 24;
+    // Boxes must not overlap: centres need to clear (sizeA + sizeB) / 2. Keep 10% margin.
+    const separationThreshold = (earthSize + moonSize) * 0.5 * 1.1;
+    entries.forEach(({ entry, ndc: projected }) => {
 
-      const visible = projected.z < 1;
+      const visible = projected.z < 1 && projected.x >= -1 && projected.x <= 1 && projected.y >= -1 && projected.y <= 1;
       const left = (projected.x * 0.5 + 0.5) * rect.width;
       const top = (-projected.y * 0.5 + 0.5) * rect.height;
 
-      const scale = entry.mesh.geometry.parameters.radius || 1;
-      const size = Math.max(24, Math.min(120, (scale * 260) / Math.max(6, this.camera.position.distanceTo(entry.mesh.position))));
+      const size = sizes.get(entry) || 24;
+      let offsetX = 0;
+      let offsetY = 0;
+      if (separation && separation.distance < separationThreshold && (entry === earth || entry === moon)) {
+        const len = separation.distance;
+        const ux = len >= 0.5 ? separation.dx / len : 1;
+        const uy = len >= 0.5 ? separation.dy / len : 0;
+        const direction = entry === earth ? 1 : -1;
+        // Never push a button so far that its own body's projected point leaves the box.
+        const maxShift = size * 0.5 - 1;
+        const shift = Math.min((separationThreshold - separation.distance) * 0.5, maxShift);
+        offsetX = direction * ux * shift;
+        offsetY = direction * uy * shift;
+      }
 
-      entry.el.style.left = `${left}px`;
-      entry.el.style.top = `${top}px`;
+      entry.el.style.left = `${left + offsetX}px`;
+      entry.el.style.top = `${top + offsetY}px`;
       entry.el.style.width = `${size}px`;
       entry.el.style.height = `${size}px`;
       entry.el.style.visibility = visible ? 'visible' : 'hidden';
@@ -490,12 +548,17 @@ export class SolarSystem {
       return this;
     }
 
+    this._snapToHome();
+
+    return this;
+  }
+
+  _snapToHome() {
     this.cameraTween = null;
+    this.cameraAtHome = true;
     this.camera.position.copy(this.homeCameraPosition);
     this.cameraTarget.copy(this.homeCameraTarget);
     this.camera.lookAt(this.cameraTarget);
-
-    return this;
   }
 
   resume() {
@@ -538,7 +601,18 @@ export class SolarSystem {
 
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    this.homeCameraPosition = this._fitHomeCamera(width, height);
+    if (this.cameraAtHome) {
+      this.camera.position.copy(this.homeCameraPosition);
+      this.camera.lookAt(this.cameraTarget);
+    }
     this.renderer.setSize(width, height, false);
+    // Redundant on today's paths: lookAt() already refreshes matrixWorldInverse via
+    // Camera#updateWorldMatrix, and when cameraAtHome is false the camera has not moved
+    // since the last render. Kept as a cheap guard for any future path that moves the
+    // camera outside a rendered frame.
+    this.camera.updateMatrixWorld();
+    this._syncHitButtons();
 
     return this;
   }
