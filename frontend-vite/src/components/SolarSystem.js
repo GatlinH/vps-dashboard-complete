@@ -607,7 +607,10 @@ export class SolarSystem {
       this.camera.lookAt(this.cameraTarget);
     }
     this.renderer.setSize(width, height, false);
-    // project() reads matrixWorldInverse; only render() refreshes it automatically.
+    // Redundant on today's paths: lookAt() already refreshes matrixWorldInverse via
+    // Camera#updateWorldMatrix, and when cameraAtHome is false the camera has not moved
+    // since the last render. Kept as a cheap guard for any future path that moves the
+    // camera outside a rendered frame.
     this.camera.updateMatrixWorld();
     this._syncHitButtons();
 
