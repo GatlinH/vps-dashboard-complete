@@ -501,7 +501,8 @@ export class SolarSystem {
     }));
     const earthSize = sizes.get(earth) || 24;
     const moonSize = sizes.get(moon) || 24;
-    const separationThreshold = (earthSize + moonSize) * 0.75;
+    // Boxes must not overlap: centres need to clear (sizeA + sizeB) / 2. Keep 10% margin.
+    const separationThreshold = (earthSize + moonSize) * 0.5 * 1.1;
     this.hitButtons.forEach((entry) => {
       projected.copy(entry.mesh.getWorldPosition(new THREE.Vector3())).project(this.camera);
 
@@ -517,7 +518,9 @@ export class SolarSystem {
         const ux = len >= 0.5 ? separation.dx / len : 1;
         const uy = len >= 0.5 ? separation.dy / len : 0;
         const direction = entry === earth ? 1 : -1;
-        const shift = (separationThreshold - separation.distance) * 0.5;
+        // Never push a button so far that its own body's projected point leaves the box.
+        const maxShift = size * 0.5 - 1;
+        const shift = Math.min((separationThreshold - separation.distance) * 0.5, maxShift);
         offsetX = direction * ux * shift;
         offsetY = direction * uy * shift;
       }

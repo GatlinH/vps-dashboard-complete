@@ -52,13 +52,15 @@ async def run_viewport(width, height):
                 if ready: break
                 await asyncio.sleep(.25)
             await js("window.__DBG__.solarSystem.bodies.forEach(b=>b.speed*=8)")
-            totals = {n:[0,0] for n in LABELS}; failures=[]
+            totals = {n:{'center':[0,0], 'target':[0,0]} for n in LABELS}; failures=[]
             for _ in range(260):
-                rows = await js("""(()=>Array.from(document.querySelectorAll('button.solar-system-hit')).map(el=>{let r=el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,h=document.elementFromPoint(cx,cy);return [el.getAttribute('aria-label'),h===el,getComputedStyle(el).visibility,cx,cy,h&&h.getAttribute('aria-label'),r.width,r.height]}))()""") or []
-                for label,hit,vis,cx,cy,owner,w,h in rows:
+                rows = await js("""(()=>{const s=window.__DBG__.solarSystem,r=s.canvas.getBoundingClientRect(),es=s.hitButtons.find(e=>e.mesh===s.earth),ms=s.hitButtons.find(e=>e.mesh===s.moon),ep=es.mesh.getWorldPosition(es.mesh.position.clone()).project(s.camera),mp=ms.mesh.getWorldPosition(ms.mesh.position.clone()).project(s.camera),rawGap=Math.hypot((ep.x-mp.x)*r.width*.5,(ep.y-mp.y)*r.height*.5);return Array.from(document.querySelectorAll('button.solar-system-hit')).map(el=>{const label=el.getAttribute('aria-label'),entry=s.hitButtons.find(e=>e.el===el),p=entry.mesh.getWorldPosition(entry.mesh.position.clone()).project(s.camera),tx=r.left+(p.x*.5+.5)*r.width,ty=r.top+(-p.y*.5+.5)*r.height,br=el.getBoundingClientRect(),cx=br.left+br.width/2,cy=br.top+br.height/2,ch=document.elementFromPoint(cx,cy),th=document.elementFromPoint(tx,ty);return [label,ch===el,th===el,getComputedStyle(el).visibility,cx,cy,tx,ty,ch&& (ch.getAttribute('aria-label')||ch.tagName),th&& (th.getAttribute('aria-label')||th.tagName),Math.hypot(cx-tx,cy-ty),rawGap,br.width,br.height]})})()""") or []
+                for label,center_hit,target_hit,vis,cx,cy,tx,ty,owner,target_owner,drift,raw_gap,w,h in rows:
                     if label in totals:
-                        totals[label][1]+=1; totals[label][0]+=int(hit and vis=='visible')
-                        if not (hit and vis=='visible'): failures.append((label,cx,cy,owner,w,h))
+                        totals[label]['center'][1]+=1; totals[label]['center'][0]+=int(center_hit and vis=='visible')
+                        totals[label]['target'][1]+=1; totals[label]['target'][0]+=int(target_hit and vis=='visible')
+                        if not (center_hit and vis=='visible'): failures.append((label,'center',owner,w,h))
+                        if not (target_hit and vis=='visible'): failures.append((label,'target',target_owner,drift,raw_gap,w,h))
                 await asyncio.sleep(.08)
             return totals, failures
     finally:
@@ -67,7 +69,9 @@ async def run_viewport(width, height):
 async def main():
     for w,h in [(1400,913),(900,800),(760,900),(480,850)]:
         result, failures = await run_viewport(w,h)
-        print(f'{w}x{h}: ' + ', '.join(f'{k} {v[0]/max(1,v[1]):.3%}' for k,v in result.items()))
+        print(f'{w}x{h}: ' + ', '.join(f'{k} center {v["center"][0]/max(1,v["center"][1]):.3%}, target {v["target"][0]/max(1,v["target"][1]):.3%}' for k,v in result.items()))
         if failures: print('  failures:', failures[:3])
-        assert all(v[0]/max(1,v[1]) >= .995 for v in result.values())
+        assert all(v['center'][0]/max(1,v['center'][1]) >= .995 for v in result.values()), f'{w}x{h}: button-center hit ratio below 99.5%'
+        assert all(v['target'][0]/max(1,v['target'][1]) >= .995 for k,v in result.items() if k != LABELS[0]), f'{w}x{h}: user-target hit ratio below 99.5%; failures={failures[:3]}'
+        assert result[LABELS[0]]['target'][0]/max(1,result[LABELS[0]]['target'][1]) >= 1.0, f'{w}x{h}: sun target hit ratio below 100%; failures={failures[:3]}'
 asyncio.run(main())
