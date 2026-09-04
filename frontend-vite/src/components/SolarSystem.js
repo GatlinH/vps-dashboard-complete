@@ -4,7 +4,8 @@ import * as THREE from 'three';
 // a single rAF loop that also drives the camera approach tween.
 
 const MOBILE_QUERY = '(max-width: 720px)';
-const TARGET_RADIUS = 24;
+const HOME_FOV = 52;
+const TARGET_RADIUS = (19 + 2.6 + 1.25) * 1.1; // world units, 10% fit margin
 
 // name, radius, orbital radius, angular speed (rad/s), colour, mobile-only-drop flag
 const PLANET_TABLE = [
@@ -33,6 +34,7 @@ export class SolarSystem {
     this.clock = null;
     this.frameId = 0;
     this.cameraTween = null; // { t, dur, from, to, lookFrom, lookTo, done }
+    this.cameraAtHome = true;
 
     this.debug = (window.__DBG__ = window.__DBG__ || {});
     this.debug.solarSystem = this;
@@ -110,7 +112,7 @@ export class SolarSystem {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x05060d);
 
-    this.camera = new THREE.PerspectiveCamera(52, width / height, 0.1, 500);
+    this.camera = new THREE.PerspectiveCamera(HOME_FOV, width / height, 0.1, 500);
     this.camera.position.set(0, 26, 48);
     this.cameraTarget = new THREE.Vector3(0, 0, 0);
     this.camera.lookAt(this.cameraTarget);
@@ -397,6 +399,7 @@ export class SolarSystem {
       lookFrom: this.cameraTarget.clone(),
       lookTo: earthPos
     };
+    this.cameraAtHome = false;
   }
 
   _stepCameraTween(dt) {
@@ -481,8 +484,10 @@ export class SolarSystem {
     const moon = this.hitButtons.find((item) => item.mesh === this.moon);
     let separation = null;
     if (earth && moon) {
-      const er = earth.mesh.position.clone().project(this.camera);
-      const mr = moon.mesh.position.clone().project(this.camera);
+      const erWorld = earth.mesh.getWorldPosition(new THREE.Vector3());
+      const mrWorld = moon.mesh.getWorldPosition(new THREE.Vector3());
+      const er = erWorld.project(this.camera);
+      const mr = mrWorld.project(this.camera);
       separation = {
         dx: (er.x - mr.x) * rect.width * 0.5,
         dy: -(er.y - mr.y) * rect.height * 0.5,
@@ -490,23 +495,29 @@ export class SolarSystem {
       };
     }
 
+    const sizes = new Map(this.hitButtons.map((entry) => {
+      const scale = entry.mesh.geometry.parameters.radius || 1;
+      return [entry, Math.max(24, Math.min(120, (scale * 260) / Math.max(6, this.camera.position.distanceTo(entry.mesh.getWorldPosition(new THREE.Vector3())))))];
+    }));
+    const earthSize = sizes.get(earth) || 24;
+    const moonSize = sizes.get(moon) || 24;
+    const separationThreshold = (earthSize + moonSize) * 0.75;
     this.hitButtons.forEach((entry) => {
-      projected.copy(entry.mesh.position).project(this.camera);
+      projected.copy(entry.mesh.getWorldPosition(new THREE.Vector3())).project(this.camera);
 
       const visible = projected.z < 1 && projected.x >= -1 && projected.x <= 1 && projected.y >= -1 && projected.y <= 1;
       const left = (projected.x * 0.5 + 0.5) * rect.width;
       const top = (-projected.y * 0.5 + 0.5) * rect.height;
 
-      const scale = entry.mesh.geometry.parameters.radius || 1;
-      const size = Math.max(24, Math.min(120, (scale * 260) / Math.max(6, this.camera.position.distanceTo(entry.mesh.position))));
+      const size = sizes.get(entry) || 24;
       let offsetX = 0;
       let offsetY = 0;
-      if (separation && separation.distance < 26 && (entry === earth || entry === moon)) {
-        const len = Math.max(0.001, separation.distance);
-        const ux = separation.dx / len;
-        const uy = separation.dy / len;
+      if (separation && separation.distance < separationThreshold && (entry === earth || entry === moon)) {
+        const len = separation.distance;
+        const ux = len >= 0.5 ? separation.dx / len : 1;
+        const uy = len >= 0.5 ? separation.dy / len : 0;
         const direction = entry === earth ? 1 : -1;
-        const shift = (26 - separation.distance) * 0.5;
+        const shift = (separationThreshold - separation.distance) * 0.5;
         offsetX = direction * ux * shift;
         offsetY = direction * uy * shift;
       }
@@ -527,6 +538,7 @@ export class SolarSystem {
     }
 
     this.cameraTween = null;
+    this.cameraAtHome = true;
     this.camera.position.copy(this.homeCameraPosition);
     this.cameraTarget.copy(this.homeCameraTarget);
     this.camera.lookAt(this.cameraTarget);
@@ -575,11 +587,12 @@ export class SolarSystem {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.homeCameraPosition = this._fitHomeCamera(width, height);
-    if (!this.cameraTween) {
+    if (this.cameraAtHome) {
       this.camera.position.copy(this.homeCameraPosition);
       this.camera.lookAt(this.cameraTarget);
     }
     this.renderer.setSize(width, height, false);
+    this._syncHitButtons();
 
     return this;
   }

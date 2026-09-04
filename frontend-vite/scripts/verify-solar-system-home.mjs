@@ -62,6 +62,12 @@ assert.match(solar, /projected\.y\s*>=\s*-1/ , 'FAIL: hit visibility must check 
 assert.match(solar, /Math\.max\(1,\s*requiredDist\s*\/\s*baseDistance\)/, 'FAIL: home camera must only pull back');
 assert.match(solar, /aspect[^\n]*hfovHalf|hfovHalf[^\n]*aspect/, 'FAIL: home camera fit must use aspect');
 assert.match(solar, /getBodySnapshot/);
+assert.match(solar, /cameraAtHome/);
+assert.match(solar, /this\._syncHitButtons\(\);\s*\n\s*return this;/);
+assert.match(solar, /HOME_FOV/);
+assert.match(solar, /separationThreshold\s*=\s*\(earthSize\s*\+\s*moonSize\)/);
+assert.match(solar, /getWorldPosition/);
+assert.match(solar, /len\s*>=\s*0\.5/);
 assert.match(table, /modelUrl: '\/globe\/xinjian1\.glb\?v=20260728'/); assert.match(table, /fallbackModelUrl: ''/);
 assert.match(entry, /export function renderSunBadge/); assert.match(entry, /export function renderMoonPanel/);
 assert.doesNotMatch(css, /\.starship-gltf-stage\s*\{[^}]*inset:\s*0/);
