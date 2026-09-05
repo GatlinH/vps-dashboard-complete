@@ -299,9 +299,6 @@ async def check_b():
         ):
             print("FAIL: B - the Cesium container never became visible on round %d" % attempt)
             return False
-        if not await js("""(() => { const g=document.querySelector('#globe-container'); const h=g?.querySelector('.star-effects-host'); const c=g?.querySelector('.star-effects-canvas'); if (!g || !h) return false; const r=h.getBoundingClientRect(); return r.width>0 && r.height>0 && (!c || h.contains(c)) && !Array.from(g.children).some(x=>x.classList.contains('star-effects-canvas')); })()"""):
-            print("FAIL: B - star effects host structure invalid on round %d" % attempt)
-            return False
         if await js(visible_expr("#solar-system-container")):
             print("FAIL: B - the solar system stayed visible behind Cesium on round %d" % attempt)
             return False
@@ -324,10 +321,6 @@ async def check_b():
             return False
         await asyncio.sleep(0.3)
         print("       round %d: Earth -> Cesium -> Escape OK" % attempt)
-
-    if not await js("""(() => { const g=document.querySelector('#globe-container'); const h=g?.querySelector('.star-effects-host'); const c=g?.querySelector('.star-effects-canvas'); if (!g || !h) return false; const r=h.getBoundingClientRect(); return r.width>0 && r.height>0 && (!c || h.contains(c)) && !Array.from(g.children).some(x=>x.classList.contains('star-effects-canvas')); })()"""):
-        print("FAIL: B - star effects host structure invalid after round 2")
-        return False
 
     if all_ok:
         print("PASS: B - Earth -> Cesium -> Escape round trip works twice")

@@ -39,7 +39,6 @@ function precompressAssets() {
 }
 
 function manualChunks(id) {
-  if (id.includes('node_modules/pixi.js') || id.includes('/src/components/StarEffectsLayer.js')) return 'stareffects';
   if (id.includes('node_modules/chart.js')) return 'chart';
   if (id.includes('node_modules/cesium') || id.includes('node_modules/@cesium/')) return 'cesium';
   if ([
@@ -99,7 +98,7 @@ export default defineConfig({
               test: (id) => manualChunks(id) === 'cesium',
               includeDependenciesRecursively: false,
             },
-              ...['chart', 'deckgl', 'vendor', 'components', 'stareffects'].map((name) => ({
+              ...['chart', 'deckgl', 'vendor', 'components'].map((name) => ({
               name,
               test: (id) => manualChunks(id) === name,
             })),
@@ -147,7 +146,7 @@ export default defineConfig({
       injectManifest: {
         injectionPoint: 'self.__WB_MANIFEST',
         globPatterns: ['**/*.{js,css,html,svg,woff,woff2}'],
-        globIgnores: ['**/node_modules/**/*', '**/cesium/**/*', '**/assets/cesium-*', '**/assets/stareffects-*'],
+        globIgnores: ['**/node_modules/**/*', '**/cesium/**/*', '**/assets/cesium-*'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
       },
       devOptions: {

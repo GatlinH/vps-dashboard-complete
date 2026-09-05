@@ -68,14 +68,8 @@ assert.equal(
   0,
   `Cesium URLs found in precache (${violations.length}): ${violations.slice(0, 5).join(', ')}`,
 );
-const starEffectsViolations = precacheUrls.filter((url) => /stareffects/i.test(url));
-assert.equal(
-  starEffectsViolations.length,
-  0,
-  `StarEffects URLs found in precache (${starEffectsViolations.length}): ${starEffectsViolations.slice(0, 5).join(', ')}`,
-);
 const serviceWorkerCode = `${sw.slice(0, manifestStart)}${sw.slice(manifestEnd)}`;
 assert.match(serviceWorkerCode, /cacheName\s*:\s*["']cesium-runtime-v1["']/i, 'Cesium runtime cacheName is missing');
 assert.match(serviceWorkerCode, /startsWith\(\s*["']\/cesium\/["']\s*\)/i, 'Cesium route prefix /cesium/ is missing');
 assert.match(serviceWorkerCode, /includes\(\s*["']\/assets\/cesium-["']\s*\)/i, 'Cesium route prefix /assets/cesium- is missing');
-console.log(`sw precache excludes Cesium and StarEffects: ok (${precacheUrls.length} URLs)`);
+console.log(`sw precache excludes Cesium: ok (${precacheUrls.length} URLs)`);
