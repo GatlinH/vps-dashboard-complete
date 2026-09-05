@@ -122,6 +122,9 @@ export class CesiumGlobe {
     this._starshipReady = false;
     this._starshipLoadToken = 0;
     this._starshipNativeRadius = null;
+    this._starEffectsLayer = null;
+    this._starEffectsReady = null;
+    this._starEffectsToken = 0;
     this._starshipScratch = {
       position: new Cesium.Cartesian3(),
       right: new Cesium.Cartesian3(),
@@ -264,8 +267,8 @@ export class CesiumGlobe {
     this._starProjectionBg.appendChild(this._earthSyncStarsB);
     this.container.appendChild(this._starProjectionBg);
     this._nasaParallaxBackground = new NasaParallaxBackground(this._starProjectionBg);
-    // Optional PIXI star sparkles; fail-soft if host is 0×0 or WebGL is busy.
-    this._initStarEffects();
+    // Optional PIXI star sparkles; fail-soft on layout, WebGL, or chunk-loading failures.
+    this._starEffectsReady = this._initStarEffects();
 
     this._cesiumDiv = document.createElement('div');
     this._cesiumDiv.id = 'cesium-globe-container';
@@ -497,15 +500,33 @@ export class CesiumGlobe {
     getGlobeRuntimeDebug().globeMode = 'Native CesiumJS rebuild v2 (real imagery + clouds + spin + shared-webgl starship)';
   }
 
-  async _initStarEffects() {
-    try {
-      const { StarEffectsLayer } = await import('./StarEffectsLayer.js');
-      if (this._destroyed) return;
-      this._starEffectsLayer = new StarEffectsLayer(this.container, { seed: 2406 });
-    } catch (error) {
-      console.warn('[CesiumGlobe] StarEffectsLayer skipped', error);
-      this._starEffectsLayer = null;
-    }
+  _initStarEffects() {
+    if (this._destroyed) return Promise.resolve(null);
+    const token = ++this._starEffectsToken;
+    const ready = (async () => {
+      try {
+        const { StarEffectsLayer } = await import('./StarEffectsLayer.js');
+        if (this._destroyed || token !== this._starEffectsToken) return null;
+        const layer = new StarEffectsLayer(this.container, { seed: 2406 });
+        if (this._destroyed || token !== this._starEffectsToken) {
+          try { layer.destroy(); } catch (_) {}
+          return null;
+        }
+        try { this._starEffectsLayer?.destroy(); } catch (_) {}
+        this._starEffectsLayer = layer;
+        getGlobeRuntimeDebug().starEffectsError = null;
+        return layer;
+      } catch (error) {
+        if (token === this._starEffectsToken) {
+          console.warn('[CesiumGlobe] StarEffectsLayer skipped', error);
+          this._starEffectsLayer = null;
+          getGlobeRuntimeDebug().starEffectsError = error;
+        }
+        return null;
+      }
+    })();
+    this._starEffectsReady = ready;
+    return ready;
   }
 
   async _installStarshipModel() {
@@ -1219,6 +1240,7 @@ export class CesiumGlobe {
 
   destroy() {
     this._destroyed = true;
+    this._starEffectsToken += 1;
     if (this._layoutWaitTimer) {
       clearTimeout(this._layoutWaitTimer);
       this._layoutWaitTimer = null;

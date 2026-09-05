@@ -20,7 +20,7 @@
     "test:solar-system-behavior": "python3 scripts/verify_solar_system_behavior.py",
     "test:solar-hit-targets": "python3 scripts/verify_solar_hit_targets.py",
     "test:sw-precache-excludes-cesium": "node scripts/verify-sw-precache-excludes-cesium.mjs",
-    "test:vendor-chunk-budget": "node scripts/verify-vendor-chunk-budget.mjs",
+    "test:vendor-chunk-budget": "npm run build && node scripts/verify-vendor-chunk-budget.mjs",
     "check:css-important": "node scripts/check-css-important.mjs",
     "check:source-surfaces": "node scripts/check-source-surfaces.mjs",
     "lint": "eslint src/",
