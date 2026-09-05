@@ -27,7 +27,6 @@ import { applyCesiumTheme } from './globe/runtime/sceneSetup.js';
 import { rebuildVpsEntities } from './globe/vpsEntities.js';
 import { installVisitorBeacon } from './globe/runtime/visitorBeacon.js';
 import { installPlaceLabels, updatePlaceLabels, updateHtmlNodeLabels } from './globe/runtime/labelOverlay.js';
-import { StarEffectsLayer } from './StarEffectsLayer.js';
 import { NasaParallaxBackground } from './NasaParallaxBackground.js';
 
 
@@ -266,12 +265,7 @@ export class CesiumGlobe {
     this.container.appendChild(this._starProjectionBg);
     this._nasaParallaxBackground = new NasaParallaxBackground(this._starProjectionBg);
     // Optional PIXI star sparkles; fail-soft if host is 0×0 or WebGL is busy.
-    try {
-      this._starEffectsLayer = new StarEffectsLayer(this.container, { seed: 2406 });
-    } catch (error) {
-      console.warn('[CesiumGlobe] StarEffectsLayer skipped', error);
-      this._starEffectsLayer = null;
-    }
+    this._initStarEffects();
 
     this._cesiumDiv = document.createElement('div');
     this._cesiumDiv.id = 'cesium-globe-container';
@@ -501,6 +495,17 @@ export class CesiumGlobe {
     window.__DBG__.globe = this;
     window.__DBG__.CESIUM_GLOBE = this;
     getGlobeRuntimeDebug().globeMode = 'Native CesiumJS rebuild v2 (real imagery + clouds + spin + shared-webgl starship)';
+  }
+
+  async _initStarEffects() {
+    try {
+      const { StarEffectsLayer } = await import('./StarEffectsLayer.js');
+      if (this._destroyed) return;
+      this._starEffectsLayer = new StarEffectsLayer(this.container, { seed: 2406 });
+    } catch (error) {
+      console.warn('[CesiumGlobe] StarEffectsLayer skipped', error);
+      this._starEffectsLayer = null;
+    }
   }
 
   async _installStarshipModel() {

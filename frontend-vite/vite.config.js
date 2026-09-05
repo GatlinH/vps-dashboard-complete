@@ -39,6 +39,7 @@ function precompressAssets() {
 }
 
 function manualChunks(id) {
+  if (id.includes('node_modules/pixi.js') || id.includes('/src/components/StarEffectsLayer.js')) return 'stareffects';
   if (id.includes('node_modules/chart.js')) return 'chart';
   if (id.includes('node_modules/cesium') || id.includes('node_modules/@cesium/')) return 'cesium';
   if ([
@@ -98,7 +99,7 @@ export default defineConfig({
               test: (id) => manualChunks(id) === 'cesium',
               includeDependenciesRecursively: false,
             },
-            ...['chart', 'deckgl', 'vendor', 'components'].map((name) => ({
+...['chart', 'deckgl', 'vendor', 'components', 'stareffects'].map((name) => ({
               name,
               test: (id) => manualChunks(id) === name,
             })),
