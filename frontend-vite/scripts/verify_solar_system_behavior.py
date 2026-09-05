@@ -299,6 +299,9 @@ async def check_b():
         ):
             print("FAIL: B - the Cesium container never became visible on round %d" % attempt)
             return False
+        if not await js("""(() => { const g=document.querySelector('#globe-container'); const h=g?.querySelector('.star-effects-host'); const c=g?.querySelector('.star-effects-canvas'); if (!g || !h) return false; const r=h.getBoundingClientRect(); return r.width>0 && r.height>0 && (!c || h.contains(c)) && !Array.from(g.children).some(x=>x.classList.contains('star-effects-canvas')); })()"""):
+            print("FAIL: B - star effects host structure invalid on round %d" % attempt)
+            return False
         if await js(visible_expr("#solar-system-container")):
             print("FAIL: B - the solar system stayed visible behind Cesium on round %d" % attempt)
             return False
@@ -321,6 +324,10 @@ async def check_b():
             return False
         await asyncio.sleep(0.3)
         print("       round %d: Earth -> Cesium -> Escape OK" % attempt)
+
+    if not await js("""(() => { const g=document.querySelector('#globe-container'); const h=g?.querySelector('.star-effects-host'); const c=g?.querySelector('.star-effects-canvas'); if (!g || !h) return false; const r=h.getBoundingClientRect(); return r.width>0 && r.height>0 && (!c || h.contains(c)) && !Array.from(g.children).some(x=>x.classList.contains('star-effects-canvas')); })()"""):
+        print("FAIL: B - star effects host structure invalid after round 2")
+        return False
 
     if all_ok:
         print("PASS: B - Earth -> Cesium -> Escape round trip works twice")
@@ -556,11 +563,12 @@ async def main():
 
         # Order matters: A first, then the D probe (before any Earth click mounts
         # Cesium), then C (also before B), then B.
-        a = await check_a()
-        d = await check_d_problems()
-        c = await check_c()
+        only_b = "--only-b" in sys.argv
+        a = True if only_b else await check_a()
+        d = True if only_b else await check_d_problems()
+        c = True if only_b else await check_c()
         b = await check_b()
-        e = await check_e()
+        e = True if only_b else await check_e()
 
         print("SUMMARY: A=%s B=%s C=%s D=%s E=%s" % (a, b, c, d, e))
         return 0 if (a and b and c and d and e) else 1

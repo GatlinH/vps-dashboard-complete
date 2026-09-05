@@ -267,6 +267,11 @@ export class CesiumGlobe {
     this._starProjectionBg.appendChild(this._earthSyncStarsB);
     this.container.appendChild(this._starProjectionBg);
     this._nasaParallaxBackground = new NasaParallaxBackground(this._starProjectionBg);
+    this._starEffectsHost = document.createElement('div');
+    this._starEffectsHost.className = 'star-effects-host';
+    this._starEffectsHost.setAttribute('aria-hidden', 'true');
+    this._starEffectsHost.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:20;';
+    this.container.appendChild(this._starEffectsHost);
     // Optional PIXI star sparkles; fail-soft on layout, WebGL, or chunk-loading failures.
     this._starEffectsReady = this._initStarEffects();
 
@@ -507,7 +512,7 @@ export class CesiumGlobe {
       try {
         const { StarEffectsLayer } = await import('./StarEffectsLayer.js');
         if (this._destroyed || token !== this._starEffectsToken) return null;
-        const layer = new StarEffectsLayer(this.container, { seed: 2406 });
+        const layer = new StarEffectsLayer(this._starEffectsHost, { seed: 2406 });
         if (this._destroyed || token !== this._starEffectsToken) {
           try { layer.destroy(); } catch (_) {}
           return null;
@@ -1241,6 +1246,8 @@ export class CesiumGlobe {
   destroy() {
     this._destroyed = true;
     this._starEffectsToken += 1;
+    const starEffectsReady = this._starEffectsReady;
+    this._starEffectsReady = null;
     if (this._layoutWaitTimer) {
       clearTimeout(this._layoutWaitTimer);
       this._layoutWaitTimer = null;
@@ -1277,6 +1284,9 @@ export class CesiumGlobe {
     this._nasaParallaxBackground = null;
     try { this._starEffectsLayer?.destroy(); } catch (_) {}
     this._starEffectsLayer = null;
+    try { this._starEffectsHost?.remove(); } catch (_) {}
+    this._starEffectsHost = null;
+    if (starEffectsReady?.then) starEffectsReady.then((layer) => { try { layer?.destroy?.(); } catch (_) {} });
     this._htmlLabels?.forEach((el) => el.remove());
     this._htmlLabels = new Map();
     if (this.viewer) { try { this.viewer.destroy(); } catch (_) {} this.viewer = null; }

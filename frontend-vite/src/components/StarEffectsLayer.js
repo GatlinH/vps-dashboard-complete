@@ -23,6 +23,7 @@ export class StarEffectsLayer {
     this._frame = 0;
     this._onResize = () => this.resize();
     this._onPointerDown = (e) => this.handlePointerDown(e);
+    this._destroyed = false;
     this.ready = this.init();
   }
 
@@ -41,6 +42,11 @@ export class StarEffectsLayer {
       resolution: Math.min(window.devicePixelRatio || 1, 1.5),
       powerPreference: 'high-performance',
     });
+    if (this._destroyed) {
+      try { this.app?.destroy(true, { children: true, texture: true, baseTexture: true }); } catch (_) {}
+      this.app = null;
+      return;
+    }
     this.app.canvas.className = 'star-effects-canvas';
     this.app.canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:20;';
     this.container.appendChild(this.app.canvas);
@@ -197,9 +203,12 @@ export class StarEffectsLayer {
   }
 
   destroy() {
+    this._destroyed = true;
     window.removeEventListener('resize', this._onResize);
     window.removeEventListener('pointerdown', this._onPointerDown, true);
     if (window.__DBG__.starEffectsLayer === this) window.__DBG__.starEffectsLayer = null;
+    const canvas = this.app?.canvas;
+    try { canvas?.remove?.(); } catch (_) {}
     try { this.app?.destroy(true, { children: true, texture: true, baseTexture: true }); } catch (_) {}
     this.app = null;
   }
