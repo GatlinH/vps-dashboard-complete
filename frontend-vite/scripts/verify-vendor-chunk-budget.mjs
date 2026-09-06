@@ -33,21 +33,32 @@ const vendor = files.filter((f) => /^vendor-[^/]+\.js$/.test(f));
 const cesium = files.filter((f) => /^cesium-[^/]+\.js$/.test(f));
 if (!vendor.length) throw new Error('No vendor chunk found');
 if (!cesium.length) throw new Error('No cesium chunk found');
-const indexHtml = fs.readFileSync(path.resolve(root, '../frontend-dist/index.html'), 'utf8');
-if (cesium.some((f) => new RegExp(`modulepreload[^>]+${f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(indexHtml))) {
-  throw new Error('cesium chunk must remain lazy-loaded (not in index.html modulepreload)');
+const distDir = path.resolve(root, '../frontend-dist');
+const htmlFiles = fs.readdirSync(distDir).filter((f) => f.endsWith('.html'));
+const cesiumFileNames = cesium.map((f) => f.split('/').pop());
+for (const html of htmlFiles) {
+  const body = fs.readFileSync(path.join(distDir, html), 'utf8');
+  for (const name of cesiumFileNames) {
+    if (body.includes(name)) {
+      throw new Error(`cesium chunk ${name} must not appear in ${html} (keeps it lazy-loaded)`);
+    }
+  }
 }
 const vendorCode = vendor.map((f) => fs.readFileSync(path.join(assetsDir, f), 'utf8')).join('\n');
 const pixiCount = (vendorCode.match(/pixi/gi) ?? []).length;
 if (pixiCount !== 0) throw new Error(`pixi appears ${pixiCount} times in vendor chunk`);
 const vendorBytes = vendor.reduce((n, f) => n + fs.statSync(path.join(assetsDir, f)).size, 0);
 // Ratchet: current size plus roughly 5%; lower this ceiling when the chunk shrinks.
-if (vendorBytes >= 1372 * 1024) throw new Error(`vendor chunk is ${vendorBytes} bytes (must be < 1404928)`);
-const staleStarEffects = files.filter((f) => /^stareffects-/.test(path.basename(f)));
+const VENDOR_RATCHET_KB = 1372;
+const vendorRatchetBytes = VENDOR_RATCHET_KB * 1024;
+if (vendorBytes >= vendorRatchetBytes) {
+  throw new Error(`vendor chunk is ${vendorBytes} bytes (must be < ${vendorRatchetBytes}; ratchet is ${VENDOR_RATCHET_KB} KiB)`);
+}
+const staleStarEffects = allFiles.filter((f) => /^stareffects-/.test(path.basename(f)));
 if (staleStarEffects.length) throw new Error(`stareffects artifacts found: ${staleStarEffects.join(', ')}`);
 const pixiFiles = allFiles.filter((f) => /\.(?:js|mjs|css)$/.test(f));
-const htmlFiles = ['index.html', 'admin.html'].map((f) => path.resolve(root, '../frontend-dist', f));
-const allPixi = [...pixiFiles.map((f) => fs.readFileSync(path.join(assetsDir, f), 'utf8')), ...htmlFiles.map((f) => fs.readFileSync(f, 'utf8'))]
+const appHtmlFiles = ['index.html', 'admin.html'].map((f) => path.resolve(root, '../frontend-dist', f));
+const allPixi = [...pixiFiles.map((f) => fs.readFileSync(path.join(assetsDir, f), 'utf8')), ...appHtmlFiles.map((f) => fs.readFileSync(f, 'utf8'))]
   .reduce((n, content) => n + (content.match(/pixi/gi) ?? []).length, 0);
 // Compressed .br/.gz files are same-source copies and need no separate scan.
 if (allPixi !== 0) throw new Error(`pixi appears ${allPixi} times across JS/CSS/HTML assets`);
