@@ -34,8 +34,12 @@ const cesium = files.filter((f) => /^cesium-[^/]+\.js$/.test(f));
 if (!vendor.length) throw new Error('No vendor chunk found');
 if (!cesium.length) throw new Error('No cesium chunk found');
 const distDir = path.resolve(root, '../frontend-dist');
-const htmlFiles = fs.readdirSync(distDir).filter((f) => f.endsWith('.html'));
 const cesiumFileNames = cesium.map((f) => f.split('/').pop());
+const collectHtmlFiles = (dir, prefix = '') => fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+  const relative = path.join(prefix, entry.name);
+  return entry.isDirectory() ? collectHtmlFiles(path.join(dir, entry.name), relative) : (entry.name.endsWith('.html') ? [relative] : []);
+});
+const htmlFiles = collectHtmlFiles(distDir);
 for (const html of htmlFiles) {
   const body = fs.readFileSync(path.join(distDir, html), 'utf8');
   for (const name of cesiumFileNames) {
@@ -57,7 +61,7 @@ if (vendorBytes >= vendorRatchetBytes) {
 const staleStarEffects = allFiles.filter((f) => /^stareffects-/.test(path.basename(f)));
 if (staleStarEffects.length) throw new Error(`stareffects artifacts found: ${staleStarEffects.join(', ')}`);
 const pixiFiles = allFiles.filter((f) => /\.(?:js|mjs|css)$/.test(f));
-const appHtmlFiles = ['index.html', 'admin.html'].map((f) => path.resolve(root, '../frontend-dist', f));
+const appHtmlFiles = htmlFiles.map((f) => path.join(distDir, f));
 const allPixi = [...pixiFiles.map((f) => fs.readFileSync(path.join(assetsDir, f), 'utf8')), ...appHtmlFiles.map((f) => fs.readFileSync(f, 'utf8'))]
   .reduce((n, content) => n + (content.match(/pixi/gi) ?? []).length, 0);
 // Compressed .br/.gz files are same-source copies and need no separate scan.
