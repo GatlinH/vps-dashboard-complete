@@ -188,6 +188,7 @@ export class StarshipShowcase {
       const pmrem = new THREE.PMREMGenerator(this.renderer);
       import('three/examples/jsm/environments/RoomEnvironment.js')
         .then(({ RoomEnvironment }) => {
+          if (this._destroyed) { pmrem.dispose(); return; }
           const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
           this.scene.environment = envRT.texture;
           this.scene.environmentIntensity = 0.6;
@@ -329,6 +330,10 @@ export class StarshipShowcase {
       this._dbgSet('starshipTextureInventoryBefore', texStatsBefore);
 
       const rehydrate = await this._rehydrateGltfTextures(gltf);
+      if (this._destroyed) {
+        gltf.scene?.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.(); });
+        return;
+      }
       this._dbgSet('starshipTextureRehydrate', rehydrate);
 
       // Inventory AFTER rehydrate, before semantic mutation
@@ -577,9 +582,8 @@ export class StarshipShowcase {
       const mats = obj.material ? (Array.isArray(obj.material) ? obj.material : [obj.material]) : [];
       mats.forEach((m) => { m.map?.dispose?.(); m.dispose?.(); });
     });
-    // Interaction listeners are attached to the hitbox/target, not always window.
     try {
-      const target = this.hitbox || this.renderer?.domElement;
+      const target = window;
       if (target) {
         if (this._onPointerDown) target.removeEventListener('pointerdown', this._onPointerDown, true);
         if (this._onPointerMove) target.removeEventListener('pointermove', this._onPointerMove, true);

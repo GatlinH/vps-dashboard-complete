@@ -38,6 +38,7 @@ let globe = null;
 let globePromise = null;
 let solarSystem = null;
 let starshipShowcase = null;
+let starshipMountToken = 0;
 const serversChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('vps-servers') : null;
 window.__DBG__.STATE = state;
 const detailCharts = new TrafficChart();
@@ -471,6 +472,7 @@ async function getGlobe() {
     window.__DBG__.starshipRenderer = 'skipped-mobile';
   }
   if (stage && !isMobileViewport) {
+    const token = ++starshipMountToken;
     try { starshipShowcase?.destroy?.(); } catch (_) {}
     try {
       starshipShowcase = new StarshipShowcase(stage, {
@@ -480,6 +482,11 @@ async function getGlobe() {
         fallbackModelUrl: '',
         deferMs: 1200,
       });
+      if (token !== starshipMountToken || !stage.isConnected || stage.style.display === 'none') {
+        starshipShowcase.destroy();
+        starshipShowcase = null;
+        return instance;
+      }
       window.__starshipShowcase = starshipShowcase;
       window.__DBG__.starshipShowcase = starshipShowcase;
       window.__DBG__.starshipRenderer = 'three-showcase';
@@ -505,6 +512,7 @@ async function getGlobe() {
 let solarEscapeHandler = null;
 
 function showSolarSystem() {
+  starshipMountToken++;
   const globeEl = document.getElementById('globe-container');
   const systemEl = document.getElementById('solar-system-container');
   if (globeEl) globeEl.style.display = 'none';
