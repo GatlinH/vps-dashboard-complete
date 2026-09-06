@@ -557,6 +557,8 @@ async def main():
         # Order matters: A first, then the D probe (before any Earth click mounts
         # Cesium), then C (also before B), then B.
         only_b = "--only-b" in sys.argv
+        if only_b:
+            print("PARTIAL RUN: only A/C/D/E are skipped; only B is meaningful here", file=sys.stderr)
         a = "SKIP" if only_b else await check_a()
         d = "SKIP" if only_b else await check_d_problems()
         c = "SKIP" if only_b else await check_c()
