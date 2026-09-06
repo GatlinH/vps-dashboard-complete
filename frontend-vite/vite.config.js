@@ -98,7 +98,7 @@ export default defineConfig({
               test: (id) => manualChunks(id) === 'cesium',
               includeDependenciesRecursively: false,
             },
-              ...['chart', 'deckgl', 'vendor', 'components'].map((name) => ({
+            ...['chart', 'deckgl', 'vendor', 'components'].map((name) => ({
               name,
               test: (id) => manualChunks(id) === name,
             })),

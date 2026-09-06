@@ -557,14 +557,15 @@ async def main():
         # Order matters: A first, then the D probe (before any Earth click mounts
         # Cesium), then C (also before B), then B.
         only_b = "--only-b" in sys.argv
-        a = True if only_b else await check_a()
-        d = True if only_b else await check_d_problems()
-        c = True if only_b else await check_c()
+        a = "SKIP" if only_b else await check_a()
+        d = "SKIP" if only_b else await check_d_problems()
+        c = "SKIP" if only_b else await check_c()
         b = await check_b()
-        e = True if only_b else await check_e()
+        e = "SKIP" if only_b else await check_e()
 
         print("SUMMARY: A=%s B=%s C=%s D=%s E=%s" % (a, b, c, d, e))
-        return 0 if (a and b and c and d and e) else 1
+        checks = (b,) if only_b else (a, b, c, d, e)
+        return 0 if all(result is True for result in checks) else 1
 
     except Exception as exc:  # noqa: BLE001
         print("FATAL: %s: %s" % (type(exc).__name__, exc))
