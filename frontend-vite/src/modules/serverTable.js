@@ -8,7 +8,6 @@ import '../styles/detail-starmap-background.css';
 import { state } from '../store/state.js';
 import { listServersPublic, getServerDetail } from '../api/public.js';
 import { SolarSystem } from '../components/SolarSystem.js';
-import { StarshipShowcase } from '../components/StarshipShowcase.js';
 import { TrafficChart } from '../components/TrafficChart.js';
 import { mountGlobeStarmap } from '../components/GlobeStarmapMount.jsx';
 import { toDisplay, calcResidualValue, getMonthlyPrice, getBillingMonths, updateRateDisplay, refreshExchangeRates } from '../utils/currency.js';
@@ -451,7 +450,7 @@ function handleGlobeNodeSelection(server, clusterMembers, cluster) {
 async function getGlobe() {
   if (globe) return globe;
   if (globePromise) return globePromise;
-  globePromise = import('../components/CesiumGlobe.js').then(({ CesiumGlobe }) => {
+  globePromise = import('../components/CesiumGlobe.js').then(async ({ CesiumGlobe }) => {
   // Cesium earth only. Starship stays on independent Three.js StarshipShowcase —
   // Enterprise GLB is not Cesium-compatible (attribute validation fails).
   const instance = new CesiumGlobe('#globe-container', state.servers, {
@@ -467,6 +466,13 @@ async function getGlobe() {
   const isMobileViewport = typeof window !== 'undefined' && window.matchMedia
     && window.matchMedia('(max-width: 720px)').matches;
   if (isMobileViewport && stage) {
+    if (starshipShowcase) {
+      try { starshipShowcase.destroy?.(); } catch (_) {}
+      starshipShowcase = null;
+      starshipMountToken++;
+      delete window.__starshipShowcase;
+      delete window.__DBG__.starshipShowcase;
+    }
     stage.style.display = 'none';
     getGlobeRuntimeDebug().starshipSkipped = 'mobile-viewport';
     window.__DBG__.starshipRenderer = 'skipped-mobile';
@@ -474,7 +480,12 @@ async function getGlobe() {
   if (stage && !isMobileViewport) {
     const token = ++starshipMountToken;
     try { starshipShowcase?.destroy?.(); } catch (_) {}
+    starshipShowcase = null;
+    delete window.__starshipShowcase;
+    delete window.__DBG__.starshipShowcase;
     try {
+      const { StarshipShowcase } = await import('../components/StarshipShowcase.js');
+      // 顺序锁定: token++ -> await import -> 校验(token 比较必须在 await 之后)
       starshipShowcase = new StarshipShowcase(stage, {
         // Full original xinjian1 (textures + denser meshes) from /root/xinjian1.glb.
         // Keep fail-soft behavior rather than fetching a duplicate 55MB legacy URL.
@@ -482,9 +493,12 @@ async function getGlobe() {
         fallbackModelUrl: '',
         deferMs: 1200,
       });
-      if (token !== starshipMountToken || !stage.isConnected || stage.style.display === 'none') {
-        starshipShowcase.destroy();
+      if (token !== starshipMountToken || !stage.isConnected || !stage.offsetParent) {
+        starshipShowcase?.destroy?.();
         starshipShowcase = null;
+        delete window.__starshipShowcase;
+        delete window.__DBG__.starshipShowcase;
+        window.__DBG__.starshipRenderer = 'skipped-stale-mount';
         return instance;
       }
       window.__starshipShowcase = starshipShowcase;
@@ -494,6 +508,9 @@ async function getGlobe() {
       console.warn('[homepage] starship showcase failed; globe continues', error);
       window.__DBG__.starshipError = String(error?.message || error);
       starshipShowcase = null;
+      delete window.__starshipShowcase;
+      delete window.__DBG__.starshipShowcase;
+      window.__DBG__.starshipRenderer = 'failed';
     }
   }
   globe = instance;
@@ -513,6 +530,10 @@ let solarEscapeHandler = null;
 
 function showSolarSystem() {
   starshipMountToken++;
+  try { starshipShowcase?.destroy?.(); } catch (_) {}
+  starshipShowcase = null;
+  delete window.__starshipShowcase;
+  delete window.__DBG__.starshipShowcase;
   const globeEl = document.getElementById('globe-container');
   const systemEl = document.getElementById('solar-system-container');
   if (globeEl) globeEl.style.display = 'none';
