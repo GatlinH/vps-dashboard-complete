@@ -14,9 +14,9 @@ assert.ok(defaultGlobe, 'getGlobe must exist');
 assert.ok(displayMount, 'mountDisplayPage must exist');
 
 assert.match(defaultGlobe[0], /new CesiumGlobe\('#globe-container', state\.servers, \{[\s\S]*?enableStarship: false/, '7/17 default: Cesium without embedded ship');
-assert.match(defaultGlobe[0], /new StarshipShowcase\(stage, \{[\s\S]*?modelUrl: '\/globe\/xinjian1\.glb\?v=20260728'[\s\S]*?fallbackModelUrl: ''/, 'independent showcase uses one versioned original hero and fails soft instead of downloading a duplicate fallback');
-assert.match(defaultGlobe[0], /modelUrl: '\/globe\/xinjian1\.glb\?v=20260728'/, 'homepage explicitly selects the versioned original hero model');
-assert.match(defaultGlobe[0], /fallbackModelUrl: ''/, 'homepage must not fetch a duplicate fallback model');
+assert.match(defaultGlobe[0], /new StarshipShowcase\(stage, \{[\s\S]*?modelUrl: '\/globe\/xinjian1-opt\.glb\?v=20260909'[\s\S]*?fallbackModelUrl: '\/globe\/xinjian1\.glb\?v=20260728'/);
+assert.match(defaultGlobe[0], /modelUrl: '\/globe\/xinjian1-opt\.glb\?v=20260909'/, 'homepage explicitly selects the compressed hero model');
+assert.match(defaultGlobe[0], /fallbackModelUrl: '\/globe\/xinjian1\.glb\?v=20260728'/, 'homepage retains the original model as fallback');
 assert.doesNotMatch(defaultGlobe[0], /star_trek_dsc_enterprise_user\.glb/, 'homepage must not request the legacy duplicate hero');
 
 assert.match(displayMount[0], /photo-space-showcase[\s\S]*?starship-gltf-stage/, 'independent stage markup present');

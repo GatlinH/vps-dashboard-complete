@@ -45,4 +45,10 @@ describe('StarshipShowcase lifecycle guards', () => {
     expect(source).toMatch(/this\.scene\.environment\s*=\s*null/);
     expect(source).toMatch(/\.catch\([\s\S]*pmrem\.dispose\(\)/);
   });
+  it('uses a best-effort meshopt decoder and one-shot fallback guard', () => {
+    expect(source).toMatch(/this\._fallbackAttempted\s*=\s*false/);
+    expect(source).toMatch(/catch \(error\) \{[\s\S]*console\.warn\([\s\S]*meshopt decoder[\s\S]*\)[\s\S]*\}\s*this\._dbgSet\('starshipModelUrl'/);
+    expect(source).toMatch(/if \(allowFallback && !this\._fallbackAttempted && this\.options\.fallbackModelUrl && this\.options\.fallbackModelUrl !== url\) \{[\s\S]*this\._fallbackAttempted\s*=\s*true[\s\S]*this\._loadModel\(this\.options\.fallbackModelUrl, false\)/);
+    expect(source).toMatch(/_failSoft\(error, 'model-setup'\)/);
+  });
 });
