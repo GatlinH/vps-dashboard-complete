@@ -2,15 +2,16 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+const serverTableSource = readFileSync(new URL('../src/modules/serverTable.js', import.meta.url), 'utf8');
 const indexSource = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const detailPageSource = readFileSync(new URL('../src/pages/detailPage.js', import.meta.url), 'utf8');
 const detailChartsSource = readFileSync(new URL('../src/pages/detailCharts.js', import.meta.url), 'utf8');
 const detailStyles = readFileSync(new URL('../src/styles/detail-starfleet-console.css', import.meta.url), 'utf8');
 
-const pingTargetSelector = mainSource.match(/function pingTargetsFromRows[\s\S]*?\n}\n\nfunction recordLivePingSamples/);
-const pingDatasetBuilder = mainSource.match(/function buildPingDatasets[\s\S]*?\n}\n\nconst PING_AXIS_STEPS_MS/);
-const bootFunction = mainSource.match(/async function boot\(\) \{[\s\S]*?\n}\n\nboot\(\);/);
-const detailRenderFunction = mainSource.match(/async function renderDetailPage\(serverId\) \{[\s\S]*?\n}\s*function denseFallbackSeries/);
+const pingTargetSelector = serverTableSource.match(/function pingTargetsFromRows[\s\S]*?\n}\n\nfunction recordLivePingSamples/);
+const pingDatasetBuilder = serverTableSource.match(/function buildPingDatasets[\s\S]*?\n}\n\nconst PING_AXIS_STEPS_MS/);
+const bootFunction = serverTableSource.match(/export async function mountServerTableApp\(\) \{[\s\S]*?\n}\n\nfunction ensureFrontLoginOverlay/);
+const detailRenderFunction = serverTableSource.match(/async function renderDetailPage\(serverId[\s\S]*?\n}\s*\n\s*\nfunction denseFallbackSeries/);
 const loadingShell = detailPageSource.match(/export function detailLoadingShell\([^)]*\) \{[\s\S]*?\n}\s*export function renderDetailNotFound/);
 
 assert.ok(pingTargetSelector, 'PING target selector must exist');
@@ -42,7 +43,7 @@ assert.doesNotMatch(
 );
 assert.match(indexSource, /document\.documentElement\.classList\.add\('detail-pending'\)/, 'detail routes must enable the preboot guard');
 assert.match(indexSource, /\.detail-pending #starfield[\s\S]*?\.detail-pending \.display-shell/, 'preboot guard must hide only legacy overview layers');
-assert.match(mainSource, /app\.innerHTML = detailLoadingShell\(resolvedServer\);\n  document\.documentElement\.classList\.remove\('detail-pending'\)/, 'detail renderer must release the preboot guard when it takes ownership');
+assert.match(serverTableSource, /app\.innerHTML = detailLoadingShell\(resolvedServer\);\n  document\.documentElement\.classList\.remove\('detail-pending'\)/, 'detail renderer must release the preboot guard when it takes ownership');
 assert.match(
   selectedServerBranch[1],
   /await renderDetailPage\(selectedServerId\)/,
@@ -58,7 +59,7 @@ assert.equal(
   4,
   'loading state must render exactly four metric skeleton cards',
 );
-assert.doesNotMatch(mainSource, /detail-loading-card/, 'detail render flow must not inject the legacy centered loading card');
+assert.doesNotMatch(serverTableSource, /detail-loading-card/, 'detail render flow must not inject the legacy centered loading card');
 assert.equal(
   (detailRenderFunction[0].match(/app\.innerHTML = detailLoadingShell\(resolvedServer\)/g) || []).length,
   1,
@@ -66,16 +67,16 @@ assert.equal(
 );
 
 assert.match(detailChartsSource, /const telemetryHours = 1;/, 'CPU/RAM/process charts must use the fixed one-hour resource window');
-assert.match(detailChartsSource, /const pingHours = 6;/, 'configured-target PING must use its fixed six-hour window');
-assert.match(detailChartsSource, /const networkHours = 6;/, 'network charts must use their fixed six-hour window');
-assert.match(mainSource, /function normalizePersistedTimelineRows\(rows = \[\], hours = 2\)[\s\S]*?lastPersistedProbeMs[\s\S]*?const start = lastPersistedProbeMs - fullSpan;[\s\S]*?t >= start && t <= lastPersistedProbeMs/, 'resource data must be filtered against the last persisted ProbeResult, not browser time');
-assert.match(mainSource, /function adaptiveRollingBounds\(pointGroups = \[\], hours = 12\)[\s\S]*?const coldMax = dataFirst \+ fullSpan;[\s\S]*?const rolling = xs\.length > 0 && dataLast >= coldMax;[\s\S]*?const min = rolling \? dataLast - fullSpan : dataFirst;[\s\S]*?const max = rolling \? dataLast : coldMax;/, 'resource chart axes must grow from the first real sample at cold start and roll only after the full window');
-assert.doesNotMatch(mainSource, /normalizeTimelineRows/, 'resource timeline must not include live server fallback rows');
-assert.match(detailPageSource, /data-i18n-chart="ping">\$\{t\('chartPingLatency'\)\} · \$\{t\('chartHours6'\)\} · \$\{t\('chartDropLeavesGap'\)\}/, 'detail chart must use the configured-target PING label and fixed six-hour window');
+assert.match(detailChartsSource, /const pingHours = detailDays \* 24;/, 'configured-target PING window must follow the range selector (detailDays * 24 hours)');
+assert.match(detailChartsSource, /const networkHours = detailDays \* 24;/, 'network window must follow the range selector (detailDays * 24 hours)');
+assert.match(serverTableSource, /function normalizePersistedTimelineRows\(rows = \[\], hours = 2\)[\s\S]*?lastPersistedProbeMs[\s\S]*?const start = lastPersistedProbeMs - fullSpan;[\s\S]*?t >= start && t <= lastPersistedProbeMs/, 'resource data must be filtered against the last persisted ProbeResult, not browser time');
+assert.match(serverTableSource, /function adaptiveRollingBounds\(pointGroups = \[\], hours = 12\)[\s\S]*?const coldMax = dataFirst \+ fullSpan;[\s\S]*?const rolling = xs\.length > 0 && dataLast >= coldMax;[\s\S]*?const min = rolling \? dataLast - fullSpan : dataFirst;[\s\S]*?const max = rolling \? dataLast : coldMax;/, 'resource chart axes must grow from the first real sample at cold start and roll only after the full window');
+assert.doesNotMatch(serverTableSource, /normalizeTimelineRows/, 'resource timeline must not include live server fallback rows');
+assert.match(detailPageSource, /data-i18n-chart="ping">\$\{t\('chartPingLatency'\)\} · \$\{wideWindowLabel\} · \$\{t\('chartDropLeavesGap'\)\}/, 'detail chart must use the configured-target PING label and range-driven window');
 assert.match(detailPageSource, /class="detail-ping-target-count">\$\{targetCount\} \$\{Number\(targetCount\) === 1 \? t\('chartTargetOne'\) : t\('chartTargets'\)\}/, 'detail PING card must expose the localized configured-target count without conflating it with the peer-probe table');
-assert.match(mainSource, /未读取到延迟监测目标/, 'empty configured targets must use the customer-facing empty state');
-assert.match(mainSource, /请在后台「延迟监测」配置 ping_targets/, 'empty configured targets must explain how to configure them');
-const probeRowsRenderer = mainSource.match(/function renderProbeRows[\s\S]*?\n}\n\nasync function refreshDetailProbeTargetsNow/);
+assert.match(serverTableSource, /未读取到延迟监测目标/, 'empty configured targets must use the customer-facing empty state');
+assert.match(serverTableSource, /请在后台「延迟监测」配置 ping_targets/, 'empty configured targets must explain how to configure them');
+const probeRowsRenderer = serverTableSource.match(/function renderProbeRows[\s\S]*?\n}\n\nasync function refreshDetailProbeTargetsNow/);
 assert.ok(probeRowsRenderer, 'configured-target table renderer must exist');
 assert.doesNotMatch(probeRowsRenderer[0], /startsWith\('vps-'\)|type === 'peer'/, 'detail table must not filter for VPS peer targets');
 
