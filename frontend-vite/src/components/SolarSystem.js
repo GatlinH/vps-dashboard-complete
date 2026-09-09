@@ -36,7 +36,7 @@ export class SolarSystem {
     this.frameId = 0;
     this.cameraTween = null; // { t, dur, from, to, lookFrom, lookTo, done }
     this.cameraAtHome = true;
-    this.orbitState = { spherical: new THREE.Spherical(), isDragging: false, pointerStart: new THREE.Vector2(), dragMoved: false };
+    this.orbitState = { spherical: new THREE.Spherical(), isDragging: false, pointerStart: new THREE.Vector2(), dragMoved: false, motionState: 'running', resumeTimerId: null, resumeDelayMs: 2800, pauseStartTime: 0 };
     this._touchState = null;
 
     this.debug = (window.__DBG__ = window.__DBG__ || {});
@@ -131,11 +131,15 @@ export class SolarSystem {
     this._snapToHome();
 
     // Point light lives inside the sun so planets get real directional shading.
-    this.sunLight = new THREE.PointLight(0xffffff, 2.2, 0, 2);
+    this.sunLight = new THREE.PointLight(0xffffff, 2.2, 0, 0);
     this.scene.add(this.sunLight);
 
     // Weak ambient so the dark side is not pure black.
-    this.scene.add(new THREE.AmbientLight(0x404a66, 0.35));
+    this.ambientLight = new THREE.AmbientLight(0x708090, 0.42);
+    this.fillLight = new THREE.DirectionalLight(0x4a5878, 0.28);
+    this.fillLight.position.set(10, 30, 20);
+    this.scene.add(this.ambientLight, this.fillLight);
+    this._track(this.ambientLight, this.fillLight);
 
     this.renderer.setSize(width, height, false);
   }
@@ -225,12 +229,7 @@ export class SolarSystem {
 
       if (spec.name === 'Saturn') {
         const ringGeometry = new THREE.RingGeometry(2.6, 4.4, this.isMobile ? 48 : 96);
-        const ringMaterial = new THREE.MeshBasicMaterial({
-          color: 0xd8c79a,
-          transparent: true,
-          opacity: 0.55,
-          side: THREE.DoubleSide
-        });
+        const ringMaterial = new THREE.MeshStandardMaterial({ map: this._generateSaturnRingTexture(), side: THREE.DoubleSide, roughness: 0.7, metalness: 0.1, transparent: true });
         const ring = new THREE.Mesh(ringGeometry, ringMaterial);
         ring.rotation.x = Math.PI / 2 - 0.35;
         mesh.add(ring);
@@ -256,7 +255,15 @@ export class SolarSystem {
         this.earthBody = body;
       }
     });
+    this._buildHalleyComet();
+    this._buildAsteroidBelt();
   }
+
+  _generateSaturnRingTexture() { const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 1; const ctx = canvas.getContext('2d'); const stops = [[0,'rgba(90,70,45,.45)'],[.12,'rgba(180,160,120,.7)'],[.25,'rgba(110,100,90,.5)'],[.38,'rgba(210,195,160,.8)'],[.48,'rgba(30,30,35,.15)'],[.58,'rgba(200,185,150,.75)'],[.8,'rgba(150,130,100,.6)'],[.9,'rgba(40,35,30,.2)'],[1,'rgba(170,150,110,.5)']]; const g=ctx.createLinearGradient(0,0,512,0); stops.forEach(([p,c])=>g.addColorStop(p,c)); ctx.fillStyle=g; ctx.fillRect(0,0,512,1); const tex=new THREE.CanvasTexture(canvas); this._track(tex); return tex; }
+
+  _buildHalleyComet() { const nucleus = new THREE.Mesh(new THREE.SphereGeometry(.35,12,8), new THREE.MeshBasicMaterial({color:0xdff6ff})); this._track(nucleus.geometry,nucleus.material); const tailTexCanvas=document.createElement('canvas'); tailTexCanvas.width=128; tailTexCanvas.height=8; const c=tailTexCanvas.getContext('2d'); const g=c.createLinearGradient(0,0,128,0); g.addColorStop(0,'rgba(220,250,255,.9)'); g.addColorStop(1,'rgba(120,200,255,0)'); c.fillStyle=g;c.fillRect(0,0,128,8); const tailTex=new THREE.CanvasTexture(tailTexCanvas); const tail=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:tailTex,transparent:true,side:THREE.DoubleSide,depthWrite:false})); this._track(tail.geometry,tail.material,tailTex); const group=new THREE.Group(); group.add(nucleus,tail); this.scene.add(group); const orbitGeom=new THREE.BufferGeometry().setFromPoints(Array.from({length:128},(_,i)=>{const t=i/128*Math.PI*2,r=14.34/(1+.789*Math.cos(t)); return new THREE.Vector3(r*Math.cos(t),r*Math.sin(t)*Math.sin(Math.PI/12),r*Math.sin(t)*Math.cos(Math.PI/12));})); const orbitMat=new THREE.LineBasicMaterial({color:0x406080,transparent:true,opacity:.18}); this.scene.add(new THREE.LineLoop(orbitGeom,orbitMat)); this._track(orbitGeom,orbitMat); this.halley={group,nucleus,tail,theta:0}; }
+
+  _buildAsteroidBelt() { const count=this.isMobile?500:1200; const geo=new THREE.DodecahedronGeometry(.15,0); const mat=new THREE.MeshStandardMaterial({color:0x887766,roughness:1}); const mesh=new THREE.InstancedMesh(geo,mat,count); const m=new THREE.Matrix4(); for(let i=0;i<count;i++){const r=27.5+Math.random()*4.3,a=Math.random()*Math.PI*2,y=(Math.random()*2-1)*.35; m.makeRotationFromEuler(new THREE.Euler(Math.random(),Math.random(),Math.random())); m.setPosition(r*Math.cos(a),y,r*Math.sin(a)); mesh.setMatrixAt(i,m); mesh.userData={r,a,y,spin:Math.random()};} this.scene.add(mesh); this.asteroidBelt=mesh; this._track(geo,mat); }
 
   _buildMoon() {
     if (!this.earthBody) {
@@ -323,13 +330,7 @@ export class SolarSystem {
       button.addEventListener('click', onActivate);
 
       this.container.appendChild(button);
-      const label = document.createElement('div');
-      label.className = 'solar-body-label';
-      label.textContent = { Sun: '太阳', Earth: '地球', Moon: '月球' }[target.name] || target.name;
-      label.style.pointerEvents = 'none';
-      label.style.position = 'absolute';
-      this.container.appendChild(label);
-      this.hitButtons.push({ el: button, label, mesh: target.mesh, onActivate });
+      this.hitButtons.push({ el: button, mesh: target.mesh, onActivate });
     });
   }
 
@@ -337,7 +338,7 @@ export class SolarSystem {
     this._onResize = () => this.resize();
     this._onPointerDown = (event) => {
       if (event.button !== 0) return;
-      this.orbitState.isDragging = true; this.orbitState.dragMoved = false;
+      this._resetResumeTimer(); this.orbitState.isDragging = true; this.orbitState.motionState = 'dragging'; this.orbitState.dragMoved = false;
       this.orbitState.pointerStart.set(event.clientX, event.clientY);
     };
     this._onPointerMove = (event) => {
@@ -348,9 +349,9 @@ export class SolarSystem {
       }
       this._updateHover(event);
     };
-    this._onPointerUp = (event) => { if (this.orbitState.isDragging && !this.orbitState.dragMoved) this._pickAt(event); this.orbitState.isDragging = false; };
+    this._onPointerUp = (event) => { if (this.orbitState.isDragging && !this.orbitState.dragMoved) this._pickAt(event); this.orbitState.isDragging = false; if (this.orbitState.dragMoved) this._startResumeTimer(); else this.orbitState.motionState='running'; };
     this._onPointerLeave = () => { this.orbitState.isDragging = false; };
-    this._onWheel = (event) => { event.preventDefault(); this._interruptTween(); this.orbitState.spherical.radius = THREE.MathUtils.clamp(this.orbitState.spherical.radius + event.deltaY * 0.08, 25, 140); };
+    this._onWheel = (event) => { event.preventDefault(); this._resetResumeTimer(); this._interruptTween(); this.orbitState.spherical.radius = THREE.MathUtils.clamp(this.orbitState.spherical.radius + event.deltaY * 0.08, 25, 140); };
 
     window.addEventListener('resize', this._onResize);
     this.canvas.addEventListener('pointerdown', this._onPointerDown);
@@ -374,6 +375,8 @@ export class SolarSystem {
   _onTouchStart(event) { if (event.touches.length === 2) { this._interruptTween(); this._touchState = { start: Date.now(), count: 2, dist: this._touchDistance(event.touches), x: 0, y: 0, moved: false }; } else if (event.touches.length === 1) { const t = event.touches[0]; this._touchState = { start: Date.now(), count: 1, x: t.clientX, y: t.clientY, moved: false }; } }
   _onTouchMove(event) { if (!this._touchState || !event.touches.length) return; if (event.touches.length !== this._touchState.count) { const t = event.touches[0]; this._touchState.count = event.touches.length; this._touchState.x = t.clientX; this._touchState.y = t.clientY; this._touchState.moved = true; if (event.touches.length === 2) this._touchState.dist = this._touchDistance(event.touches); return; } if (event.touches.length === 2) { event.preventDefault(); const d = this._touchDistance(event.touches); this.orbitState.spherical.radius = THREE.MathUtils.clamp(this.orbitState.spherical.radius - (d - this._touchState.dist) * 0.08, 25, 140); this._touchState.dist = d; return; } const t = event.touches[0]; const dx = t.clientX - this._touchState.x; const dy = t.clientY - this._touchState.y; if (Math.hypot(dx, dy) > 6) { event.preventDefault(); this._interruptTween(); this.orbitState.spherical.theta -= dx * 0.008; this.orbitState.spherical.phi = THREE.MathUtils.clamp(this.orbitState.spherical.phi + dy * 0.008, 0.15, Math.PI / 2 - 0.08); this._touchState.x = t.clientX; this._touchState.y = t.clientY; this._touchState.moved = true; } }
   _onTouchEnd(event) { if (this._touchState && !this._touchState.moved && Date.now() - this._touchState.start < 250 && event.changedTouches[0]) this._pickAt(event.changedTouches[0]); this._touchState = null; }
+  _startResumeTimer() { clearTimeout(this.orbitState.resumeTimerId); this.orbitState.motionState='paused'; this.orbitState.pauseStartTime=Date.now(); this.orbitState.resumeTimerId=setTimeout(()=>{this.orbitState.motionState='running';this.orbitState.resumeTimerId=null;},this.orbitState.resumeDelayMs); }
+  _resetResumeTimer() { if (this.orbitState.motionState==='paused') this._startResumeTimer(); }
   _touchDistance(t) { return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }
 
   // -------------------------------------------------------------- picking
@@ -467,9 +470,12 @@ export class SolarSystem {
 
     const dt = Math.min(0.05, this.clock.getDelta());
 
-    if (!this.orbitState.isDragging) {
+    const shouldAdvance = !this.orbitState.isDragging && this.orbitState.motionState !== 'paused';
+    if (shouldAdvance) {
       this._advanceBodies(dt);
     }
+    this.debug.solarOrbitMotionState = this.orbitState.motionState;
+    this.debug.solarOrbitResumeRemainingMs = this.orbitState.motionState === 'paused' ? Math.max(0, this.orbitState.resumeDelayMs - (Date.now() - this.orbitState.pauseStartTime)) : 0;
     this._stepCameraTween(dt);
     if (!this.cameraTween) { this.camera.position.setFromSpherical(this.orbitState.spherical).add(this.cameraTarget); this.camera.lookAt(this.cameraTarget); }
     this._syncHitButtons();
@@ -503,6 +509,7 @@ export class SolarSystem {
     });
 
     this.sunLight.position.copy(this.sun.position);
+    if (this.halley) { const h=this.halley; h.theta += 0.08*Math.pow(38/(14.34/(1+.789*Math.cos(h.theta))),1.25)*dt; const r=14.34/(1+.789*Math.cos(h.theta)); h.group.position.set(r*Math.cos(h.theta),r*Math.sin(h.theta)*Math.sin(Math.PI/12),r*Math.sin(h.theta)*Math.cos(Math.PI/12)); const len=THREE.MathUtils.clamp(16*(8/r),2,15); h.tail.scale.set(len,1,1); h.tail.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0),h.group.position.clone().normalize()); h.tail.material.opacity=THREE.MathUtils.clamp(.12+(.85-.12)*(8/r),.12,.85); }
   }
 
   // Project each tracked mesh to screen space and park its hit button there.
@@ -567,7 +574,6 @@ export class SolarSystem {
       entry.el.style.width = `${size}px`;
       entry.el.style.height = `${size}px`;
       entry.el.style.visibility = visible ? 'visible' : 'hidden';
-      entry.label.style.left = `${left + offsetX}px`; entry.label.style.top = `${top + offsetY - size * 0.6}px`; entry.label.style.visibility = visible ? 'visible' : 'hidden';
     });
   }
 
@@ -680,7 +686,6 @@ export class SolarSystem {
       if (entry.el.parentNode) {
         entry.el.parentNode.removeChild(entry.el);
       }
-      if (entry.label.parentNode) entry.label.parentNode.removeChild(entry.label);
     });
     this.hitButtons.length = 0;
 
