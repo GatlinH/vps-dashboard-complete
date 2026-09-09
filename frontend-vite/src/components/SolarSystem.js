@@ -335,7 +335,7 @@ export class SolarSystem {
       this.container.appendChild(button);
       const label = document.createElement('div');
       label.className = 'solar-body-label';
-      label.textContent = target.name === 'Sun' ? '太阳' : target.name === 'Earth' ? '地球' : '月球';
+      label.textContent = { Sun: '太阳', Earth: '地球', Moon: '月球' }[target.name] || target.name;
       label.style.pointerEvents = 'none';
       label.style.position = 'absolute';
       this.container.appendChild(label);
@@ -359,17 +359,21 @@ export class SolarSystem {
       this._updateHover(event);
     };
     this._onPointerUp = (event) => { if (this.orbitState.isDragging && !this.orbitState.dragMoved) this._pickAt(event); this.orbitState.isDragging = false; };
+    this._onPointerLeave = () => { this.orbitState.isDragging = false; };
     this._onWheel = (event) => { event.preventDefault(); this._interruptTween(); this.orbitState.spherical.radius = THREE.MathUtils.clamp(this.orbitState.spherical.radius + event.deltaY * 0.08, 25, 140); };
 
     window.addEventListener('resize', this._onResize);
     this.canvas.addEventListener('pointerdown', this._onPointerDown);
     this.canvas.addEventListener('pointermove', this._onPointerMove);
     this.canvas.addEventListener('pointerup', this._onPointerUp);
-    this.canvas.addEventListener('pointerleave', this._onPointerUp);
+    this.canvas.addEventListener('pointerleave', this._onPointerLeave);
     this.canvas.addEventListener('wheel', this._onWheel, { passive: false });
-    this.canvas.addEventListener('touchstart', (e) => this._onTouchStart(e), { passive: false });
-    this.canvas.addEventListener('touchmove', (e) => this._onTouchMove(e), { passive: false });
-    this.canvas.addEventListener('touchend', (e) => this._onTouchEnd(e), { passive: false });
+    this._boundTouchStart = (e) => this._onTouchStart(e);
+    this._boundTouchMove = (e) => this._onTouchMove(e);
+    this._boundTouchEnd = (e) => this._onTouchEnd(e);
+    this.canvas.addEventListener('touchstart', this._boundTouchStart, { passive: false });
+    this.canvas.addEventListener('touchmove', this._boundTouchMove, { passive: false });
+    this.canvas.addEventListener('touchend', this._boundTouchEnd, { passive: false });
 
     this.raycaster = new THREE.Raycaster();
     this.pointer = new THREE.Vector2();
@@ -377,8 +381,8 @@ export class SolarSystem {
 
   _interruptTween() { if (this.cameraTween) { this.cameraTween = null; this.cameraAtHome = false; } if (this.camera) this.orbitState.spherical.setFromVector3(this.camera.position.clone().sub(this.cameraTarget)); }
   _updateHover(event) { const rect = this.canvas.getBoundingClientRect(); this.pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1); this.raycaster.setFromCamera(this.pointer, this.camera); const hit = this.raycaster.intersectObjects([this.sun, this.earth, this.moon].filter(Boolean), false)[0]; this.hitButtons.forEach((e) => { const active = hit && hit.object === e.mesh; if (e.mesh.material.emissive) e.mesh.material.emissive.setScalar(active ? 0.35 : 0); else e.mesh.scale.setScalar(active ? 1.06 : 1); }); }
-  _onTouchStart(event) { if (event.touches.length === 2) { this._interruptTween(); this._touchState = { start: Date.now(), dist: this._touchDistance(event.touches), x: 0, y: 0, moved: false }; } else if (event.touches.length === 1) { const t = event.touches[0]; this._touchState = { start: Date.now(), x: t.clientX, y: t.clientY, moved: false }; } }
-  _onTouchMove(event) { if (!this._touchState) return; if (event.touches.length === 2) { event.preventDefault(); const d = this._touchDistance(event.touches); this.orbitState.spherical.radius = THREE.MathUtils.clamp(this.orbitState.spherical.radius - (d - this._touchState.dist) * 0.08, 25, 140); this._touchState.dist = d; return; } const t = event.touches[0]; const dx = t.clientX - this._touchState.x; const dy = t.clientY - this._touchState.y; if (Math.hypot(dx, dy) > 6) { event.preventDefault(); this._interruptTween(); this.orbitState.spherical.theta -= dx * 0.008; this.orbitState.spherical.phi = THREE.MathUtils.clamp(this.orbitState.spherical.phi + dy * 0.008, 0.15, Math.PI / 2 - 0.08); this._touchState.x = t.clientX; this._touchState.y = t.clientY; this._touchState.moved = true; } }
+  _onTouchStart(event) { if (event.touches.length === 2) { this._interruptTween(); this._touchState = { start: Date.now(), count: 2, dist: this._touchDistance(event.touches), x: 0, y: 0, moved: false }; } else if (event.touches.length === 1) { const t = event.touches[0]; this._touchState = { start: Date.now(), count: 1, x: t.clientX, y: t.clientY, moved: false }; } }
+  _onTouchMove(event) { if (!this._touchState || !event.touches.length) return; if (event.touches.length !== this._touchState.count) { const t = event.touches[0]; this._touchState.count = event.touches.length; this._touchState.x = t.clientX; this._touchState.y = t.clientY; this._touchState.moved = true; if (event.touches.length === 2) this._touchState.dist = this._touchDistance(event.touches); return; } if (event.touches.length === 2) { event.preventDefault(); const d = this._touchDistance(event.touches); this.orbitState.spherical.radius = THREE.MathUtils.clamp(this.orbitState.spherical.radius - (d - this._touchState.dist) * 0.08, 25, 140); this._touchState.dist = d; return; } const t = event.touches[0]; const dx = t.clientX - this._touchState.x; const dy = t.clientY - this._touchState.y; if (Math.hypot(dx, dy) > 6) { event.preventDefault(); this._interruptTween(); this.orbitState.spherical.theta -= dx * 0.008; this.orbitState.spherical.phi = THREE.MathUtils.clamp(this.orbitState.spherical.phi + dy * 0.008, 0.15, Math.PI / 2 - 0.08); this._touchState.x = t.clientX; this._touchState.y = t.clientY; this._touchState.moved = true; } }
   _onTouchEnd(event) { if (this._touchState && !this._touchState.moved && Date.now() - this._touchState.start < 250 && event.changedTouches[0]) this._pickAt(event.changedTouches[0]); this._touchState = null; }
   _touchDistance(t) { return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }
 
@@ -676,7 +680,11 @@ export class SolarSystem {
       this.canvas.removeEventListener('pointerdown', this._onPointerDown);
       this.canvas.removeEventListener('pointermove', this._onPointerMove);
       this.canvas.removeEventListener('pointerup', this._onPointerUp);
+      this.canvas.removeEventListener('pointerleave', this._onPointerLeave);
       this.canvas.removeEventListener('wheel', this._onWheel);
+      this.canvas.removeEventListener('touchstart', this._boundTouchStart);
+      this.canvas.removeEventListener('touchmove', this._boundTouchMove);
+      this.canvas.removeEventListener('touchend', this._boundTouchEnd);
     }
 
     this.hitButtons.forEach((entry) => {
