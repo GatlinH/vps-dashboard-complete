@@ -574,7 +574,7 @@ export function appendDetailLiveMetrics(live, deps) {
       // a card headed "1 hour". Anchor to the newest sample, floor the drawn span,
       // and re-derive stepSize so the 5 ticks stay distinct.
       const fullSpan = 60 * 60 * 1000;
-      const axisBounds = coldStartAxisBounds(hasSubstantialHistory ? [] : points.map((point) => Number(point?.x)), fullSpan, timestamp);
+      const axisBounds = coldStartAxisBounds(points.map((point) => Number(point?.x)), fullSpan, timestamp);
       const span = axisBounds.max - axisBounds.min;
       const spanned = Number.isFinite(points[0]?.x) ? Math.max(0, timestamp - Number(points[0].x)) : 0;
       x.max = axisBounds.max;
@@ -594,7 +594,8 @@ export function appendDetailLiveMetrics(live, deps) {
           dataSpanMs: spanned,
           points: points.length,
           floored: false,
-          mode: hasSubstantialHistory || axisBounds.mode === 'rolling-after-full-window' ? 'rolling' : 'accumulate',
+          mode: axisBounds.mode === 'rolling-after-full-window' ? 'rolling' : (axisBounds.mode === 'fixed-window-ending-now' ? 'fixed-window' : 'accumulate'),
+          axisMode: axisBounds.mode,
           fixedWindow: true,
         };
       } catch {}
@@ -790,10 +791,9 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   const networkRows = probeNetworkRows.length ? probeNetworkRows : historyNetworkRows;
   const networkBuckets = aggregateRateRowsForDisplay(networkRows, networkBucketMs);
   const networkMobile = isDetailMobileChart();
-  // Anchor to the chart's own samples (min = max(dataFirst, dataLast-window),
-  // max = dataLast) so the line fills edge-to-edge instead of leaving a blank
-  // tail from a cold-start (dataFirst + full window) upper bound — same contract
-  // as the CPU/memory/process/PING charts.
+  // 1h CPU/RAM/process charts use coldStartAxisBounds: the first sample stays
+  // fixed while data accumulates, then the full window rolls. Network and ping
+  // charts are different long-range views and remain anchored directly to data.
   const networkAxisBounds = (() => {
     const fullSpan = networkHours * 60 * 60 * 1000;
     const xs = networkBuckets.map((r) => Number(r.rawX || r.x)).filter(Number.isFinite).sort((a, b) => a - b);
