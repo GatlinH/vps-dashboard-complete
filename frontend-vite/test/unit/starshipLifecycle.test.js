@@ -37,6 +37,7 @@ describe('StarshipShowcase lifecycle guards', () => {
     expect(table).toMatch(/showCesiumGlobe\(\)[\s\S]*ensureStarshipMounted\(\)/);
     expect(table).toMatch(/if \(starshipShowcase\) return starshipShowcase/);
     expect(table).toMatch(/if \(starshipMountPromise\) return starshipMountPromise/);
+    expect(table).toMatch(/function showSolarSystem\(\) \{[\s\S]*starshipMountPromise = null/);
   });
   it('retains environment RT and releases it, including PMREM import failure', () => {
     expect(source).toMatch(/this\._envRT\s*=\s*envRT/);

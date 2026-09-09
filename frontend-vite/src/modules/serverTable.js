@@ -555,6 +555,8 @@ let solarEscapeHandler = null;
 
 function showSolarSystem() {
   starshipMountToken++;
+  // 清掉 in-flight 挂载 promise，避免快速 solar→globe 切换命中旧 promise 漏挂载一轮
+  starshipMountPromise = null;
   try { starshipShowcase?.destroy?.(); } catch (_) {}
   starshipShowcase = null;
   delete window.__starshipShowcase;
