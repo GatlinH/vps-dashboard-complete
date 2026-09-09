@@ -23,5 +23,9 @@ describe('solar system F2 orbit interaction', () => {
     expect(text).toMatch(/isDragging[\s\S]{0,180}_advanceBodies/);
     expect(text).not.toContain('_buildStars');
     expect(text).not.toContain('PointsMaterial');
+    expect(text).toContain('CanvasTexture');
+    expect(text).toContain('InstancedMesh');
+    expect(text).toContain('_buildHalleyComet');
+    expect(text).toContain('_buildAsteroidBelt');
   });
 });
