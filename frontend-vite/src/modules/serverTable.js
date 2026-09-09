@@ -2,13 +2,10 @@ import '../globals/dashboardGlobals.js';
 import { escapeHtmlAttribute, escapeHtmlText as escapeHtml } from '../utils/escapeHtml.js';
 import { login as publicLogin, getOAuthProviders, oauthLoginUrl, verifyEmailToken, resetPasswordWithToken } from '../api/auth.js';
 import '../styles/main.css';
-import '../styles/detail-starfleet-console.css';
-import '../styles/detail-starmap-background.css';
 
 import { state } from '../store/state.js';
 import { listServersPublic, getServerDetail } from '../api/public.js';
 import { SolarSystem } from '../components/SolarSystem.js';
-import { TrafficChart } from '../components/TrafficChart.js';
 import { mountGlobeStarmap } from '../components/GlobeStarmapMount.jsx';
 import { toDisplay, calcResidualValue, getMonthlyPrice, getBillingMonths, updateRateDisplay, refreshExchangeRates } from '../utils/currency.js';
 import { fmtGb, getTrafficPct, getTrafficUsed } from '../utils/traffic.js';
@@ -16,7 +13,6 @@ import { fetchJson, fetchPingTargetHistory, fetchPingTargets, fetchServerHistory
 import { LANGUAGE_PACKS, applyLanguage, configureLanguageSwitcher, currentLanguage, safeStorageGet, safeStorageRemove, safeStorageSet, setLanguage, setTheme, t, toggleTheme } from '../core/preferences.js';
 import { renderPublicOverviewPage as renderPublicOverviewPageModule } from '../pages/overviewPage.js';
 import { detailLoadingShell, renderDetailConsole, renderDetailNotFound } from '../pages/detailPage.js';
-import { appendDetailLiveMetrics, renderDetailMonitorCharts as renderDetailMonitorChartsModule } from '../pages/detailCharts.js';
 import { getDetailHistoryBucketMinutes, getDetailHistoryPointLimit, setDetailHistoryDays as setDetailHistoryDaysModule, syncDetailHistoryStateFromStorage } from '../detail/historyRange.js';
 import { getDetailHeavyRefreshAt, setDetailHeavyRefreshAt, startDetailRefreshTimer, stopDetailRefreshTimer } from '../detail/refreshState.js';
 import { detailCache } from '../detail/detailCache.js';
@@ -39,9 +35,22 @@ let solarSystem = null;
 let starshipShowcase = null;
 let starshipMountToken = 0;
 let starshipMountPromise = null;
+let globeViewToken = 0;
 const serversChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('vps-servers') : null;
 window.__DBG__.STATE = state;
-const detailCharts = new TrafficChart();
+let detailChartRuntimePromise = null;
+let detailChartRuntime = null;
+async function getDetailChartRuntime() {
+  if (detailChartRuntime) return detailChartRuntime;
+  if (!detailChartRuntimePromise) detailChartRuntimePromise = Promise.all([
+    import('../components/TrafficChart.js'),
+    import('../pages/detailCharts.js'),
+  ]).then(([chartModule, detailModule]) => {
+    detailChartRuntime = { detailCharts: new chartModule.TrafficChart(), ...detailModule };
+    return detailChartRuntime;
+  });
+  return detailChartRuntimePromise;
+}
 let detailStarmapUnmount = null;
 const route = new URLSearchParams(window.location.search);
 const loginMode = route.get('login') === '1';
@@ -369,6 +378,8 @@ function mountDisplayPage() {
         <div id="starship-gltf-stage" class="starship-gltf-stage"></div>
       </div>
       <div class="globe-overlay-layer">
+        <button id="globeReturnSolarBtn" class="globe-nav-back-btn" type="button" style="display:none">← 太阳系 (Esc)</button>
+        <aside id="globeFirstEntryToast" class="globe-entry-toast" role="status" aria-live="polite" style="display:none">已进入地球视域。按 Esc 或点击左上方返回太阳系。</aside>
         <div class="globe-focus-badge" id="globeFocusBadge"></div>
         <div class="globe-tooltip" id="globeTooltip"></div>
       </div>
@@ -472,7 +483,7 @@ async function getGlobe() {
       starshipShowcase = null;
       starshipMountToken++;
       delete window.__starshipShowcase;
-      delete window.__DBG__.starshipShowcase;
+      if (window.__DBG__) delete window.__DBG__.starshipShowcase;
     }
     stage.style.display = 'none';
     getGlobeRuntimeDebug().starshipSkipped = 'mobile-viewport';
@@ -483,7 +494,7 @@ async function getGlobe() {
     try { starshipShowcase?.destroy?.(); } catch (_) {}
     starshipShowcase = null;
     delete window.__starshipShowcase;
-    delete window.__DBG__.starshipShowcase;
+    if (window.__DBG__) delete window.__DBG__.starshipShowcase;
     try {
       const { StarshipShowcase } = await import('../components/StarshipShowcase.js');
       // 顺序锁定: token++ -> await import -> 校验(token 比较必须在 await 之后)
@@ -498,7 +509,7 @@ async function getGlobe() {
         starshipShowcase?.destroy?.();
         starshipShowcase = null;
         delete window.__starshipShowcase;
-        delete window.__DBG__.starshipShowcase;
+        if (window.__DBG__) delete window.__DBG__.starshipShowcase;
         window.__DBG__.starshipRenderer = 'skipped-stale-mount';
         globe = instance;
         window.__DBG__.globe = globe;
@@ -512,7 +523,7 @@ async function getGlobe() {
       window.__DBG__.starshipError = String(error?.message || error);
       starshipShowcase = null;
       delete window.__starshipShowcase;
-      delete window.__DBG__.starshipShowcase;
+      if (window.__DBG__) delete window.__DBG__.starshipShowcase;
       window.__DBG__.starshipRenderer = 'failed';
     }
   }
@@ -554,29 +565,45 @@ async function ensureStarshipMounted() {
 let solarEscapeHandler = null;
 
 function showSolarSystem() {
+  globeViewToken++;
   starshipMountToken++;
   // 清掉 in-flight 挂载 promise，避免快速 solar→globe 切换命中旧 promise 漏挂载一轮
   starshipMountPromise = null;
   try { starshipShowcase?.destroy?.(); } catch (_) {}
   starshipShowcase = null;
   delete window.__starshipShowcase;
-  delete window.__DBG__.starshipShowcase;
+  if (window.__DBG__) delete window.__DBG__.starshipShowcase;
   const globeEl = document.getElementById('globe-container');
   const systemEl = document.getElementById('solar-system-container');
   if (globeEl) globeEl.style.display = 'none';
   if (systemEl) systemEl.style.display = '';
+  const returnBtn = document.getElementById('globeReturnSolarBtn');
+  const toast = document.getElementById('globeFirstEntryToast');
+  if (returnBtn) returnBtn.style.display = 'none';
+  if (toast) { clearTimeout(toast._hideTimer); toast.style.display = 'none'; }
   solarSystem?.resume?.();
 }
 
 async function showCesiumGlobe() {
+  const viewToken = globeViewToken;
   const systemEl = document.getElementById('solar-system-container');
   const globeEl = document.getElementById('globe-container');
   const loaded = await getGlobe();
+  if (viewToken !== globeViewToken) return;
   if (!loaded) return;
   await ensureStarshipMounted();
+  if (viewToken !== globeViewToken) return;
   if (systemEl) systemEl.style.display = 'none';
   if (globeEl) globeEl.style.display = '';
   solarSystem?.pause?.();
+  const returnBtn = document.getElementById('globeReturnSolarBtn');
+  const toast = document.getElementById('globeFirstEntryToast');
+  if (returnBtn) returnBtn.style.display = 'flex';
+  if (toast && !sessionStorage.getItem('vps_seen_globe_guide')) {
+    toast.style.display = 'block';
+    toast._hideTimer = setTimeout(() => { toast.style.display = 'none'; }, 4500);
+    sessionStorage.setItem('vps_seen_globe_guide', '1');
+  }
   loaded.updateServers(state.servers);
 }
 
@@ -603,6 +630,10 @@ function initGlobe() {
     showSolarSystem();
   };
   document.addEventListener('keydown', solarEscapeHandler);
+  const returnBtn = document.getElementById('globeReturnSolarBtn');
+  returnBtn?.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); showSolarSystem(); });
+  returnBtn?.addEventListener('pointerdown', (event) => { event.preventDefault(); event.stopPropagation(); });
+  returnBtn?.addEventListener('mousedown', (event) => { event.preventDefault(); event.stopPropagation(); });
 }
 
 const API_ROOT = window.__DBG__.API_ROOT || (location.port === "5000" ? `${location.protocol}//${location.hostname}:5000` : location.origin);
@@ -2207,9 +2238,13 @@ function ensureDenseSeries(series) {
 }
 
 
-const initializeDetailCharts = createDetailChartInitializer({
-  renderCharts: renderDetailMonitorChartsModule,
-  detailCharts,
+let initializeDetailCharts = null;
+async function ensureDetailCharts() {
+  const runtime = await getDetailChartRuntime();
+  if (initializeDetailCharts) return runtime;
+  initializeDetailCharts = createDetailChartInitializer({
+  renderCharts: runtime.renderDetailMonitorCharts,
+  detailCharts: runtime.detailCharts,
   helpers: {
     rowTimeMs,
     formatHourTick,
@@ -2228,8 +2263,10 @@ const initializeDetailCharts = createDetailChartInitializer({
   },
   getPingSampleCache: () => detailPingSamples.store,
 });
+  return runtime;
+}
 function renderDetailMonitorCharts(args) {
-  return initializeDetailCharts(args).then((result) => {
+  return ensureDetailCharts().then(() => initializeDetailCharts(args)).then((result) => {
     const historyRows = Array.isArray(args?.probeRows) ? args.probeRows : [];
     const timestamps = historyRows.map((row) => rowTimeMs(row, NaN)).filter(Number.isFinite).sort((a, b) => a - b);
     detailLivePollMode = timestamps.length > 10 && timestamps[timestamps.length - 1] - timestamps[0] > 30_000
@@ -2371,7 +2408,8 @@ async function refreshDetailLivePoint(serverId) {
     const live = payload?.live;
     const timeMs = rowTimeMs({ created_at: live?.updated_at }, NaN);
     if (!live || !Number.isFinite(timeMs) || timeMs <= Number(detailCache.liveUpdatedAt || 0)) return false;
-    const appended = appendDetailLiveMetrics(live, { detailCharts, mode: detailLivePollMode });
+    const runtime = await getDetailChartRuntime();
+    const appended = runtime.appendDetailLiveMetrics(live, { detailCharts: runtime.detailCharts, mode: detailLivePollMode });
     detailCache.liveUpdatedAt = timeMs;
     if (appended) {
       // Advance the cache watermark with the exact point appended to Chart.js.

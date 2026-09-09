@@ -39,6 +39,7 @@ function precompressAssets() {
 }
 
 function manualChunks(id) {
+  if (id.includes('/src/components/TrafficChart.js') || id.includes('/src/pages/detailCharts.js')) return 'detail-telemetry';
   if (id.includes('node_modules/chart.js')) return 'chart';
   if (id.includes('node_modules/cesium') || id.includes('node_modules/@cesium/')) return 'cesium';
   if ([
@@ -98,7 +99,7 @@ export default defineConfig({
               test: (id) => manualChunks(id) === 'cesium',
               includeDependenciesRecursively: false,
             },
-            ...['chart', 'deckgl', 'vendor', 'components'].map((name) => ({
+            ...['chart', 'detail-telemetry', 'deckgl', 'vendor', 'components'].map((name) => ({
               name,
               test: (id) => manualChunks(id) === name,
             })),
@@ -146,7 +147,7 @@ export default defineConfig({
       injectManifest: {
         injectionPoint: 'self.__WB_MANIFEST',
         globPatterns: ['**/*.{js,css,html,svg,woff,woff2}'],
-        globIgnores: ['**/node_modules/**/*', '**/cesium/**/*', '**/assets/cesium-*'],
+        globIgnores: ['**/node_modules/**/*', '**/cesium/**/*', '**/assets/cesium-*', '**/assets/CesiumGlobe-*'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
       },
       devOptions: {

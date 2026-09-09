@@ -216,6 +216,26 @@
   pointer-events: none;
 }
 
+.globe-overlay-layer { pointer-events: none; }
+.globe-nav-back-btn {
+  position: absolute; top: 22px; left: 24px; z-index: 40;
+  display: flex; align-items: center; gap: 6px; padding: 9px 14px;
+  border: 1px solid rgba(125,211,252,.25); border-radius: 999px;
+  background: rgba(4,10,20,.78); color: #e8f7ff; font: 600 13px/1.2 inherit;
+  backdrop-filter: blur(14px); cursor: pointer; pointer-events: auto;
+}
+.globe-nav-back-btn:hover { border-color: rgba(125,211,252,.62); }
+.globe-entry-toast {
+  position: absolute; top: 70px; left: 24px; z-index: 39; max-width: 360px;
+  padding: 10px 13px; border: 1px solid rgba(125,211,252,.2); border-radius: 10px;
+  background: rgba(4,10,20,.78); color: rgba(232,247,255,.9); font-size: 12px;
+  line-height: 1.45; backdrop-filter: blur(12px); pointer-events: none;
+}
+@media (max-width: 720px) {
+  .globe-nav-back-btn { top: max(14px, env(safe-area-inset-top)); left: 16px; }
+  .globe-entry-toast { top: 60px; left: 16px; right: 16px; }
+}
+
 .globe-focus-badge.show {
   opacity: 1;
   transform: translateY(0);
