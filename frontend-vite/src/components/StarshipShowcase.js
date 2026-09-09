@@ -19,6 +19,7 @@ export class StarshipShowcase {
     };
     this._frame = null;
     this._destroyed = false;
+    this._fallbackAttempted = false;
     this._initTimer = null;
     this._envRT = null;
     this.ship = null;
@@ -269,13 +270,7 @@ export class StarshipShowcase {
       const { MeshoptDecoder } = await import('three/examples/jsm/libs/meshopt_decoder.module.js');
       gltfLoader.setMeshoptDecoder(MeshoptDecoder);
     } catch (error) {
-      if (allowFallback && this.options.fallbackModelUrl && this.options.fallbackModelUrl !== url) {
-        this._dbgSet('starshipFallback', this.options.fallbackModelUrl);
-        this._loadModel(this.options.fallbackModelUrl, false);
-        return;
-      }
-      this._failSoft(error, 'meshopt-decoder');
-      return;
+      console.warn('[StarshipShowcase] meshopt decoder unavailable; continuing without decoder', error);
     }
     this._dbgSet('starshipModelUrl', url);
     gltfLoader.load(
@@ -290,7 +285,8 @@ export class StarshipShowcase {
       undefined,
       (error) => {
         console.warn('[StarshipShowcase] GLB load failed', url, error);
-        if (allowFallback && this.options.fallbackModelUrl && this.options.fallbackModelUrl !== url) {
+        if (allowFallback && !this._fallbackAttempted && this.options.fallbackModelUrl && this.options.fallbackModelUrl !== url) {
+          this._fallbackAttempted = true;
           this._dbgSet('starshipFallback', this.options.fallbackModelUrl);
           this._loadModel(this.options.fallbackModelUrl, false);
           return;
@@ -401,7 +397,8 @@ export class StarshipShowcase {
       this._dbgSet('starshipLoaded', true);
       this._dbgSet('starshipModelUrlFinal', url);
     } catch (error) {
-      if (allowFallback && this.options.fallbackModelUrl && this.options.fallbackModelUrl !== url) {
+      if (allowFallback && !this._fallbackAttempted && this.options.fallbackModelUrl && this.options.fallbackModelUrl !== url) {
+        this._fallbackAttempted = true;
         this._dbgSet('starshipFallback', this.options.fallbackModelUrl);
         this._loadModel(this.options.fallbackModelUrl, false);
         return;
