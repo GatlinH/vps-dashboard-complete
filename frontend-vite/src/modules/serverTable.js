@@ -38,6 +38,7 @@ let globePromise = null;
 let solarSystem = null;
 let starshipShowcase = null;
 let starshipMountToken = 0;
+let starshipMountPromise = null;
 const serversChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('vps-servers') : null;
 window.__DBG__.STATE = state;
 const detailCharts = new TrafficChart();
@@ -499,6 +500,8 @@ async function getGlobe() {
         delete window.__starshipShowcase;
         delete window.__DBG__.starshipShowcase;
         window.__DBG__.starshipRenderer = 'skipped-stale-mount';
+        globe = instance;
+        window.__DBG__.globe = globe;
         return instance;
       }
       window.__starshipShowcase = starshipShowcase;
@@ -513,6 +516,7 @@ async function getGlobe() {
       window.__DBG__.starshipRenderer = 'failed';
     }
   }
+  await ensureStarshipMounted();
   globe = instance;
   window.__DBG__.globe = globe;
   return globe;
@@ -524,6 +528,27 @@ async function getGlobe() {
   });
 
   return globePromise;
+}
+
+async function ensureStarshipMounted() {
+  if (starshipShowcase) return starshipShowcase;
+  if (starshipMountPromise) return starshipMountPromise;
+  const stage = document.getElementById('starship-gltf-stage');
+  const mobile = typeof window !== 'undefined' && window.matchMedia
+    && window.matchMedia('(max-width: 720px)').matches;
+  if (!stage || mobile) return null;
+  const token = ++starshipMountToken;
+  starshipMountPromise = import('../components/StarshipShowcase.js').then(({ StarshipShowcase }) => {
+    if (token !== starshipMountToken || !stage.isConnected || !stage.offsetParent) return null;
+    const instance = new StarshipShowcase(stage, { modelUrl: '/globe/xinjian1.glb?v=20260728', fallbackModelUrl: '', deferMs: 1200 });
+    if (token !== starshipMountToken || !stage.isConnected || !stage.offsetParent) { instance.destroy?.(); return null; }
+    starshipShowcase = instance;
+    window.__starshipShowcase = instance;
+    window.__DBG__.starshipShowcase = instance;
+    window.__DBG__.starshipRenderer = 'three-showcase';
+    return instance;
+  }).catch(() => null).finally(() => { starshipMountPromise = null; });
+  return starshipMountPromise;
 }
 
 let solarEscapeHandler = null;
@@ -546,6 +571,7 @@ async function showCesiumGlobe() {
   const globeEl = document.getElementById('globe-container');
   const loaded = await getGlobe();
   if (!loaded) return;
+  await ensureStarshipMounted();
   if (systemEl) systemEl.style.display = 'none';
   if (globeEl) globeEl.style.display = '';
   solarSystem?.pause?.();

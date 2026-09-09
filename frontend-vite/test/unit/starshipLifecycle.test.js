@@ -28,6 +28,16 @@ describe('StarshipShowcase lifecycle guards', () => {
     expect(table).toMatch(/await import\(['"]\.\.\/components\/StarshipShowcase\.js['"]\)[\s\S]*new StarshipShowcase/);
     expect(table).toMatch(/delete window\.__starshipShowcase/);
   });
+  it('assigns the module globe before returning from stale mounts', () => {
+    expect(table).toMatch(/if \(token !== starshipMountToken \|\| !stage\.isConnected \|\| !stage\.offsetParent\) \{[\s\S]*?globe = instance;[\s\S]*?window\.__DBG__\.globe = globe;[\s\S]*?return instance;/);
+  });
+  it('remounts the starship when returning to the Cesium globe and avoids duplicate mounts', () => {
+    expect(table).toMatch(/async function ensureStarshipMounted\(\)/);
+    expect(table).toMatch(/getGlobe\(\)[\s\S]*ensureStarshipMounted\(\)/);
+    expect(table).toMatch(/showCesiumGlobe\(\)[\s\S]*ensureStarshipMounted\(\)/);
+    expect(table).toMatch(/if \(starshipShowcase\) return starshipShowcase/);
+    expect(table).toMatch(/if \(starshipMountPromise\) return starshipMountPromise/);
+  });
   it('retains environment RT and releases it, including PMREM import failure', () => {
     expect(source).toMatch(/this\._envRT\s*=\s*envRT/);
     expect(source).toMatch(/this\._envRT\?\.texture\?\.dispose\?\.\(\)/);
