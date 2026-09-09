@@ -155,6 +155,7 @@ export class SolarSystem {
 
   _fitHomeCamera(width, height) {
     const aspect = width / height;
+    if (aspect < 1) this.camera.fov = Math.min(58, HOME_FOV + 4); else this.camera.fov = HOME_FOV;
     const hfovHalf = Math.atan(Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) * aspect);
     const baseDistance = this.baseCameraPosition.length();
     const maxOrbit = this.isMobile ? 45.4 : 64.8;
@@ -652,9 +653,10 @@ export class SolarSystem {
 
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
-    this.homeCameraPosition = this._fitHomeCamera(width, height);
+    const nextHome = this._fitHomeCamera(width, height);
+    this.homeCameraPosition = nextHome;
     if (this.cameraAtHome) {
-      this.camera.position.copy(this.homeCameraPosition);
+      this.camera.position.lerp(this.homeCameraPosition, 0.25);
       this.camera.lookAt(this.cameraTarget);
     }
     this.renderer.setSize(width, height, false);

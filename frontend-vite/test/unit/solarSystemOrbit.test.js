@@ -38,4 +38,12 @@ describe('solar system F2 orbit interaction', () => {
     expect(text).toContain('tailGeometry.translate(0.5,0,0)');
     expect(text).toContain('crossTail');
   });
+
+  it('covers v3.5 ring factory and portrait fitting contracts', async () => {
+    const text = await source();
+    expect(text).toContain('_generateRingTexture');
+    expect(text).toContain('new THREE.InstancedMesh');
+    expect(text).toContain('if (aspect < 1)');
+    expect(text).toContain('depthWrite: false');
+  });
 });
