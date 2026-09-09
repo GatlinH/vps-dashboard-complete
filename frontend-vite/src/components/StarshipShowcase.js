@@ -20,6 +20,7 @@ export class StarshipShowcase {
     this._frame = null;
     this._destroyed = false;
     this._initTimer = null;
+    this._envRT = null;
     this.ship = null;
     this.gltfMixer = null;
     this.gltfClock = new THREE.Clock();
@@ -188,12 +189,18 @@ export class StarshipShowcase {
       const pmrem = new THREE.PMREMGenerator(this.renderer);
       import('three/examples/jsm/environments/RoomEnvironment.js')
         .then(({ RoomEnvironment }) => {
+          if (this._destroyed) { pmrem.dispose(); return; }
           const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
+          this._envRT = envRT;
           this.scene.environment = envRT.texture;
           this.scene.environmentIntensity = 0.6;
+          pmrem.dispose();
           this._dbgSet('starshipEnvConfigured', true);
         })
-        .catch((e) => this._dbgSet('starshipEnvError', String(e).slice(0, 120)));
+        .catch((e) => {
+          pmrem.dispose();
+          this._dbgSet('starshipEnvError', String(e).slice(0, 120));
+        });
     } catch (e) {
       this._dbgSet('starshipEnvError', String(e).slice(0, 120));
     }
@@ -329,6 +336,17 @@ export class StarshipShowcase {
       this._dbgSet('starshipTextureInventoryBefore', texStatsBefore);
 
       const rehydrate = await this._rehydrateGltfTextures(gltf);
+      if (this._destroyed) {
+        gltf.scene?.traverse((o) => {
+          o.geometry?.dispose?.();
+          const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+          mats.forEach((m) => {
+            Object.values(m).forEach((value) => { if (value?.isTexture) value.dispose?.(); });
+            m.dispose?.();
+          });
+        });
+        return;
+      }
       this._dbgSet('starshipTextureRehydrate', rehydrate);
 
       // Inventory AFTER rehydrate, before semantic mutation
@@ -424,9 +442,9 @@ export class StarshipShowcase {
 
 
   _installInteractionHandlers() {
-    const target = window;
+    const target = typeof window !== 'undefined' ? window : null;
     const boundsEl = this.renderer?.domElement;
-    if (!boundsEl) return;
+    if (!target || !boundsEl) return;
     this._shipScreenTest = (ev) => this._isPointerNearShip(ev.clientX, ev.clientY);
     this._setHover = (hover) => {
       this.hitbox?.classList.toggle('is-hovering-ship', !!hover);
@@ -575,11 +593,16 @@ export class StarshipShowcase {
     this.scene?.traverse((obj) => {
       obj.geometry?.dispose?.();
       const mats = obj.material ? (Array.isArray(obj.material) ? obj.material : [obj.material]) : [];
-      mats.forEach((m) => { m.map?.dispose?.(); m.dispose?.(); });
+      mats.forEach((m) => {
+        Object.values(m).forEach((value) => { if (value?.isTexture) value.dispose?.(); });
+        m.dispose?.();
+      });
     });
-    // Interaction listeners are attached to the hitbox/target, not always window.
+    this._envRT?.texture?.dispose?.();
+    this._envRT?.dispose?.();
+    if (this.scene) this.scene.environment = null;
     try {
-      const target = this.hitbox || this.renderer?.domElement;
+      const target = typeof window !== 'undefined' ? window : null;
       if (target) {
         if (this._onPointerDown) target.removeEventListener('pointerdown', this._onPointerDown, true);
         if (this._onPointerMove) target.removeEventListener('pointermove', this._onPointerMove, true);

@@ -1253,16 +1253,11 @@ body.globe-city-mode #globeMoonRoot {
 .globe-moon-shadow { background: radial-gradient(circle at 28% 52%, rgba(15,19,27,.10) 0%, rgba(12,16,24,.50) 54%, rgba(5,8,14,.88) 100%) !important; }
 
 
-/* === PixiJS dynamic nebula background layer === */
+/* === Dynamic nebula background layer === */
 .globe-star-projection-bg.heic-nebula-host {
   background: radial-gradient(circle at 72% 55%, rgba(26, 90, 120, .18), transparent 48%), #020712 !important;
   overflow: hidden;
 }
-.pixi-nebula-canvas {
-  display: block;
-  opacity: .98;
-}
-
 /* === HEIC1509A real nebula plate + blend-mode micro motion === */
 .globe-star-projection-bg.heic-nebula-host {
   background:
@@ -1299,14 +1294,6 @@ body.globe-city-mode #globeMoonRoot {
   filter: blur(1.6px) saturate(1.38) brightness(.92);
   transform-origin: 64% 44%;
   animation: heicNebulaBreath 34s ease-in-out infinite alternate;
-}
-.pixi-nebula-canvas {
-  position: relative;
-  z-index: 1 !important;
-  display: block;
-  opacity: .76;
-  mix-blend-mode: screen;
-  filter: saturate(1.05) brightness(.92);
 }
 @keyframes heicNebulaDrift {
   0% { transform: translate3d(-1.2vw, -.8vh, 0) scale(1.035) rotate(-.20deg); opacity: .66; }
@@ -1411,7 +1398,7 @@ body.globe-city-mode #globeMoonRoot {
   .earth-sync-stars { animation: none !important; }
 }
 
-/* === Five-layer final architecture: bg0 / NASA parallax10 / Pixi20 / Cesium30 / UI40 === */
+/* === Four-layer final architecture: bg0 / NASA parallax10 / Cesium30 / UI40 === */
 #globe-container.display-globe-fullscreen {
   background: #000 !important;
   isolation: isolate;
@@ -1448,11 +1435,6 @@ body.globe-city-mode #globeMoonRoot {
 }
 .earth-sync-stars {
   z-index: 14 !important;
-  mix-blend-mode: screen;
-}
-.star-effects-canvas {
-  z-index: 20 !important;
-  pointer-events: none !important;
   mix-blend-mode: screen;
 }
 #cesium-globe-container {

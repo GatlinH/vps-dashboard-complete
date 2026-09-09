@@ -27,7 +27,6 @@ import { applyCesiumTheme } from './globe/runtime/sceneSetup.js';
 import { rebuildVpsEntities } from './globe/vpsEntities.js';
 import { installVisitorBeacon } from './globe/runtime/visitorBeacon.js';
 import { installPlaceLabels, updatePlaceLabels, updateHtmlNodeLabels } from './globe/runtime/labelOverlay.js';
-import { StarEffectsLayer } from './StarEffectsLayer.js';
 import { NasaParallaxBackground } from './NasaParallaxBackground.js';
 
 
@@ -265,14 +264,6 @@ export class CesiumGlobe {
     this._starProjectionBg.appendChild(this._earthSyncStarsB);
     this.container.appendChild(this._starProjectionBg);
     this._nasaParallaxBackground = new NasaParallaxBackground(this._starProjectionBg);
-    // Optional PIXI star sparkles; fail-soft if host is 0×0 or WebGL is busy.
-    try {
-      this._starEffectsLayer = new StarEffectsLayer(this.container, { seed: 2406 });
-    } catch (error) {
-      console.warn('[CesiumGlobe] StarEffectsLayer skipped', error);
-      this._starEffectsLayer = null;
-    }
-
     this._cesiumDiv = document.createElement('div');
     this._cesiumDiv.id = 'cesium-globe-container';
     this._cesiumDiv.style.cssText = 'width:100%;height:100%;min-width:1px;min-height:1px;position:absolute;inset:0;';
@@ -1248,8 +1239,6 @@ export class CesiumGlobe {
     try { this._handler?.destroy(); } catch (_) {}
     try { this._nasaParallaxBackground?.destroy(); } catch (_) {}
     this._nasaParallaxBackground = null;
-    try { this._starEffectsLayer?.destroy(); } catch (_) {}
-    this._starEffectsLayer = null;
     this._htmlLabels?.forEach((el) => el.remove());
     this._htmlLabels = new Map();
     if (this.viewer) { try { this.viewer.destroy(); } catch (_) {} this.viewer = null; }

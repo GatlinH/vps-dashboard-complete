@@ -8,7 +8,6 @@ import '../styles/detail-starmap-background.css';
 import { state } from '../store/state.js';
 import { listServersPublic, getServerDetail } from '../api/public.js';
 import { SolarSystem } from '../components/SolarSystem.js';
-import { StarshipShowcase } from '../components/StarshipShowcase.js';
 import { TrafficChart } from '../components/TrafficChart.js';
 import { mountGlobeStarmap } from '../components/GlobeStarmapMount.jsx';
 import { toDisplay, calcResidualValue, getMonthlyPrice, getBillingMonths, updateRateDisplay, refreshExchangeRates } from '../utils/currency.js';
@@ -38,6 +37,8 @@ let globe = null;
 let globePromise = null;
 let solarSystem = null;
 let starshipShowcase = null;
+let starshipMountToken = 0;
+let starshipMountPromise = null;
 const serversChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('vps-servers') : null;
 window.__DBG__.STATE = state;
 const detailCharts = new TrafficChart();
@@ -450,7 +451,7 @@ function handleGlobeNodeSelection(server, clusterMembers, cluster) {
 async function getGlobe() {
   if (globe) return globe;
   if (globePromise) return globePromise;
-  globePromise = import('../components/CesiumGlobe.js').then(({ CesiumGlobe }) => {
+  globePromise = import('../components/CesiumGlobe.js').then(async ({ CesiumGlobe }) => {
   // Cesium earth only. Starship stays on independent Three.js StarshipShowcase —
   // Enterprise GLB is not Cesium-compatible (attribute validation fails).
   const instance = new CesiumGlobe('#globe-container', state.servers, {
@@ -466,13 +467,26 @@ async function getGlobe() {
   const isMobileViewport = typeof window !== 'undefined' && window.matchMedia
     && window.matchMedia('(max-width: 720px)').matches;
   if (isMobileViewport && stage) {
+    if (starshipShowcase) {
+      try { starshipShowcase.destroy?.(); } catch (_) {}
+      starshipShowcase = null;
+      starshipMountToken++;
+      delete window.__starshipShowcase;
+      delete window.__DBG__.starshipShowcase;
+    }
     stage.style.display = 'none';
     getGlobeRuntimeDebug().starshipSkipped = 'mobile-viewport';
     window.__DBG__.starshipRenderer = 'skipped-mobile';
   }
   if (stage && !isMobileViewport) {
+    const token = ++starshipMountToken;
     try { starshipShowcase?.destroy?.(); } catch (_) {}
+    starshipShowcase = null;
+    delete window.__starshipShowcase;
+    delete window.__DBG__.starshipShowcase;
     try {
+      const { StarshipShowcase } = await import('../components/StarshipShowcase.js');
+      // 顺序锁定: token++ -> await import -> 校验(token 比较必须在 await 之后)
       starshipShowcase = new StarshipShowcase(stage, {
         // Full original xinjian1 (textures + denser meshes) from /root/xinjian1.glb.
         // Keep fail-soft behavior rather than fetching a duplicate 55MB legacy URL.
@@ -480,6 +494,16 @@ async function getGlobe() {
         fallbackModelUrl: '',
         deferMs: 1200,
       });
+      if (token !== starshipMountToken || !stage.isConnected || !stage.offsetParent) {
+        starshipShowcase?.destroy?.();
+        starshipShowcase = null;
+        delete window.__starshipShowcase;
+        delete window.__DBG__.starshipShowcase;
+        window.__DBG__.starshipRenderer = 'skipped-stale-mount';
+        globe = instance;
+        window.__DBG__.globe = globe;
+        return instance;
+      }
       window.__starshipShowcase = starshipShowcase;
       window.__DBG__.starshipShowcase = starshipShowcase;
       window.__DBG__.starshipRenderer = 'three-showcase';
@@ -487,8 +511,12 @@ async function getGlobe() {
       console.warn('[homepage] starship showcase failed; globe continues', error);
       window.__DBG__.starshipError = String(error?.message || error);
       starshipShowcase = null;
+      delete window.__starshipShowcase;
+      delete window.__DBG__.starshipShowcase;
+      window.__DBG__.starshipRenderer = 'failed';
     }
   }
+  await ensureStarshipMounted();
   globe = instance;
   window.__DBG__.globe = globe;
   return globe;
@@ -502,9 +530,37 @@ async function getGlobe() {
   return globePromise;
 }
 
+async function ensureStarshipMounted() {
+  if (starshipShowcase) return starshipShowcase;
+  if (starshipMountPromise) return starshipMountPromise;
+  const stage = document.getElementById('starship-gltf-stage');
+  const mobile = typeof window !== 'undefined' && window.matchMedia
+    && window.matchMedia('(max-width: 720px)').matches;
+  if (!stage || mobile) return null;
+  const token = ++starshipMountToken;
+  starshipMountPromise = import('../components/StarshipShowcase.js').then(({ StarshipShowcase }) => {
+    if (token !== starshipMountToken || !stage.isConnected || !stage.offsetParent) return null;
+    const instance = new StarshipShowcase(stage, { modelUrl: '/globe/xinjian1.glb?v=20260728', fallbackModelUrl: '', deferMs: 1200 });
+    if (token !== starshipMountToken || !stage.isConnected || !stage.offsetParent) { instance.destroy?.(); return null; }
+    starshipShowcase = instance;
+    window.__starshipShowcase = instance;
+    window.__DBG__.starshipShowcase = instance;
+    window.__DBG__.starshipRenderer = 'three-showcase';
+    return instance;
+  }).catch(() => null).finally(() => { starshipMountPromise = null; });
+  return starshipMountPromise;
+}
+
 let solarEscapeHandler = null;
 
 function showSolarSystem() {
+  starshipMountToken++;
+  // 清掉 in-flight 挂载 promise，避免快速 solar→globe 切换命中旧 promise 漏挂载一轮
+  starshipMountPromise = null;
+  try { starshipShowcase?.destroy?.(); } catch (_) {}
+  starshipShowcase = null;
+  delete window.__starshipShowcase;
+  delete window.__DBG__.starshipShowcase;
   const globeEl = document.getElementById('globe-container');
   const systemEl = document.getElementById('solar-system-container');
   if (globeEl) globeEl.style.display = 'none';
@@ -517,6 +573,7 @@ async function showCesiumGlobe() {
   const globeEl = document.getElementById('globe-container');
   const loaded = await getGlobe();
   if (!loaded) return;
+  await ensureStarshipMounted();
   if (systemEl) systemEl.style.display = 'none';
   if (globeEl) globeEl.style.display = '';
   solarSystem?.pause?.();
