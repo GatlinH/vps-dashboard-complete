@@ -375,7 +375,7 @@ function mountDisplayPage() {
       <div id="globe-container" class="display-globe-fullscreen immersive-globe-canvas-wrap three-globe-host" style="display:none"></div>
       <div class="photo-space-showcase" aria-hidden="true">
         <div class="photo-nebula-field"></div>
-        <div id="starship-gltf-stage" class="starship-gltf-stage"></div>
+        <div id="starship-gltf-stage" class="starship-gltf-stage" style="display:none"></div>
       </div>
       <div class="globe-overlay-layer">
         <button id="globeReturnSolarBtn" class="globe-nav-back-btn" type="button" style="display:none">← 太阳系 (Esc)</button>
@@ -575,6 +575,8 @@ function showSolarSystem() {
   if (window.__DBG__) delete window.__DBG__.starshipShowcase;
   const globeEl = document.getElementById('globe-container');
   const systemEl = document.getElementById('solar-system-container');
+  const stage = document.getElementById('starship-gltf-stage');
+  if (stage) stage.style.display = 'none';
   if (globeEl) globeEl.style.display = 'none';
   if (systemEl) systemEl.style.display = '';
   const returnBtn = document.getElementById('globeReturnSolarBtn');
@@ -591,6 +593,8 @@ async function showCesiumGlobe() {
   const loaded = await getGlobe();
   if (viewToken !== globeViewToken) return;
   if (!loaded) return;
+  const stage = document.getElementById('starship-gltf-stage');
+  if (stage) stage.style.display = '';
   await ensureStarshipMounted();
   if (viewToken !== globeViewToken) return;
   if (systemEl) systemEl.style.display = 'none';
