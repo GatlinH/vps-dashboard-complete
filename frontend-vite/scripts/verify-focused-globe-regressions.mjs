@@ -64,7 +64,7 @@ assert.ok(arcGisAwaitIndex < cloudAwaitIndex, 'cloud initialization must remain 
 assert.match(imagerySource.slice(arcGisAwaitIndex, cloudAwaitIndex), /\} catch \(e\) \{[\s\S]*?imageryError/, 'ArcGIS initialization must handle its own failure before cloud initialization');
 assert.match(imagerySource.slice(cloudAwaitIndex), /\} catch \(e\) \{[\s\S]*?imageryError/, 'cloud initialization must handle its own failure');
 
-assert.match(mainSource, /new StarshipShowcase\(stage, \{[\s\S]*?modelUrl: '\/globe\/xinjian1\.glb\?v=20260728'[\s\S]*?fallbackModelUrl: ''[\s\S]*?deferMs: 1200/, 'homepage must defer the versioned original model and fail-soft instead of downloading a duplicate GLB');
+assert.match(mainSource, /new StarshipShowcase\(stage, \{[\s\S]*?modelUrl: '\/globe\/xinjian1-opt\.glb\?v=20260909'[\s\S]*?fallbackModelUrl: '\/globe\/xinjian1\.glb\?v=20260728'[\s\S]*?deferMs: 1200/);
 assert.doesNotMatch(mainSource, /star_trek_dsc_enterprise_user\.glb/, 'homepage must not request the duplicate legacy Enterprise asset');
 assert.match(mainSource, /enableStarship: false/, 'Cesium embedded starship must stay disabled on home');
 assert.match(showcaseSource, /_installInteractionHandlers/, 'independent showcase must keep interaction handlers');

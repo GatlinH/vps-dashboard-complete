@@ -89,7 +89,7 @@ assert.match(solar, /HOME_FOV/);
 assert.match(solar, /\(earthSize \+ moonSize\) \* 0\.5 \* 1\.1/, 'FAIL: separation threshold must be half-width sum plus 10% margin (* 0.5 * 1.1) to prevent hit-box overlap');
 assert.match(solar, /getWorldPosition/);
 assert.match(solar, /len\s*>=\s*0\.5/);
-assert.match(table, /modelUrl: '\/globe\/xinjian1\.glb\?v=20260728'/); assert.match(table, /fallbackModelUrl: ''/);
+assert.match(table, /modelUrl: '\/globe\/xinjian1-opt\.glb\?v=20260909'/); assert.match(table, /fallbackModelUrl: '\/globe\/xinjian1\.glb\?v=20260728'/);
 assert.match(entry, /export function renderSunBadge/); assert.match(entry, /export function renderMoonPanel/);
 assert.doesNotMatch(css, /\.starship-gltf-stage\s*\{[^}]*inset:\s*0/);
 console.log('solar system home contract: ok');

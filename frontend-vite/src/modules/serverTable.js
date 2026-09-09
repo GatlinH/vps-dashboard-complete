@@ -501,8 +501,8 @@ async function getGlobe() {
       starshipShowcase = new StarshipShowcase(stage, {
         // Full original xinjian1 (textures + denser meshes) from /root/xinjian1.glb.
         // Keep fail-soft behavior rather than fetching a duplicate 55MB legacy URL.
-        modelUrl: '/globe/xinjian1.glb?v=20260728',
-        fallbackModelUrl: '',
+        modelUrl: '/globe/xinjian1-opt.glb?v=20260909',
+        fallbackModelUrl: '/globe/xinjian1.glb?v=20260728',
         deferMs: 1200,
       });
       if (token !== starshipMountToken || !stage.isConnected || !stage.offsetParent) {
@@ -551,7 +551,7 @@ async function ensureStarshipMounted() {
   const token = ++starshipMountToken;
   starshipMountPromise = import('../components/StarshipShowcase.js').then(({ StarshipShowcase }) => {
     if (token !== starshipMountToken || !stage.isConnected || !stage.offsetParent) return null;
-    const instance = new StarshipShowcase(stage, { modelUrl: '/globe/xinjian1.glb?v=20260728', fallbackModelUrl: '', deferMs: 1200 });
+    const instance = new StarshipShowcase(stage, { modelUrl: '/globe/xinjian1-opt.glb?v=20260909', fallbackModelUrl: '/globe/xinjian1.glb?v=20260728', deferMs: 1200 });
     if (token !== starshipMountToken || !stage.isConnected || !stage.offsetParent) { instance.destroy?.(); return null; }
     starshipShowcase = instance;
     window.__starshipShowcase = instance;

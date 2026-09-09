@@ -262,9 +262,21 @@ export class StarshipShowcase {
     this._dbgSet('starshipMode', 'independent-three-overlay-safe');
   }
 
-  _loadModel(url, allowFallback = false) {
+  async _loadModel(url, allowFallback = false) {
     if (this._destroyed || !url) return;
     const gltfLoader = new GLTFLoader();
+    try {
+      const { MeshoptDecoder } = await import('three/examples/jsm/libs/meshopt_decoder.module.js');
+      gltfLoader.setMeshoptDecoder(MeshoptDecoder);
+    } catch (error) {
+      if (allowFallback && this.options.fallbackModelUrl && this.options.fallbackModelUrl !== url) {
+        this._dbgSet('starshipFallback', this.options.fallbackModelUrl);
+        this._loadModel(this.options.fallbackModelUrl, false);
+        return;
+      }
+      this._failSoft(error, 'meshopt-decoder');
+      return;
+    }
     this._dbgSet('starshipModelUrl', url);
     gltfLoader.load(
       url,
