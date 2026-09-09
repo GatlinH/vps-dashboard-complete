@@ -607,6 +607,21 @@ body:has(.globe-only-page) {
     linear-gradient(#01040b, #030814 55%, #010309) !important;
 }
 
+.solar-body-label {
+  pointer-events: none !important;
+  position: absolute;
+  z-index: 3;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(5, 8, 18, 0.72);
+  color: #fff;
+  font: 11px/1.2 system-ui, sans-serif;
+  white-space: nowrap;
+  opacity: 0.9;
+  transition: opacity 160ms ease;
+  transform: translate(-50%, -100%);
+}
+
 /* Restore interaction contract: visible draggable sun and moon entrances. */
 .globe-only-page .three-globe-sun-badge,
 #globeMoonRoot {
