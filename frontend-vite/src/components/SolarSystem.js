@@ -57,7 +57,6 @@ export class SolarSystem {
     }
 
     this._buildScene();
-    this._buildStars();
     this._buildSun();
     this._buildPlanets();
     this._buildMoon();
@@ -114,6 +113,11 @@ export class SolarSystem {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x05060d);
+    const backgroundTexture = new THREE.TextureLoader().load('/globe/backgrounds/heic1509a-bg.jpg', (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      this.scene.background = tex;
+    });
+    this._track(backgroundTexture);
 
     this.camera = new THREE.PerspectiveCamera(HOME_FOV, width / height, 0.1, 500);
     this.camera.position.set(0, 26, 48);
@@ -154,34 +158,6 @@ export class SolarSystem {
 
   _track(...items) {
     items.forEach((item) => this.disposables.push(item));
-  }
-
-  _buildStars() {
-    const count = this.isMobile ? 500 : 2200;
-    const positions = new Float32Array(count * 3);
-
-    for (let i = 0; i < count; i += 1) {
-      const radius = 120 + Math.random() * 160;
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos((Math.random() * 2) - 1);
-
-      positions[i * 3 + 0] = radius * Math.sin(phi) * Math.cos(theta);
-      positions[i * 3 + 1] = radius * Math.cos(phi);
-      positions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
-    }
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-
-    const material = new THREE.PointsMaterial({
-      color: 0xffffff,
-      size: this.isMobile ? 1.1 : 0.8,
-      sizeAttenuation: true
-    });
-
-    this.stars = new THREE.Points(geometry, material);
-    this.scene.add(this.stars);
-    this._track(geometry, material);
   }
 
   _buildSun() {
@@ -246,6 +222,20 @@ export class SolarSystem {
       mesh.name = spec.name;
       this.scene.add(mesh);
       this._track(geometry, material);
+
+      if (spec.name === 'Saturn') {
+        const ringGeometry = new THREE.RingGeometry(2.6, 4.4, this.isMobile ? 48 : 96);
+        const ringMaterial = new THREE.MeshBasicMaterial({
+          color: 0xd8c79a,
+          transparent: true,
+          opacity: 0.55,
+          side: THREE.DoubleSide
+        });
+        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+        ring.rotation.x = Math.PI / 2 - 0.35;
+        mesh.add(ring);
+        this._track(ringGeometry, ringMaterial);
+      }
 
       this._buildOrbitRing(spec.orbit);
 
@@ -477,14 +467,12 @@ export class SolarSystem {
 
     const dt = Math.min(0.05, this.clock.getDelta());
 
-    this._advanceBodies(dt);
+    if (!this.orbitState.isDragging) {
+      this._advanceBodies(dt);
+    }
     this._stepCameraTween(dt);
     if (!this.cameraTween) { this.camera.position.setFromSpherical(this.orbitState.spherical).add(this.cameraTarget); this.camera.lookAt(this.cameraTarget); }
     this._syncHitButtons();
-
-    if (this.stars) {
-      this.stars.rotation.y += dt * 0.005;
-    }
 
     this.renderer.render(this.scene, this.camera);
 
