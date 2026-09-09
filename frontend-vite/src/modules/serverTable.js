@@ -35,6 +35,7 @@ let solarSystem = null;
 let starshipShowcase = null;
 let starshipMountToken = 0;
 let starshipMountPromise = null;
+let globeViewToken = 0;
 const serversChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('vps-servers') : null;
 window.__DBG__.STATE = state;
 let detailChartRuntimePromise = null;
@@ -482,7 +483,7 @@ async function getGlobe() {
       starshipShowcase = null;
       starshipMountToken++;
       delete window.__starshipShowcase;
-      delete window.__DBG__.starshipShowcase;
+      if (window.__DBG__) delete window.__DBG__.starshipShowcase;
     }
     stage.style.display = 'none';
     getGlobeRuntimeDebug().starshipSkipped = 'mobile-viewport';
@@ -493,7 +494,7 @@ async function getGlobe() {
     try { starshipShowcase?.destroy?.(); } catch (_) {}
     starshipShowcase = null;
     delete window.__starshipShowcase;
-    delete window.__DBG__.starshipShowcase;
+    if (window.__DBG__) delete window.__DBG__.starshipShowcase;
     try {
       const { StarshipShowcase } = await import('../components/StarshipShowcase.js');
       // 顺序锁定: token++ -> await import -> 校验(token 比较必须在 await 之后)
@@ -508,7 +509,7 @@ async function getGlobe() {
         starshipShowcase?.destroy?.();
         starshipShowcase = null;
         delete window.__starshipShowcase;
-        delete window.__DBG__.starshipShowcase;
+        if (window.__DBG__) delete window.__DBG__.starshipShowcase;
         window.__DBG__.starshipRenderer = 'skipped-stale-mount';
         globe = instance;
         window.__DBG__.globe = globe;
@@ -522,7 +523,7 @@ async function getGlobe() {
       window.__DBG__.starshipError = String(error?.message || error);
       starshipShowcase = null;
       delete window.__starshipShowcase;
-      delete window.__DBG__.starshipShowcase;
+      if (window.__DBG__) delete window.__DBG__.starshipShowcase;
       window.__DBG__.starshipRenderer = 'failed';
     }
   }
@@ -564,13 +565,14 @@ async function ensureStarshipMounted() {
 let solarEscapeHandler = null;
 
 function showSolarSystem() {
+  globeViewToken++;
   starshipMountToken++;
   // 清掉 in-flight 挂载 promise，避免快速 solar→globe 切换命中旧 promise 漏挂载一轮
   starshipMountPromise = null;
   try { starshipShowcase?.destroy?.(); } catch (_) {}
   starshipShowcase = null;
   delete window.__starshipShowcase;
-  delete window.__DBG__.starshipShowcase;
+  if (window.__DBG__) delete window.__DBG__.starshipShowcase;
   const globeEl = document.getElementById('globe-container');
   const systemEl = document.getElementById('solar-system-container');
   if (globeEl) globeEl.style.display = 'none';
@@ -583,11 +585,14 @@ function showSolarSystem() {
 }
 
 async function showCesiumGlobe() {
+  const viewToken = globeViewToken;
   const systemEl = document.getElementById('solar-system-container');
   const globeEl = document.getElementById('globe-container');
   const loaded = await getGlobe();
+  if (viewToken !== globeViewToken) return;
   if (!loaded) return;
   await ensureStarshipMounted();
+  if (viewToken !== globeViewToken) return;
   if (systemEl) systemEl.style.display = 'none';
   if (globeEl) globeEl.style.display = '';
   solarSystem?.pause?.();

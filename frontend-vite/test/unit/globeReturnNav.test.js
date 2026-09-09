@@ -26,4 +26,12 @@ describe('globe return navigation and first-paint slimming', () => {
   it('owns globe CSS from the Cesium lazy module', async () => {
     expect(await cesiumSource()).toContain("import '../styles/globe.css'");
   });
+
+  it('guards showCesiumGlobe UI updates after each async boundary', async () => {
+    const text = await source();
+    const body = text.match(/async function showCesiumGlobe\(\) \{([\s\S]*?)\n\}/)?.[1] || '';
+    expect(body).toMatch(/const viewToken = globeViewToken/);
+    expect(body).toMatch(/await getGlobe\(\);[\s\S]*?if \(viewToken !== globeViewToken\) return;/);
+    expect(body).toMatch(/await ensureStarshipMounted\(\);[\s\S]*?if \(viewToken !== globeViewToken\) return;/);
+  });
 });
