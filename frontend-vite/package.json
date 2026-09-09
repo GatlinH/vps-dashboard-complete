@@ -37,7 +37,7 @@
     "cesium": "1.143",
     "chart.js": "^4.4.1",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7",
+    "react-dom": "^19.2.8",
     "three": "^0.185.0",
     "vite-plugin-cesium": "^1.2.23",
     "workbox-core": "7.4.1",
