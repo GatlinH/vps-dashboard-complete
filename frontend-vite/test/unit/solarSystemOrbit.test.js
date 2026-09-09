@@ -28,4 +28,14 @@ describe('solar system F2 orbit interaction', () => {
     expect(text).toContain('_buildHalleyComet');
     expect(text).toContain('_buildAsteroidBelt');
   });
+
+  it('updates asteroid instances and orients the Halley tail along its direction', async () => {
+    const text = await source();
+    expect(text).toContain('this.asteroidData=Array.from');
+    expect(text).toContain('instanceMatrix.needsUpdate = true');
+    expect(text).toMatch(/_advanceBodies[\s\S]*asteroidBelt[\s\S]*setMatrixAt/);
+    expect(text).toMatch(/_advanceBodies[\s\S]*h\.tail\.quaternion\.setFromUnitVectors/);
+    expect(text).toContain('tailGeometry.translate(0.5,0,0)');
+    expect(text).toContain('crossTail');
+  });
 });
