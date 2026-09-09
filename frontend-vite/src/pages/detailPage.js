@@ -195,3 +195,5 @@ export function renderDetailConsole(ctx) {
       <footer class="fleet-console-footer" aria-hidden="true"></footer>
     </section>`;
 }
+import '../styles/detail-starfleet-console.css';
+import '../styles/detail-starmap-background.css';
