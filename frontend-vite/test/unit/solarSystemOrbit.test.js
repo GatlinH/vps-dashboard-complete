@@ -15,4 +15,13 @@ describe('solar system F2 orbit interaction', () => {
     expect(text).toContain('cameraTween = null');
     expect(text).not.toMatch(/OrbitControls/);
   });
+
+  it('pauses motion while dragging and uses Saturn rings and nebula background', async () => {
+    const text = await source();
+    expect(text).toContain('RingGeometry');
+    expect(text).toContain("/globe/backgrounds/heic1509a-bg.jpg");
+    expect(text).toMatch(/isDragging[\s\S]{0,180}_advanceBodies/);
+    expect(text).not.toContain('_buildStars');
+    expect(text).not.toContain('PointsMaterial');
+  });
 });
