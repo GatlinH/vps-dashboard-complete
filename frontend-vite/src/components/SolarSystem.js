@@ -9,14 +9,14 @@ const TARGET_RADIUS = (19 + 2.6 + 1.25) * 1.1;
 
 // name, radius, orbital radius, angular speed (rad/s), colour, mobile-only-drop flag
 const PLANET_TABLE = [
-  { name: 'Mercury', radius: 0.7, orbit: 9, speed: 0.62, color: 0x9c8a7a, mobile: false },
-  { name: 'Venus', radius: 1.1, orbit: 13.5, speed: 0.44, color: 0xd8a05a, mobile: true },
-  { name: 'Earth', radius: 1.25, orbit: 19, speed: 0.31, color: 0x3f7fd8, mobile: true },
-  { name: 'Mars', radius: 0.95, orbit: 25, speed: 0.24, color: 0xc1552f, mobile: true },
-  { name: 'Jupiter', radius: 2.4, orbit: 33, speed: 0.14, color: 0xd2a679, mobile: false, ring: [3.0, 4.13], ringTilt: 0.055 },
-  { name: 'Saturn', radius: 2.0, orbit: 41, speed: 0.10, color: 0xe0cba0, mobile: false, ring: [2.6, 4.4], ringTilt: 0.35 },
-  { name: 'Uranus', radius: 1.55, orbit: 52, speed: 0.068, color: 0x55b8c8, mobile: false, ring: [2.1, 2.95], ringTilt: -Math.PI * 0.54 },
-  { name: 'Neptune', radius: 1.48, orbit: 62, speed: 0.048, color: 0x2e58c8, mobile: false, ring: [2.05, 2.8], ringTilt: 0.494 }
+  { name: 'Mercury', radius: 0.7, orbit: 9, speed: 0.62, color: 0x9c8a7a, tilt: 0.001, mobile: false },
+  { name: 'Venus', radius: 1.1, orbit: 13.5, speed: 0.44, color: 0xd8a05a, tilt: 3.096, mobile: true },
+  { name: 'Earth', radius: 1.25, orbit: 19, speed: 0.31, color: 0x3f7fd8, tilt: 0.409, mobile: true },
+  { name: 'Mars', radius: 0.95, orbit: 25, speed: 0.24, color: 0xc1552f, tilt: 0.440, mobile: true },
+  { name: 'Jupiter', radius: 2.4, orbit: 33, speed: 0.14, color: 0xd2a679, tilt: 0.055, mobile: false, ring: [3.0, 4.13] },
+  { name: 'Saturn', radius: 2.0, orbit: 41, speed: 0.10, color: 0xe0cba0, tilt: 0.466, mobile: false, ring: [2.6, 4.4] },
+  { name: 'Uranus', radius: 1.55, orbit: 52, speed: 0.068, color: 0x55b8c8, tilt: 1.706, mobile: false, ring: [2.1, 2.95] },
+  { name: 'Neptune', radius: 1.48, orbit: 62, speed: 0.048, color: 0x2e58c8, tilt: 0.494, mobile: false, ring: [2.05, 2.8] }
 ];
 
 export class SolarSystem {
@@ -155,7 +155,8 @@ export class SolarSystem {
 
   _fitHomeCamera(width, height) {
     const aspect = width / height;
-    if (aspect < 1) this.camera.fov = Math.min(58, HOME_FOV + 4); else this.camera.fov = HOME_FOV;
+    this.camera.fov = HOME_FOV;
+    if (aspect < 1) { /* virtual landscape letterbox */ }
     const hfovHalf = Math.atan(Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) * aspect);
     const baseDistance = this.baseCameraPosition.length();
     const maxOrbit = Math.max(TARGET_RADIUS, (62 + 2.8) * 1.08);
@@ -217,8 +218,8 @@ export class SolarSystem {
     const list = PLANET_TABLE;
 
     list.forEach((spec, index) => {
-      const segW = this.isMobile ? 16 : 32;
-      const segH = this.isMobile ? 12 : 24;
+      const segW = this.isMobile ? 16 : 48;
+      const segH = this.isMobile ? 12 : 32;
 
       const geometry = new THREE.SphereGeometry(spec.radius, segW, segH);
       const texture = this._buildProceduralTexture(spec.name);
@@ -231,6 +232,7 @@ export class SolarSystem {
 
       const mesh = new THREE.Mesh(geometry, material);
       mesh.name = spec.name;
+      mesh.rotation.z = spec.tilt;
       this.scene.add(mesh);
       this._track(geometry, material);
       if (spec.name === 'Earth' || spec.name === 'Venus') this._buildAtmosphere(mesh, spec.name);
@@ -239,7 +241,7 @@ export class SolarSystem {
         const ringGeometry = new THREE.RingGeometry(spec.ring[0], spec.ring[1], this.isMobile ? 48 : 96);
         const ringMaterial = new THREE.MeshStandardMaterial({ map: this._generateRingTexture(spec.name), side: THREE.DoubleSide, roughness: 0.95, metalness: 0, transparent: true, opacity: spec.name === 'Jupiter' ? 0.12 : 0.8, depthWrite: false });
         const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-        ring.rotation.x = Math.PI / 2 - (spec.ringTilt || 0.35);
+        ring.rotation.x = Math.PI / 2;
         mesh.add(ring);
         this._track(ringGeometry, ringMaterial);
       }
@@ -261,6 +263,12 @@ export class SolarSystem {
       if (spec.name === 'Earth') {
         this.earth = mesh;
         this.earthBody = body;
+        const cg = new THREE.SphereGeometry(spec.radius * 1.018, segW, segH);
+        const ct = this._buildProceduralTexture('EarthClouds');
+        const cm = new THREE.MeshStandardMaterial({ map: ct, transparent: true, opacity: 0.82, depthWrite: false, roughness: 0.9, metalness: 0 });
+        this.earthCloudMesh = new THREE.Mesh(cg, cm);
+        mesh.add(this.earthCloudMesh);
+        this._track(cg, cm);
       }
     });
     this._buildHalleyComet();
@@ -269,7 +277,13 @@ export class SolarSystem {
 
   _generateRingTexture(type = 'Saturn', options = {}) { const canvas = document.createElement('canvas'); canvas.width = options.width || (type === 'Saturn' ? 512 : 128); canvas.height = 1; const ctx = canvas.getContext('2d'); const colors = options.colors || (type === 'Uranus' ? ['rgba(190,230,245,.02)','rgba(190,230,245,.75)'] : type === 'Jupiter' ? ['rgba(110,95,80,0)','rgba(110,95,80,.12)','rgba(110,95,80,0)'] : ['rgba(90,70,45,.45)','rgba(210,195,160,.8)','rgba(40,35,30,.2)']); const g = ctx.createLinearGradient(0,0,canvas.width,0); colors.forEach((c,i)=>g.addColorStop(i/(colors.length-1),c)); ctx.fillStyle=g; ctx.fillRect(0,0,canvas.width,1); const tex = new THREE.CanvasTexture(canvas); this._track(tex); return tex; }
   _generateSaturnRingTexture() { return this._generateRingTexture('Saturn'); }
-  _buildProceduralTexture(type) { if (this.isMobile && type !== 'Earth') return null; const c=document.createElement('canvas'); c.width=this.isMobile?256:512; c.height=this.isMobile?128:256; const x=c.getContext('2d'); x.fillStyle=type==='Earth'?'#123d72':type==='Jupiter'?'#b58b63':type==='Mars'?'#a84525':'#d8b870'; x.fillRect(0,0,c.width,c.height); if(type==='Jupiter'){for(let y=0;y<c.height;y+=18){x.fillStyle=y%36?'#d1b18a':'#765846';x.fillRect(0,y,c.width,10);}} if(type==='Earth'){x.fillStyle='#386b35';for(let i=0;i<18;i++)x.fillRect((i*73)%c.width,(i*41)%c.height,35,20);} const t=new THREE.CanvasTexture(c); this._track(t); return t; }
+  _buildProceduralTexture(type) {
+    const c=document.createElement('canvas'); c.width=this.isMobile?256:512; c.height=this.isMobile?128:256; const x=c.getContext('2d'); const w=c.width,h=c.height;
+    const colors={Mercury:'#746e66',Venus:'#e2c286',Earth:'#0f2d5c',Mars:'#b54625',Jupiter:'#cca172',Saturn:'#dfcb9c',Uranus:'#52b5c5',Neptune:'#2452c2'};
+    if(type==='EarthClouds'){ x.clearRect(0,0,w,h); for(let i=0;i<30;i++){x.fillStyle=`rgba(255,255,255,${0.15+(i%5)*0.12})`; x.beginPath(); x.ellipse((i*83)%w,(i*47)%h,18+(i%4)*9,4+(i%3)*3,0,0,Math.PI*2); x.fill();} }
+    else { x.fillStyle=colors[type]||'#888'; x.fillRect(0,0,w,h); if(type==='Mercury'){for(let i=0;i<40;i++){const a=Math.random()*w,b=Math.random()*h,r=3+Math.random()*10;x.strokeStyle='#a29d95';x.beginPath();x.arc(a,b,r,0,7);x.stroke();x.fillStyle='#3c3832';x.beginPath();x.arc(a,b,r*.45,0,7);x.fill();}} if(type==='Earth'){x.fillStyle='#195e92';for(let i=0;i<20;i++){x.beginPath();x.ellipse((i*97)%w,(i*53)%h,25,12,0,0,7);x.fillStyle=i%2?'#2d6232':'#7a6e45';x.fill();}x.fillStyle='#f2f7fc';x.fillRect(0,0,w,9);x.fillRect(0,h-9,w,9);} if(type==='Jupiter'){for(let y=0;y<h;y+=18){x.fillStyle=y%36?'#e3c39a':'#765846';x.fillRect(0,y,w,12);}x.fillStyle='#a83618';x.beginPath();x.ellipse(w*.68,h*.64,35,18,0,0,7);x.fill();} if(type==='Mars'){x.fillStyle='#592314';x.fillRect(w*.2,h*.35,w*.2,h*.2);x.fillStyle='#fff';x.fillRect(0,0,w,8);x.fillRect(0,h-8,w,8);} if(type==='Neptune'){x.fillStyle='#0d2358';x.beginPath();x.ellipse(w*.62,h*.65,28,14,0,0,7);x.fill();}}
+    const t=new THREE.CanvasTexture(c); this._track(t); return t;
+  }
   _buildAtmosphere(planetMesh, type) { if (this.isMobile && type !== 'Earth') return null; const g = new THREE.SphereGeometry(planetMesh.geometry.parameters.radius * 1.045, 16, 12); const m = new THREE.MeshBasicMaterial({ color: 0x5cb3ff, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, side: THREE.BackSide, depthWrite: false }); const shell = new THREE.Mesh(g,m); planetMesh.add(shell); this._track(g,m); return shell; }
 
   _buildHalleyComet() { const nucleus = new THREE.Mesh(new THREE.SphereGeometry(.35,12,8), new THREE.MeshBasicMaterial({color:0xdff6ff})); this._track(nucleus.geometry,nucleus.material); const tailTexCanvas=document.createElement('canvas'); tailTexCanvas.width=128; tailTexCanvas.height=8; const c=tailTexCanvas.getContext('2d'); const g=c.createLinearGradient(0,0,128,0); g.addColorStop(0,'rgba(220,250,255,.9)'); g.addColorStop(1,'rgba(120,200,255,0)'); c.fillStyle=g;c.fillRect(0,0,128,8); const tailTex=new THREE.CanvasTexture(tailTexCanvas); const tailMaterial=new THREE.MeshBasicMaterial({map:tailTex,transparent:true,side:THREE.DoubleSide,depthWrite:false}); const tailGeometry=new THREE.PlaneGeometry(1,1); tailGeometry.translate(0.5,0,0); const tail=new THREE.Mesh(tailGeometry,tailMaterial); const crossTail=new THREE.Mesh(tailGeometry.clone(),tailMaterial); this._track(tail.geometry,crossTail.geometry,tail.material,tailTex); const group=new THREE.Group(); group.add(nucleus,tail,crossTail); const flameCanvas=document.createElement('canvas'); flameCanvas.width=flameCanvas.height=64; const fc=flameCanvas.getContext('2d'); const fg=fc.createRadialGradient(32,32,2,32,32,32); fg.addColorStop(0,'rgba(255,255,240,.95)'); fg.addColorStop(.35,'rgba(120,220,255,.65)'); fg.addColorStop(1,'rgba(80,160,255,0)'); fc.fillStyle=fg; fc.fillRect(0,0,64,64); const flameTex=new THREE.CanvasTexture(flameCanvas); const flameMat=new THREE.SpriteMaterial({map:flameTex,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false}); const flame=new THREE.Sprite(flameMat); group.add(flame); this._track(flameTex,flameMat); this.scene.add(group); const orbitGeom=new THREE.BufferGeometry().setFromPoints(Array.from({length:128},(_,i)=>{const t=i/128*Math.PI*2,r=14.34/(1+.789*Math.cos(t)); return new THREE.Vector3(r*Math.cos(t),r*Math.sin(t)*Math.sin(Math.PI/12),r*Math.sin(t)*Math.cos(Math.PI/12));})); const orbitMat=new THREE.LineDashedMaterial({color:0x406080,transparent:true,opacity:.32,dashSize:.8,gapSize:.5}); const orbitMesh=new THREE.LineLoop(orbitGeom,orbitMat); orbitMesh.computeLineDistances(); this.scene.add(orbitMesh); this._track(orbitGeom,orbitMat); this.halley={group,nucleus,tail,crossTail,flame,theta:0,tailRoll:0}; }
@@ -517,6 +531,7 @@ export class SolarSystem {
       }
 
       body.mesh.rotation.y += body.spin * dt;
+      if (body.name === 'Earth' && this.earthCloudMesh) this.earthCloudMesh.rotation.y += body.spin * 1.18 * dt;
     });
 
     this.sunLight.position.copy(this.sun.position);
