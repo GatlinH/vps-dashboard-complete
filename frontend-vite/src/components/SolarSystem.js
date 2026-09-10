@@ -552,38 +552,42 @@ export class SolarSystem {
   // cross-tail stays straight anti-sunward.
   const fallbackTangent=new THREE.Vector3(1,0,0).addScaledVector(dir,-dir.x).normalize(); const tangentUnit=tangentLength>1e-8?tangent.clone().multiplyScalar(1/tangentLength):fallbackTangent; const dustDir=dir.clone().multiplyScalar(.75).addScaledVector(tangentUnit,-.25).normalize(); h.tail.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0),dustDir); const localY=new THREE.Vector3(0,1,0).applyQuaternion(h.tail.quaternion); if (tangentLength > 1e-8) { h.tailRoll=Math.atan2(localY.clone().cross(tangentUnit).dot(dustDir),localY.dot(tangentUnit)); h.tail.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(dustDir,h.tailRoll)); } h.crossTail.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0),dir); h.flame.scale.setScalar(THREE.MathUtils.clamp(2.4*(8/r),1,4.8)); h.tail.material.opacity=THREE.MathUtils.clamp(.12+(.85-.12)*(8/r),.12,.85);
   // Fade the light tail where it would cross a planet's disc: sample points
-  // along the tail axis, project them, and shrink opacity by the deepest
+  // along the tail axes, project them, and shrink opacity by the deepest
   // overlap (the tail visually yields to planets instead of painting over).
+  const base=THREE.MathUtils.clamp(.12+(.85-.12)*(8/r),.12,.85);
   try {
     const cam2=this.camera, size2=this.renderer.getSize(new THREE.Vector2());
-    const proj=new THREE.Vector3(), toCam=new THREE.Vector3();
+    const proj=new THREE.Vector3();
     const toScreen=(v)=>{ proj.copy(v).project(cam2); return {x:(proj.x*.5+.5)*size2.x, y:(-proj.y*.5+.5)*size2.y, z:proj.z}; };
-    const axes=[h.tail, h.crossTail];
+    // Per-body screen centers + radii, computed once per frame.
+    const discs=[];
+    for (const body of this.bodies) {
+      const disc=body.mesh;
+      const geoR=(disc.geometry && disc.geometry.parameters && disc.geometry.parameters.radius) || .9;
+      const scaleR=Math.max(disc.scale.x, disc.scale.y, disc.scale.z);
+      const dCam=cam2.position.distanceTo(disc.position);
+      if (dCam<1e-3) continue;
+      const c=toScreen(disc.position);
+      if (c.z>=1) continue;
+      discs.push({c, rPx: geoR*scaleR/dCam*(size2.y*.5)/Math.tan((cam2.fov*Math.PI/180)*.5)});
+    }
     let fade=1;
-    for (const mesh of axes) {
+    for (const mesh of [h.tail, h.crossTail]) {
       const dirW=new THREE.Vector3(1,0,0).applyQuaternion(mesh.quaternion);
       const len=mesh.scale.x;
-      for (let s=.15; s<=1; s+=.15) {
+      for (let s=.15; s<=1.001; s+=.1417) { // 7 samples, includes the tip
         const pt=h.group.position.clone().addScaledVector(dirW, len*s);
         const sp=toScreen(pt);
         if (sp.z>=1) continue;
-        for (const body of this.bodies) {
-          const disc=body.mesh; const dCam=cam2.position.distanceTo(disc.position);
-          if (dCam<1e-3) continue;
-          const c=toScreen(disc.position);
-          if (c.z>=1) continue;
-          const rPx=(disc.geometry && disc.geometry.parameters && disc.geometry.parameters.radius ? disc.geometry.parameters.radius : .9)/dCam*(size2.y*.5)/Math.tan((cam2.fov*Math.PI/180)*.5);
-          const dx=sp.x-c.x, dy=sp.y-c.y;
-          const dist=Math.hypot(dx,dy);
-          if (dist<rPx*1.05) { const f=THREE.MathUtils.clamp((dist-rPx*.45)/(rPx*.6),0,1); fade=Math.min(fade, f); }
+        for (const d of discs) {
+          const dist=Math.hypot(sp.x-d.c.x, sp.y-d.c.y);
+          if (dist<d.rPx*1.05) { const f=THREE.MathUtils.clamp((dist-d.rPx*.45)/(d.rPx*.6),0,1); fade=Math.min(fade, f); }
         }
       }
     }
-    const base=THREE.MathUtils.clamp(.12+(.85-.12)*(8/r),.12,.85);
     h.tail.material.opacity=base*fade; h.crossTail.material.opacity=base*fade; h.flame.material.opacity=fade;
-  } catch(e) { /* fade is decorative; never break the frame */ }
+  } catch(e) { h.tail.material.opacity=base; h.crossTail.material.opacity=base; h.flame.material.opacity=1; }
 }
-  }
 
   // Project each tracked mesh to screen space and park its hit button there.
   // The joint solver may detach the moon button on degenerate frames. Re-attach
