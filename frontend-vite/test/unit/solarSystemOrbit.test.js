@@ -46,4 +46,11 @@ describe('solar system F2 orbit interaction', () => {
     expect(text).toContain('if (aspect < 1)');
     expect(text).toContain('depthWrite: false');
   });
+
+  it('keeps the sun, Earth, and Moon hit targets separated by priority', async () => {
+    const text = await source();
+    expect(text).toContain('[this.sun, this.earth, this.moon]');
+    expect(text).toContain('Joint hit-target solver');
+    expect(text).toContain('Math.hypot(mX - eX, mY - eY) < 24');
+  });
 });

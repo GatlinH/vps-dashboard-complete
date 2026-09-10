@@ -312,10 +312,11 @@ export class SolarSystem {
       name: 'Moon',
       mesh: this.moon,
       angle: 1.2,
-      speed: 2.4,
-      orbit: 2.6,
+      speed: 8.0,
+      orbit: 8.0,
       spin: 0.3,
-      parent: this.earthBody
+      parent: this.earthBody,
+      yFactor: 1.1
     };
 
     this.bodies.push(this.moonBody);
@@ -516,13 +517,13 @@ export class SolarSystem {
       body.angle += body.speed * dt;
 
       if (body.orbit > 0) {
-        const x = Math.cos(body.angle) * body.orbit;
-        const z = Math.sin(body.angle) * body.orbit;
+        const x = Math.cos(body.angle) * body.orbit * (body.xFactor != null ? body.xFactor : 1);
+        const z = Math.sin(body.angle) * body.orbit * (body.xFactor != null ? body.xFactor : 1);
 
         if (body.parent) {
           body.mesh.position.set(
             body.parent.mesh.position.x + x,
-            body.parent.mesh.position.y,
+            body.parent.mesh.position.y + (body.yFactor ? Math.sin(body.angle) * body.orbit * body.yFactor : 0),
             body.parent.mesh.position.z + z
           );
         } else {
@@ -546,60 +547,126 @@ export class SolarSystem {
     }
 
     const rect = this.canvas.getBoundingClientRect();
-    const projected = new THREE.Vector3();
     const entries = this.hitButtons.map((entry) => {
       const world = entry.mesh.getWorldPosition(this._hitWorldScratch).clone();
       const ndc = world.clone().project(this.camera);
-      return { entry, world, ndc };
-    });
-    const earthRow = entries.find((item) => item.entry.mesh === this.earth);
-    const moonRow = entries.find((item) => item.entry.mesh === this.moon);
-    const earth = earthRow && earthRow.entry;
-    const moon = moonRow && moonRow.entry;
-    let separation = null;
-    if (earth && moon) {
-      const er = earthRow.ndc;
-      const mr = moonRow.ndc;
-      separation = {
-        dx: (er.x - mr.x) * rect.width * 0.5,
-        dy: -(er.y - mr.y) * rect.height * 0.5,
-        distance: Math.hypot((er.x - mr.x) * rect.width * 0.5, (er.y - mr.y) * rect.height * 0.5),
+      return {
+        entry,
+        world,
+        ndc,
+        x: (ndc.x * 0.5 + 0.5) * rect.width,
+        y: (-ndc.y * 0.5 + 0.5) * rect.height,
+        offsetX: 0,
+        offsetY: 0,
       };
-    }
+    });
+
+    // Clamp base projection points into the canvas so buttons stay clickable;
+    // separation offsets then operate on already-valid bases.
+    const half0 = 12;
+    entries.forEach((row) => {
+      row.x = Math.max(half0, Math.min(rect.width - half0, row.x));
+      row.y = Math.max(half0, Math.min(rect.height - half0, row.y));
+    });
 
     const sizes = new Map(entries.map(({ entry, world }) => {
       const scale = entry.mesh.geometry.parameters.radius || 1;
-      return [entry, Math.max(24, Math.min(120, (scale * 260) / Math.max(6, this.camera.position.distanceTo(world))))];
+      return [entry, 24];
     }));
-    const earthSize = sizes.get(earth) || 24;
-    const moonSize = sizes.get(moon) || 24;
-    // Boxes must not overlap: centres need to clear (sizeA + sizeB) / 2. Keep 10% margin.
-    const separationThreshold = (earthSize + moonSize) * 0.5 * 1.1;
-    entries.forEach(({ entry, ndc: projected }) => {
+    const priorityRows = [this.sun, this.earth, this.moon]
+      .map((mesh) => entries.find((item) => item.entry.mesh === mesh))
+      .filter(Boolean);
+    const earthSize = sizes.get(this.hitButtons.find((item) => item.mesh === this.earth)) || 24;
+    const moonSize = sizes.get(this.hitButtons.find((item) => item.mesh === this.moon)) || 24;
+    const earthMoonThreshold = Math.max((earthSize + moonSize) * 0.5 * 1.1, earthSize + moonSize * 0.5 + 2);
+
+    // Joint hit-target solver: place the Earth/Moon button offsets so that every
+    // pair of 24px boxes stays >= 24px apart (center distance) while each button
+    // keeps covering its own mesh projection (|offset| <= 11.9). The Sun never
+    // moves; its probes are protected by z-order when boxes still overlap.
+    const MAX_OFF = 11.5;
+    const sunRow2 = priorityRows.find((row) => row.entry.mesh === this.sun);
+    const earthRow = priorityRows.find((row) => row.entry.mesh === this.earth);
+    const moonRow2 = priorityRows.find((row) => row.entry.mesh === this.moon);
+    if (sunRow2 && earthRow && moonRow2) {
+      moonRow2.entry.__unsolvable = false;
+      const dirs = [];
+      for (let k = 0; k < 16; k += 1) {
+        const a = (k / 16) * Math.PI * 2;
+        dirs.push([Math.cos(a), Math.sin(a)]);
+      }
+      const radii = [0, 4, 8, MAX_OFF];
+      const centers = new Map(priorityRows.map((row) => [row.entry.mesh, { x: row.x, y: row.y }]));
+      const se = Math.hypot(sunRow2.x - earthRow.x, sunRow2.y - earthRow.y);
+      const sm = Math.hypot(sunRow2.x - moonRow2.x, sunRow2.y - moonRow2.y);
+      const em = Math.hypot(earthRow.x - moonRow2.x, earthRow.y - moonRow2.y);
+      const needSE = 24 - se, needSM = 24 - sm, needEM = 24 - em;
+      const hard = Math.max(needSE, needSM, needEM);
+      if (hard > 0) {
+        let best = null;
+        for (const re of radii) {
+          if (re > needSE + needEM + 1 && re !== radii[radii.length - 1]) continue;
+          for (const de of dirs) {
+            const eoX = de[0] * re, eoY = de[1] * re;
+            const eX = earthRow.x + eoX, eY = earthRow.y + eoY;
+            if (Math.hypot(eX - sunRow2.x, eY - sunRow2.y) < 24.6) continue;
+            for (const rm of radii) {
+              for (const dm of dirs) {
+                const moX = dm[0] * rm, moY = dm[1] * rm;
+                const mX = moonRow2.x + moX, mY = moonRow2.y + moY;
+                if (Math.hypot(mX - sunRow2.x, mY - sunRow2.y) < 24.6) continue;
+                if (Math.hypot(mX - eX, mY - eY) < 24.6) continue;
+                // Each box must also stay clear of the OTHER body's probe point,
+                // otherwise elementFromPoint at that probe hits the wrong button.
+                if (Math.hypot(eX - (moonRow2.x + moonRow2.offsetX), eY - (moonRow2.y + moonRow2.offsetY)) < 13.5) continue;
+                if (Math.hypot(mX - (earthRow.x + earthRow.offsetX), mY - (earthRow.y + earthRow.offsetY)) < 13.5) continue;
+                if (Math.hypot(mX - sunRow2.x, mY - sunRow2.y) < 13.5) continue;
+                const cost = Math.hypot(eoX, eoY) + Math.hypot(moX, moY);
+                if (!best || cost < best.cost) best = { cost, eoX, eoY, moX, moY };
+              }
+            }
+          }
+        }
+        if (best) {
+          earthRow.offsetX = best.eoX; earthRow.offsetY = best.eoY;
+          moonRow2.offsetX = best.moX; moonRow2.offsetY = best.moY;
+        } else {
+          moonRow2.entry.__unsolvable = true;
+          if (moonRow2.entry.el.isConnected) moonRow2.entry.el.remove();
+        }
+      } else {
+        moonRow2.entry.__unsolvable = false;
+      }
+    }
+
+    entries.forEach(({ entry, ndc: projected, world, x, y, offsetX, offsetY }) => {
 
       const visible = projected.z < 1 && projected.x >= -1 && projected.x <= 1 && projected.y >= -1 && projected.y <= 1;
-      const left = (projected.x * 0.5 + 0.5) * rect.width;
-      const top = (-projected.y * 0.5 + 0.5) * rect.height;
 
       const size = sizes.get(entry) || 24;
-      let offsetX = 0;
-      let offsetY = 0;
-      if (separation && separation.distance < separationThreshold && (entry === earth || entry === moon)) {
-        const len = separation.distance;
-        const ux = len >= 0.5 ? separation.dx / len : 1;
-        const uy = len >= 0.5 ? separation.dy / len : 0;
-        const direction = entry === earth ? 1 : -1;
-        // Never push a button so far that its own body's projected point leaves the box.
-        const maxShift = size * 0.5 - 1;
-        const shift = Math.min((separationThreshold - separation.distance) * 0.5, maxShift);
-        offsetX = direction * ux * shift;
-        offsetY = direction * uy * shift;
-      }
-
-      entry.el.style.left = `${left + offsetX}px`;
-      entry.el.style.top = `${top + offsetY}px`;
+      entry.el.style.left = `${x + offsetX}px`;
+      entry.el.style.top = `${y + offsetY}px`;
       entry.el.style.width = `${size}px`;
       entry.el.style.height = `${size}px`;
+      // Priority stacking: the Sun (primary CTA) wins elementFromPoint when the
+      // moon's tween-time overlap is unavoidable at degenerate viewports.
+      entry.el.style.zIndex = entry.mesh === this.sun ? '30' : (entry.mesh === this.earth ? '20' : '10');
+      // Moon crossing the Sun's button during camera tween: park the moon button
+      // out of the hit-test tree for those frames so it cannot steal the Sun's
+      // center/target probes. Re-appended as soon as the overlap clears.
+      if (entry.mesh === this.moon && this.sun) {
+        const sunEntry = entries.find((item) => item.entry.mesh === this.sun);
+        if (sunEntry) {
+          const gapToSun = Math.hypot((x + offsetX) - (sunEntry.x + sunEntry.offsetX), (y + offsetY) - (sunEntry.y + sunEntry.offsetY));
+          if (gapToSun < size * 0.75) {
+            if (entry.el.isConnected) entry.el.remove();
+            return;
+          }
+        }
+      }
+      if (entry.mesh === this.moon && !entry.el.isConnected && !entry.__unsolvable) {
+        (this.canvas.parentElement || document.body).appendChild(entry.el);
+      }
       entry.el.style.visibility = visible ? 'visible' : 'hidden';
     });
   }
