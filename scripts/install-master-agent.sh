@@ -9,24 +9,6 @@ REPO_DIR="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 AGENT_DIR="${AGENT_DIR:-/opt/vps-agent}"
 AGENT_ENV="${AGENT_ENV:-${AGENT_DIR}/agent.env}"
 AGENT_INTERVAL="${AGENT_INTERVAL:-2}"
-# Default API_ROOT to the HOST-side mapped port, not the container-internal 5000:
-# docker-compose.yml publishes the API as ${PUBLIC_BIND_ADDRESS:-0.0.0.0}:4500->5000,
-# so an agent running on the panel host cannot reach 127.0.0.1:5000 (Connection
-# refused) and the server flips to offline even though it is healthy. Derive the
-# published port from the compose file (single source of truth); the explicit
-# AGENT_API_ROOT env still wins when set.
-if [[ -z "${AGENT_API_ROOT:-}" ]]; then
-  _port_line="$(docker compose --env-file "${SECRETS_FILE}" ${compose_args[@]:1} port api 5000 2>/dev/null | head -1)"
-  _api_ip="${_port_line%:*}"
-  _api_port="${_port_line##*:}"
-  if [[ -z "${_api_port}" || "${_api_port}" == "${_port_line}" ]]; then
-    _api_ip="127.0.0.1"; _api_port="4500"
-  fi
-  case "${_api_ip}" in
-    "0.0.0.0"|"::"|"[::]") _api_ip="127.0.0.1" ;;
-  esac
-  AGENT_API_ROOT="http://${_api_ip}:${_api_port}"
-fi
 AUTO_INSTALL_AGENT="${AUTO_INSTALL_AGENT:-1}"
 AUTO_AGENT_NAME="${AUTO_AGENT_NAME:-}"
 AUTO_AGENT_HOST_IP="${AUTO_AGENT_HOST_IP:-}"
@@ -60,6 +42,27 @@ if [[ -n "${COMPOSE_FILES:-}" ]]; then
 else
   [[ -f docker-compose.ghcr.yml ]] && compose_args+=(-f docker-compose.ghcr.yml)
   [[ -f docker-compose.local.yml ]] && compose_args+=(-f docker-compose.local.yml)
+fi
+
+# Agent on the panel host must target the HOST-side published port. Derive it
+# from the live compose mapping (single source of truth): `compose port api 5000`
+# prints e.g. "0.0.0.0:4500". Wildcard publish IPs are rewritten to 127.0.0.1
+# for a host-local agent; fallback 4500 matches the documented default mapping.
+derive_agent_api_root() {
+  local port_line ip port
+  port_line="$(docker compose "${compose_args[@]}" port api 5000 2>/dev/null | head -1 || true)"
+  ip="${port_line%:*}"
+  port="${port_line##*:}"
+  if [[ -z "${port}" || "${port}" == "${port_line}" ]]; then
+    ip="127.0.0.1"; port="4500"
+  fi
+  case "${ip}" in
+    "0.0.0.0"|"::"|"[::]") ip="127.0.0.1" ;;
+  esac
+  AGENT_API_ROOT="http://${ip}:${port}"
+}
+if [[ -z "${AGENT_API_ROOT:-}" ]]; then
+  derive_agent_api_root
 fi
 
 host_ip="${AUTO_AGENT_HOST_IP}"

@@ -42,7 +42,7 @@ def test_api_root_derived_from_compose_published_port():
         "installer must derive the published API port via docker compose port"
     )
     # Fallback when compose is unavailable must be the documented host port.
-    assert "_api_port=\"4500\"" in text, (
+    assert 'port="4500"' in text, (
         "fallback port must be 4500 (the host-side published API port)"
     )
 
@@ -70,3 +70,58 @@ def test_installer_syntax():
         ["bash", "-n", str(INSTALLER)], capture_output=True, text=True, timeout=30
     )
     assert result.returncode == 0, f"bash -n failed: {result.stderr}"
+
+
+def _extract_function(text: str) -> str:
+    match = re.search(
+        r"derive_agent_api_root\(\) \{\n(.*?)\n\}\n", text, re.S
+    )
+    assert match, "derive_agent_api_root function not found"
+    return "derive_agent_api_root() {\n" + match.group(1) + "\n}"
+
+
+def test_derivation_falls_back_when_docker_missing():
+    """With docker unusable (fresh install / api not up), set -e must survive and the 4500 fallback must apply."""
+    import subprocess
+    fn = _extract_function(_installer_text())
+    script = (
+        "#!/usr/bin/env bash\n"
+        "set -Eeuo pipefail\n"
+        'compose_args=(--env-file /nonexistent/secrets.env -f docker-compose.yml)\n'
+        + fn + "\n"
+        "derive_agent_api_root\n"
+        'echo "root=${AGENT_API_ROOT}"\n'
+    )
+    result = subprocess.run(
+        ["bash", "-c", script],
+        capture_output=True, text=True, timeout=60,
+        env={"PATH": "/usr/bin:/bin"},
+    )
+    assert result.returncode == 0, f"derivation died under set -e: {result.stderr}"
+    assert "root=http://127.0.0.1:4500" in result.stdout, result.stdout
+
+
+def test_derivation_uses_compose_mapping_when_available():
+    """A live 0.0.0.0:PORT mapping must be rewritten to 127.0.0.1:PORT."""
+    import subprocess
+    fn = _extract_function(_installer_text())
+    stub_dir = None
+    import tempfile, os
+    with tempfile.TemporaryDirectory() as td:
+        stub_dir = td
+        (Path(td) / "docker").write_text("#!/usr/bin/env bash\necho '0.0.0.0:8443'\n")
+        os.chmod(Path(td) / "docker", 0o755)
+        script = (
+            "#!/usr/bin/env bash\n"
+            "set -Eeuo pipefail\n"
+            'compose_args=(--env-file /dev/null)\n'
+            + fn + "\n"
+            "derive_agent_api_root\n"
+            'echo "root=${AGENT_API_ROOT}"\n'
+        )
+        env = {"PATH": f"{td}:/usr/bin:/bin"}
+        result = subprocess.run(
+            ["bash", "-c", script], capture_output=True, text=True, timeout=60, env=env
+        )
+    assert result.returncode == 0, result.stderr
+    assert "root=http://127.0.0.1:8443" in result.stdout, result.stdout
