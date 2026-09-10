@@ -550,7 +550,39 @@ export class SolarSystem {
     if (this.halley) { const h=this.halley; h.theta += 0.08*Math.pow(38/(14.34/(1+.789*Math.cos(h.theta))),1.25)*dt; const r=14.34/(1+.789*Math.cos(h.theta)); const pos=new THREE.Vector3(r*Math.cos(h.theta),r*Math.sin(h.theta)*Math.sin(Math.PI/12),r*Math.sin(h.theta)*Math.cos(Math.PI/12)); h.group.position.copy(pos); const len=THREE.MathUtils.clamp(16*(8/r),2,15); const dir=pos.clone().normalize(); const dr=(r*r*.789*Math.sin(h.theta))/14.34; const v=new THREE.Vector3(dr*Math.cos(h.theta)-r*Math.sin(h.theta),dr*Math.sin(h.theta)*Math.sin(Math.PI/12)+r*Math.cos(h.theta)*Math.sin(Math.PI/12),dr*Math.sin(h.theta)*Math.cos(Math.PI/12)+r*Math.cos(h.theta)*Math.cos(Math.PI/12)); const tangent=v.clone().sub(dir.clone().multiplyScalar(v.dot(dir))); const tangentLength=tangent.length(); h.tail.scale.set(len,0.6+len*0.06,1); h.crossTail.scale.copy(h.tail.scale); // Dust tail: anti-sun (75%) bent backward along the orbit (25%) — the classic
   // curved dust tail whose visible streak tracks the motion path; the ion
   // cross-tail stays straight anti-sunward.
-  const fallbackTangent=new THREE.Vector3(1,0,0).addScaledVector(dir,-dir.x).normalize(); const tangentUnit=tangentLength>1e-8?tangent.clone().multiplyScalar(1/tangentLength):fallbackTangent; const dustDir=dir.clone().multiplyScalar(.75).addScaledVector(tangentUnit,-.25).normalize(); h.tail.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0),dustDir); const localY=new THREE.Vector3(0,1,0).applyQuaternion(h.tail.quaternion); if (tangentLength > 1e-8) { h.tailRoll=Math.atan2(localY.clone().cross(tangentUnit).dot(dustDir),localY.dot(tangentUnit)); h.tail.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(dustDir,h.tailRoll)); } h.crossTail.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0),dir); h.flame.scale.setScalar(THREE.MathUtils.clamp(2.4*(8/r),1,4.8)); h.tail.material.opacity=THREE.MathUtils.clamp(.12+(.85-.12)*(8/r),.12,.85); }
+  const fallbackTangent=new THREE.Vector3(1,0,0).addScaledVector(dir,-dir.x).normalize(); const tangentUnit=tangentLength>1e-8?tangent.clone().multiplyScalar(1/tangentLength):fallbackTangent; const dustDir=dir.clone().multiplyScalar(.75).addScaledVector(tangentUnit,-.25).normalize(); h.tail.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0),dustDir); const localY=new THREE.Vector3(0,1,0).applyQuaternion(h.tail.quaternion); if (tangentLength > 1e-8) { h.tailRoll=Math.atan2(localY.clone().cross(tangentUnit).dot(dustDir),localY.dot(tangentUnit)); h.tail.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(dustDir,h.tailRoll)); } h.crossTail.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0),dir); h.flame.scale.setScalar(THREE.MathUtils.clamp(2.4*(8/r),1,4.8)); h.tail.material.opacity=THREE.MathUtils.clamp(.12+(.85-.12)*(8/r),.12,.85);
+  // Fade the light tail where it would cross a planet's disc: sample points
+  // along the tail axis, project them, and shrink opacity by the deepest
+  // overlap (the tail visually yields to planets instead of painting over).
+  try {
+    const cam2=this.camera, size2=this.renderer.getSize(new THREE.Vector2());
+    const proj=new THREE.Vector3(), toCam=new THREE.Vector3();
+    const toScreen=(v)=>{ proj.copy(v).project(cam2); return {x:(proj.x*.5+.5)*size2.x, y:(-proj.y*.5+.5)*size2.y, z:proj.z}; };
+    const axes=[h.tail, h.crossTail];
+    let fade=1;
+    for (const mesh of axes) {
+      const dirW=new THREE.Vector3(1,0,0).applyQuaternion(mesh.quaternion);
+      const len=mesh.scale.x;
+      for (let s=.15; s<=1; s+=.15) {
+        const pt=h.group.position.clone().addScaledVector(dirW, len*s);
+        const sp=toScreen(pt);
+        if (sp.z>=1) continue;
+        for (const body of this.bodies) {
+          const disc=body.mesh; const dCam=cam2.position.distanceTo(disc.position);
+          if (dCam<1e-3) continue;
+          const c=toScreen(disc.position);
+          if (c.z>=1) continue;
+          const rPx=(disc.geometry && disc.geometry.parameters && disc.geometry.parameters.radius ? disc.geometry.parameters.radius : .9)/dCam*(size2.y*.5)/Math.tan((cam2.fov*Math.PI/180)*.5);
+          const dx=sp.x-c.x, dy=sp.y-c.y;
+          const dist=Math.hypot(dx,dy);
+          if (dist<rPx*1.05) { const f=THREE.MathUtils.clamp((dist-rPx*.45)/(rPx*.6),0,1); fade=Math.min(fade, f); }
+        }
+      }
+    }
+    const base=THREE.MathUtils.clamp(.12+(.85-.12)*(8/r),.12,.85);
+    h.tail.material.opacity=base*fade; h.crossTail.material.opacity=base*fade; h.flame.material.opacity=fade;
+  } catch(e) { /* fade is decorative; never break the frame */ }
+}
   }
 
   // Project each tracked mesh to screen space and park its hit button there.
