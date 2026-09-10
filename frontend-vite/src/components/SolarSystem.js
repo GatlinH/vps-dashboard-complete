@@ -615,7 +615,10 @@ export class SolarSystem {
     const sunRow2 = priorityRows.find((row) => row.entry.mesh === this.sun);
     const earthRow = priorityRows.find((row) => row.entry.mesh === this.earth);
     const moonRow2 = priorityRows.find((row) => row.entry.mesh === this.moon);
-    if (sunRow2 && earthRow && moonRow2) {
+    // SUN_PAIR_MIN derives from the sun button never being offset (z-order
+    // stacking keeps it at offsetX/Y = 0). If a future pass offsets the sun
+    // row, recompute SUN_PAIR_MIN with the sun's offset included.
+    if (sunRow2 && earthRow && moonRow2 && sunRow2.offsetX === 0 && sunRow2.offsetY === 0) {
       const placementValid = (eoX, eoY, moX, moY) => {
         const eX = earthRow.x + eoX, eY = earthRow.y + eoY;
         const mX = moonRow2.x + moX, mY = moonRow2.y + moY;
@@ -636,28 +639,29 @@ export class SolarSystem {
         // geometry every frame, so a failed grid can succeed next frame. The
         // first-hit early exit keeps the common-frame cost near zero; only
         // truly unsolvable stretches pay the full ~4k-candidate sweep.
-          const dirs = [];
-          for (let k = 0; k < 16; k += 1) {
-            const a = (k / 16) * Math.PI * 2;
-            dirs.push([Math.cos(a), Math.sin(a)]);
-          }
-          const radii = [0, 4, 8, MAX_OFF];
-          let best = null;
-          // Candidates ordered by total displacement (re^2 + rm^2) so the first
-          // valid hit is the grid's least-displacement placement.
-          const candidates = [];
-          for (const re of radii) {
-            for (const de of dirs) {
-              const eoX = de[0] * re, eoY = de[1] * re;
-              for (const rm of radii) {
-                for (const dm of dirs) {
-                  candidates.push({ eoX, eoY, moX: dm[0] * rm, moY: dm[1] * rm, cost: re * re + rm * rm });
+          // Frame-invariant grid: build+sort once, cache on the instance.
+          if (!this.__placementGrid) {
+            const dirs = [];
+            for (let k = 0; k < 16; k += 1) {
+              const a = (k / 16) * Math.PI * 2;
+              dirs.push([Math.cos(a), Math.sin(a)]);
+            }
+            const radii = [0, 4, 8, MAX_OFF];
+            const grid = [];
+            for (const re of radii) {
+              for (const de of dirs) {
+                for (const rm of radii) {
+                  for (const dm of dirs) {
+                    grid.push({ eoX: de[0] * re, eoY: de[1] * re, moX: dm[0] * rm, moY: dm[1] * rm, cost: re * re + rm * rm });
+                  }
                 }
               }
             }
+            grid.sort((a, b) => a.cost - b.cost);
+            this.__placementGrid = grid;
           }
-          candidates.sort((a, b) => a.cost - b.cost);
-          for (const c of candidates) {
+          let best = null;
+          for (const c of this.__placementGrid) {
             if (placementValid(c.eoX, c.eoY, c.moX, c.moY)) {
               best = c;
               break;
