@@ -12,6 +12,8 @@ describe('coldStartAxisBounds', () => {
       step: HOUR / 4,
       mode: 'fixed-window-ending-now',
       spanMs: HOUR,
+      dataFirst: null,
+      dataLast: null,
     });
   });
 
@@ -24,6 +26,8 @@ describe('coldStartAxisBounds', () => {
       step: HOUR / 4,
       mode: 'accumulating-from-first-sample',
       spanMs: HOUR,
+      dataFirst: first,
+      dataLast: first + 10_000,
     });
   });
 
@@ -37,6 +41,8 @@ describe('coldStartAxisBounds', () => {
       step: HOUR / 4,
       mode: 'rolling-after-full-window',
       spanMs: HOUR,
+      dataFirst: first,
+      dataLast: last,
     });
   });
 
@@ -65,5 +71,22 @@ describe('coldStartAxisBounds', () => {
       max: NOW,
       mode: 'fixed-window-ending-now',
     });
+  });
+
+  test('A/B paths are equivalent for the same real point set, including unsorted input', () => {
+    const first = NOW - 10 * 60 * 1000;
+    const points = [first, first + 5_000, first + 70_000, first + 125_000];
+    expect(coldStartAxisBounds(points, HOUR, NOW)).toEqual(
+      coldStartAxisBounds([...points].reverse(), HOUR, NOW),
+    );
+  });
+
+  test('rolling bounds move monotonically with newer samples', () => {
+    const first = NOW - 2 * HOUR;
+    const a = coldStartAxisBounds([first, first + HOUR], HOUR, NOW);
+    const b = coldStartAxisBounds([first, first + HOUR + 5_000], HOUR, NOW);
+    expect(b.min).toBeGreaterThanOrEqual(a.min);
+    expect(b.max).toBeGreaterThanOrEqual(a.max);
+    expect(b.max - b.min).toBe(HOUR);
   });
 });

@@ -5,7 +5,7 @@ import * as THREE from 'three';
 
 const MOBILE_QUERY = '(max-width: 720px)';
 const HOME_FOV = 52;
-const TARGET_RADIUS = (19 + 2.6 + 1.25) * 1.1; // world units, 10% fit margin
+const TARGET_RADIUS = (19 + 2.6 + 1.25) * 1.1;
 
 // name, radius, orbital radius, angular speed (rad/s), colour, mobile-only-drop flag
 const PLANET_TABLE = [
@@ -13,8 +13,10 @@ const PLANET_TABLE = [
   { name: 'Venus', radius: 1.1, orbit: 13.5, speed: 0.44, color: 0xd8a05a, mobile: true },
   { name: 'Earth', radius: 1.25, orbit: 19, speed: 0.31, color: 0x3f7fd8, mobile: true },
   { name: 'Mars', radius: 0.95, orbit: 25, speed: 0.24, color: 0xc1552f, mobile: true },
-  { name: 'Jupiter', radius: 2.4, orbit: 33, speed: 0.14, color: 0xd2a679, mobile: false },
-  { name: 'Saturn', radius: 2.0, orbit: 41, speed: 0.10, color: 0xe0cba0, mobile: false }
+  { name: 'Jupiter', radius: 2.4, orbit: 33, speed: 0.14, color: 0xd2a679, mobile: false, ring: [3.0, 4.13], ringTilt: 0.055 },
+  { name: 'Saturn', radius: 2.0, orbit: 41, speed: 0.10, color: 0xe0cba0, mobile: false, ring: [2.6, 4.4], ringTilt: 0.35 },
+  { name: 'Uranus', radius: 1.55, orbit: 52, speed: 0.068, color: 0x55b8c8, mobile: false, ring: [2.1, 2.95], ringTilt: -Math.PI * 0.54 },
+  { name: 'Neptune', radius: 1.48, orbit: 62, speed: 0.048, color: 0x2e58c8, mobile: false, ring: [2.05, 2.8], ringTilt: 0.494 }
 ];
 
 export class SolarSystem {
@@ -153,9 +155,12 @@ export class SolarSystem {
 
   _fitHomeCamera(width, height) {
     const aspect = width / height;
+    if (aspect < 1) this.camera.fov = Math.min(58, HOME_FOV + 4); else this.camera.fov = HOME_FOV;
     const hfovHalf = Math.atan(Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) * aspect);
     const baseDistance = this.baseCameraPosition.length();
-    const requiredDist = TARGET_RADIUS / Math.tan(hfovHalf);
+    const maxOrbit = this.isMobile ? 45.4 : 64.8;
+    const fitTargetRadius = Math.max(TARGET_RADIUS, maxOrbit * 1.08);
+    const requiredDist = Math.max(fitTargetRadius / Math.tan(hfovHalf), (fitTargetRadius * 0.88) / Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
     const k = Math.max(1, requiredDist / baseDistance);
     return this.baseCameraPosition.clone().multiplyScalar(k);
   }
@@ -172,6 +177,9 @@ export class SolarSystem {
     this.sun.name = 'Sun';
     this.scene.add(this.sun);
     this._track(geometry, material);
+    const glowCanvas = document.createElement('canvas'); glowCanvas.width = glowCanvas.height = 64;
+    const gc = glowCanvas.getContext('2d'); const grad = gc.createRadialGradient(32, 32, 2, 32, 32, 32); grad.addColorStop(0, 'rgba(255,255,220,.9)'); grad.addColorStop(1, 'rgba(255,150,20,0)'); gc.fillStyle = grad; gc.fillRect(0,0,64,64);
+    const glowTex = new THREE.CanvasTexture(glowCanvas); const glowMat = new THREE.SpriteMaterial({ map: glowTex, color: 0xffb020, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }); const glow = new THREE.Sprite(glowMat); glow.scale.set(28,28,1); this.sun.add(glow); this._track(glowTex, glowMat);
 
     this.bodies.push({
       name: 'Sun',
@@ -195,7 +203,7 @@ export class SolarSystem {
 
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
     const material = new THREE.LineBasicMaterial({
-      color: 0x5a6a8c,
+      color: radius > 45 ? 0x2a384e : radius > 30 ? 0x465674 : 0x5a6a8c,
       transparent: true,
       opacity: 0.28
     });
@@ -216,8 +224,10 @@ export class SolarSystem {
       const segH = this.isMobile ? 12 : 24;
 
       const geometry = new THREE.SphereGeometry(spec.radius, segW, segH);
+      const texture = this._buildProceduralTexture(spec.name);
       const material = new THREE.MeshStandardMaterial({
         color: spec.color,
+        map: texture,
         roughness: 0.85,
         metalness: 0.05
       });
@@ -226,12 +236,13 @@ export class SolarSystem {
       mesh.name = spec.name;
       this.scene.add(mesh);
       this._track(geometry, material);
+      if (spec.name === 'Earth' || spec.name === 'Venus') this._buildAtmosphere(mesh, spec.name);
 
-      if (spec.name === 'Saturn') {
-        const ringGeometry = new THREE.RingGeometry(2.6, 4.4, this.isMobile ? 48 : 96);
-        const ringMaterial = new THREE.MeshStandardMaterial({ map: this._generateSaturnRingTexture(), side: THREE.DoubleSide, roughness: 0.7, metalness: 0.1, transparent: true });
+      if (spec.ring && (!this.isMobile || spec.name === 'Saturn')) {
+        const ringGeometry = new THREE.RingGeometry(spec.ring[0], spec.ring[1], this.isMobile ? 48 : 96);
+        const ringMaterial = new THREE.MeshStandardMaterial({ map: this._generateRingTexture(spec.name), side: THREE.DoubleSide, roughness: 0.95, metalness: 0, transparent: true, opacity: spec.name === 'Jupiter' ? 0.12 : 0.8, depthWrite: false });
         const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-        ring.rotation.x = Math.PI / 2 - 0.35;
+        ring.rotation.x = Math.PI / 2 - (spec.ringTilt || 0.35);
         mesh.add(ring);
         this._track(ringGeometry, ringMaterial);
       }
@@ -259,7 +270,10 @@ export class SolarSystem {
     this._buildAsteroidBelt();
   }
 
-  _generateSaturnRingTexture() { const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 1; const ctx = canvas.getContext('2d'); const stops = [[0,'rgba(90,70,45,.45)'],[.12,'rgba(180,160,120,.7)'],[.25,'rgba(110,100,90,.5)'],[.38,'rgba(210,195,160,.8)'],[.48,'rgba(30,30,35,.15)'],[.58,'rgba(200,185,150,.75)'],[.8,'rgba(150,130,100,.6)'],[.9,'rgba(40,35,30,.2)'],[1,'rgba(170,150,110,.5)']]; const g=ctx.createLinearGradient(0,0,512,0); stops.forEach(([p,c])=>g.addColorStop(p,c)); ctx.fillStyle=g; ctx.fillRect(0,0,512,1); const tex=new THREE.CanvasTexture(canvas); this._track(tex); return tex; }
+  _generateRingTexture(type = 'Saturn', options = {}) { const canvas = document.createElement('canvas'); canvas.width = options.width || (type === 'Saturn' ? 512 : 128); canvas.height = 1; const ctx = canvas.getContext('2d'); const colors = options.colors || (type === 'Uranus' ? ['rgba(190,230,245,.02)','rgba(190,230,245,.75)'] : type === 'Jupiter' ? ['rgba(110,95,80,0)','rgba(110,95,80,.12)','rgba(110,95,80,0)'] : ['rgba(90,70,45,.45)','rgba(210,195,160,.8)','rgba(40,35,30,.2)']); const g = ctx.createLinearGradient(0,0,canvas.width,0); colors.forEach((c,i)=>g.addColorStop(i/(colors.length-1),c)); ctx.fillStyle=g; ctx.fillRect(0,0,canvas.width,1); const tex = new THREE.CanvasTexture(canvas); this._track(tex); return tex; }
+  _generateSaturnRingTexture() { return this._generateRingTexture('Saturn'); }
+  _buildProceduralTexture(type) { if (this.isMobile && type !== 'Earth') return null; const c=document.createElement('canvas'); c.width=this.isMobile?256:512; c.height=this.isMobile?128:256; const x=c.getContext('2d'); x.fillStyle=type==='Earth'?'#123d72':type==='Jupiter'?'#b58b63':type==='Mars'?'#a84525':'#d8b870'; x.fillRect(0,0,c.width,c.height); if(type==='Jupiter'){for(let y=0;y<c.height;y+=18){x.fillStyle=y%36?'#d1b18a':'#765846';x.fillRect(0,y,c.width,10);}} if(type==='Earth'){x.fillStyle='#386b35';for(let i=0;i<18;i++)x.fillRect((i*73)%c.width,(i*41)%c.height,35,20);} const t=new THREE.CanvasTexture(c); this._track(t); return t; }
+  _buildAtmosphere(planetMesh, type) { if (this.isMobile && type !== 'Earth') return null; const g = new THREE.SphereGeometry(planetMesh.geometry.parameters.radius * 1.045, 16, 12); const m = new THREE.MeshBasicMaterial({ color: 0x5cb3ff, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, side: THREE.BackSide, depthWrite: false }); const shell = new THREE.Mesh(g,m); planetMesh.add(shell); this._track(g,m); return shell; }
 
   _buildHalleyComet() { const nucleus = new THREE.Mesh(new THREE.SphereGeometry(.35,12,8), new THREE.MeshBasicMaterial({color:0xdff6ff})); this._track(nucleus.geometry,nucleus.material); const tailTexCanvas=document.createElement('canvas'); tailTexCanvas.width=128; tailTexCanvas.height=8; const c=tailTexCanvas.getContext('2d'); const g=c.createLinearGradient(0,0,128,0); g.addColorStop(0,'rgba(220,250,255,.9)'); g.addColorStop(1,'rgba(120,200,255,0)'); c.fillStyle=g;c.fillRect(0,0,128,8); const tailTex=new THREE.CanvasTexture(tailTexCanvas); const tailMaterial=new THREE.MeshBasicMaterial({map:tailTex,transparent:true,side:THREE.DoubleSide,depthWrite:false}); const tailGeometry=new THREE.PlaneGeometry(1,1); tailGeometry.translate(0.5,0,0); const tail=new THREE.Mesh(tailGeometry,tailMaterial); const crossTail=new THREE.Mesh(tailGeometry.clone(),tailMaterial); crossTail.rotation.x=Math.PI/2; this._track(tail.geometry,crossTail.geometry,tail.material,tailTex); const group=new THREE.Group(); group.add(nucleus,tail,crossTail); this.scene.add(group); const orbitGeom=new THREE.BufferGeometry().setFromPoints(Array.from({length:128},(_,i)=>{const t=i/128*Math.PI*2,r=14.34/(1+.789*Math.cos(t)); return new THREE.Vector3(r*Math.cos(t),r*Math.sin(t)*Math.sin(Math.PI/12),r*Math.sin(t)*Math.cos(Math.PI/12));})); const orbitMat=new THREE.LineBasicMaterial({color:0x406080,transparent:true,opacity:.18}); this.scene.add(new THREE.LineLoop(orbitGeom,orbitMat)); this._track(orbitGeom,orbitMat); this.halley={group,nucleus,tail,crossTail,theta:0}; }
 
@@ -639,9 +653,10 @@ export class SolarSystem {
 
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
-    this.homeCameraPosition = this._fitHomeCamera(width, height);
+    const nextHome = this._fitHomeCamera(width, height);
+    this.homeCameraPosition = nextHome;
     if (this.cameraAtHome) {
-      this.camera.position.copy(this.homeCameraPosition);
+      this.camera.position.lerp(this.homeCameraPosition, 0.25);
       this.camera.lookAt(this.cameraTarget);
     }
     this.renderer.setSize(width, height, false);

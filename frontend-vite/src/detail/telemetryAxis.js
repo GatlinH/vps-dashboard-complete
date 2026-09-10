@@ -12,6 +12,8 @@ export function coldStartAxisBounds(xs = [], fullSpanMs, nowMs = Date.now()) {
       step: fullSpan / 4,
       mode: 'fixed-window-ending-now',
       spanMs: fullSpan,
+      dataFirst: null,
+      dataLast: null,
     };
   }
 
@@ -24,5 +26,7 @@ export function coldStartAxisBounds(xs = [], fullSpanMs, nowMs = Date.now()) {
     step: fullSpan / 4,
     mode: rolling ? 'rolling-after-full-window' : 'accumulating-from-first-sample',
     spanMs: fullSpan,
+    dataFirst,
+    dataLast,
   };
 }
