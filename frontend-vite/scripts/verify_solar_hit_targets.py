@@ -188,10 +188,15 @@ async def run_tween_resize_scene():
             await cdp('Emulation.setDeviceMetricsOverride', {'width':480,'height':850,'deviceScaleFactor':1,'mobile':False}); await js("window.dispatchEvent(new Event('resize'))")
             after=await js("(()=>{const s=__DBG__.solarSystem;return {pos:s.camera.position.toArray(),home:s.homeCameraPosition.toArray(),to:s.cameraTween&&s.cameraTween.to.toArray(),dist:s.camera.position.distanceTo(s.homeCameraPosition),aspect:s.camera.aspect,calls:__RZ__.calls}})()")
             # v3.7 letterbox: the canvas keeps a cinematic aspect at any window size,
-            # so home/aspect may legitimately stay identical (or drift sub-percent)
-            # after resize. The protected invariant is the in-flight tween endpoint
-            # ('to') and live camera motion (dist) — those must be untouched.
+            # so home may legitimately stay identical (or drift sub-percent) after
+            # resize. Protected invariants: the in-flight tween endpoint ('to') is
+            # untouched, the camera is still in motion, and resize() did real work
+            # (finite positive aspect + backing store resized) rather than no-op.
             assert after is not None and after['calls']>=1 and after['to']==before['to'] and after['dist']>5, f'resize() must not mutate an in-flight tween endpoint: before={before} after={after}'
+            import math
+            assert after['aspect'] == after['aspect'] and math.isfinite(after['aspect']) and after['aspect'] > 0.1, f'resize produced invalid aspect: {after}'
+            store = await js("(()=>{const c=__DBG__.solarSystem.renderer.domElement;return {w:c.width,h:c.height}})()")
+            assert store and store['w']>0 and store['h']>0, f'backing store not sized after resize: {store}'
             await js("__DBG__.solarSystem.resume()")
             for _ in range(160):
                 ready = await js("(()=>{const s=__DBG__.solarSystem;return s.cameraTween===null && getComputedStyle(document.querySelector('#globe-container')).display==='none'})()")

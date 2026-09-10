@@ -51,6 +51,15 @@ describe('solar system F2 orbit interaction', () => {
     const text = await source();
     expect(text).toContain('[this.sun, this.earth, this.moon]');
     expect(text).toContain('Joint hit-target solver');
-    expect(text).toContain('Math.hypot(mX - eX, mY - eY) < 24');
+    expect(text).toContain('const MAX_OFF = 11.5;');
+    expect(text).toContain('const PROBE_CLEAR = 13.5;');
+    expect(text).toContain('const PAIR_MIN = 24.6;');
+    // Hysteresis: current placement is reused when still valid (no per-frame snap).
+    expect(text).toContain('placementValid(earthRow.offsetX, earthRow.offsetY, moonRow2.offsetX, moonRow2.offsetY)');
+    // Moon orbit stays on the vertical plane (xFactor 0.25) so its projection
+    // does not cross the sun/earth line — a deliberate hit-test constraint.
+    expect(text).toContain('xFactor: 0.25');
+    // Detached moon button is re-attached from resume() and visibilitychange.
+    expect(text).toContain('_ensureMoonAttached');
   });
 });

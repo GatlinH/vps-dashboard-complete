@@ -312,10 +312,11 @@ export class SolarSystem {
       name: 'Moon',
       mesh: this.moon,
       angle: 1.2,
-      speed: 8.0,
-      orbit: 8.0,
+      speed: 3.2,
+      orbit: 9.0,
       spin: 0.3,
       parent: this.earthBody,
+      xFactor: 0.25,
       yFactor: 1.1
     };
 
@@ -380,6 +381,15 @@ export class SolarSystem {
     this._onWheel = (event) => { event.preventDefault(); this._resetResumeTimer(); this._interruptTween(); this.orbitState.spherical.radius = THREE.MathUtils.clamp(this.orbitState.spherical.radius + event.deltaY * 0.08, 25, 140); };
 
     window.addEventListener('resize', this._onResize);
+    // Returning to a visible tab restarts rAF; make sure a moon button detached
+    // before the pause is back in the hit-test tree.
+    this._onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        const moonEntry = this.hitButtons.find((entry) => entry.mesh === this.moon);
+        this._ensureMoonAttached(moonEntry);
+      }
+    };
+    document.addEventListener('visibilitychange', this._onVisibility);
     this.canvas.addEventListener('pointerdown', this._onPointerDown);
     this.canvas.addEventListener('pointermove', this._onPointerMove);
     this.canvas.addEventListener('pointerup', this._onPointerUp);
@@ -541,6 +551,15 @@ export class SolarSystem {
   }
 
   // Project each tracked mesh to screen space and park its hit button there.
+  // The joint solver may detach the moon button on degenerate frames. Re-attach
+  // must be idempotent and run from every resume path (render loop, resume(),
+  // visibilitychange) — a rAF halt while detached must not leave it stranded.
+  _ensureMoonAttached(entry) {
+    if (entry && entry.mesh === this.moon && !entry.el.isConnected && !entry.__unsolvable) {
+      (this.canvas.parentElement || document.body).appendChild(entry.el);
+    }
+  }
+
   _syncHitButtons() {
     if (this.disposed || !this.canvas || !this.hitButtons.length) {
       return;
@@ -581,48 +600,55 @@ export class SolarSystem {
     const earthMoonThreshold = Math.max((earthSize + moonSize) * 0.5 * 1.1, earthSize + moonSize * 0.5 + 2);
 
     // Joint hit-target solver: place the Earth/Moon button offsets so that every
-    // pair of 24px boxes stays >= 24px apart (center distance) while each button
-    // keeps covering its own mesh projection (|offset| <= 11.9). The Sun never
-    // moves; its probes are protected by z-order when boxes still overlap.
+    // pair of 24px boxes stays >= 24px apart (24 + 0.6px float margin) while each
+    // button keeps covering its own mesh projection (|offset| <= MAX_OFF, i.e.
+    // 0.5px inside the box edge). The Sun never moves; its probes are protected
+    // by z-order when boxes still overlap. Box-vs-probe clearance (half-box 12 +
+    // 1.5px sampling jitter) keeps elementFromPoint at another body's probe from
+    // hitting this button. Runs only when the current placement is invalid, so
+    // the common frame costs two feasibility checks, not a grid search.
     const MAX_OFF = 11.5;
+    const PROBE_CLEAR = 13.5; // half-box 12 + 1.5px inter-frame sampling jitter
+    const PAIR_MIN = 24.6;    // required 24 + 0.6px float margin
     const sunRow2 = priorityRows.find((row) => row.entry.mesh === this.sun);
     const earthRow = priorityRows.find((row) => row.entry.mesh === this.earth);
     const moonRow2 = priorityRows.find((row) => row.entry.mesh === this.moon);
     if (sunRow2 && earthRow && moonRow2) {
+      const placementValid = (eoX, eoY, moX, moY) => {
+        const eX = earthRow.x + eoX, eY = earthRow.y + eoY;
+        const mX = moonRow2.x + moX, mY = moonRow2.y + moY;
+        if (Math.hypot(eX - sunRow2.x, eY - sunRow2.y) < PAIR_MIN) return false;
+        if (Math.hypot(mX - sunRow2.x, mY - sunRow2.y) < PAIR_MIN) return false;
+        if (Math.hypot(mX - eX, mY - eY) < PAIR_MIN) return false;
+        // Each box must also stay clear of the OTHER body's raw probe point,
+        // otherwise elementFromPoint at that probe hits the wrong button.
+        if (Math.hypot(eX - moonRow2.x, eY - moonRow2.y) < PROBE_CLEAR) return false;
+        if (Math.hypot(mX - earthRow.x, mY - earthRow.y) < PROBE_CLEAR) return false;
+        return true;
+      };
       moonRow2.entry.__unsolvable = false;
-      const dirs = [];
-      for (let k = 0; k < 16; k += 1) {
-        const a = (k / 16) * Math.PI * 2;
-        dirs.push([Math.cos(a), Math.sin(a)]);
-      }
-      const radii = [0, 4, 8, MAX_OFF];
-      const centers = new Map(priorityRows.map((row) => [row.entry.mesh, { x: row.x, y: row.y }]));
-      const se = Math.hypot(sunRow2.x - earthRow.x, sunRow2.y - earthRow.y);
-      const sm = Math.hypot(sunRow2.x - moonRow2.x, sunRow2.y - moonRow2.y);
-      const em = Math.hypot(earthRow.x - moonRow2.x, earthRow.y - moonRow2.y);
-      const needSE = 24 - se, needSM = 24 - sm, needEM = 24 - em;
-      const hard = Math.max(needSE, needSM, needEM);
-      if (hard > 0) {
+      // Hysteresis: a still-valid previous placement persists unchanged (no
+      // frame-to-frame snapping); zero offsets win when probes are far apart.
+      if (!placementValid(earthRow.offsetX, earthRow.offsetY, moonRow2.offsetX, moonRow2.offsetY)) {
+        const dirs = [];
+        for (let k = 0; k < 16; k += 1) {
+          const a = (k / 16) * Math.PI * 2;
+          dirs.push([Math.cos(a), Math.sin(a)]);
+        }
+        const radii = [0, 4, 8, MAX_OFF];
         let best = null;
-        for (const re of radii) {
-          if (re > needSE + needEM + 1 && re !== radii[radii.length - 1]) continue;
+        search: for (const re of radii) {
           for (const de of dirs) {
             const eoX = de[0] * re, eoY = de[1] * re;
-            const eX = earthRow.x + eoX, eY = earthRow.y + eoY;
-            if (Math.hypot(eX - sunRow2.x, eY - sunRow2.y) < 24.6) continue;
             for (const rm of radii) {
               for (const dm of dirs) {
                 const moX = dm[0] * rm, moY = dm[1] * rm;
-                const mX = moonRow2.x + moX, mY = moonRow2.y + moY;
-                if (Math.hypot(mX - sunRow2.x, mY - sunRow2.y) < 24.6) continue;
-                if (Math.hypot(mX - eX, mY - eY) < 24.6) continue;
-                // Each box must also stay clear of the OTHER body's probe point,
-                // otherwise elementFromPoint at that probe hits the wrong button.
-                if (Math.hypot(eX - (moonRow2.x + moonRow2.offsetX), eY - (moonRow2.y + moonRow2.offsetY)) < 13.5) continue;
-                if (Math.hypot(mX - (earthRow.x + earthRow.offsetX), mY - (earthRow.y + earthRow.offsetY)) < 13.5) continue;
-                if (Math.hypot(mX - sunRow2.x, mY - sunRow2.y) < 13.5) continue;
-                const cost = Math.hypot(eoX, eoY) + Math.hypot(moX, moY);
-                if (!best || cost < best.cost) best = { cost, eoX, eoY, moX, moY };
+                if (placementValid(eoX, eoY, moX, moY)) {
+                  // Radii ascend, so the first hit is the least-displacement
+                  // placement within the grid's angular quantization.
+                  best = { eoX, eoY, moX, moY };
+                  break search;
+                }
               }
             }
           }
@@ -634,10 +660,9 @@ export class SolarSystem {
           moonRow2.entry.__unsolvable = true;
           if (moonRow2.entry.el.isConnected) moonRow2.entry.el.remove();
         }
-      } else {
-        moonRow2.entry.__unsolvable = false;
       }
     }
+
 
     entries.forEach(({ entry, ndc: projected, world, x, y, offsetX, offsetY }) => {
 
@@ -664,9 +689,7 @@ export class SolarSystem {
           }
         }
       }
-      if (entry.mesh === this.moon && !entry.el.isConnected && !entry.__unsolvable) {
-        (this.canvas.parentElement || document.body).appendChild(entry.el);
-      }
+      this._ensureMoonAttached(entry);
       entry.el.style.visibility = visible ? 'visible' : 'hidden';
     });
   }
@@ -703,6 +726,12 @@ export class SolarSystem {
     // endpoint: near-coincident from/to, a tween that finishes in a couple of
     // frames, and an onEarthClick that fires at an unpredictable moment.
     this.resetCamera();
+
+    // If the joint solver detached the moon button while paused (or the tab was
+    // hidden and rAF throttled), re-attach before the loop restarts — otherwise
+    // the button stays stranded and permanently unclickable.
+    const moonEntry = this.hitButtons && this.hitButtons.find((entry) => entry.mesh === this.moon);
+    this._ensureMoonAttached(moonEntry);
 
     this.running = true;
     this.clock.getDelta();
@@ -764,6 +793,9 @@ export class SolarSystem {
     this.disposed = true;
 
     window.removeEventListener('resize', this._onResize);
+    if (this._onVisibility) {
+      document.removeEventListener('visibilitychange', this._onVisibility);
+    }
 
     if (this.canvas && this._onPointerDown) {
       this.canvas.removeEventListener('pointerdown', this._onPointerDown);
