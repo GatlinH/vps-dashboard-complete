@@ -679,7 +679,7 @@ def get_public_server_detail(sid):
         "server": server.to_dict(public_only=True),
         "live": _build_public_live_payload(sid),
         "history": build_public_history_payload(sid, history_days, limit, 0, bucket_minutes, "", 6 if days == 0 else None),
-        "resource_timeline": build_public_history_payload(sid, 1, 900, 0, None, "resource_timeline").get("data", []),
+        "resource_timeline": build_public_history_payload(sid, 1, 3600, 0, None, "resource_timeline").get("data", []),
         "process_history": build_public_history_payload(sid, 1, 720, 0, None, "process_count").get("data", []),
         "traffic": _build_traffic_payload(server),
         "ping_targets": build_public_ping_targets_payload(sid, count=1),
@@ -737,7 +737,8 @@ def build_public_history_payload(sid, days, limit, offset=0, bucket_minutes=None
                     ProbeResult.created_at >= since,
                     ProbeResult.process_count.isnot(None),
                 )
-                .order_by(ProbeResult.created_at.asc()).limit(min(limit, 720)).all())
+                .order_by(ProbeResult.created_at.desc()).limit(min(limit, 3600)).all())
+        rows.reverse()
         data = [{"server_id": sid, "created_at": row.created_at.isoformat(), "timestamp": row.created_at.isoformat(), "process_count": int(row.process_count)} for row in rows]
         return jsonify(data=data, total=len(data), count=len(data), metric="process_count", hours=1, history_source="raw")
     if metric == "resource_timeline":
@@ -756,7 +757,7 @@ def build_public_history_payload(sid, days, limit, offset=0, bucket_minutes=None
         newest = (ProbeResult.query
                   .filter(ProbeResult.server_id == sid, ProbeResult.created_at >= since, resource_filter)
                   .order_by(ProbeResult.created_at.desc())
-                  .limit(min(limit, 900))
+                  .limit(min(limit, 3600))
                   .all())
         newest.reverse()
         data = []
