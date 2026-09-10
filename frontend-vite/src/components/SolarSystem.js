@@ -599,17 +599,19 @@ export class SolarSystem {
     const moonSize = sizes.get(this.hitButtons.find((item) => item.mesh === this.moon)) || 24;
     const earthMoonThreshold = Math.max((earthSize + moonSize) * 0.5 * 1.1, earthSize + moonSize * 0.5 + 2);
 
-    // Joint hit-target solver: place the Earth/Moon button offsets so that every
-    // pair of 24px boxes stays >= 24px apart (24 + 0.6px float margin) while each
-    // button keeps covering its own mesh projection (|offset| <= MAX_OFF, i.e.
-    // 0.5px inside the box edge). The Sun never moves; its probes are protected
-    // by z-order when boxes still overlap. Box-vs-probe clearance (half-box 12 +
-    // 1.5px sampling jitter) keeps elementFromPoint at another body's probe from
-    // hitting this button. Runs only when the current placement is invalid, so
-    // the common frame costs two feasibility checks, not a grid search.
+    // Joint hit-target solver: place the Earth/Moon button offsets so that all
+    // box-center distances stay above PAIR_MIN (24px boxes + 0.6px float margin;
+    // sun pairs use SUN_PAIR_MIN = MAX_OFF + PROBE_CLEAR so an offset box can
+    // never land within PROBE_CLEAR of the sun's raw probe — no z-order appeal,
+    // PAIR_MIN alone would only guarantee a 13.1px probe margin there) while
+    // each button keeps covering its own mesh projection (|offset| <= MAX_OFF,
+    // 0.5px inside the box edge). Box-vs-probe clearance (PROBE_CLEAR 13.5 =
+    // half-box 12 + 1.5px inter-frame sampling jitter) keeps elementFromPoint
+    // at another body's probe from hitting this button.
     const MAX_OFF = 11.5;
-    const PROBE_CLEAR = 13.5; // half-box 12 + 1.5px inter-frame sampling jitter
-    const PAIR_MIN = 24.6;    // required 24 + 0.6px float margin
+    const PROBE_CLEAR = 13.5;         // half-box 12 + 1.5px sampling jitter
+    const PAIR_MIN = 24.6;            // earth/moon box-center separation
+    const SUN_PAIR_MIN = MAX_OFF + PROBE_CLEAR; // 25.0: sun-pair probe margin
     const sunRow2 = priorityRows.find((row) => row.entry.mesh === this.sun);
     const earthRow = priorityRows.find((row) => row.entry.mesh === this.earth);
     const moonRow2 = priorityRows.find((row) => row.entry.mesh === this.moon);
@@ -617,8 +619,8 @@ export class SolarSystem {
       const placementValid = (eoX, eoY, moX, moY) => {
         const eX = earthRow.x + eoX, eY = earthRow.y + eoY;
         const mX = moonRow2.x + moX, mY = moonRow2.y + moY;
-        if (Math.hypot(eX - sunRow2.x, eY - sunRow2.y) < PAIR_MIN) return false;
-        if (Math.hypot(mX - sunRow2.x, mY - sunRow2.y) < PAIR_MIN) return false;
+        if (Math.hypot(eX - sunRow2.x, eY - sunRow2.y) < SUN_PAIR_MIN) return false;
+        if (Math.hypot(mX - sunRow2.x, mY - sunRow2.y) < SUN_PAIR_MIN) return false;
         if (Math.hypot(mX - eX, mY - eY) < PAIR_MIN) return false;
         // Each box must also stay clear of the OTHER body's raw probe point,
         // otherwise elementFromPoint at that probe hits the wrong button.
@@ -627,32 +629,40 @@ export class SolarSystem {
         return true;
       };
       moonRow2.entry.__unsolvable = false;
-      // Hysteresis: a still-valid previous placement persists unchanged (no
-      // frame-to-frame snapping); zero offsets win when probes are far apart.
+      // Hysteresis: a still-valid placement persists unchanged (no frame-to-
+      // frame snapping); the search only runs when the placement went invalid.
       if (!placementValid(earthRow.offsetX, earthRow.offsetY, moonRow2.offsetX, moonRow2.offsetY)) {
-        const dirs = [];
-        for (let k = 0; k < 16; k += 1) {
-          const a = (k / 16) * Math.PI * 2;
-          dirs.push([Math.cos(a), Math.sin(a)]);
-        }
-        const radii = [0, 4, 8, MAX_OFF];
-        let best = null;
-        search: for (const re of radii) {
-          for (const de of dirs) {
-            const eoX = de[0] * re, eoY = de[1] * re;
-            for (const rm of radii) {
-              for (const dm of dirs) {
-                const moX = dm[0] * rm, moY = dm[1] * rm;
-                if (placementValid(eoX, eoY, moX, moY)) {
-                  // Radii ascend, so the first hit is the least-displacement
-                  // placement within the grid's angular quantization.
-                  best = { eoX, eoY, moX, moY };
-                  break search;
+        // NOTE: no backoff here — the moon's angular motion changes the probe
+        // geometry every frame, so a failed grid can succeed next frame. The
+        // first-hit early exit keeps the common-frame cost near zero; only
+        // truly unsolvable stretches pay the full ~4k-candidate sweep.
+          const dirs = [];
+          for (let k = 0; k < 16; k += 1) {
+            const a = (k / 16) * Math.PI * 2;
+            dirs.push([Math.cos(a), Math.sin(a)]);
+          }
+          const radii = [0, 4, 8, MAX_OFF];
+          let best = null;
+          // Candidates ordered by total displacement (re^2 + rm^2) so the first
+          // valid hit is the grid's least-displacement placement.
+          const candidates = [];
+          for (const re of radii) {
+            for (const de of dirs) {
+              const eoX = de[0] * re, eoY = de[1] * re;
+              for (const rm of radii) {
+                for (const dm of dirs) {
+                  candidates.push({ eoX, eoY, moX: dm[0] * rm, moY: dm[1] * rm, cost: re * re + rm * rm });
                 }
               }
             }
           }
-        }
+          candidates.sort((a, b) => a.cost - b.cost);
+          for (const c of candidates) {
+            if (placementValid(c.eoX, c.eoY, c.moX, c.moY)) {
+              best = c;
+              break;
+            }
+          }
         if (best) {
           earthRow.offsetX = best.eoX; earthRow.offsetY = best.eoY;
           moonRow2.offsetX = best.moX; moonRow2.offsetY = best.moY;

@@ -54,6 +54,12 @@ describe('solar system F2 orbit interaction', () => {
     expect(text).toContain('const MAX_OFF = 11.5;');
     expect(text).toContain('const PROBE_CLEAR = 13.5;');
     expect(text).toContain('const PAIR_MIN = 24.6;');
+    // Sun pairs need box-center >= MAX_OFF + PROBE_CLEAR so an offset box can
+    // never cover the sun's raw probe (z-order is not part of the contract).
+    expect(text).toContain('const SUN_PAIR_MIN = MAX_OFF + PROBE_CLEAR;');
+    // No backoff: moon motion changes probe geometry every frame; a failed grid
+    // can succeed next frame (first-hit early exit keeps common frames cheap).
+    expect(text).toContain('no backoff here');
     // Hysteresis: current placement is reused when still valid (no per-frame snap).
     expect(text).toContain('placementValid(earthRow.offsetX, earthRow.offsetY, moonRow2.offsetX, moonRow2.offsetY)');
     // Moon orbit stays on the vertical plane (xFactor 0.25) so its projection
