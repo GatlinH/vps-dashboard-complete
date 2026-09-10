@@ -11,6 +11,7 @@ const detailStyles = readFileSync(new URL('../src/styles/detail-starfleet-consol
 const pingTargetSelector = serverTableSource.match(/function pingTargetsFromRows[\s\S]*?\n}\n\nfunction recordLivePingSamples/);
 const pingDatasetBuilder = serverTableSource.match(/function buildPingDatasets[\s\S]*?\n}\n\nconst PING_AXIS_STEPS_MS/);
 const bootFunction = serverTableSource.match(/export async function mountServerTableApp\(\) \{[\s\S]*?\n}\n\nfunction ensureFrontLoginOverlay/);
+assert.match(mainSource, /mountServerTableApp\(\);/, 'main.js must invoke the server-table entry point');
 const detailRenderFunction = serverTableSource.match(/async function renderDetailPage\(serverId[\s\S]*?\n}\s*\n\s*\nfunction denseFallbackSeries/);
 const loadingShell = detailPageSource.match(/export function detailLoadingShell\([^)]*\) \{[\s\S]*?\n}\s*export function renderDetailNotFound/);
 
