@@ -588,6 +588,7 @@ export class SolarSystem {
     h.tail.material.opacity=base*fade; h.crossTail.material.opacity=base*fade; h.flame.material.opacity=fade;
   } catch(e) { h.tail.material.opacity=base; h.crossTail.material.opacity=base; h.flame.material.opacity=1; }
 }
+  }
 
   // Project each tracked mesh to screen space and park its hit button there.
   // The joint solver may detach the moon button on degenerate frames. Re-attach
