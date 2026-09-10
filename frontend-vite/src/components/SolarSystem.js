@@ -286,7 +286,7 @@ export class SolarSystem {
   }
   _buildAtmosphere(planetMesh, type) { if (this.isMobile && type !== 'Earth') return null; const g = new THREE.SphereGeometry(planetMesh.geometry.parameters.radius * 1.045, 16, 12); const m = new THREE.MeshBasicMaterial({ color: 0x5cb3ff, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, side: THREE.BackSide, depthWrite: false }); const shell = new THREE.Mesh(g,m); planetMesh.add(shell); this._track(g,m); return shell; }
 
-  _buildHalleyComet() { const nucleus = new THREE.Mesh(new THREE.SphereGeometry(.35,12,8), new THREE.MeshBasicMaterial({color:0xdff6ff})); this._track(nucleus.geometry,nucleus.material); const tailTexCanvas=document.createElement('canvas'); tailTexCanvas.width=128; tailTexCanvas.height=8; const c=tailTexCanvas.getContext('2d'); const g=c.createLinearGradient(0,0,128,0); g.addColorStop(0,'rgba(220,250,255,.9)'); g.addColorStop(1,'rgba(120,200,255,0)'); c.fillStyle=g;c.fillRect(0,0,128,8); const tailTex=new THREE.CanvasTexture(tailTexCanvas); const tailMaterial=new THREE.MeshBasicMaterial({map:tailTex,transparent:true,side:THREE.DoubleSide,depthWrite:false}); const tailGeometry=new THREE.PlaneGeometry(1,1); tailGeometry.translate(0.5,0,0); const tail=new THREE.Mesh(tailGeometry,tailMaterial); const crossTail=new THREE.Mesh(tailGeometry.clone(),tailMaterial); this._track(tail.geometry,crossTail.geometry,tail.material,tailTex); const group=new THREE.Group(); group.add(nucleus,tail,crossTail); const flameCanvas=document.createElement('canvas'); flameCanvas.width=flameCanvas.height=64; const fc=flameCanvas.getContext('2d'); const fg=fc.createRadialGradient(32,32,2,32,32,32); fg.addColorStop(0,'rgba(255,255,240,.95)'); fg.addColorStop(.35,'rgba(120,220,255,.65)'); fg.addColorStop(1,'rgba(80,160,255,0)'); fc.fillStyle=fg; fc.fillRect(0,0,64,64); const flameTex=new THREE.CanvasTexture(flameCanvas); const flameMat=new THREE.SpriteMaterial({map:flameTex,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false}); const flame=new THREE.Sprite(flameMat); group.add(flame); this._track(flameTex,flameMat); this.scene.add(group); const orbitGeom=new THREE.BufferGeometry().setFromPoints(Array.from({length:128},(_,i)=>{const t=i/128*Math.PI*2,r=14.34/(1+.789*Math.cos(t)); return new THREE.Vector3(r*Math.cos(t),r*Math.sin(t)*Math.sin(Math.PI/12),r*Math.sin(t)*Math.cos(Math.PI/12));})); const orbitMat=new THREE.LineDashedMaterial({color:0x406080,transparent:true,opacity:.32,dashSize:.8,gapSize:.5}); const orbitMesh=new THREE.LineLoop(orbitGeom,orbitMat); orbitMesh.computeLineDistances(); this.scene.add(orbitMesh); this._track(orbitGeom,orbitMat); this.halley={group,nucleus,tail,crossTail,flame,theta:0,tailRoll:0}; }
+  _buildHalleyComet() { const nucleus = new THREE.Mesh(new THREE.SphereGeometry(.35,12,8), new THREE.MeshBasicMaterial({color:0xdff6ff})); this._track(nucleus.geometry,nucleus.material); const tailTexCanvas=document.createElement('canvas'); tailTexCanvas.width=128; tailTexCanvas.height=8; const c=tailTexCanvas.getContext('2d'); const g=c.createLinearGradient(0,0,128,0); g.addColorStop(0,'rgba(220,250,255,.9)'); g.addColorStop(1,'rgba(120,200,255,0)'); c.fillStyle=g;c.fillRect(0,0,128,8); const tailTex=new THREE.CanvasTexture(tailTexCanvas); const tailMaterial=new THREE.MeshBasicMaterial({map:tailTex,transparent:true,side:THREE.DoubleSide,depthWrite:false,depthTest:false}); const tailGeometry=new THREE.PlaneGeometry(1,1); tailGeometry.translate(0.5,0,0); const tail=new THREE.Mesh(tailGeometry,tailMaterial); const crossTail=new THREE.Mesh(tailGeometry.clone(),tailMaterial); this._track(tail.geometry,crossTail.geometry,tail.material,tailTex); const group=new THREE.Group(); group.add(nucleus,tail,crossTail); const flameCanvas=document.createElement('canvas'); flameCanvas.width=flameCanvas.height=64; const fc=flameCanvas.getContext('2d'); const fg=fc.createRadialGradient(32,32,2,32,32,32); fg.addColorStop(0,'rgba(255,255,240,.95)'); fg.addColorStop(.35,'rgba(120,220,255,.65)'); fg.addColorStop(1,'rgba(80,160,255,0)'); fc.fillStyle=fg; fc.fillRect(0,0,64,64); const flameTex=new THREE.CanvasTexture(flameCanvas); const flameMat=new THREE.SpriteMaterial({map:flameTex,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false}); const flame=new THREE.Sprite(flameMat); group.add(flame); this._track(flameTex,flameMat); this.scene.add(group); tail.renderOrder=-1; crossTail.renderOrder=-1; flame.renderOrder=-1; const orbitGeom=new THREE.BufferGeometry().setFromPoints(Array.from({length:128},(_,i)=>{const t=i/128*Math.PI*2,r=14.34/(1+.789*Math.cos(t)); return new THREE.Vector3(r*Math.cos(t),r*Math.sin(t)*Math.sin(Math.PI/12),r*Math.sin(t)*Math.cos(Math.PI/12));})); const orbitMat=new THREE.LineDashedMaterial({color:0x406080,transparent:true,opacity:.32,dashSize:.8,gapSize:.5}); const orbitMesh=new THREE.LineLoop(orbitGeom,orbitMat); orbitMesh.computeLineDistances(); this.scene.add(orbitMesh); this._track(orbitGeom,orbitMat); this.halley={group,nucleus,tail,crossTail,flame,theta:0,tailRoll:0}; }
 
   _buildAsteroidBelt() { const count=this.isMobile?500:1200; const geo=new THREE.DodecahedronGeometry(.15,0); const mat=new THREE.MeshStandardMaterial({color:0x887766,roughness:1}); const mesh=new THREE.InstancedMesh(geo,mat,count); const m=new THREE.Matrix4(); this.asteroidData=Array.from({length:count},()=>({r:27.5+Math.random()*4.3,angle:Math.random()*Math.PI*2,y:(Math.random()*2-1)*.35,spin:Math.random(),scale:0.7+Math.random()*0.8})); this.asteroidData.forEach((a,i)=>{m.makeRotationFromEuler(new THREE.Euler(Math.random(),Math.random(),Math.random())); m.scale(new THREE.Vector3(a.scale,a.scale,a.scale)); m.setPosition(a.r*Math.cos(a.angle),a.y,a.r*Math.sin(a.angle)); mesh.setMatrixAt(i,m);}); this.scene.add(mesh); this.asteroidBelt=mesh; this._track(geo,mat); }
 
@@ -550,7 +550,44 @@ export class SolarSystem {
     if (this.halley) { const h=this.halley; h.theta += 0.08*Math.pow(38/(14.34/(1+.789*Math.cos(h.theta))),1.25)*dt; const r=14.34/(1+.789*Math.cos(h.theta)); const pos=new THREE.Vector3(r*Math.cos(h.theta),r*Math.sin(h.theta)*Math.sin(Math.PI/12),r*Math.sin(h.theta)*Math.cos(Math.PI/12)); h.group.position.copy(pos); const len=THREE.MathUtils.clamp(16*(8/r),2,15); const dir=pos.clone().normalize(); const dr=(r*r*.789*Math.sin(h.theta))/14.34; const v=new THREE.Vector3(dr*Math.cos(h.theta)-r*Math.sin(h.theta),dr*Math.sin(h.theta)*Math.sin(Math.PI/12)+r*Math.cos(h.theta)*Math.sin(Math.PI/12),dr*Math.sin(h.theta)*Math.cos(Math.PI/12)+r*Math.cos(h.theta)*Math.cos(Math.PI/12)); const tangent=v.clone().sub(dir.clone().multiplyScalar(v.dot(dir))); const tangentLength=tangent.length(); h.tail.scale.set(len,0.6+len*0.06,1); h.crossTail.scale.copy(h.tail.scale); // Dust tail: anti-sun (75%) bent backward along the orbit (25%) — the classic
   // curved dust tail whose visible streak tracks the motion path; the ion
   // cross-tail stays straight anti-sunward.
-  const fallbackTangent=new THREE.Vector3(1,0,0).addScaledVector(dir,-dir.x).normalize(); const tangentUnit=tangentLength>1e-8?tangent.clone().multiplyScalar(1/tangentLength):fallbackTangent; const dustDir=dir.clone().multiplyScalar(.75).addScaledVector(tangentUnit,-.25).normalize(); h.tail.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0),dustDir); const localY=new THREE.Vector3(0,1,0).applyQuaternion(h.tail.quaternion); if (tangentLength > 1e-8) { h.tailRoll=Math.atan2(localY.clone().cross(tangentUnit).dot(dustDir),localY.dot(tangentUnit)); h.tail.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(dustDir,h.tailRoll)); } h.crossTail.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0),dir); h.flame.scale.setScalar(THREE.MathUtils.clamp(2.4*(8/r),1,4.8)); h.tail.material.opacity=THREE.MathUtils.clamp(.12+(.85-.12)*(8/r),.12,.85); }
+  const fallbackTangent=new THREE.Vector3(1,0,0).addScaledVector(dir,-dir.x).normalize(); const tangentUnit=tangentLength>1e-8?tangent.clone().multiplyScalar(1/tangentLength):fallbackTangent; const dustDir=dir.clone().multiplyScalar(.75).addScaledVector(tangentUnit,-.25).normalize(); h.tail.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0),dustDir); const localY=new THREE.Vector3(0,1,0).applyQuaternion(h.tail.quaternion); if (tangentLength > 1e-8) { h.tailRoll=Math.atan2(localY.clone().cross(tangentUnit).dot(dustDir),localY.dot(tangentUnit)); h.tail.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(dustDir,h.tailRoll)); } h.crossTail.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0),dir); h.flame.scale.setScalar(THREE.MathUtils.clamp(2.4*(8/r),1,4.8)); h.tail.material.opacity=THREE.MathUtils.clamp(.12+(.85-.12)*(8/r),.12,.85);
+  // Fade the light tail where it would cross a planet's disc: sample points
+  // along the tail axes, project them, and shrink opacity by the deepest
+  // overlap (the tail visually yields to planets instead of painting over).
+  const base=THREE.MathUtils.clamp(.12+(.85-.12)*(8/r),.12,.85);
+  try {
+    const cam2=this.camera, size2=this.renderer.getSize(new THREE.Vector2());
+    const proj=new THREE.Vector3();
+    const toScreen=(v)=>{ proj.copy(v).project(cam2); return {x:(proj.x*.5+.5)*size2.x, y:(-proj.y*.5+.5)*size2.y, z:proj.z}; };
+    // Per-body screen centers + radii, computed once per frame.
+    const discs=[];
+    for (const body of this.bodies) {
+      const disc=body.mesh;
+      const geoR=(disc.geometry && disc.geometry.parameters && disc.geometry.parameters.radius) || .9;
+      const scaleR=Math.max(disc.scale.x, disc.scale.y, disc.scale.z);
+      const dCam=cam2.position.distanceTo(disc.position);
+      if (dCam<1e-3) continue;
+      const c=toScreen(disc.position);
+      if (c.z>=1) continue;
+      discs.push({c, rPx: geoR*scaleR/dCam*(size2.y*.5)/Math.tan((cam2.fov*Math.PI/180)*.5)});
+    }
+    let fade=1;
+    for (const mesh of [h.tail, h.crossTail]) {
+      const dirW=new THREE.Vector3(1,0,0).applyQuaternion(mesh.quaternion);
+      const len=mesh.scale.x;
+      for (let s=.15; s<=1.001; s+=.1417) { // 7 samples, includes the tip
+        const pt=h.group.position.clone().addScaledVector(dirW, len*s);
+        const sp=toScreen(pt);
+        if (sp.z>=1) continue;
+        for (const d of discs) {
+          const dist=Math.hypot(sp.x-d.c.x, sp.y-d.c.y);
+          if (dist<d.rPx*1.05) { const f=THREE.MathUtils.clamp((dist-d.rPx*.45)/(d.rPx*.6),0,1); fade=Math.min(fade, f); }
+        }
+      }
+    }
+    h.tail.material.opacity=base*fade; h.crossTail.material.opacity=base*fade; h.flame.material.opacity=fade;
+  } catch(e) { h.tail.material.opacity=base; h.crossTail.material.opacity=base; h.flame.material.opacity=1; }
+}
   }
 
   // Project each tracked mesh to screen space and park its hit button there.
