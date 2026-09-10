@@ -184,7 +184,7 @@ export function renderDetailConsole(ctx) {
             <div class="fleet-title fleet-starmap-title">VPS·星图</div>
             <div id="detailGlobeStarmapMount" class="detail-globe-starmap-mount"></div>
           </div>
-          <div class="history-range-bar"><span class="history-range-label">${historyLabel} · ${sampleLabel}</span><div class="detail-history-range" role="group" aria-label="历史图表范围">${[1,4,7,30,90].map((d) => `<button type="button" class="detail-history-btn ${Number(detailDays) === d ? 'active' : ''}" data-detail-history-days="${d}">${d}${t('rangeDayUnit')}</button>`).join('')}</div></div>
+          <div class="history-range-bar"><span class="history-range-label">${historyLabel} · ${sampleLabel}</span><div class="detail-history-range" role="group" aria-label="历史图表范围">${[{d:0,label:t('rangeRealtime')},{d:1,label:`1${t('rangeDayUnit')}`},{d:4,label:`4${t('rangeDayUnit')}`},{d:7,label:`7${t('rangeDayUnit')}`},{d:30,label:`30${t('rangeDayUnit')}`},{d:90,label:`90${t('rangeDayUnit')}`}].map((opt) => `<button type="button" class="detail-history-btn ${((Number(detailDays)||0) === opt.d) ? 'active' : ''}" data-detail-history-days="${opt.d}">${opt.label}</button>`).join('')}</div></div>
           <div class="fleet-panel fleet-probe-table-panel">
             <div class="fleet-title">全球 VPS 探针延迟 <small class="fleet-title-hint">当前节点 → 其它 VPS</small></div>
             <table class="fleet-table compact"><thead><tr><th>对端 VPS</th><th>ms</th><th data-i18n="loss">${t('loss')} %</th><th>链路</th></tr></thead><tbody>${h.renderGlobalVpsProbeRows(vpsProbeTargetsData || ctx.detailCachedVpsProbeTargets)}</tbody></table>
