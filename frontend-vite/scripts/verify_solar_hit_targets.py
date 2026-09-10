@@ -187,7 +187,16 @@ async def run_tween_resize_scene():
             await js("__DBG__.solarSystem.pause()")
             await cdp('Emulation.setDeviceMetricsOverride', {'width':480,'height':850,'deviceScaleFactor':1,'mobile':False}); await js("window.dispatchEvent(new Event('resize'))")
             after=await js("(()=>{const s=__DBG__.solarSystem;return {pos:s.camera.position.toArray(),home:s.homeCameraPosition.toArray(),to:s.cameraTween&&s.cameraTween.to.toArray(),dist:s.camera.position.distanceTo(s.homeCameraPosition),aspect:s.camera.aspect,calls:__RZ__.calls}})()")
-            assert after is not None and after['calls']>=1 and after['to']==before['to'] and after['dist']>5 and after['home']!=before['home'], f'resize() must not mutate an in-flight tween endpoint: before={before} after={after}'
+            # v3.7 letterbox: the canvas keeps a cinematic aspect at any window size,
+            # so home may legitimately stay identical (or drift sub-percent) after
+            # resize. Protected invariants: the in-flight tween endpoint ('to') is
+            # untouched, the camera is still in motion, and resize() did real work
+            # (finite positive aspect + backing store resized) rather than no-op.
+            assert after is not None and after['calls']>=1 and after['to']==before['to'] and after['dist']>5, f'resize() must not mutate an in-flight tween endpoint: before={before} after={after}'
+            import math
+            assert after['aspect'] == after['aspect'] and math.isfinite(after['aspect']) and after['aspect'] > 0.1, f'resize produced invalid aspect: {after}'
+            store = await js("(()=>{const c=__DBG__.solarSystem.renderer.domElement;return {w:c.width,h:c.height}})()")
+            assert store and store['w']>0 and store['h']>0, f'backing store not sized after resize: {store}'
             await js("__DBG__.solarSystem.resume()")
             for _ in range(160):
                 ready = await js("(()=>{const s=__DBG__.solarSystem;return s.cameraTween===null && getComputedStyle(document.querySelector('#globe-container')).display==='none'})()")
@@ -218,7 +227,7 @@ async def main():
         result, geometry, failures = await run_viewport(w,h)
         print(f'{w}x{h}: ' + ', '.join(f'{k} center {v["center"][0]/max(1,v["center"][1]):.3%}, target {v["target"][0]/max(1,v["target"][1]):.3%}' for k,v in result.items()) + f', geometry {geometry["ok"]/max(1,geometry["total"]):.3%}')
         if failures: print('  failures:', failures[:3])
-        assert all(v['center'][0]/max(1,v['center'][1]) >= .995 for v in result.values()), f'{w}x{h}: button-center hit ratio below 99.5%'
+        assert all(v['center'][0]/max(1,v['center'][1]) >= .995 for v in result.values()), f'{w}x{h}: button-center hit ratio below 99.5%; failures={failures[:3]}'
         assert all(v['target'][0]/max(1,v['target'][1]) >= .995 for k,v in result.items() if k != LABELS[0]), f'{w}x{h}: user-target hit ratio below 99.5%; failures={failures[:3]}'
         assert result[LABELS[0]]['target'][0]/max(1,result[LABELS[0]]['target'][1]) >= 1.0, f'{w}x{h}: sun target hit ratio below 100%; failures={failures[:3]}'
         assert geometry['ok']/max(1, geometry['total']) >= .995, f'{w}x{h}: earth/moon button boxes overlap; failures={failures[:3]}'

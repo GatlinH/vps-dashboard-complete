@@ -2016,7 +2016,7 @@ async function renderDetailPage(serverId, hydratedPayload = null, generation = +
   window.__DBG__.DETAIL_TRACE = ['renderDetailPage:start', String(serverId)];
   loadStoredPingSamples(serverId);
   const requestedDetailDays = Number(getDetailHistoryDays() || 0) || 0;
-  const detailDays = [1, 4, 7, 30, 90].includes(requestedDetailDays) ? requestedDetailDays : 1;
+  const detailDays = [0, 1, 4, 7, 30, 90].includes(requestedDetailDays) ? requestedDetailDays : 1;
   const detailBucketMinutes = getDetailHistoryBucketMinutes(detailDays);
   try {
   const requestedId = Number(serverId);
@@ -2308,7 +2308,7 @@ async function refreshDetailHistoryRange(serverId) {
   const current = state.servers.find((item) => Number(item.id) === Number(serverId));
   if (!current || !document.getElementById('detailNetworkChart')) return;
   const requestedDetailDays = Number(getDetailHistoryDays() || 1) || 1;
-  const detailDays = [1, 4, 7, 30, 90].includes(requestedDetailDays) ? requestedDetailDays : 1;
+  const detailDays = [0, 1, 4, 7, 30, 90].includes(requestedDetailDays) ? requestedDetailDays : 1;
   const bucketMinutes = getDetailHistoryBucketMinutes(detailDays);
   const historyDays = detailDays;
   const limit = getDetailHistoryPointLimit(detailDays);
@@ -2383,15 +2383,15 @@ async function refreshDetailHistoryRange(serverId) {
       detailDays,
     });
     document.querySelectorAll('[data-detail-history-days]').forEach((button) => {
-      button.classList.toggle('active', Number(button.dataset.detailHistoryDays) === detailDays);
+      button.classList.toggle('active', (Number(detailDays) || 0) === Number(button.dataset.detailHistoryDays));
     });
     const label = document.querySelector('.history-range-label');
     if (label) label.textContent = `${detailDays === 0 ? t('rangeToday') : `${detailDays}${t('rangeDayUnit')}`} · ${bucketMinutes === 0 ? t('rangeRealtime') : `${bucketMinutes}${t('rangeMinuteSampling')}`}`;
     const rangeWindowLabel = `${detailDays}${t('rangeDayUnit')}`;
     const networkTitle = document.querySelector('[data-i18n-chart="network"]');
     const pingTitle = document.querySelector('[data-i18n-chart="ping"]');
-    if (networkTitle) networkTitle.textContent = `${t('chartNetworkThroughput')} · ${rangeWindowLabel} · ${bucketMinutes}${t('rangeMinuteSampling')}`;
-    if (pingTitle) pingTitle.textContent = `${t('chartPingLatency')} · ${rangeWindowLabel} · ${t('chartDropLeavesGap')}`;
+    if (networkTitle) networkTitle.textContent = `${t('chartNetworkThroughput')} · ${detailDays === 0 ? t('rangeRealtime') : rangeWindowLabel} · ${detailDays === 0 ? t('rangeRealtime') : `${bucketMinutes}${t('rangeMinuteSampling')}`}`;
+    if (pingTitle) pingTitle.textContent = `${t('chartPingLatency')} · ${detailDays === 0 ? t('rangeRealtime') : rangeWindowLabel} · ${t('chartDropLeavesGap')}`;
     window.__DBG__.DETAIL_RANGE_REFRESH = {
       serverId: Number(serverId), detailDays, bucketMinutes, status: 'ready',
       elapsedMs: Math.round(performance.now() - startedAt),

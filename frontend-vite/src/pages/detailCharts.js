@@ -646,13 +646,15 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   // ~59px in zh but far wider once en switches to a 12-hour clock, which pushed
   // the terminal label past the card edge. Time-only ticks keep them inside.
   const smallXTickFmt = (v) => formatHourTick(v);
-  const requestedDetailDays = Number(detailDays ?? window.__DBG__.DETAIL_HISTORY_DAYS ?? 1) || 1;
-  detailDays = [1, 4, 7, 30, 90].includes(requestedDetailDays) ? requestedDetailDays : 1;
-  const detailBucketMinutes = ({ 1: 5, 4: 20, 7: 60, 30: 60, 90: 180 })[detailDays] || 60;
+  const requestedDetailDays = Number(detailDays ?? window.__DBG__.DETAIL_HISTORY_DAYS ?? 1);
+  detailDays = [0, 1, 4, 7, 30, 90].includes(requestedDetailDays) ? requestedDetailDays : 1;
+  const detailBucketMinutes = ({ 0: 0, 1: 5, 4: 20, 7: 60, 30: 60, 90: 180 })[detailDays];
   const detailBucketMs = detailBucketMinutes * 60 * 1000;
   const telemetryHours = 1;
   const pingHours = detailDays * 24;
   const networkHours = detailDays * 24;
+  const effectivePingHours = pingHours || 1;
+  const effectiveNetworkHours = networkHours || 1;
   // The bucket width must come from the window a chart actually draws, not from
   // the history range picker. detailBucketMs is sized for the 1-90 day history
   // (1 day -> 5 min), so feeding it to the 1h telemetry charts collapsed ~520
@@ -666,7 +668,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     return Math.max(sourceSampleMs, Math.floor(span / Math.max(1, targetPoints)));
   };
   const telemetryBucketMs = bucketMsForWindow(telemetryHours);
-  const networkBucketMs = bucketMsForWindow(networkHours);
+  const networkBucketMs = bucketMsForWindow(effectiveNetworkHours);
   window.__DBG__.DETAIL_CHART_BUCKET = { days: detailDays, bucketMinutes: detailBucketMinutes, bucketMs: detailBucketMs, telemetryBucketMs, networkBucketMs, sourceSampleMs, telemetryHours, pingHours, networkHours };
   const cpu12hSeries = seriesWindowFromRows(probeRows, 'cpu_use', telemetryHours);
   const ram12hSeries = seriesWindowFromRows(probeRows, 'ram_use', telemetryHours);
@@ -679,7 +681,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   const processSeries = processSeriesPrimary.length
     ? processSeriesPrimary
     : seriesWindowFromRows(probeRows, 'process_count', telemetryHours);
-  const ping24hDatasets = buildPingDatasets(probeRows, pingHours, pingTargetsData, pingTargetHistoryData)
+  const ping24hDatasets = buildPingDatasets(probeRows, effectivePingHours, pingTargetsData, pingTargetHistoryData)
     .map((dataset) => ({
       ...dataset,
       data: [...(dataset.data || [])].sort((a, b) => Number(a?.x) - Number(b?.x)),
@@ -689,7 +691,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   // from a cold-start (dataFirst + full window) upper bound.
   const pingTimes = ping24hDatasets.flatMap(ds => (ds.data || []).map(p => Number(p.x))).filter(Number.isFinite).sort((a, b) => a - b);
   const pingAxisBounds = (() => {
-    const fullSpan = pingHours * 60 * 60 * 1000;
+    const fullSpan = effectivePingHours * 60 * 60 * 1000;
     if (!pingTimes.length) return accumulatingAxisBoundsFromTimes([], pingHours, 2 * 60 * 1000);
     const dataFirst = pingTimes[0];
     const dataLast = pingTimes[pingTimes.length - 1];
@@ -795,7 +797,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   // fixed while data accumulates, then the full window rolls. Network and ping
   // charts are different long-range views and remain anchored directly to data.
   const networkAxisBounds = (() => {
-    const fullSpan = networkHours * 60 * 60 * 1000;
+    const fullSpan = effectiveNetworkHours * 60 * 60 * 1000;
     const xs = networkBuckets.map((r) => Number(r.rawX || r.x)).filter(Number.isFinite).sort((a, b) => a - b);
     if (!xs.length) return adaptiveRollingBounds([[], []], networkHours);
     const dataFirst = xs[0];

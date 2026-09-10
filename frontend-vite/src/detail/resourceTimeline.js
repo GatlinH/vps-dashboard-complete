@@ -5,7 +5,7 @@
 // the wide historical/network view, not host telemetry.
 export const RESOURCE_TIMELINE_HOURS = 1;
 export const RESOURCE_TIMELINE_DAYS = 1 / 24;
-export const RESOURCE_TIMELINE_LIMIT = 900;
+export const RESOURCE_TIMELINE_LIMIT = 3600;
 
 function parseTelemetryTime(row) {
   let text = String(row?.created_at || row?.timestamp || row?.time || row?.ts || '').trim();

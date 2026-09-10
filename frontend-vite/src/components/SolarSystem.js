@@ -9,14 +9,14 @@ const TARGET_RADIUS = (19 + 2.6 + 1.25) * 1.1;
 
 // name, radius, orbital radius, angular speed (rad/s), colour, mobile-only-drop flag
 const PLANET_TABLE = [
-  { name: 'Mercury', radius: 0.7, orbit: 9, speed: 0.62, color: 0x9c8a7a, mobile: false },
-  { name: 'Venus', radius: 1.1, orbit: 13.5, speed: 0.44, color: 0xd8a05a, mobile: true },
-  { name: 'Earth', radius: 1.25, orbit: 19, speed: 0.31, color: 0x3f7fd8, mobile: true },
-  { name: 'Mars', radius: 0.95, orbit: 25, speed: 0.24, color: 0xc1552f, mobile: true },
-  { name: 'Jupiter', radius: 2.4, orbit: 33, speed: 0.14, color: 0xd2a679, mobile: false, ring: [3.0, 4.13], ringTilt: 0.055 },
-  { name: 'Saturn', radius: 2.0, orbit: 41, speed: 0.10, color: 0xe0cba0, mobile: false, ring: [2.6, 4.4], ringTilt: 0.35 },
-  { name: 'Uranus', radius: 1.55, orbit: 52, speed: 0.068, color: 0x55b8c8, mobile: false, ring: [2.1, 2.95], ringTilt: -Math.PI * 0.54 },
-  { name: 'Neptune', radius: 1.48, orbit: 62, speed: 0.048, color: 0x2e58c8, mobile: false, ring: [2.05, 2.8], ringTilt: 0.494 }
+  { name: 'Mercury', radius: 0.7, orbit: 9, speed: 0.62, color: 0x9c8a7a, tilt: 0.001, mobile: false },
+  { name: 'Venus', radius: 1.1, orbit: 13.5, speed: 0.44, color: 0xd8a05a, tilt: 3.096, mobile: true },
+  { name: 'Earth', radius: 1.25, orbit: 19, speed: 0.31, color: 0x3f7fd8, tilt: 0.409, mobile: true },
+  { name: 'Mars', radius: 0.95, orbit: 25, speed: 0.24, color: 0xc1552f, tilt: 0.440, mobile: true },
+  { name: 'Jupiter', radius: 2.4, orbit: 33, speed: 0.14, color: 0xd2a679, tilt: 0.055, mobile: false, ring: [3.0, 4.13] },
+  { name: 'Saturn', radius: 2.0, orbit: 41, speed: 0.10, color: 0xe0cba0, tilt: 0.466, mobile: false, ring: [2.6, 4.4] },
+  { name: 'Uranus', radius: 1.55, orbit: 52, speed: 0.068, color: 0x55b8c8, tilt: 1.706, mobile: false, ring: [2.1, 2.95] },
+  { name: 'Neptune', radius: 1.48, orbit: 62, speed: 0.048, color: 0x2e58c8, tilt: 0.494, mobile: false, ring: [2.05, 2.8] }
 ];
 
 export class SolarSystem {
@@ -38,7 +38,7 @@ export class SolarSystem {
     this.frameId = 0;
     this.cameraTween = null; // { t, dur, from, to, lookFrom, lookTo, done }
     this.cameraAtHome = true;
-    this.orbitState = { spherical: new THREE.Spherical(), isDragging: false, pointerStart: new THREE.Vector2(), dragMoved: false, motionState: 'running', resumeTimerId: null, resumeDelayMs: 2800, pauseStartTime: 0 };
+    this.orbitState = { spherical: new THREE.Spherical(), isDragging: false, pointerStart: new THREE.Vector2(), dragMoved: false, motionState: 'running', resumeTimerId: null, resumeDelayMs: 10000, pauseStartTime: 0 };
     this._touchState = null;
 
     this.debug = (window.__DBG__ = window.__DBG__ || {});
@@ -155,11 +155,12 @@ export class SolarSystem {
 
   _fitHomeCamera(width, height) {
     const aspect = width / height;
-    if (aspect < 1) this.camera.fov = Math.min(58, HOME_FOV + 4); else this.camera.fov = HOME_FOV;
+    this.camera.fov = HOME_FOV;
+    if (aspect < 1) { /* virtual landscape letterbox */ }
     const hfovHalf = Math.atan(Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) * aspect);
     const baseDistance = this.baseCameraPosition.length();
-    const maxOrbit = this.isMobile ? 45.4 : 64.8;
-    const fitTargetRadius = Math.max(TARGET_RADIUS, maxOrbit * 1.08);
+    const maxOrbit = Math.max(TARGET_RADIUS, (62 + 2.8) * 1.08);
+    const fitTargetRadius = maxOrbit;
     const requiredDist = Math.max(fitTargetRadius / Math.tan(hfovHalf), (fitTargetRadius * 0.88) / Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
     const k = Math.max(1, requiredDist / baseDistance);
     return this.baseCameraPosition.clone().multiplyScalar(k);
@@ -214,14 +215,11 @@ export class SolarSystem {
   }
 
   _buildPlanets() {
-    // On narrow screens keep only the planets flagged for mobile (Earth included).
-    const list = this.isMobile
-      ? PLANET_TABLE.filter((p) => p.mobile)
-      : PLANET_TABLE;
+    const list = PLANET_TABLE;
 
     list.forEach((spec, index) => {
-      const segW = this.isMobile ? 16 : 32;
-      const segH = this.isMobile ? 12 : 24;
+      const segW = this.isMobile ? 16 : 48;
+      const segH = this.isMobile ? 12 : 32;
 
       const geometry = new THREE.SphereGeometry(spec.radius, segW, segH);
       const texture = this._buildProceduralTexture(spec.name);
@@ -234,6 +232,7 @@ export class SolarSystem {
 
       const mesh = new THREE.Mesh(geometry, material);
       mesh.name = spec.name;
+      mesh.rotation.z = spec.tilt;
       this.scene.add(mesh);
       this._track(geometry, material);
       if (spec.name === 'Earth' || spec.name === 'Venus') this._buildAtmosphere(mesh, spec.name);
@@ -242,7 +241,7 @@ export class SolarSystem {
         const ringGeometry = new THREE.RingGeometry(spec.ring[0], spec.ring[1], this.isMobile ? 48 : 96);
         const ringMaterial = new THREE.MeshStandardMaterial({ map: this._generateRingTexture(spec.name), side: THREE.DoubleSide, roughness: 0.95, metalness: 0, transparent: true, opacity: spec.name === 'Jupiter' ? 0.12 : 0.8, depthWrite: false });
         const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-        ring.rotation.x = Math.PI / 2 - (spec.ringTilt || 0.35);
+        ring.rotation.x = Math.PI / 2;
         mesh.add(ring);
         this._track(ringGeometry, ringMaterial);
       }
@@ -264,6 +263,12 @@ export class SolarSystem {
       if (spec.name === 'Earth') {
         this.earth = mesh;
         this.earthBody = body;
+        const cg = new THREE.SphereGeometry(spec.radius * 1.018, segW, segH);
+        const ct = this._buildProceduralTexture('EarthClouds');
+        const cm = new THREE.MeshStandardMaterial({ map: ct, transparent: true, opacity: 0.82, depthWrite: false, roughness: 0.9, metalness: 0 });
+        this.earthCloudMesh = new THREE.Mesh(cg, cm);
+        mesh.add(this.earthCloudMesh);
+        this._track(cg, cm);
       }
     });
     this._buildHalleyComet();
@@ -272,10 +277,16 @@ export class SolarSystem {
 
   _generateRingTexture(type = 'Saturn', options = {}) { const canvas = document.createElement('canvas'); canvas.width = options.width || (type === 'Saturn' ? 512 : 128); canvas.height = 1; const ctx = canvas.getContext('2d'); const colors = options.colors || (type === 'Uranus' ? ['rgba(190,230,245,.02)','rgba(190,230,245,.75)'] : type === 'Jupiter' ? ['rgba(110,95,80,0)','rgba(110,95,80,.12)','rgba(110,95,80,0)'] : ['rgba(90,70,45,.45)','rgba(210,195,160,.8)','rgba(40,35,30,.2)']); const g = ctx.createLinearGradient(0,0,canvas.width,0); colors.forEach((c,i)=>g.addColorStop(i/(colors.length-1),c)); ctx.fillStyle=g; ctx.fillRect(0,0,canvas.width,1); const tex = new THREE.CanvasTexture(canvas); this._track(tex); return tex; }
   _generateSaturnRingTexture() { return this._generateRingTexture('Saturn'); }
-  _buildProceduralTexture(type) { if (this.isMobile && type !== 'Earth') return null; const c=document.createElement('canvas'); c.width=this.isMobile?256:512; c.height=this.isMobile?128:256; const x=c.getContext('2d'); x.fillStyle=type==='Earth'?'#123d72':type==='Jupiter'?'#b58b63':type==='Mars'?'#a84525':'#d8b870'; x.fillRect(0,0,c.width,c.height); if(type==='Jupiter'){for(let y=0;y<c.height;y+=18){x.fillStyle=y%36?'#d1b18a':'#765846';x.fillRect(0,y,c.width,10);}} if(type==='Earth'){x.fillStyle='#386b35';for(let i=0;i<18;i++)x.fillRect((i*73)%c.width,(i*41)%c.height,35,20);} const t=new THREE.CanvasTexture(c); this._track(t); return t; }
+  _buildProceduralTexture(type) {
+    const c=document.createElement('canvas'); c.width=this.isMobile?256:512; c.height=this.isMobile?128:256; const x=c.getContext('2d'); const w=c.width,h=c.height;
+    const colors={Mercury:'#746e66',Venus:'#e2c286',Earth:'#0f2d5c',Mars:'#b54625',Jupiter:'#cca172',Saturn:'#dfcb9c',Uranus:'#52b5c5',Neptune:'#2452c2'};
+    if(type==='EarthClouds'){ x.clearRect(0,0,w,h); for(let i=0;i<30;i++){x.fillStyle=`rgba(255,255,255,${0.15+(i%5)*0.12})`; x.beginPath(); x.ellipse((i*83)%w,(i*47)%h,18+(i%4)*9,4+(i%3)*3,0,0,Math.PI*2); x.fill();} }
+    else { x.fillStyle=colors[type]||'#888'; x.fillRect(0,0,w,h); if(type==='Mercury'){for(let i=0;i<40;i++){const a=Math.random()*w,b=Math.random()*h,r=3+Math.random()*10;x.strokeStyle='#a29d95';x.beginPath();x.arc(a,b,r,0,7);x.stroke();x.fillStyle='#3c3832';x.beginPath();x.arc(a,b,r*.45,0,7);x.fill();}} if(type==='Earth'){x.fillStyle='#195e92';for(let i=0;i<20;i++){x.beginPath();x.ellipse((i*97)%w,(i*53)%h,25,12,0,0,7);x.fillStyle=i%2?'#2d6232':'#7a6e45';x.fill();}x.fillStyle='#f2f7fc';x.fillRect(0,0,w,9);x.fillRect(0,h-9,w,9);} if(type==='Jupiter'){for(let y=0;y<h;y+=18){x.fillStyle=y%36?'#e3c39a':'#765846';x.fillRect(0,y,w,12);}x.fillStyle='#a83618';x.beginPath();x.ellipse(w*.68,h*.64,35,18,0,0,7);x.fill();} if(type==='Mars'){x.fillStyle='#592314';x.fillRect(w*.2,h*.35,w*.2,h*.2);x.fillStyle='#fff';x.fillRect(0,0,w,8);x.fillRect(0,h-8,w,8);} if(type==='Neptune'){x.fillStyle='#0d2358';x.beginPath();x.ellipse(w*.62,h*.65,28,14,0,0,7);x.fill();}}
+    const t=new THREE.CanvasTexture(c); this._track(t); return t;
+  }
   _buildAtmosphere(planetMesh, type) { if (this.isMobile && type !== 'Earth') return null; const g = new THREE.SphereGeometry(planetMesh.geometry.parameters.radius * 1.045, 16, 12); const m = new THREE.MeshBasicMaterial({ color: 0x5cb3ff, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, side: THREE.BackSide, depthWrite: false }); const shell = new THREE.Mesh(g,m); planetMesh.add(shell); this._track(g,m); return shell; }
 
-  _buildHalleyComet() { const nucleus = new THREE.Mesh(new THREE.SphereGeometry(.35,12,8), new THREE.MeshBasicMaterial({color:0xdff6ff})); this._track(nucleus.geometry,nucleus.material); const tailTexCanvas=document.createElement('canvas'); tailTexCanvas.width=128; tailTexCanvas.height=8; const c=tailTexCanvas.getContext('2d'); const g=c.createLinearGradient(0,0,128,0); g.addColorStop(0,'rgba(220,250,255,.9)'); g.addColorStop(1,'rgba(120,200,255,0)'); c.fillStyle=g;c.fillRect(0,0,128,8); const tailTex=new THREE.CanvasTexture(tailTexCanvas); const tailMaterial=new THREE.MeshBasicMaterial({map:tailTex,transparent:true,side:THREE.DoubleSide,depthWrite:false}); const tailGeometry=new THREE.PlaneGeometry(1,1); tailGeometry.translate(0.5,0,0); const tail=new THREE.Mesh(tailGeometry,tailMaterial); const crossTail=new THREE.Mesh(tailGeometry.clone(),tailMaterial); crossTail.rotation.x=Math.PI/2; this._track(tail.geometry,crossTail.geometry,tail.material,tailTex); const group=new THREE.Group(); group.add(nucleus,tail,crossTail); this.scene.add(group); const orbitGeom=new THREE.BufferGeometry().setFromPoints(Array.from({length:128},(_,i)=>{const t=i/128*Math.PI*2,r=14.34/(1+.789*Math.cos(t)); return new THREE.Vector3(r*Math.cos(t),r*Math.sin(t)*Math.sin(Math.PI/12),r*Math.sin(t)*Math.cos(Math.PI/12));})); const orbitMat=new THREE.LineBasicMaterial({color:0x406080,transparent:true,opacity:.18}); this.scene.add(new THREE.LineLoop(orbitGeom,orbitMat)); this._track(orbitGeom,orbitMat); this.halley={group,nucleus,tail,crossTail,theta:0}; }
+  _buildHalleyComet() { const nucleus = new THREE.Mesh(new THREE.SphereGeometry(.35,12,8), new THREE.MeshBasicMaterial({color:0xdff6ff})); this._track(nucleus.geometry,nucleus.material); const tailTexCanvas=document.createElement('canvas'); tailTexCanvas.width=128; tailTexCanvas.height=8; const c=tailTexCanvas.getContext('2d'); const g=c.createLinearGradient(0,0,128,0); g.addColorStop(0,'rgba(220,250,255,.9)'); g.addColorStop(1,'rgba(120,200,255,0)'); c.fillStyle=g;c.fillRect(0,0,128,8); const tailTex=new THREE.CanvasTexture(tailTexCanvas); const tailMaterial=new THREE.MeshBasicMaterial({map:tailTex,transparent:true,side:THREE.DoubleSide,depthWrite:false}); const tailGeometry=new THREE.PlaneGeometry(1,1); tailGeometry.translate(0.5,0,0); const tail=new THREE.Mesh(tailGeometry,tailMaterial); const crossTail=new THREE.Mesh(tailGeometry.clone(),tailMaterial); this._track(tail.geometry,crossTail.geometry,tail.material,tailTex); const group=new THREE.Group(); group.add(nucleus,tail,crossTail); const flameCanvas=document.createElement('canvas'); flameCanvas.width=flameCanvas.height=64; const fc=flameCanvas.getContext('2d'); const fg=fc.createRadialGradient(32,32,2,32,32,32); fg.addColorStop(0,'rgba(255,255,240,.95)'); fg.addColorStop(.35,'rgba(120,220,255,.65)'); fg.addColorStop(1,'rgba(80,160,255,0)'); fc.fillStyle=fg; fc.fillRect(0,0,64,64); const flameTex=new THREE.CanvasTexture(flameCanvas); const flameMat=new THREE.SpriteMaterial({map:flameTex,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false}); const flame=new THREE.Sprite(flameMat); group.add(flame); this._track(flameTex,flameMat); this.scene.add(group); const orbitGeom=new THREE.BufferGeometry().setFromPoints(Array.from({length:128},(_,i)=>{const t=i/128*Math.PI*2,r=14.34/(1+.789*Math.cos(t)); return new THREE.Vector3(r*Math.cos(t),r*Math.sin(t)*Math.sin(Math.PI/12),r*Math.sin(t)*Math.cos(Math.PI/12));})); const orbitMat=new THREE.LineDashedMaterial({color:0x406080,transparent:true,opacity:.32,dashSize:.8,gapSize:.5}); const orbitMesh=new THREE.LineLoop(orbitGeom,orbitMat); orbitMesh.computeLineDistances(); this.scene.add(orbitMesh); this._track(orbitGeom,orbitMat); this.halley={group,nucleus,tail,crossTail,flame,theta:0,tailRoll:0}; }
 
   _buildAsteroidBelt() { const count=this.isMobile?500:1200; const geo=new THREE.DodecahedronGeometry(.15,0); const mat=new THREE.MeshStandardMaterial({color:0x887766,roughness:1}); const mesh=new THREE.InstancedMesh(geo,mat,count); const m=new THREE.Matrix4(); this.asteroidData=Array.from({length:count},()=>({r:27.5+Math.random()*4.3,angle:Math.random()*Math.PI*2,y:(Math.random()*2-1)*.35,spin:Math.random(),scale:0.7+Math.random()*0.8})); this.asteroidData.forEach((a,i)=>{m.makeRotationFromEuler(new THREE.Euler(Math.random(),Math.random(),Math.random())); m.scale(new THREE.Vector3(a.scale,a.scale,a.scale)); m.setPosition(a.r*Math.cos(a.angle),a.y,a.r*Math.sin(a.angle)); mesh.setMatrixAt(i,m);}); this.scene.add(mesh); this.asteroidBelt=mesh; this._track(geo,mat); }
 
@@ -301,10 +312,12 @@ export class SolarSystem {
       name: 'Moon',
       mesh: this.moon,
       angle: 1.2,
-      speed: 2.4,
-      orbit: 2.6,
+      speed: 3.2,
+      orbit: 9.0,
       spin: 0.3,
-      parent: this.earthBody
+      parent: this.earthBody,
+      xFactor: 0.25,
+      yFactor: 1.1
     };
 
     this.bodies.push(this.moonBody);
@@ -368,6 +381,15 @@ export class SolarSystem {
     this._onWheel = (event) => { event.preventDefault(); this._resetResumeTimer(); this._interruptTween(); this.orbitState.spherical.radius = THREE.MathUtils.clamp(this.orbitState.spherical.radius + event.deltaY * 0.08, 25, 140); };
 
     window.addEventListener('resize', this._onResize);
+    // Returning to a visible tab restarts rAF; make sure a moon button detached
+    // before the pause is back in the hit-test tree.
+    this._onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        const moonEntry = this.hitButtons.find((entry) => entry.mesh === this.moon);
+        this._ensureMoonAttached(moonEntry);
+      }
+    };
+    document.addEventListener('visibilitychange', this._onVisibility);
     this.canvas.addEventListener('pointerdown', this._onPointerDown);
     this.canvas.addEventListener('pointermove', this._onPointerMove);
     this.canvas.addEventListener('pointerup', this._onPointerUp);
@@ -505,13 +527,13 @@ export class SolarSystem {
       body.angle += body.speed * dt;
 
       if (body.orbit > 0) {
-        const x = Math.cos(body.angle) * body.orbit;
-        const z = Math.sin(body.angle) * body.orbit;
+        const x = Math.cos(body.angle) * body.orbit * (body.xFactor != null ? body.xFactor : 1);
+        const z = Math.sin(body.angle) * body.orbit * (body.xFactor != null ? body.xFactor : 1);
 
         if (body.parent) {
           body.mesh.position.set(
             body.parent.mesh.position.x + x,
-            body.parent.mesh.position.y,
+            body.parent.mesh.position.y + (body.yFactor ? Math.sin(body.angle) * body.orbit * body.yFactor : 0),
             body.parent.mesh.position.z + z
           );
         } else {
@@ -520,74 +542,168 @@ export class SolarSystem {
       }
 
       body.mesh.rotation.y += body.spin * dt;
+      if (body.name === 'Earth' && this.earthCloudMesh) this.earthCloudMesh.rotation.y += body.spin * 1.18 * dt;
     });
 
     this.sunLight.position.copy(this.sun.position);
     if (this.asteroidBelt && this.asteroidData) { const m = new THREE.Matrix4(); this.asteroidData.forEach((a,i) => { a.angle += 0.18 * Math.pow(29.6 / a.r, 1.5) * dt; m.makeRotationY(a.spin * dt); m.setPosition(a.r * Math.cos(a.angle), a.y, a.r * Math.sin(a.angle)); m.scale(new THREE.Vector3(a.scale, a.scale, a.scale)); this.asteroidBelt.setMatrixAt(i,m); }); this.asteroidBelt.instanceMatrix.needsUpdate = true; }
-    if (this.halley) { const h=this.halley; h.theta += 0.08*Math.pow(38/(14.34/(1+.789*Math.cos(h.theta))),1.25)*dt; const r=14.34/(1+.789*Math.cos(h.theta)); h.group.position.set(r*Math.cos(h.theta),r*Math.sin(h.theta)*Math.sin(Math.PI/12),r*Math.sin(h.theta)*Math.cos(Math.PI/12)); const len=THREE.MathUtils.clamp(16*(8/r),2,15); const dir=h.group.position.clone().normalize(); h.tail.scale.set(len,0.6+len*0.06,1); h.crossTail.scale.copy(h.tail.scale); h.tail.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0),dir); h.crossTail.quaternion.copy(h.tail.quaternion); h.tail.material.opacity=THREE.MathUtils.clamp(.12+(.85-.12)*(8/r),.12,.85); }
+    if (this.halley) { const h=this.halley; h.theta += 0.08*Math.pow(38/(14.34/(1+.789*Math.cos(h.theta))),1.25)*dt; const r=14.34/(1+.789*Math.cos(h.theta)); const pos=new THREE.Vector3(r*Math.cos(h.theta),r*Math.sin(h.theta)*Math.sin(Math.PI/12),r*Math.sin(h.theta)*Math.cos(Math.PI/12)); h.group.position.copy(pos); const len=THREE.MathUtils.clamp(16*(8/r),2,15); const dir=pos.clone().normalize(); const dr=(r*r*.789*Math.sin(h.theta))/14.34; const v=new THREE.Vector3(dr*Math.cos(h.theta)-r*Math.sin(h.theta),dr*Math.sin(h.theta)*Math.sin(Math.PI/12)+r*Math.cos(h.theta)*Math.sin(Math.PI/12),dr*Math.sin(h.theta)*Math.cos(Math.PI/12)+r*Math.cos(h.theta)*Math.cos(Math.PI/12)); const tangent=v.clone().sub(dir.clone().multiplyScalar(v.dot(dir))); const tangentLength=tangent.length(); h.tail.scale.set(len,0.6+len*0.06,1); h.crossTail.scale.copy(h.tail.scale); h.tail.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0),dir); const localY=new THREE.Vector3(0,1,0).applyQuaternion(h.tail.quaternion); if (tangentLength > 1e-8) { tangent.multiplyScalar(1/tangentLength); h.tailRoll=Math.atan2(localY.clone().cross(tangent).dot(dir),localY.dot(tangent)); } h.tail.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(dir,h.tailRoll)); h.crossTail.quaternion.copy(h.tail.quaternion).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),Math.PI/2)); h.flame.scale.setScalar(THREE.MathUtils.clamp(2.4*(8/r),1,4.8)); h.tail.material.opacity=THREE.MathUtils.clamp(.12+(.85-.12)*(8/r),.12,.85); }
   }
 
   // Project each tracked mesh to screen space and park its hit button there.
+  // The joint solver may detach the moon button on degenerate frames. Re-attach
+  // must be idempotent and run from every resume path (render loop, resume(),
+  // visibilitychange) — a rAF halt while detached must not leave it stranded.
+  _ensureMoonAttached(entry) {
+    if (entry && entry.mesh === this.moon && !entry.el.isConnected && !entry.__unsolvable) {
+      (this.canvas.parentElement || document.body).appendChild(entry.el);
+    }
+  }
+
   _syncHitButtons() {
     if (this.disposed || !this.canvas || !this.hitButtons.length) {
       return;
     }
 
     const rect = this.canvas.getBoundingClientRect();
-    const projected = new THREE.Vector3();
     const entries = this.hitButtons.map((entry) => {
       const world = entry.mesh.getWorldPosition(this._hitWorldScratch).clone();
       const ndc = world.clone().project(this.camera);
-      return { entry, world, ndc };
-    });
-    const earthRow = entries.find((item) => item.entry.mesh === this.earth);
-    const moonRow = entries.find((item) => item.entry.mesh === this.moon);
-    const earth = earthRow && earthRow.entry;
-    const moon = moonRow && moonRow.entry;
-    let separation = null;
-    if (earth && moon) {
-      const er = earthRow.ndc;
-      const mr = moonRow.ndc;
-      separation = {
-        dx: (er.x - mr.x) * rect.width * 0.5,
-        dy: -(er.y - mr.y) * rect.height * 0.5,
-        distance: Math.hypot((er.x - mr.x) * rect.width * 0.5, (er.y - mr.y) * rect.height * 0.5),
+      return {
+        entry,
+        world,
+        ndc,
+        x: (ndc.x * 0.5 + 0.5) * rect.width,
+        y: (-ndc.y * 0.5 + 0.5) * rect.height,
+        offsetX: 0,
+        offsetY: 0,
       };
-    }
+    });
+
+    // Clamp base projection points into the canvas so buttons stay clickable;
+    // separation offsets then operate on already-valid bases.
+    const half0 = 12;
+    entries.forEach((row) => {
+      row.x = Math.max(half0, Math.min(rect.width - half0, row.x));
+      row.y = Math.max(half0, Math.min(rect.height - half0, row.y));
+    });
 
     const sizes = new Map(entries.map(({ entry, world }) => {
       const scale = entry.mesh.geometry.parameters.radius || 1;
-      return [entry, Math.max(24, Math.min(120, (scale * 260) / Math.max(6, this.camera.position.distanceTo(world))))];
+      return [entry, 24];
     }));
-    const earthSize = sizes.get(earth) || 24;
-    const moonSize = sizes.get(moon) || 24;
-    // Boxes must not overlap: centres need to clear (sizeA + sizeB) / 2. Keep 10% margin.
-    const separationThreshold = (earthSize + moonSize) * 0.5 * 1.1;
-    entries.forEach(({ entry, ndc: projected }) => {
+    const priorityRows = [this.sun, this.earth, this.moon]
+      .map((mesh) => entries.find((item) => item.entry.mesh === mesh))
+      .filter(Boolean);
+    const earthSize = sizes.get(this.hitButtons.find((item) => item.mesh === this.earth)) || 24;
+    const moonSize = sizes.get(this.hitButtons.find((item) => item.mesh === this.moon)) || 24;
+    const earthMoonThreshold = Math.max((earthSize + moonSize) * 0.5 * 1.1, earthSize + moonSize * 0.5 + 2);
+
+    // Joint hit-target solver: place the Earth/Moon button offsets so that all
+    // box-center distances stay above PAIR_MIN (24px boxes + 0.6px float margin;
+    // sun pairs use SUN_PAIR_MIN = MAX_OFF + PROBE_CLEAR so an offset box can
+    // never land within PROBE_CLEAR of the sun's raw probe — no z-order appeal,
+    // PAIR_MIN alone would only guarantee a 13.1px probe margin there) while
+    // each button keeps covering its own mesh projection (|offset| <= MAX_OFF,
+    // 0.5px inside the box edge). Box-vs-probe clearance (PROBE_CLEAR 13.5 =
+    // half-box 12 + 1.5px inter-frame sampling jitter) keeps elementFromPoint
+    // at another body's probe from hitting this button.
+    const MAX_OFF = 11.5;
+    const PROBE_CLEAR = 13.5;         // half-box 12 + 1.5px sampling jitter
+    const PAIR_MIN = 24.6;            // earth/moon box-center separation
+    const SUN_PAIR_MIN = MAX_OFF + PROBE_CLEAR; // 25.0: sun-pair probe margin
+    const sunRow2 = priorityRows.find((row) => row.entry.mesh === this.sun);
+    const earthRow = priorityRows.find((row) => row.entry.mesh === this.earth);
+    const moonRow2 = priorityRows.find((row) => row.entry.mesh === this.moon);
+    // SUN_PAIR_MIN derives from the sun button never being offset (z-order
+    // stacking keeps it at offsetX/Y = 0). If a future pass offsets the sun
+    // row, recompute SUN_PAIR_MIN with the sun's offset included.
+    if (sunRow2 && earthRow && moonRow2 && sunRow2.offsetX === 0 && sunRow2.offsetY === 0) {
+      const placementValid = (eoX, eoY, moX, moY) => {
+        const eX = earthRow.x + eoX, eY = earthRow.y + eoY;
+        const mX = moonRow2.x + moX, mY = moonRow2.y + moY;
+        if (Math.hypot(eX - sunRow2.x, eY - sunRow2.y) < SUN_PAIR_MIN) return false;
+        if (Math.hypot(mX - sunRow2.x, mY - sunRow2.y) < SUN_PAIR_MIN) return false;
+        if (Math.hypot(mX - eX, mY - eY) < PAIR_MIN) return false;
+        // Each box must also stay clear of the OTHER body's raw probe point,
+        // otherwise elementFromPoint at that probe hits the wrong button.
+        if (Math.hypot(eX - moonRow2.x, eY - moonRow2.y) < PROBE_CLEAR) return false;
+        if (Math.hypot(mX - earthRow.x, mY - earthRow.y) < PROBE_CLEAR) return false;
+        return true;
+      };
+      moonRow2.entry.__unsolvable = false;
+      // Hysteresis: a still-valid placement persists unchanged (no frame-to-
+      // frame snapping); the search only runs when the placement went invalid.
+      if (!placementValid(earthRow.offsetX, earthRow.offsetY, moonRow2.offsetX, moonRow2.offsetY)) {
+        // NOTE: no backoff here — the moon's angular motion changes the probe
+        // geometry every frame, so a failed grid can succeed next frame. The
+        // first-hit early exit keeps the common-frame cost near zero; only
+        // truly unsolvable stretches pay the full ~4k-candidate sweep.
+          // Frame-invariant grid: build+sort once, cache on the instance.
+          if (!this.__placementGrid) {
+            const dirs = [];
+            for (let k = 0; k < 16; k += 1) {
+              const a = (k / 16) * Math.PI * 2;
+              dirs.push([Math.cos(a), Math.sin(a)]);
+            }
+            const radii = [0, 4, 8, MAX_OFF];
+            const grid = [];
+            for (const re of radii) {
+              for (const de of dirs) {
+                for (const rm of radii) {
+                  for (const dm of dirs) {
+                    grid.push({ eoX: de[0] * re, eoY: de[1] * re, moX: dm[0] * rm, moY: dm[1] * rm, cost: re * re + rm * rm });
+                  }
+                }
+              }
+            }
+            grid.sort((a, b) => a.cost - b.cost);
+            this.__placementGrid = grid;
+          }
+          let best = null;
+          for (const c of this.__placementGrid) {
+            if (placementValid(c.eoX, c.eoY, c.moX, c.moY)) {
+              best = c;
+              break;
+            }
+          }
+        if (best) {
+          earthRow.offsetX = best.eoX; earthRow.offsetY = best.eoY;
+          moonRow2.offsetX = best.moX; moonRow2.offsetY = best.moY;
+        } else {
+          moonRow2.entry.__unsolvable = true;
+          if (moonRow2.entry.el.isConnected) moonRow2.entry.el.remove();
+        }
+      }
+    }
+
+
+    entries.forEach(({ entry, ndc: projected, world, x, y, offsetX, offsetY }) => {
 
       const visible = projected.z < 1 && projected.x >= -1 && projected.x <= 1 && projected.y >= -1 && projected.y <= 1;
-      const left = (projected.x * 0.5 + 0.5) * rect.width;
-      const top = (-projected.y * 0.5 + 0.5) * rect.height;
 
       const size = sizes.get(entry) || 24;
-      let offsetX = 0;
-      let offsetY = 0;
-      if (separation && separation.distance < separationThreshold && (entry === earth || entry === moon)) {
-        const len = separation.distance;
-        const ux = len >= 0.5 ? separation.dx / len : 1;
-        const uy = len >= 0.5 ? separation.dy / len : 0;
-        const direction = entry === earth ? 1 : -1;
-        // Never push a button so far that its own body's projected point leaves the box.
-        const maxShift = size * 0.5 - 1;
-        const shift = Math.min((separationThreshold - separation.distance) * 0.5, maxShift);
-        offsetX = direction * ux * shift;
-        offsetY = direction * uy * shift;
-      }
-
-      entry.el.style.left = `${left + offsetX}px`;
-      entry.el.style.top = `${top + offsetY}px`;
+      entry.el.style.left = `${x + offsetX}px`;
+      entry.el.style.top = `${y + offsetY}px`;
       entry.el.style.width = `${size}px`;
       entry.el.style.height = `${size}px`;
+      // Priority stacking: the Sun (primary CTA) wins elementFromPoint when the
+      // moon's tween-time overlap is unavoidable at degenerate viewports.
+      entry.el.style.zIndex = entry.mesh === this.sun ? '30' : (entry.mesh === this.earth ? '20' : '10');
+      // Moon crossing the Sun's button during camera tween: park the moon button
+      // out of the hit-test tree for those frames so it cannot steal the Sun's
+      // center/target probes. Re-appended as soon as the overlap clears.
+      if (entry.mesh === this.moon && this.sun) {
+        const sunEntry = entries.find((item) => item.entry.mesh === this.sun);
+        if (sunEntry) {
+          const gapToSun = Math.hypot((x + offsetX) - (sunEntry.x + sunEntry.offsetX), (y + offsetY) - (sunEntry.y + sunEntry.offsetY));
+          if (gapToSun < size * 0.75) {
+            if (entry.el.isConnected) entry.el.remove();
+            return;
+          }
+        }
+      }
+      this._ensureMoonAttached(entry);
       entry.el.style.visibility = visible ? 'visible' : 'hidden';
     });
   }
@@ -624,6 +740,12 @@ export class SolarSystem {
     // endpoint: near-coincident from/to, a tween that finishes in a couple of
     // frames, and an onEarthClick that fires at an unpredictable moment.
     this.resetCamera();
+
+    // If the joint solver detached the moon button while paused (or the tab was
+    // hidden and rAF throttled), re-attach before the loop restarts — otherwise
+    // the button stays stranded and permanently unclickable.
+    const moonEntry = this.hitButtons && this.hitButtons.find((entry) => entry.mesh === this.moon);
+    this._ensureMoonAttached(moonEntry);
 
     this.running = true;
     this.clock.getDelta();
@@ -685,6 +807,9 @@ export class SolarSystem {
     this.disposed = true;
 
     window.removeEventListener('resize', this._onResize);
+    if (this._onVisibility) {
+      document.removeEventListener('visibilitychange', this._onVisibility);
+    }
 
     if (this.canvas && this._onPointerDown) {
       this.canvas.removeEventListener('pointerdown', this._onPointerDown);

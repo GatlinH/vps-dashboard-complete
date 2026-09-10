@@ -2,7 +2,7 @@ import '../globals/dashboardGlobals.js';
 // Point-budget contract: larger windows use coarser persisted buckets.
 // Supported windows: 1/4/7 days (bounded raw minute buckets) and 30/90 days
 // (served by hourly materialized telemetry rollups). Default window is 1 day.
-const DETAIL_HISTORY_BUCKETS = { 1: 5, 4: 20, 7: 60, 30: 60, 90: 180 };
+const DETAIL_HISTORY_BUCKETS = { 0: 0, 1: 5, 4: 20, 7: 60, 30: 60, 90: 180 };
 const DEFAULT_DETAIL_HISTORY_DAYS = 1;
 
 export function getDetailHistoryDays() {
@@ -11,7 +11,7 @@ export function getDetailHistoryDays() {
 }
 
 export function setDetailHistoryDays(days, refreshDetailHistoryRange) {
-  const requested = Number(days) || DEFAULT_DETAIL_HISTORY_DAYS;
+  const requested = Number(days);
   const d = Object.prototype.hasOwnProperty.call(DETAIL_HISTORY_BUCKETS, requested) ? requested : DEFAULT_DETAIL_HISTORY_DAYS;
   window.__DBG__.DETAIL_HISTORY_DAYS = d;
   try { localStorage.setItem('detailHistoryDays', String(d)); } catch (_) {}
@@ -23,7 +23,7 @@ export function setDetailHistoryDays(days, refreshDetailHistoryRange) {
 }
 
 export function getDetailHistoryBucketMinutes(days = getDetailHistoryDays()) {
-  const requested = Number(days) || DEFAULT_DETAIL_HISTORY_DAYS;
+  const requested = Number(days);
   const d = Object.prototype.hasOwnProperty.call(DETAIL_HISTORY_BUCKETS, requested) ? requested : DEFAULT_DETAIL_HISTORY_DAYS;
   return (DETAIL_HISTORY_BUCKETS[d] ?? 5);
 }
@@ -31,10 +31,10 @@ export function getDetailHistoryBucketMinutes(days = getDetailHistoryDays()) {
 // The UI never needs tens of thousands of raw rows. Keep the server response
 // within a fixed canvas-friendly budget derived from the selected resolution.
 export function getDetailHistoryPointLimit(days = getDetailHistoryDays()) {
-  const requested = Number(days) || DEFAULT_DETAIL_HISTORY_DAYS;
+  const requested = Number(days);
   const d = Object.prototype.hasOwnProperty.call(DETAIL_HISTORY_BUCKETS, requested) ? requested : DEFAULT_DETAIL_HISTORY_DAYS;
   const bucketMinutes = getDetailHistoryBucketMinutes(d);
-  return Math.max(1, Math.ceil((d * 24 * 60) / bucketMinutes));
+  return d === 0 ? 3600 : Math.max(1, Math.ceil((d * 24 * 60) / bucketMinutes));
 }
 
 export function syncDetailHistoryStateFromStorage(initialDays = DEFAULT_DETAIL_HISTORY_DAYS) {

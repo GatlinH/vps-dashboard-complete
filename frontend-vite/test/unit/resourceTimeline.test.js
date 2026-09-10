@@ -25,7 +25,7 @@ describe('resource timeline helper', () => {
   it('builds the raw one-hour request contract', () => {
     expect(resourceHistoryRequest()).toEqual({
       days: 1 / 24,
-      limit: 900,
+      limit: 3600,
       bucketMinutes: 0,
       metric: 'resource_timeline',
     });
