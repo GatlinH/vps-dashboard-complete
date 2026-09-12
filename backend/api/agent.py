@@ -510,7 +510,15 @@ def _apply_agent_inventory(server: Server, data: dict):
         local_ipv6 = network_report.get('local_ipv6')
         if isinstance(local_ipv6, list):
             network['local_ipv6'] = [str(v).strip() for v in local_ipv6 if str(v).strip()][:8]
-        network['updated_at'] = _utc_now().isoformat()
+        # updated_at records the last meaningful network change, not heartbeat.
+        previous = dict(cfg.get('network') or {})
+        previous_stable = {k: v for k, v in previous.items() if k != 'updated_at'}
+        new_stable = {k: v for k, v in network.items() if k != 'updated_at'}
+        old_timestamp = previous.get('updated_at')
+        if new_stable == previous_stable and isinstance(old_timestamp, str) and old_timestamp:
+            network['updated_at'] = old_timestamp
+        else:
+            network['updated_at'] = _utc_now().isoformat()
         cfg['network'] = network
         extra['network'] = network
 
