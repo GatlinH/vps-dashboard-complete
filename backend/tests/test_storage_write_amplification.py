@@ -83,7 +83,8 @@ def test_stable_inventory_real_sql_and_changes(app, test_server, inventory_clock
             db.session.commit()
             assert not config_updates(server_updates), server_updates
 
-        inventory_clock[0] = datetime(2026, 1, 3, tzinfo=timezone.utc)
+        t2 = datetime(2026, 1, 3, tzinfo=timezone.utc)
+        inventory_clock[0] = t2
         server_updates.clear()
         current_network = dict(server.agent_config["network"])
         _apply_agent_inventory(server, {"network": current_network, "hardware": {"cpu_model": "new CPU"}})
@@ -166,11 +167,15 @@ def test_repeated_entries_preserve_raw_probe_samples(
         extensions_fake = extensions.redis_client
         monkeypatch.setattr(extensions, "redis_client", SyncRedis())
 
+    wall_before = []
+    wall_after = []
+    network_timestamps = []
     with app.app_context():
         for index, sample in enumerate(samples):
             inventory_clock[0] = datetime.now(timezone.utc) if entry == "push" else [T0, T1][index]
             if index:
                 server_updates.clear()
+            wall_before.append(datetime.now(timezone.utc))
             if entry == "consumer":
                 _handle_message(json.dumps({"server_id": test_server, "metrics": sample}))
             else:
@@ -183,26 +188,27 @@ def test_repeated_entries_preserve_raw_probe_samples(
                     "Content-Type": "application/json",
                 })
                 assert response.status_code == 202, response.get_json()
+            wall_after.append(datetime.now(timezone.utc))
+            server = db.session.get(Server, test_server)
+            network_timestamps.append(server.agent_config["network"]["updated_at"])
             if index:
                 assert not config_updates(server_updates), server_updates
         rows = ProbeResult.query.filter_by(server_id=test_server).order_by(ProbeResult.id).all()
         assert len(rows) == 2
-        wall_before = datetime.now(timezone.utc) - timedelta(seconds=5)
-        wall_after = datetime.now(timezone.utc) + timedelta(seconds=5)
         for row, sample in zip(rows, samples):
             for field in ("cpu_use", "ram_use", "disk_use", "process_count", "net_up", "net_down", "latency_ms"):
                 assert getattr(row, field) == sample[field]
             assert row.created_at is not None
-            created = row.created_at.replace(tzinfo=timezone.utc)
-            assert wall_before <= created <= wall_after
+            created = row.created_at.replace(tzinfo=timezone.utc) if row.created_at.tzinfo is None else row.created_at
+            assert wall_before[rows.index(row)] <= created <= wall_after[rows.index(row)]
         assert rows[0].created_at <= rows[1].created_at
         server = db.session.get(Server, test_server)
-        first_timestamp = server.agent_config["network"]["updated_at"]
         if entry == "consumer":
-            assert first_timestamp == T0.isoformat()
+            assert network_timestamps == [T0.isoformat(), T0.isoformat()]
         else:
-            assert first_timestamp
-            assert first_timestamp == server.agent_config["inventory_meta"]["network"]["updated_at"]
+            assert network_timestamps[0]
+            assert network_timestamps[0] == network_timestamps[1]
+            assert network_timestamps[0] == server.agent_config["inventory_meta"]["network"]["updated_at"]
 
 
 def test_push_inventory_failure_rolls_back_real_writes_then_retries(
@@ -228,15 +234,28 @@ def test_push_inventory_failure_rolls_back_real_writes_then_retries(
     original_commit = db.session.commit
     original_rollback = db.session.rollback
     failed = [False]
+    sql_observations = []
+
+    def observe_sql(_conn, _cursor, statement, _params, _context, _many):
+        upper = statement.lstrip().upper()
+        if upper.startswith("INSERT INTO PROBE_RESULTS") or (upper.startswith("UPDATE SERVERS") and "AGENT_CONFIG" in upper):
+            sql_observations.append(statement)
+
+    event.listen(db.engine, "before_cursor_execute", observe_sql)
+
     def fail_once_commit():
         if not failed[0]:
             failed[0] = True
+            db.session.flush()
             raise RuntimeError("injected post-flush commit failure")
         return original_commit()
+
     rollbacks = []
+
     def observed_rollback():
         rollbacks.append(True)
         return original_rollback()
+
     monkeypatch.setattr(db.session, "commit", fail_once_commit)
     monkeypatch.setattr(db.session, "rollback", observed_rollback)
     sample = {"cpu_use": 11, "ram_use": 22, "disk_use": 33, "process_count": 7, "network": NETWORK}
@@ -247,6 +266,10 @@ def test_push_inventory_failure_rolls_back_real_writes_then_retries(
     response = client.post("/api/v1/agent/push", data=raw, headers={"X-Agent-UUID": agent_uuid, "X-Agent-Key": key, "X-Agent-Timestamp": ts, "X-Agent-Nonce": nonce, "X-Agent-Signature": signature, "Content-Type": "application/json"})
     assert response.status_code >= 500
     assert rollbacks
+    assert failed[0]
+    assert any("INSERT INTO PROBE_RESULTS" in sql.upper() for sql in sql_observations)
+    assert any("UPDATE SERVERS" in sql.upper() and "AGENT_CONFIG" in sql.upper() for sql in sql_observations)
+    event.remove(db.engine, "before_cursor_execute", observe_sql)
     with app.app_context():
         db.session.expire_all()
         server = db.session.get(Server, test_server)
@@ -262,3 +285,20 @@ def test_push_inventory_failure_rolls_back_real_writes_then_retries(
         server = db.session.get(Server, test_server)
         assert server.agent_config["network"]["updated_at"] == server.agent_config["inventory_meta"]["network"]["updated_at"]
         assert ProbeResult.query.filter_by(server_id=test_server).count() == old_count + 1
+        retry_timestamp = server.agent_config["network"]["updated_at"]
+        server_updates = []
+        def observe(_conn, _cursor, statement, _params, _context, _many):
+            if statement.lstrip().upper().startswith("UPDATE SERVERS "):
+                server_updates.append(statement)
+        event.listen(db.engine, "before_cursor_execute", observe)
+        try:
+            inventory_clock[0] = inventory_clock[0] + timedelta(seconds=1)
+            ts3, nonce3 = str(int(time.time())), uuid.uuid4().hex
+            signature3 = hmac.new(key.encode(), f"{ts3}.{nonce3}.".encode() + raw, hashlib.sha256).hexdigest()
+            response = client.post("/api/v1/agent/push", data=raw, headers={"X-Agent-UUID": agent_uuid, "X-Agent-Key": key, "X-Agent-Timestamp": ts3, "X-Agent-Nonce": nonce3, "X-Agent-Signature": signature3, "Content-Type": "application/json"})
+            assert response.status_code == 202
+        finally:
+            event.remove(db.engine, "before_cursor_execute", observe)
+        assert not config_updates(server_updates)
+        assert server.agent_config["network"]["updated_at"] == retry_timestamp
+        assert ProbeResult.query.filter_by(server_id=test_server).count() == old_count + 2
