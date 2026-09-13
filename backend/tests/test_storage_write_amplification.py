@@ -278,6 +278,7 @@ def test_push_inventory_failure_rolls_back_real_writes_then_retries(
         assert ProbeResult.query.filter_by(server_id=test_server).count() == old_count
     monkeypatch.setattr(db.session, "commit", original_commit)
     monkeypatch.setattr(db.session, "rollback", original_rollback)
+    expected_retry_timestamp = inventory_clock[0].isoformat()
     ts2, nonce2 = str(int(time.time())), uuid.uuid4().hex
     signature2 = hmac.new(key.encode(), f"{ts2}.{nonce2}.".encode() + raw, hashlib.sha256).hexdigest()
     response = client.post("/api/v1/agent/push", data=raw, headers={"X-Agent-UUID": agent_uuid, "X-Agent-Key": key, "X-Agent-Timestamp": ts2, "X-Agent-Nonce": nonce2, "X-Agent-Signature": signature2, "Content-Type": "application/json"})
@@ -286,8 +287,23 @@ def test_push_inventory_failure_rolls_back_real_writes_then_retries(
         server = db.session.get(Server, test_server)
         assert server.agent_config["network"]["updated_at"] == server.agent_config["inventory_meta"]["network"]["updated_at"]
         assert ProbeResult.query.filter_by(server_id=test_server).count() == old_count + 1
-        retry_timestamp = server.agent_config["network"]["updated_at"]
-        expected_retry_network = {**NETWORK, "local_ipv6": ["2001:db8::1", "2001:db8::2"], "updated_at": retry_timestamp}
+        expected_retry_network = {**NETWORK, "local_ipv6": ["2001:db8::1", "2001:db8::2"], "updated_at": expected_retry_timestamp}
+
+        def assert_retry_mirrors(config, expected):
+            assert config["network"] == expected
+            assert config["inventory_meta"]["network"] == expected
+
+        assert_retry_mirrors(server.agent_config, expected_retry_network)
+        wrong_timestamp = json.loads(json.dumps(server.agent_config))
+        wrong_timestamp["network"]["updated_at"] = "2099-01-01T00:00:00+00:00"
+        wrong_timestamp["inventory_meta"]["network"]["updated_at"] = "2099-01-01T00:00:00+00:00"
+        with pytest.raises(AssertionError):
+            assert_retry_mirrors(wrong_timestamp, expected_retry_network)
+        wrong_content = json.loads(json.dumps(server.agent_config))
+        wrong_content["network"]["local_ipv6"] = ["2001:db8::99"]
+        wrong_content["inventory_meta"]["network"]["local_ipv6"] = ["2001:db8::99"]
+        with pytest.raises(AssertionError):
+            assert_retry_mirrors(wrong_content, expected_retry_network)
         server_updates = []
         def observe(_conn, _cursor, statement, _params, _context, _many):
             if statement.lstrip().upper().startswith("UPDATE SERVERS "):
@@ -302,7 +318,5 @@ def test_push_inventory_failure_rolls_back_real_writes_then_retries(
         finally:
             event.remove(db.engine, "before_cursor_execute", observe)
         assert not config_updates(server_updates)
-        assert server.agent_config["network"] == expected_retry_network
-        assert server.agent_config["network"]["updated_at"] == retry_timestamp
-        assert server.agent_config["inventory_meta"]["network"] == expected_retry_network
+        assert_retry_mirrors(server.agent_config, expected_retry_network)
         assert ProbeResult.query.filter_by(server_id=test_server).count() == old_count + 2
