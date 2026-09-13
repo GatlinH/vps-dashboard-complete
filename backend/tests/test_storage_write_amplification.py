@@ -4,7 +4,7 @@ import hmac
 import json
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import pytest
 from sqlalchemy import event
@@ -71,17 +71,27 @@ def test_stable_inventory_real_sql_and_changes(app, test_server, inventory_clock
         assert server.agent_config["network"]["updated_at"] == T0.isoformat()
 
         for change in ({"network": {**NETWORK, "public_ipv4": "198.51.100.9"}},
-                       {"network": {**NETWORK, "public_ipv6": "2001:db8::9"}},
-                       {"network": NETWORK, "hardware": {"cpu_model": "new CPU"}}):
+                       {"network": {**NETWORK, "public_ipv6": "2001:db8::9"}}):
             server_updates.clear()
             _apply_agent_inventory(server, change)
             db.session.commit()
             assert config_updates(server_updates), change
+            assert server.agent_config["network"]["updated_at"] == T1.isoformat()
             assert server.agent_config["network"] == server.agent_config["inventory_meta"]["network"]
             server_updates.clear()
             _apply_agent_inventory(server, change)
             db.session.commit()
             assert not config_updates(server_updates), server_updates
+
+        inventory_clock[0] = datetime(2026, 1, 3, tzinfo=timezone.utc)
+        server_updates.clear()
+        current_network = dict(server.agent_config["network"])
+        _apply_agent_inventory(server, {"network": current_network, "hardware": {"cpu_model": "new CPU"}})
+        db.session.commit()
+        assert config_updates(server_updates)
+        assert server.agent_config["inventory_meta"]["cpu_model"] == "new CPU"
+        assert server.agent_config["network"]["updated_at"] == T1.isoformat()
+        assert server.agent_config["network"] == server.agent_config["inventory_meta"]["network"]
 
 
 @pytest.mark.parametrize("old,expected", [
@@ -133,16 +143,15 @@ def test_absent_network_keeps_both_existing_shapes(app, test_server, inventory_c
 def test_repeated_entries_preserve_raw_probe_samples(
     app, client, auth_headers, test_server, monkeypatch, inventory_clock, server_updates, entry
 ):
-    import api.agent as agent
     import extensions
     from extensions import db
     from models.models import ProbeResult, Server
     from workers.agent_consumer import _handle_message
 
-    samples = [{"cpu_use": 21.5, "ram_use": 31.5, "disk_use": 41.5,
+    samples = [{"cpu_use": 21.5, "ram_use": 31.5, "disk_use": 41.5, "process_count": 3,
                 "net_up": 51.5, "net_down": 61.5, "latency_ms": 7.5,
                 "network": NETWORK},
-               {"cpu_use": 22.5, "ram_use": 32.5, "disk_use": 42.5,
+               {"cpu_use": 22.5, "ram_use": 32.5, "disk_use": 42.5, "process_count": 5,
                 "net_up": 52.5, "net_down": 62.5, "latency_ms": 8.5,
                 "network": NETWORK}]
     if entry == "push":
@@ -178,10 +187,78 @@ def test_repeated_entries_preserve_raw_probe_samples(
                 assert not config_updates(server_updates), server_updates
         rows = ProbeResult.query.filter_by(server_id=test_server).order_by(ProbeResult.id).all()
         assert len(rows) == 2
+        wall_before = datetime.now(timezone.utc) - timedelta(seconds=5)
+        wall_after = datetime.now(timezone.utc) + timedelta(seconds=5)
         for row, sample in zip(rows, samples):
-            for field in ("cpu_use", "ram_use", "disk_use", "net_up", "net_down", "latency_ms"):
+            for field in ("cpu_use", "ram_use", "disk_use", "process_count", "net_up", "net_down", "latency_ms"):
                 assert getattr(row, field) == sample[field]
             assert row.created_at is not None
+            created = row.created_at.replace(tzinfo=timezone.utc)
+            assert wall_before <= created <= wall_after
         assert rows[0].created_at <= rows[1].created_at
+        server = db.session.get(Server, test_server)
+        first_timestamp = server.agent_config["network"]["updated_at"]
         if entry == "consumer":
-            assert db.session.get(Server, test_server).agent_config["network"]["updated_at"] == T0.isoformat()
+            assert first_timestamp == T0.isoformat()
+        else:
+            assert first_timestamp
+            assert first_timestamp == server.agent_config["inventory_meta"]["network"]["updated_at"]
+
+
+def test_push_inventory_failure_rolls_back_real_writes_then_retries(
+    app, client, auth_headers, test_server, monkeypatch, inventory_clock
+):
+    import api.agent as agent
+    import extensions
+    from extensions import db
+    from models.models import ProbeResult, Server
+
+    key = client.post(f"/api/v1/servers/{test_server}/agent-key/generate", headers=auth_headers).get_json()["agent_key"]
+    agent_uuid = str(uuid.uuid4())
+    assert client.post("/api/v1/agent/claim", json={"server_id": test_server, "uuid": agent_uuid}, headers=auth_headers).status_code == 200
+    extensions_fake = extensions.redis_client
+    class SyncRedis:
+        def set(self, *args, **kwargs):
+            return extensions_fake.set(*args, **kwargs)
+    monkeypatch.setattr(extensions, "redis_client", SyncRedis())
+    with app.app_context():
+        server = db.session.get(Server, test_server)
+        old_config = json.loads(json.dumps(server.agent_config))
+        old_count = ProbeResult.query.filter_by(server_id=test_server).count()
+    original_commit = db.session.commit
+    original_rollback = db.session.rollback
+    failed = [False]
+    def fail_once_commit():
+        if not failed[0]:
+            failed[0] = True
+            raise RuntimeError("injected post-flush commit failure")
+        return original_commit()
+    rollbacks = []
+    def observed_rollback():
+        rollbacks.append(True)
+        return original_rollback()
+    monkeypatch.setattr(db.session, "commit", fail_once_commit)
+    monkeypatch.setattr(db.session, "rollback", observed_rollback)
+    sample = {"cpu_use": 11, "ram_use": 22, "disk_use": 33, "process_count": 7, "network": NETWORK}
+    inventory_clock[0] = datetime.now(timezone.utc)
+    raw = json.dumps({"uuid": agent_uuid, **sample}).encode()
+    ts, nonce = str(int(time.time())), uuid.uuid4().hex
+    signature = hmac.new(key.encode(), f"{ts}.{nonce}.".encode() + raw, hashlib.sha256).hexdigest()
+    response = client.post("/api/v1/agent/push", data=raw, headers={"X-Agent-UUID": agent_uuid, "X-Agent-Key": key, "X-Agent-Timestamp": ts, "X-Agent-Nonce": nonce, "X-Agent-Signature": signature, "Content-Type": "application/json"})
+    assert response.status_code >= 500
+    assert rollbacks
+    with app.app_context():
+        db.session.expire_all()
+        server = db.session.get(Server, test_server)
+        assert server.agent_config == old_config
+        assert ProbeResult.query.filter_by(server_id=test_server).count() == old_count
+    monkeypatch.setattr(db.session, "commit", original_commit)
+    monkeypatch.setattr(db.session, "rollback", original_rollback)
+    ts2, nonce2 = str(int(time.time())), uuid.uuid4().hex
+    signature2 = hmac.new(key.encode(), f"{ts2}.{nonce2}.".encode() + raw, hashlib.sha256).hexdigest()
+    response = client.post("/api/v1/agent/push", data=raw, headers={"X-Agent-UUID": agent_uuid, "X-Agent-Key": key, "X-Agent-Timestamp": ts2, "X-Agent-Nonce": nonce2, "X-Agent-Signature": signature2, "Content-Type": "application/json"})
+    assert response.status_code == 202
+    with app.app_context():
+        server = db.session.get(Server, test_server)
+        assert server.agent_config["network"]["updated_at"] == server.agent_config["inventory_meta"]["network"]["updated_at"]
+        assert ProbeResult.query.filter_by(server_id=test_server).count() == old_count + 1
