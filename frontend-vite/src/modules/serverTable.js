@@ -1365,7 +1365,7 @@ function detailHealthStatus(server, probeRows = [], pingTargetsData = null) {
       freshClass: snapshotHealth.state,
     };
     const loss = snapshotHealth.metrics.lossPct ?? 0;
-    return { state: snapshotHealth.state, online: snapshotHealth.online === true, warnCount: snapshotHealth.state === 'warn' ? 1 : 0, dangerCount: snapshotHealth.state === 'danger' ? 1 : 0, latest, loss };
+    return { state: snapshotHealth.state, online: snapshotHealth.online, warnCount: snapshotHealth.state === 'warn' ? 1 : 0, dangerCount: snapshotHealth.state === 'danger' ? 1 : 0, latest, loss };
   }
   const cpu = Number(server?.cpu_use || 0);
   const ram = Number(server?.ram_use || 0);
@@ -1380,6 +1380,38 @@ function detailHealthStatus(server, probeRows = [], pingTargetsData = null) {
   const dangerCount = [online === false, cpu >= 95, ram >= 95, disk >= 95, loss != null && loss >= 20, latest.freshClass === 'danger'].filter(Boolean).length;
   const state = latest.freshClass === 'unknown' && online == null && !dangerCount ? 'unknown' : (dangerCount ? 'danger' : (warnCount ? 'warn' : 'ok'));
   return { state, online, warnCount, dangerCount, latest, loss };
+}
+
+function updateDetailHealthDom(serverId, live = null) {
+  const summary = document.querySelector('.detail-health-summary');
+  if (!summary) return;
+  const baseServer = state.servers.find((item) => Number(item.id) === Number(serverId)) || {};
+  const liveServer = live ? { ...baseServer, ...live } : baseServer;
+  const liveHealth = detailHealthStatus(liveServer, detailCache.resourceRows, detailCache.pingTargets);
+  summary.className = `detail-health-summary is-${liveHealth.state}`;
+  const healthStrong = summary.querySelector('.health-main strong');
+  const healthEm = summary.querySelector('.health-main em');
+  const freshnessStrong = summary.children?.[1]?.querySelector('strong');
+  const freshnessEm = summary.children?.[1]?.querySelector('em');
+  if (healthStrong) healthStrong.textContent = liveHealth.state === 'danger' ? t('abnormal') : (liveHealth.state === 'warn' ? t('attention') : (liveHealth.state === 'unknown' ? t('noSample') : t('healthy')));
+  if (healthEm) {
+    const presence = liveHealth.online === true ? t('agentOnline') : (liveHealth.online === false ? t('agentOffline') : t('noSample'));
+    healthEm.textContent = `${presence} · ${liveHealth.dangerCount ? `${liveHealth.dangerCount} ${t('critical')}` : (liveHealth.warnCount ? `${liveHealth.warnCount} ${t('reminder')}` : `0 ${t('alerts')}`)}`;
+  }
+  if (freshnessStrong) freshnessStrong.textContent = liveHealth.latest.ageText;
+  if (freshnessEm) freshnessEm.textContent = `${t('backendSampleInterval')} ${liveHealth.latest.sampleSec ? `${liveHealth.latest.sampleSec}s` : '—'}`;
+  const liveCpu = detailLatestSample(live ? [Number(live.cpu_use)] : [], liveServer.cpu_use);
+  const liveRam = detailLatestSample(live ? [Number(live.ram_use)] : [], liveServer.ram_use);
+  const liveDisk = Number(liveServer.disk_use || 0);
+  const resourceStrong = summary.children?.[2]?.querySelector('strong');
+  const resourceEm = summary.children?.[2]?.querySelector('em');
+  if (resourceStrong) resourceStrong.textContent = `CPU ${liveCpu.toFixed(1)}%`;
+  if (resourceEm) resourceEm.textContent = `${t('memory')} ${liveRam.toFixed(1)}% · ${t('disk')} ${(Number.isFinite(liveDisk) ? liveDisk : 0).toFixed(1)}%`;
+  if (live) {
+    detailCache.liveSample = { cpuPct: liveCpu, ramPct: liveRam, diskPct: liveDisk, server: liveServer };
+    detailCache.liveHealth = liveHealth;
+    syncRealtimeResourceCard({ cpuPct: liveCpu, ramPct: liveRam, server: liveServer });
+  }
 }
 
 function renderHealthSummary(server, probeRows = [], pingTargetsData = null, cpuSeries = [], ramSeries = []) {
@@ -2430,17 +2462,23 @@ async function refreshDetailHistoryRange(serverId) {
 }
 
 async function refreshDetailLivePoint(serverId) {
+  let live = null;
   try {
     const payload = await fetchJson(`${API_ROOT}/api/v1/servers/public/${serverId}/live`, { timeoutMs: 1200 });
-    const live = payload?.live;
+    live = payload?.live;
     const timeMs = rowTimeMs({ created_at: live?.updated_at }, NaN);
-    if (!live || !Number.isFinite(timeMs) || timeMs <= Number(detailCache.liveUpdatedAt || 0)) return false;
-    detailCache.healthReceiveSeq += 1;
-    detailCache.healthSnapshot = acceptHealthSnapshot(detailCache.healthSnapshot, buildAggregateHealthSnapshot({
-      serverId, generation: detailPageGeneration, receiveSeq: detailCache.healthReceiveSeq, source: 'live',
-      payload: { live, resource_timeline: [] },
-    }));
-    window.__DBG__.DETAIL_HEALTH_SNAPSHOT = evaluateHealthSnapshot(detailCache.healthSnapshot, Date.now());
+    if (live) {
+      detailCache.healthReceiveSeq += 1;
+      detailCache.healthSnapshot = acceptHealthSnapshot(detailCache.healthSnapshot, buildAggregateHealthSnapshot({
+        serverId, generation: detailPageGeneration, receiveSeq: detailCache.healthReceiveSeq, source: 'live',
+        payload: { live, resource_timeline: [] },
+      }));
+      window.__DBG__.DETAIL_HEALTH_SNAPSHOT = evaluateHealthSnapshot(detailCache.healthSnapshot, Date.now());
+    }
+    if (!live || !Number.isFinite(timeMs) || timeMs <= Number(detailCache.liveUpdatedAt || 0)) {
+      updateDetailHealthDom(serverId, live || null);
+      return false;
+    }
     const runtime = await getDetailChartRuntime();
     const appended = runtime.appendDetailLiveMetrics(live, { detailCharts: runtime.detailCharts, mode: detailLivePollMode });
     detailCache.liveUpdatedAt = timeMs;
@@ -2460,15 +2498,8 @@ async function refreshDetailLivePoint(serverId) {
       if (cpu && Number.isFinite(Number(live.cpu_use))) cpu.textContent = `${Number(live.cpu_use).toFixed(1)}%`;
       if (ram && Number.isFinite(Number(live.ram_use))) ram.textContent = `${Number(live.ram_use).toFixed(1)}%`;
       if (process && Number.isFinite(Number(live.process_count))) process.textContent = `${Math.round(Number(live.process_count))} ${t('processUnit')}`.trim();
-      const summary = document.querySelector('.detail-health-summary');
-      if (summary) {
-        const liveServer = { ...state.servers.find((item) => Number(item.id) === Number(serverId)), ...live };
-        const liveHealth = detailHealthStatus(liveServer, detailCache.resourceRows, detailCache.pingTargets);
-        summary.className = `detail-health-summary is-${liveHealth.state}`;
-        const healthStrong = summary.querySelector('.health-main strong');
-        const healthEm = summary.querySelector('.health-main em');
-        const freshnessStrong = summary.children?.[1]?.querySelector('strong');
-        const freshnessEm = summary.children?.[1]?.querySelector('em');
+      updateDetailHealthDom(serverId, live);
+      /*
         // This poll runs every 5s, long after applyLanguage() localized the row.
         // Every string written here must come from the language pack, otherwise the
         // UI silently snaps back to Chinese one tick after the user switches language.
@@ -2496,11 +2527,13 @@ async function refreshDetailLivePoint(serverId) {
         // instead of translating already-rendered text.
         detailCache.liveHealth = liveHealth;
         syncRealtimeResourceCard({ cpuPct: liveCpu, ramPct: liveRam, server: liveServer });
-      }
+      */
     }
+    updateDetailHealthDom(serverId, live);
     return appended;
   } catch (error) {
     window.__DBG__.DETAIL_LIVE_APPEND_ERROR = String(error?.message || error);
+    updateDetailHealthDom(serverId, null);
     return false;
   }
 }
