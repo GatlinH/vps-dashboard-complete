@@ -19,6 +19,7 @@ import { detailCache } from '../detail/detailCache.js';
 import { createDetailPingSampleCache } from '../detail/sampleCache.js';
 import { mergeResourceTimelineHistory, resourceHistoryRequest, resourceTimelineRows, shouldReplaceResourceTimeline } from '../detail/resourceTimeline.js';
 import { consumeAggregateWithinBudget, normalizeDetailAggregate } from '../detail/aggregatePayload.js';
+import { acceptHealthSnapshot, buildAggregateHealthSnapshot, evaluateHealthSnapshot } from '../detail/healthSnapshot.js';
 import { getGlobeRuntimeDebug } from '../utils/debugState.js';
 import { buildClusterScreenFanout, resolveClusterSelection } from '../components/globe/vpsClusterInteraction.js';
 import { groupClusterMembers } from '../services/serverGroups.js';
@@ -1354,6 +1355,17 @@ function detailProcessMeta(rows = [], server = null) {
 }
 
 function detailHealthStatus(server, probeRows = [], pingTargetsData = null) {
+  const snapshotHealth = detailCache.healthSnapshot ? evaluateHealthSnapshot(detailCache.healthSnapshot) : null;
+  if (snapshotHealth) {
+    const latest = {
+      ageSec: snapshotHealth.rawAgeMs == null ? null : Math.floor(snapshotHealth.rawAgeMs / 1000),
+      ageText: snapshotHealth.rawAgeMs == null ? t('noSample') : (snapshotHealth.rawAgeMs < 60000 ? `${Math.floor(snapshotHealth.rawAgeMs / 1000)} ${t('secondsAgo')}` : `${Math.floor(snapshotHealth.rawAgeMs / 60000)} ${t('minutesAgo')} ${Math.floor(snapshotHealth.rawAgeMs / 1000) % 60} ${t('secondsAgo')}`),
+      sampleSec: snapshotHealth.raw?.sampleSec,
+      freshClass: snapshotHealth.state,
+    };
+    const loss = snapshotHealth.metrics.lossPct ?? 0;
+    return { state: snapshotHealth.state, online: snapshotHealth.online === true, warnCount: snapshotHealth.state === 'warn' ? 1 : 0, dangerCount: snapshotHealth.state === 'danger' ? 1 : 0, latest, loss };
+  }
   const cpu = Number(server?.cpu_use || 0);
   const ram = Number(server?.ram_use || 0);
   const disk = Number(server?.disk_use || 0);
@@ -2068,6 +2080,14 @@ async function renderDetailPage(serverId, hydratedPayload = null, generation = +
     detailPayload,
     (rows) => normalizePersistedRows(rows, historyDays * 24),
   );
+  const aggregateHealthSnapshot = buildAggregateHealthSnapshot({
+    serverId: resolvedServer.id,
+    generation,
+    receiveSeq: ++detailCache.healthReceiveSeq,
+    payload: detailPayload,
+  });
+  detailCache.healthSnapshot = acceptHealthSnapshot(detailCache.healthSnapshot, aggregateHealthSnapshot);
+  window.__DBG__.DETAIL_HEALTH_SNAPSHOT = evaluateHealthSnapshot(detailCache.healthSnapshot);
   const trafficData = aggregate.traffic;
   const pingData = null;
   const probeHistoryData = aggregate.history;
@@ -2412,6 +2432,12 @@ async function refreshDetailLivePoint(serverId) {
     const live = payload?.live;
     const timeMs = rowTimeMs({ created_at: live?.updated_at }, NaN);
     if (!live || !Number.isFinite(timeMs) || timeMs <= Number(detailCache.liveUpdatedAt || 0)) return false;
+    detailCache.healthReceiveSeq += 1;
+    detailCache.healthSnapshot = acceptHealthSnapshot(detailCache.healthSnapshot, buildAggregateHealthSnapshot({
+      serverId, generation: detailPageGeneration, receiveSeq: detailCache.healthReceiveSeq, source: 'live',
+      payload: { live, resource_timeline: [] },
+    }));
+    window.__DBG__.DETAIL_HEALTH_SNAPSHOT = evaluateHealthSnapshot(detailCache.healthSnapshot, Date.now());
     const runtime = await getDetailChartRuntime();
     const appended = runtime.appendDetailLiveMetrics(live, { detailCharts: runtime.detailCharts, mode: detailLivePollMode });
     detailCache.liveUpdatedAt = timeMs;
@@ -2434,7 +2460,7 @@ async function refreshDetailLivePoint(serverId) {
       const summary = document.querySelector('.detail-health-summary');
       if (summary) {
         const liveServer = { ...state.servers.find((item) => Number(item.id) === Number(serverId)), ...live };
-        const liveHealth = detailHealthStatus(liveServer, [{ created_at: live.updated_at }], detailCache.pingTargets);
+        const liveHealth = detailHealthStatus(liveServer, detailCache.resourceRows, detailCache.pingTargets);
         summary.className = `detail-health-summary is-${liveHealth.state}`;
         const healthStrong = summary.querySelector('.health-main strong');
         const healthEm = summary.querySelector('.health-main em');

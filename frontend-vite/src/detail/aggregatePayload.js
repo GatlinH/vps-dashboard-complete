@@ -9,6 +9,7 @@ export function normalizeDetailAggregate(payload = {}, normalizeRows = (rows) =>
   const pingHistory = payload.ping_history && typeof payload.ping_history === 'object' ? payload.ping_history : null;
 
   return {
+    live: payload.live && typeof payload.live === 'object' ? payload.live : null,
     traffic: payload.traffic || null,
     history,
     historyRows,
