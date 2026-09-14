@@ -62,6 +62,12 @@ function liveData(payload, serverId) {
   };
 }
 
+function pingLoss(payload) {
+  const targets = Array.isArray(payload?.ping_targets?.targets) ? payload.ping_targets.targets : [];
+  const values = targets.map((target) => nullableNumber(target?.stats?.loss_pct)).filter((value) => value != null);
+  return values.length ? Math.max(0, ...values) : null;
+}
+
 export function buildAggregateHealthSnapshot({ serverId, generation = 0, receiveSeq = 0, source = 'aggregate', payload = {} }) {
   const rows = rawRows(payload, serverId);
   return {
@@ -69,7 +75,11 @@ export function buildAggregateHealthSnapshot({ serverId, generation = 0, receive
     generation,
     receiveSeq,
     source,
-    live: liveData(payload, serverId),
+    live: (() => {
+      const live = liveData(payload, serverId);
+      if (!live) return null;
+      return { ...live, lossPct: live.lossPct ?? pingLoss(payload) };
+    })(),
     raw: { latestMs: rows.length ? rowTime(rows[rows.length - 1]) : null, sampleSec: normalSampleSec(rows) },
   };
 }
@@ -107,7 +117,7 @@ export function evaluateHealthSnapshot(snapshot, now = Date.now()) {
   const ageDanger = rawAge != null && rawAge > HEALTH_DANGER_AGE_MS;
   const liveStatus = snapshot?.live?.status || '';
   const knownLiveStatus = ['online', 'offline', 'error', 'failed', 'down'].includes(liveStatus);
-  const unknown = rawAge == null || (( !snapshot?.live || !knownLiveStatus) && rawAge <= HEALTH_WARN_AGE_MS) || rawAgeMs < -HEALTH_FUTURE_TOLERANCE_MS || (liveLead != null && liveLead > Math.max(2 * (snapshot?.raw?.sampleSec || 0) * 1000, 60_000));
+  const unknown = rawAge == null || !knownLiveStatus || rawAgeMs < -HEALTH_FUTURE_TOLERANCE_MS || (liveLead != null && liveLead > Math.max(2 * (snapshot?.raw?.sampleSec || 0) * 1000, 60_000));
   let state = unknown ? 'unknown' : 'ok';
   if (explicitOffline || metricDanger || ageDanger) state = 'danger';
   else if (unknown) state = 'unknown';

@@ -259,8 +259,8 @@ function relocalizeDetailComposedLabels(root = document) {
     if (lh) {
       const stateStrong = summary.children?.[0]?.querySelector('strong');
       const stateEm = summary.children?.[0]?.querySelector('em');
-      if (stateStrong) stateStrong.textContent = lh.state === 'danger' ? t('abnormal') : (lh.state === 'warn' ? t('attention') : t('healthy'));
-      if (stateEm) stateEm.textContent = `${lh.online ? t('agentOnline') : t('agentOffline')} · ${lh.dangerCount ? `${lh.dangerCount} ${t('critical')}` : (lh.warnCount ? `${lh.warnCount} ${t('reminder')}` : `0 ${t('alerts')}`)}`;
+      if (stateStrong) stateStrong.textContent = lh.state === 'danger' ? t('abnormal') : (lh.state === 'warn' ? t('attention') : (lh.state === 'unknown' ? t('noSample') : t('healthy')));
+      if (stateEm) stateEm.textContent = `${lh.online === true ? t('agentOnline') : (lh.online === false ? t('agentOffline') : t('noSample'))} · ${lh.dangerCount ? `${lh.dangerCount} ${t('critical')}` : (lh.warnCount ? `${lh.warnCount} ${t('reminder')}` : `0 ${t('alerts')}`)}`;
       const freshEm = summary.children?.[1]?.querySelector('em');
       if (freshEm) freshEm.textContent = `${t('backendSampleInterval')} ${lh.latest?.sampleSec ? `${lh.latest.sampleSec}s` : '—'}`;
     }
@@ -1364,20 +1364,21 @@ function detailHealthStatus(server, probeRows = [], pingTargetsData = null) {
       sampleSec: snapshotHealth.raw?.sampleSec,
       freshClass: snapshotHealth.state,
     };
-    const loss = snapshotHealth.metrics.lossPct ?? 0;
+    const loss = snapshotHealth.metrics.lossPct;
     return { state: snapshotHealth.state, online: snapshotHealth.online, warnCount: snapshotHealth.state === 'warn' ? 1 : 0, dangerCount: snapshotHealth.state === 'danger' ? 1 : 0, latest, loss };
   }
-  const cpu = Number(server?.cpu_use || 0);
-  const ram = Number(server?.ram_use || 0);
-  const disk = Number(server?.disk_use || 0);
+  const metric = (value) => value == null || value === '' || !Number.isFinite(Number(value)) ? null : Number(value);
+  const cpu = metric(server?.cpu_use);
+  const ram = metric(server?.ram_use);
+  const disk = metric(server?.disk_use);
   const targets = Array.isArray(pingTargetsData?.targets) ? pingTargetsData.targets : [];
   const lossValues = targets.map(t => Number(t?.stats?.loss_pct)).filter(Number.isFinite);
   const loss = lossValues.length ? Math.max(0, ...lossValues) : null;
   const latest = detailFreshnessMeta(probeRows, server);
   const status = String(server?.status || '').toLowerCase();
   const online = status === 'online' ? true : (status === 'offline' || status === 'error' || status === 'failed' || status === 'down' ? false : null);
-  const warnCount = [cpu >= 85, ram >= 85, disk >= 85, loss != null && loss >= 5, latest.freshClass === 'warn'].filter(Boolean).length;
-  const dangerCount = [online === false, cpu >= 95, ram >= 95, disk >= 95, loss != null && loss >= 20, latest.freshClass === 'danger'].filter(Boolean).length;
+  const warnCount = [cpu != null && cpu >= 85, ram != null && ram >= 85, disk != null && disk >= 85, loss != null && loss >= 5, latest.freshClass === 'warn'].filter(Boolean).length;
+  const dangerCount = [online === false, cpu != null && cpu >= 95, ram != null && ram >= 95, disk != null && disk >= 95, loss != null && loss >= 20, latest.freshClass === 'danger'].filter(Boolean).length;
   const state = latest.freshClass === 'unknown' && online == null && !dangerCount ? 'unknown' : (dangerCount ? 'danger' : (warnCount ? 'warn' : 'ok'));
   return { state, online, warnCount, dangerCount, latest, loss };
 }
@@ -1400,13 +1401,15 @@ function updateDetailHealthDom(serverId, live = null) {
   }
   if (freshnessStrong) freshnessStrong.textContent = liveHealth.latest.ageText;
   if (freshnessEm) freshnessEm.textContent = `${t('backendSampleInterval')} ${liveHealth.latest.sampleSec ? `${liveHealth.latest.sampleSec}s` : '—'}`;
-  const liveCpu = detailLatestSample(live ? [Number(live.cpu_use)] : [], liveServer.cpu_use);
-  const liveRam = detailLatestSample(live ? [Number(live.ram_use)] : [], liveServer.ram_use);
-  const liveDisk = Number(liveServer.disk_use || 0);
+  const valid = (value) => value == null || value === '' || !Number.isFinite(Number(value)) ? null : Number(value);
+  const liveCpu = valid(live?.cpu_use ?? liveServer.cpu_use);
+  const liveRam = valid(live?.ram_use ?? liveServer.ram_use);
+  const liveDisk = valid(live?.disk_use ?? liveServer.disk_use);
   const resourceStrong = summary.children?.[2]?.querySelector('strong');
   const resourceEm = summary.children?.[2]?.querySelector('em');
-  if (resourceStrong) resourceStrong.textContent = `CPU ${liveCpu.toFixed(1)}%`;
-  if (resourceEm) resourceEm.textContent = `${t('memory')} ${liveRam.toFixed(1)}% · ${t('disk')} ${(Number.isFinite(liveDisk) ? liveDisk : 0).toFixed(1)}%`;
+  if (resourceStrong) resourceStrong.textContent = `CPU ${liveCpu == null ? '—' : `${liveCpu.toFixed(1)}%`}`;
+  if (resourceEm) resourceEm.textContent = `${t('memory')} ${liveRam == null ? '—' : `${liveRam.toFixed(1)}%`} · ${t('disk')} ${liveDisk == null ? '—' : `${liveDisk.toFixed(1)}%`}`;
+  detailCache.liveHealth = liveHealth;
   if (live) {
     detailCache.liveSample = { cpuPct: liveCpu, ramPct: liveRam, diskPct: liveDisk, server: liveServer };
     detailCache.liveHealth = liveHealth;
@@ -1418,7 +1421,7 @@ function renderHealthSummary(server, probeRows = [], pingTargetsData = null, cpu
   const h = detailHealthStatus(server, probeRows, pingTargetsData);
   const cpu = detailMetricValue(cpuSeries, server.cpu_use, '%');
   const mem = detailMetricValue(ramSeries, server.ram_use, '%');
-  const disk = `${pctFmt(server.disk_use)}%`;
+  const disk = server.disk_use == null || server.disk_use === '' || !Number.isFinite(Number(server.disk_use)) ? '—' : `${Number(server.disk_use).toFixed(1)}%`;
   const heartbeat = h.online === true ? t('agentOnline') : (h.online === false ? t('agentOffline') : t('noSample'));
   const statusText = h.state === 'danger' ? t('abnormal') : (h.state === 'warn' ? t('attention') : (h.state === 'unknown' ? t('noSample') : t('healthy')));
   const alertText = h.dangerCount ? `${h.dangerCount} ${t('critical')}` : (h.warnCount ? `${h.warnCount} ${t('reminder')}` : `0 ${t('alerts')}`);

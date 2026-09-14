@@ -36,9 +36,9 @@ describe('detail health snapshot contract', () => {
     expect(evaluateHealthSnapshot(frozen, now).state).toBe('unknown');
   });
 
-  it('ages frozen raw through warn and danger without a new sample', () => {
+  it('keeps missing status unknown until true stale danger', () => {
     const snapshot = buildAggregateHealthSnapshot({ serverId: 'b', generation: 1, receiveSeq: 1, payload: { resource_timeline: [{ server_id: 'b', created_at: iso(now), cpu_use: 10 }] } });
-    expect(evaluateHealthSnapshot(snapshot, now + 31_000).state).toBe('warn');
+    expect(evaluateHealthSnapshot(snapshot, now + 31_000).state).toBe('unknown');
     expect(evaluateHealthSnapshot(snapshot, now + 181_000).state).toBe('danger');
   });
 
