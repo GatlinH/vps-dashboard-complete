@@ -105,7 +105,9 @@ export function evaluateHealthSnapshot(snapshot, now = Date.now()) {
   const metricDanger = [metrics.cpuPct, metrics.ramPct, metrics.diskPct].some((value) => value != null && value >= 95) || (metrics.lossPct != null && metrics.lossPct >= 20);
   const metricWarn = [metrics.cpuPct, metrics.ramPct, metrics.diskPct].some((value) => value != null && value >= 85) || (metrics.lossPct != null && metrics.lossPct >= 5);
   const ageDanger = rawAge != null && rawAge > HEALTH_DANGER_AGE_MS;
-  const unknown = rawAge == null || rawAgeMs < -HEALTH_FUTURE_TOLERANCE_MS || (liveLead != null && liveLead > Math.max(2 * (snapshot?.raw?.sampleSec || 0) * 1000, 60_000));
+  const liveStatus = snapshot?.live?.status || '';
+  const knownLiveStatus = ['online', 'offline', 'error', 'failed', 'down'].includes(liveStatus);
+  const unknown = rawAge == null || (( !snapshot?.live || !knownLiveStatus) && rawAge <= HEALTH_WARN_AGE_MS) || rawAgeMs < -HEALTH_FUTURE_TOLERANCE_MS || (liveLead != null && liveLead > Math.max(2 * (snapshot?.raw?.sampleSec || 0) * 1000, 60_000));
   let state = unknown ? 'unknown' : 'ok';
   if (explicitOffline || metricDanger || ageDanger) state = 'danger';
   else if (unknown) state = 'unknown';

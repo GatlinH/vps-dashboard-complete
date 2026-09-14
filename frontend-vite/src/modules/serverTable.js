@@ -1272,6 +1272,7 @@ function detailLatestSample(series, fallback) {
 }
 
 function detailMetricValue(series, fallback, suffix = '') {
+  if (!(Array.isArray(series) && series.some((value) => Number.isFinite(Number(value)))) && !Number.isFinite(Number(fallback))) return '—';
   return `${detailLatestSample(series, fallback).toFixed(1)}${suffix}`;
 }
 
@@ -1370,12 +1371,14 @@ function detailHealthStatus(server, probeRows = [], pingTargetsData = null) {
   const ram = Number(server?.ram_use || 0);
   const disk = Number(server?.disk_use || 0);
   const targets = Array.isArray(pingTargetsData?.targets) ? pingTargetsData.targets : [];
-  const loss = Math.max(0, ...targets.map(t => Number(t?.stats?.loss_pct ?? 0)).filter(Number.isFinite), 0);
+  const lossValues = targets.map(t => Number(t?.stats?.loss_pct)).filter(Number.isFinite);
+  const loss = lossValues.length ? Math.max(0, ...lossValues) : null;
   const latest = detailFreshnessMeta(probeRows, server);
-  const online = String(server?.status || '').toLowerCase() === 'online';
-  const warnCount = [cpu >= 85, ram >= 85, disk >= 85, loss >= 5, latest.freshClass === 'warn'].filter(Boolean).length;
-  const dangerCount = [!online, cpu >= 95, ram >= 95, disk >= 95, loss >= 20, latest.freshClass === 'danger'].filter(Boolean).length;
-  const state = dangerCount ? 'danger' : (warnCount ? 'warn' : 'ok');
+  const status = String(server?.status || '').toLowerCase();
+  const online = status === 'online' ? true : (status === 'offline' || status === 'error' || status === 'failed' || status === 'down' ? false : null);
+  const warnCount = [cpu >= 85, ram >= 85, disk >= 85, loss != null && loss >= 5, latest.freshClass === 'warn'].filter(Boolean).length;
+  const dangerCount = [online === false, cpu >= 95, ram >= 95, disk >= 95, loss != null && loss >= 20, latest.freshClass === 'danger'].filter(Boolean).length;
+  const state = latest.freshClass === 'unknown' && online == null && !dangerCount ? 'unknown' : (dangerCount ? 'danger' : (warnCount ? 'warn' : 'ok'));
   return { state, online, warnCount, dangerCount, latest, loss };
 }
 
@@ -1384,14 +1387,14 @@ function renderHealthSummary(server, probeRows = [], pingTargetsData = null, cpu
   const cpu = detailMetricValue(cpuSeries, server.cpu_use, '%');
   const mem = detailMetricValue(ramSeries, server.ram_use, '%');
   const disk = `${pctFmt(server.disk_use)}%`;
-  const heartbeat = h.online ? t('agentOnline') : t('agentOffline');
-  const statusText = h.state === 'danger' ? t('abnormal') : (h.state === 'warn' ? t('attention') : t('healthy'));
+  const heartbeat = h.online === true ? t('agentOnline') : (h.online === false ? t('agentOffline') : t('noSample'));
+  const statusText = h.state === 'danger' ? t('abnormal') : (h.state === 'warn' ? t('attention') : (h.state === 'unknown' ? t('noSample') : t('healthy')));
   const alertText = h.dangerCount ? `${h.dangerCount} ${t('critical')}` : (h.warnCount ? `${h.warnCount} ${t('reminder')}` : `0 ${t('alerts')}`);
   return `<section class="detail-health-summary is-${h.state}" aria-label="${t('healthStatus')}">
     <div class="health-main"><span>${t('healthStatus')}</span><strong>${statusText}</strong><em>${heartbeat} · ${alertText}</em></div>
     <div><span>${t('latestSample')}</span><strong>${h.latest.ageText}</strong><em>${t('backendSampleInterval')} ${h.latest.sampleSec ? `${h.latest.sampleSec}s` : '—'}</em></div>
     <div><span>${t('healthResources')}</span><strong>CPU ${cpu}</strong><em>${t('memory')} ${mem} · ${t('disk')} ${disk}</em></div>
-    <div><span>${t('healthLink')}</span><strong>${pingTargetsData?.unavailable ? '—' : `${t('healthPacketLoss')} ${Number(h.loss || 0).toFixed(0)}%`}</strong><em>${pingTargetsData?.unavailable ? t('noPeerProbeSamples') : `${(pingTargetsData?.targets || []).length || 0} ${t('probeTargetsCount')}`}</em></div>
+    <div><span>${t('healthLink')}</span><strong>${pingTargetsData?.unavailable || h.loss == null ? '—' : `${t('healthPacketLoss')} ${Number(h.loss).toFixed(0)}%`}</strong><em>${pingTargetsData?.unavailable ? t('noPeerProbeSamples') : `${(pingTargetsData?.targets || []).length || 0} ${t('probeTargetsCount')}`}</em></div>
   </section>`;
 }
 
@@ -2564,6 +2567,17 @@ async function refreshDetailRealtime(serverId) {
   const doHeavy = now - getDetailHeavyRefreshAt() > 20_000;
   if (doHeavy) {
     const detail = await getServerDetail(current.id, getDetailHistoryDays()).catch(() => ({}));
+    if (detail && Object.keys(detail).length) {
+      detailCache.healthReceiveSeq += 1;
+      detailCache.healthSnapshot = acceptHealthSnapshot(detailCache.healthSnapshot, buildAggregateHealthSnapshot({
+        serverId: current.id,
+        generation: detailPageGeneration,
+        receiveSeq: detailCache.healthReceiveSeq,
+        source: 'heavy',
+        payload: detail,
+      }));
+      window.__DBG__.DETAIL_HEALTH_SNAPSHOT = evaluateHealthSnapshot(detailCache.healthSnapshot, Date.now());
+    }
     const traffic = { status: detail.traffic ? 'fulfilled' : 'rejected', value: detail.traffic };
     const probeHistory = { status: detail.history ? 'fulfilled' : 'rejected', value: detail.history };
     const resourceHistory = { status: detail.resource_timeline ? 'fulfilled' : 'rejected', value: { data: detail.resource_timeline || [] } };
