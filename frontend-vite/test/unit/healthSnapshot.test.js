@@ -80,4 +80,22 @@ describe('detail health snapshot contract', () => {
     expect(health.rawAgeMs).toBe(5_000);
     expect(health.state).toBe('warn');
   });
+
+  it('preserves trusted probe loss when a later live payload omits probe fields', () => {
+    const withLoss = buildAggregateHealthSnapshot({
+      serverId: 'b', generation: 3, receiveSeq: 1,
+      payload: { live: { server_id: 'b', updated_at: iso(now), status: 'online' }, ping_targets: { targets: [{ stats: { loss_pct: 30 } }] }, resource_timeline: [{ server_id: 'b', created_at: iso(now), cpu_use: 1 }] },
+    });
+    const omitted = buildAggregateHealthSnapshot({
+      serverId: 'b', generation: 3, receiveSeq: 2, source: 'live',
+      payload: { live: { server_id: 'b', updated_at: iso(now + 5000), status: 'online' } },
+    });
+    expect(acceptHealthSnapshot(withLoss, omitted).live.lossPct).toBe(30);
+  });
+
+  it('keeps absent live metrics nullable instead of coercing them to zero', () => {
+    const snapshot = buildAggregateHealthSnapshot({ serverId: 'b', generation: 1, payload: { live: { server_id: 'b', updated_at: iso(now), status: 'online', cpu_use: null, ram_use: null } } });
+    expect(evaluateHealthSnapshot(snapshot, now).metrics.cpuPct).toBeNull();
+    expect(evaluateHealthSnapshot(snapshot, now).metrics.ramPct).toBeNull();
+  });
 });

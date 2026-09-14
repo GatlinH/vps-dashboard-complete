@@ -90,8 +90,10 @@ export function acceptHealthSnapshot(current, candidate) {
   if (candidate.serverId !== current.serverId || candidate.generation !== current.generation) return current;
   const currentTime = current.live?.updatedAtMs ?? -Infinity;
   const candidateTime = candidate.live?.updatedAtMs ?? -Infinity;
-  const live = candidate.live?.updatedAtMs == null && current.live ? current.live
+  const nextLive = candidate.live?.updatedAtMs == null && current.live ? current.live
     : (candidateTime < currentTime ? current.live : candidate.live);
+  const needsLossCarry = nextLive && current.live && candidateTime >= currentTime && nextLive.lossPct == null && current.live.lossPct != null;
+  const live = needsLossCarry ? { ...nextLive, lossPct: current.live.lossPct } : nextLive;
   const raw = candidate.raw?.latestMs == null || (Number.isFinite(current.raw?.latestMs) && candidate.raw.latestMs < current.raw.latestMs)
     ? current.raw : candidate.raw;
   if (candidateTime < currentTime && candidate.raw?.latestMs == null) return current;

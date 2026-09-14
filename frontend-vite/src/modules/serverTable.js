@@ -15,7 +15,7 @@ import { renderPublicOverviewPage as renderPublicOverviewPageModule } from '../p
 import { detailLoadingShell, renderDetailConsole, renderDetailNotFound } from '../pages/detailPage.js';
 import { getDetailHistoryBucketMinutes, getDetailHistoryPointLimit, setDetailHistoryDays as setDetailHistoryDaysModule, syncDetailHistoryStateFromStorage } from '../detail/historyRange.js';
 import { getDetailHeavyRefreshAt, setDetailHeavyRefreshAt, startDetailRefreshTimer, stopDetailRefreshTimer } from '../detail/refreshState.js';
-import { detailCache } from '../detail/detailCache.js';
+import { detailCache, resetDetailCache } from '../detail/detailCache.js';
 import { createDetailPingSampleCache } from '../detail/sampleCache.js';
 import { mergeResourceTimelineHistory, resourceHistoryRequest, resourceTimelineRows, shouldReplaceResourceTimeline } from '../detail/resourceTimeline.js';
 import { consumeAggregateWithinBudget, normalizeDetailAggregate } from '../detail/aggregatePayload.js';
@@ -1266,14 +1266,14 @@ function sparkline(values = [], opts = {}) {
 // same node at the same instant, so any divergence in how they pick the latest
 // sample surfaces as two different CPU numbers on screen.
 function detailLatestSample(series, fallback) {
-  const clean = (Array.isArray(series) ? series : []).map(Number).filter(v => Number.isFinite(v) && Math.abs(v) > 0.01);
-  const v = clean.length ? clean[clean.length - 1] : Number(fallback || 0);
-  return Number.isFinite(v) ? v : 0;
+  const clean = (Array.isArray(series) ? series : []).map(Number).filter(v => Number.isFinite(v));
+  const v = clean.length ? clean[clean.length - 1] : Number(fallback);
+  return Number.isFinite(v) ? v : null;
 }
 
 function detailMetricValue(series, fallback, suffix = '') {
-  if (!(Array.isArray(series) && series.some((value) => Number.isFinite(Number(value)))) && !Number.isFinite(Number(fallback))) return '—';
-  return `${detailLatestSample(series, fallback).toFixed(1)}${suffix}`;
+  const value = detailLatestSample(series, fallback);
+  return value == null ? '—' : `${value.toFixed(1)}${suffix}`;
 }
 
 function detailRateValue(series, fallback) {
@@ -2061,8 +2061,19 @@ function renderErrorLog(server, heartbeatSeries, pingData) {
 
 
 let detailPageGeneration = 0;
+let activeDetailServerId = null;
 
-async function renderDetailPage(serverId, hydratedPayload = null, generation = ++detailPageGeneration) {
+function beginDetailGeneration(serverId) {
+  const id = serverId == null ? null : String(serverId);
+  if (id !== activeDetailServerId) {
+    activeDetailServerId = id;
+    detailPageGeneration += 1;
+    resetDetailCache();
+  }
+  return detailPageGeneration;
+}
+
+async function renderDetailPage(serverId, hydratedPayload = null, generation = beginDetailGeneration(serverId)) {
   window.__DBG__.DETAIL_TRACE = ['renderDetailPage:start', String(serverId)];
   loadStoredPingSamples(serverId);
   const requestedDetailDays = Number(getDetailHistoryDays() || 0) || 0;
@@ -2081,6 +2092,7 @@ async function renderDetailPage(serverId, hydratedPayload = null, generation = +
     document.documentElement.classList.remove('detail-pending');
     return;
   }
+  if (generation !== detailPageGeneration || String(resolvedServer.id) !== activeDetailServerId) return;
 
   // Show a real mobile-safe shell immediately. Heavy history endpoints can take
   // several seconds on small VPS installs; without this, direct ?server= routes
@@ -2113,6 +2125,7 @@ async function renderDetailPage(serverId, hydratedPayload = null, generation = +
     if (detailPayloadResult.status === 'rejected') throw detailPayloadResult.reason;
     detailPayload = detailPayloadResult.value;
   }
+  if (generation !== detailPageGeneration || String(resolvedServer.id) !== activeDetailServerId) return;
   const resourceRequest = resourceHistoryRequest();
   const aggregate = normalizeDetailAggregate(
     detailPayload,
@@ -2465,9 +2478,13 @@ async function refreshDetailHistoryRange(serverId) {
 }
 
 async function refreshDetailLivePoint(serverId) {
+  if (typeof activeDetailServerId !== 'undefined' && activeDetailServerId == null) activeDetailServerId = String(serverId);
+  const requestGeneration = detailPageGeneration;
+  const requestServerId = String(serverId);
   let live = null;
   try {
     const payload = await fetchJson(`${API_ROOT}/api/v1/servers/public/${serverId}/live`, { timeoutMs: 1200 });
+    if (requestGeneration !== detailPageGeneration || (typeof activeDetailServerId !== 'undefined' && requestServerId !== activeDetailServerId)) return false;
     live = payload?.live;
     const timeMs = rowTimeMs({ created_at: live?.updated_at }, NaN);
     if (live) {
@@ -2483,6 +2500,7 @@ async function refreshDetailLivePoint(serverId) {
       return false;
     }
     const runtime = await getDetailChartRuntime();
+    if (requestGeneration !== detailPageGeneration || (typeof activeDetailServerId !== 'undefined' && requestServerId !== activeDetailServerId)) return false;
     const appended = runtime.appendDetailLiveMetrics(live, { detailCharts: runtime.detailCharts, mode: detailLivePollMode });
     detailCache.liveUpdatedAt = timeMs;
     if (appended) {
@@ -2594,15 +2612,19 @@ async function refreshDetailRealtime(serverId) {
   // 详情页只刷新当前节点遥测，不再每轮全量重拉服务器列表(避免重复统计/重渲染循环)
   const current = state.servers.find((item) => Number(item.id) === Number(serverId));
   if (!current) return;
+  const requestGeneration = detailPageGeneration;
+  const requestServerId = String(current.id);
   // 5s lightweight path: append only when the persisted Server snapshot changed.
   // This avoids a one-hour history scan and Chart.js teardown for an unchanged point.
   await refreshDetailLivePoint(serverId);
+  if (requestGeneration !== detailPageGeneration || requestServerId !== activeDetailServerId) return;
   const now = Date.now();
   // Match the default Agent telemetry interval (20s). This refreshes persisted
   // CPU/memory/process chart data promptly without increasing PING probe cadence.
   const doHeavy = now - getDetailHeavyRefreshAt() > 20_000;
   if (doHeavy) {
     const detail = await getServerDetail(current.id, getDetailHistoryDays()).catch(() => ({}));
+    if (requestGeneration !== detailPageGeneration || requestServerId !== activeDetailServerId) return;
     if (detail && Object.keys(detail).length) {
       detailCache.healthReceiveSeq += 1;
       detailCache.healthSnapshot = acceptHealthSnapshot(detailCache.healthSnapshot, buildAggregateHealthSnapshot({
