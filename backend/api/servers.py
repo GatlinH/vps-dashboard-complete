@@ -680,7 +680,7 @@ def get_public_server_detail(sid):
         "live": _build_public_live_payload(sid),
         "history": build_public_history_payload(sid, history_days, limit, 0, bucket_minutes, "", 6 if days == 0 else None),
         "resource_timeline": build_public_history_payload(sid, 1, 3600, 0, None, "resource_timeline").get("data", []),
-        "process_history": build_public_history_payload(sid, 1, 720, 0, None, "process_count").get("data", []),
+        "process_history": build_public_history_payload(sid, 1, 3600, 0, None, "process_count").get("data", []),
         "traffic": _build_traffic_payload(server),
         "ping_targets": build_public_ping_targets_payload(sid, count=1),
         "ping_history": build_public_ping_history_payload(sid, hours=ping_hours, limit=limit),
