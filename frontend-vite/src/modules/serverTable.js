@@ -1412,11 +1412,8 @@ function updateDetailHealthDom(serverId, live = null) {
   if (resourceStrong) resourceStrong.textContent = `CPU ${liveCpu == null ? '—' : `${liveCpu.toFixed(1)}%`}`;
   if (resourceEm) resourceEm.textContent = `${t('memory')} ${liveRam == null ? '—' : `${liveRam.toFixed(1)}%`} · ${t('disk')} ${liveDisk == null ? '—' : `${liveDisk.toFixed(1)}%`}`;
   detailCache.liveHealth = liveHealth;
-  if (live) {
-    detailCache.liveSample = { cpuPct: liveCpu, ramPct: liveRam, diskPct: liveDisk, server: state.servers.find((item) => Number(item.id) === Number(serverId)) || {} };
-    detailCache.liveHealth = liveHealth;
-    syncRealtimeResourceCard({ cpuPct: liveCpu, ramPct: liveRam, server: state.servers.find((item) => Number(item.id) === Number(serverId)) || {} });
-  }
+  detailCache.liveSample = { cpuPct: liveCpu, ramPct: liveRam, diskPct: liveDisk, server: state.servers.find((item) => Number(item.id) === Number(serverId)) || {} };
+  syncRealtimeResourceCard(detailCache.liveSample);
 }
 
 function renderHealthSummary(server, probeRows = [], pingTargetsData = null, cpuSeries = [], ramSeries = []) {
@@ -1518,6 +1515,9 @@ function syncRealtimeResourceCard({ cpuPct, ramPct, server } = {}) {
     setLine(t('cpu').toUpperCase(), `${pctFmt(cpuPct)}%`, cpuPct, `${cpuCores || '—'} ${t('cores')}`);
     const load = cpuCores > 0 ? (cpuPct / 100 * cpuCores).toFixed(2) : '—';
     setLine(t('load').toUpperCase(), load, cpuCores ? clampPct((Number(load) / cpuCores) * 100) : 0, `1m / ${load}`);
+  } else {
+    setLine(t('cpu').toUpperCase(), '—', 0, `${cpuCores || '—'} ${t('cores')}`);
+    setLine(t('load').toUpperCase(), '—', 0, '1m / —');
   }
   if (Number.isFinite(ramPct)) {
     const ramUsed = resourceUsageFromTotal(ramTotal, ramPct);
@@ -1529,6 +1529,13 @@ function syncRealtimeResourceCard({ cpuPct, ramPct, server } = {}) {
       if (top) top.textContent = `${fmtResourceGb(ramUsed)}${ramTotal ? ` / ${fmtResourceGb(ramTotal)}` : ''}`;
       if (bar) bar.style.width = `${clampPct(ramTotal ? (ramUsed / ramTotal * 100) : ramPct)}%`;
     }
+  } else {
+    setLine(t('mem').toUpperCase(), '—', 0, `— / ${fmtResourceGb(ramTotal)}`);
+    const meter = document.querySelector(`.probe-observability-grid .allocation-card .probe-meter-row[data-meter="${t('memory').toUpperCase()}"]`);
+    const top = meter?.querySelector('.probe-meter-top strong');
+    const bar = meter?.querySelector('.probe-meter-track i');
+    if (top) top.textContent = '—';
+    if (bar) bar.style.width = '0%';
   }
 }
 
@@ -2484,6 +2491,11 @@ async function refreshDetailHistoryRange(serverId) {
 }
 
 async function refreshDetailLivePoint(serverId) {
+  const resolved = state.servers.find((item) => Number(item.id) === Number(serverId))
+    || (state.servers.length === 1 ? state.servers[0] : null);
+  if (!resolved) return false;
+  serverId = resolved.id;
+  if (typeof activeDetailServerId !== 'undefined' && activeDetailServerId != null && String(serverId) !== activeDetailServerId) return false;
   if (typeof activeDetailServerId !== 'undefined' && activeDetailServerId == null) activeDetailServerId = String(serverId);
   const requestGeneration = detailPageGeneration;
   const requestServerId = String(serverId);
@@ -2559,6 +2571,7 @@ async function refreshDetailLivePoint(serverId) {
     updateDetailHealthDom(serverId, live);
     return appended;
   } catch (error) {
+    if (requestGeneration !== detailPageGeneration || (typeof activeDetailServerId !== 'undefined' && requestServerId !== activeDetailServerId)) return false;
     window.__DBG__.DETAIL_LIVE_APPEND_ERROR = String(error?.message || error);
     updateDetailHealthDom(serverId, null);
     return false;
@@ -2573,7 +2586,7 @@ async function refreshDetailLivePoint(serverId) {
 // memory charts from ~121 points back to 13 on every switch.
 async function repaintDetailChartsFromCache() {
   if (!selectedServerId) return;
-  const current = state.servers.find((item) => Number(item.id) === Number(selectedServerId));
+  const current = state.servers.find((item) => String(item.id) === activeDetailServerId);
   if (!current) return;
   const historyRows = detailCache.historyRows || [];
   const networkRows = detailCache.networkRows || [];
@@ -2616,8 +2629,10 @@ async function refreshDetailRealtime(serverId) {
   detailRefreshInFlight = true;
   try {
   // 详情页只刷新当前节点遥测，不再每轮全量重拉服务器列表(避免重复统计/重渲染循环)
-  const current = state.servers.find((item) => Number(item.id) === Number(serverId));
-  if (!current) return;
+  const current = state.servers.find((item) => Number(item.id) === Number(serverId))
+    || (state.servers.length === 1 ? state.servers[0] : null);
+  if (!current || String(current.id) !== activeDetailServerId) return;
+  serverId = current.id;
   const requestGeneration = detailPageGeneration;
   const requestServerId = String(current.id);
   // 5s lightweight path: append only when the persisted Server snapshot changed.
