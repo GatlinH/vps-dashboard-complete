@@ -1367,6 +1367,9 @@ function detailHealthStatus(server, probeRows = [], pingTargetsData = null) {
     const loss = snapshotHealth.metrics.lossPct;
     return { state: snapshotHealth.state, online: snapshotHealth.online, warnCount: snapshotHealth.state === 'warn' ? 1 : 0, dangerCount: snapshotHealth.state === 'danger' ? 1 : 0, latest, loss };
   }
+  if (!detailCache.healthSnapshot) {
+    return { state: 'unknown', online: null, warnCount: 0, dangerCount: 0, latest: { ageText: t('noSample'), sampleSec: null, freshClass: 'unknown' }, loss: null };
+  }
   const metric = (value) => value == null || value === '' || !Number.isFinite(Number(value)) ? null : Number(value);
   const cpu = metric(server?.cpu_use);
   const ram = metric(server?.ram_use);
@@ -1386,9 +1389,7 @@ function detailHealthStatus(server, probeRows = [], pingTargetsData = null) {
 function updateDetailHealthDom(serverId, live = null) {
   const summary = document.querySelector('.detail-health-summary');
   if (!summary) return;
-  const baseServer = state.servers.find((item) => Number(item.id) === Number(serverId)) || {};
-  const liveServer = live ? { ...baseServer, ...live } : baseServer;
-  const liveHealth = detailHealthStatus(liveServer, detailCache.resourceRows, detailCache.pingTargets);
+  const liveHealth = detailHealthStatus(null, detailCache.resourceRows, detailCache.pingTargets);
   summary.className = `detail-health-summary is-${liveHealth.state}`;
   const healthStrong = summary.querySelector('.health-main strong');
   const healthEm = summary.querySelector('.health-main em');
@@ -1402,26 +1403,29 @@ function updateDetailHealthDom(serverId, live = null) {
   if (freshnessStrong) freshnessStrong.textContent = liveHealth.latest.ageText;
   if (freshnessEm) freshnessEm.textContent = `${t('backendSampleInterval')} ${liveHealth.latest.sampleSec ? `${liveHealth.latest.sampleSec}s` : '—'}`;
   const valid = (value) => value == null || value === '' || !Number.isFinite(Number(value)) ? null : Number(value);
-  const liveCpu = valid(live?.cpu_use ?? liveServer.cpu_use);
-  const liveRam = valid(live?.ram_use ?? liveServer.ram_use);
-  const liveDisk = valid(live?.disk_use ?? liveServer.disk_use);
+  const metrics = detailCache.healthSnapshot ? evaluateHealthSnapshot(detailCache.healthSnapshot).metrics : {};
+  const liveCpu = valid(metrics.cpuPct);
+  const liveRam = valid(metrics.ramPct);
+  const liveDisk = valid(metrics.diskPct);
   const resourceStrong = summary.children?.[2]?.querySelector('strong');
   const resourceEm = summary.children?.[2]?.querySelector('em');
   if (resourceStrong) resourceStrong.textContent = `CPU ${liveCpu == null ? '—' : `${liveCpu.toFixed(1)}%`}`;
   if (resourceEm) resourceEm.textContent = `${t('memory')} ${liveRam == null ? '—' : `${liveRam.toFixed(1)}%`} · ${t('disk')} ${liveDisk == null ? '—' : `${liveDisk.toFixed(1)}%`}`;
   detailCache.liveHealth = liveHealth;
   if (live) {
-    detailCache.liveSample = { cpuPct: liveCpu, ramPct: liveRam, diskPct: liveDisk, server: liveServer };
+    detailCache.liveSample = { cpuPct: liveCpu, ramPct: liveRam, diskPct: liveDisk, server: state.servers.find((item) => Number(item.id) === Number(serverId)) || {} };
     detailCache.liveHealth = liveHealth;
-    syncRealtimeResourceCard({ cpuPct: liveCpu, ramPct: liveRam, server: liveServer });
+    syncRealtimeResourceCard({ cpuPct: liveCpu, ramPct: liveRam, server: state.servers.find((item) => Number(item.id) === Number(serverId)) || {} });
   }
 }
 
 function renderHealthSummary(server, probeRows = [], pingTargetsData = null, cpuSeries = [], ramSeries = []) {
   const h = detailHealthStatus(server, probeRows, pingTargetsData);
-  const cpu = detailMetricValue(cpuSeries, server.cpu_use, '%');
-  const mem = detailMetricValue(ramSeries, server.ram_use, '%');
-  const disk = server.disk_use == null || server.disk_use === '' || !Number.isFinite(Number(server.disk_use)) ? '—' : `${Number(server.disk_use).toFixed(1)}%`;
+  const metrics = detailCache.healthSnapshot ? evaluateHealthSnapshot(detailCache.healthSnapshot).metrics : { cpuPct: null, ramPct: null, diskPct: null };
+  const metricText = (value) => value == null ? '—' : `${Number(value).toFixed(1)}%`;
+  const cpu = metricText(metrics.cpuPct);
+  const mem = metricText(metrics.ramPct);
+  const disk = metricText(metrics.diskPct);
   const heartbeat = h.online === true ? t('agentOnline') : (h.online === false ? t('agentOffline') : t('noSample'));
   const statusText = h.state === 'danger' ? t('abnormal') : (h.state === 'warn' ? t('attention') : (h.state === 'unknown' ? t('noSample') : t('healthy')));
   const alertText = h.dangerCount ? `${h.dangerCount} ${t('critical')}` : (h.warnCount ? `${h.warnCount} ${t('reminder')}` : `0 ${t('alerts')}`);
@@ -2064,7 +2068,9 @@ let detailPageGeneration = 0;
 let activeDetailServerId = null;
 
 function beginDetailGeneration(serverId) {
-  const id = serverId == null ? null : String(serverId);
+  const requested = serverId == null ? null : String(serverId);
+  const fallback = state.servers.length === 1 ? String(state.servers[0].id) : null;
+  const id = state.servers.some((item) => String(item.id) === requested) ? requested : fallback;
   if (id !== activeDetailServerId) {
     activeDetailServerId = id;
     detailPageGeneration += 1;
@@ -2111,7 +2117,7 @@ async function renderDetailPage(serverId, hydratedPayload = null, generation = b
     const detailPayloadResult = await consumeAggregateWithinBudget({
       promise: detailPayloadPromise,
       budgetMs: fetchBudgetMs,
-      isCurrent: () => generation === detailPageGeneration && Number(selectedServerId) === Number(resolvedServer.id),
+      isCurrent: () => generation === detailPageGeneration && String(activeDetailServerId) === String(resolvedServer.id),
       onHydrate: (payload) => renderDetailPage(resolvedServer.id, payload, generation),
       onFailure: (error) => {
         const grid = document.getElementById('detailPageGrid');
