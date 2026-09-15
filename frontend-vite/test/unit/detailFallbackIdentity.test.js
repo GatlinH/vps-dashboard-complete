@@ -24,7 +24,7 @@ function domFixture() {
     const strong = node('11.0%'); const em = node('old'); const bar = node();
     return [label, { strong, em, bar, querySelector: s => s === 'strong' ? strong : s === 'em' ? em : bar }];
   }));
-  const card = { querySelector: s => lines[/data-resource="([^"]+)"/.exec(s)?.[1]] || null };
+  const card = { querySelector: s => lines[s.match(/data-resource="([^"]+)"/)?.[1]] || null };
   const panel = { querySelector: () => null, outerHTML: '' };
   return { cells, summary, lines, panel, document: {
     querySelector: s => s === '.detail-health-summary' ? summary : s === '.probe-observability-grid .resources-card' ? card : null,
