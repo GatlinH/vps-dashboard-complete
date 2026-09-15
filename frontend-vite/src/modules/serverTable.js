@@ -15,10 +15,11 @@ import { renderPublicOverviewPage as renderPublicOverviewPageModule } from '../p
 import { detailLoadingShell, renderDetailConsole, renderDetailNotFound } from '../pages/detailPage.js';
 import { getDetailHistoryBucketMinutes, getDetailHistoryPointLimit, setDetailHistoryDays as setDetailHistoryDaysModule, syncDetailHistoryStateFromStorage } from '../detail/historyRange.js';
 import { getDetailHeavyRefreshAt, setDetailHeavyRefreshAt, startDetailRefreshTimer, stopDetailRefreshTimer } from '../detail/refreshState.js';
-import { detailCache } from '../detail/detailCache.js';
+import { detailCache, resetDetailCache } from '../detail/detailCache.js';
 import { createDetailPingSampleCache } from '../detail/sampleCache.js';
 import { mergeResourceTimelineHistory, resourceHistoryRequest, resourceTimelineRows, shouldReplaceResourceTimeline } from '../detail/resourceTimeline.js';
 import { consumeAggregateWithinBudget, normalizeDetailAggregate } from '../detail/aggregatePayload.js';
+import { acceptHealthSnapshot, buildAggregateHealthSnapshot, evaluateHealthSnapshot } from '../detail/healthSnapshot.js';
 import { getGlobeRuntimeDebug } from '../utils/debugState.js';
 import { buildClusterScreenFanout, resolveClusterSelection } from '../components/globe/vpsClusterInteraction.js';
 import { groupClusterMembers } from '../services/serverGroups.js';
@@ -258,8 +259,8 @@ function relocalizeDetailComposedLabels(root = document) {
     if (lh) {
       const stateStrong = summary.children?.[0]?.querySelector('strong');
       const stateEm = summary.children?.[0]?.querySelector('em');
-      if (stateStrong) stateStrong.textContent = lh.state === 'danger' ? t('abnormal') : (lh.state === 'warn' ? t('attention') : t('healthy'));
-      if (stateEm) stateEm.textContent = `${lh.online ? t('agentOnline') : t('agentOffline')} · ${lh.dangerCount ? `${lh.dangerCount} ${t('critical')}` : (lh.warnCount ? `${lh.warnCount} ${t('reminder')}` : `0 ${t('alerts')}`)}`;
+      if (stateStrong) stateStrong.textContent = lh.state === 'danger' ? t('abnormal') : (lh.state === 'warn' ? t('attention') : (lh.state === 'unknown' ? t('noSample') : t('healthy')));
+      if (stateEm) stateEm.textContent = `${lh.online === true ? t('agentOnline') : (lh.online === false ? t('agentOffline') : t('noSample'))} · ${lh.dangerCount ? `${lh.dangerCount} ${t('critical')}` : (lh.warnCount ? `${lh.warnCount} ${t('reminder')}` : `0 ${t('alerts')}`)}`;
       const freshEm = summary.children?.[1]?.querySelector('em');
       if (freshEm) freshEm.textContent = `${t('backendSampleInterval')} ${lh.latest?.sampleSec ? `${lh.latest.sampleSec}s` : '—'}`;
     }
@@ -1265,13 +1266,14 @@ function sparkline(values = [], opts = {}) {
 // same node at the same instant, so any divergence in how they pick the latest
 // sample surfaces as two different CPU numbers on screen.
 function detailLatestSample(series, fallback) {
-  const clean = (Array.isArray(series) ? series : []).map(Number).filter(v => Number.isFinite(v) && Math.abs(v) > 0.01);
-  const v = clean.length ? clean[clean.length - 1] : Number(fallback || 0);
-  return Number.isFinite(v) ? v : 0;
+  const clean = (Array.isArray(series) ? series : []).map(Number).filter(v => Number.isFinite(v));
+  const v = clean.length ? clean[clean.length - 1] : Number(fallback);
+  return Number.isFinite(v) ? v : null;
 }
 
 function detailMetricValue(series, fallback, suffix = '') {
-  return `${detailLatestSample(series, fallback).toFixed(1)}${suffix}`;
+  const value = detailLatestSample(series, fallback);
+  return value == null ? '—' : `${value.toFixed(1)}${suffix}`;
 }
 
 function detailRateValue(series, fallback) {
@@ -1354,32 +1356,81 @@ function detailProcessMeta(rows = [], server = null) {
 }
 
 function detailHealthStatus(server, probeRows = [], pingTargetsData = null) {
-  const cpu = Number(server?.cpu_use || 0);
-  const ram = Number(server?.ram_use || 0);
-  const disk = Number(server?.disk_use || 0);
+  const snapshotHealth = detailCache.healthSnapshot ? evaluateHealthSnapshot(detailCache.healthSnapshot) : null;
+  if (snapshotHealth) {
+    const latest = {
+      ageSec: snapshotHealth.rawAgeMs == null ? null : Math.floor(snapshotHealth.rawAgeMs / 1000),
+      ageText: snapshotHealth.rawAgeMs == null ? t('noSample') : (snapshotHealth.rawAgeMs < 60000 ? `${Math.floor(snapshotHealth.rawAgeMs / 1000)} ${t('secondsAgo')}` : `${Math.floor(snapshotHealth.rawAgeMs / 60000)} ${t('minutesAgo')} ${Math.floor(snapshotHealth.rawAgeMs / 1000) % 60} ${t('secondsAgo')}`),
+      sampleSec: snapshotHealth.raw?.sampleSec,
+      freshClass: snapshotHealth.state,
+    };
+    const loss = snapshotHealth.metrics.lossPct;
+    return { state: snapshotHealth.state, online: snapshotHealth.online, warnCount: snapshotHealth.state === 'warn' ? 1 : 0, dangerCount: snapshotHealth.state === 'danger' ? 1 : 0, latest, loss };
+  }
+  if (!detailCache.healthSnapshot) {
+    return { state: 'unknown', online: null, warnCount: 0, dangerCount: 0, latest: { ageText: t('noSample'), sampleSec: null, freshClass: 'unknown' }, loss: null };
+  }
+  const metric = (value) => value == null || value === '' || !Number.isFinite(Number(value)) ? null : Number(value);
+  const cpu = metric(server?.cpu_use);
+  const ram = metric(server?.ram_use);
+  const disk = metric(server?.disk_use);
   const targets = Array.isArray(pingTargetsData?.targets) ? pingTargetsData.targets : [];
-  const loss = Math.max(0, ...targets.map(t => Number(t?.stats?.loss_pct ?? 0)).filter(Number.isFinite), 0);
+  const lossValues = targets.map(t => Number(t?.stats?.loss_pct)).filter(Number.isFinite);
+  const loss = lossValues.length ? Math.max(0, ...lossValues) : null;
   const latest = detailFreshnessMeta(probeRows, server);
-  const online = String(server?.status || '').toLowerCase() === 'online';
-  const warnCount = [cpu >= 85, ram >= 85, disk >= 85, loss >= 5, latest.freshClass === 'warn'].filter(Boolean).length;
-  const dangerCount = [!online, cpu >= 95, ram >= 95, disk >= 95, loss >= 20, latest.freshClass === 'danger'].filter(Boolean).length;
-  const state = dangerCount ? 'danger' : (warnCount ? 'warn' : 'ok');
+  const status = String(server?.status || '').toLowerCase();
+  const online = status === 'online' ? true : (status === 'offline' || status === 'error' || status === 'failed' || status === 'down' ? false : null);
+  const warnCount = [cpu != null && cpu >= 85, ram != null && ram >= 85, disk != null && disk >= 85, loss != null && loss >= 5, latest.freshClass === 'warn'].filter(Boolean).length;
+  const dangerCount = [online === false, cpu != null && cpu >= 95, ram != null && ram >= 95, disk != null && disk >= 95, loss != null && loss >= 20, latest.freshClass === 'danger'].filter(Boolean).length;
+  const state = latest.freshClass === 'unknown' && online == null && !dangerCount ? 'unknown' : (dangerCount ? 'danger' : (warnCount ? 'warn' : 'ok'));
   return { state, online, warnCount, dangerCount, latest, loss };
+}
+
+function updateDetailHealthDom(serverId, live = null) {
+  const summary = document.querySelector('.detail-health-summary');
+  if (!summary) return;
+  const liveHealth = detailHealthStatus(null, detailCache.resourceRows, detailCache.pingTargets);
+  summary.className = `detail-health-summary is-${liveHealth.state}`;
+  const healthStrong = summary.querySelector('.health-main strong');
+  const healthEm = summary.querySelector('.health-main em');
+  const freshnessStrong = summary.children?.[1]?.querySelector('strong');
+  const freshnessEm = summary.children?.[1]?.querySelector('em');
+  if (healthStrong) healthStrong.textContent = liveHealth.state === 'danger' ? t('abnormal') : (liveHealth.state === 'warn' ? t('attention') : (liveHealth.state === 'unknown' ? t('noSample') : t('healthy')));
+  if (healthEm) {
+    const presence = liveHealth.online === true ? t('agentOnline') : (liveHealth.online === false ? t('agentOffline') : t('noSample'));
+    healthEm.textContent = `${presence} · ${liveHealth.dangerCount ? `${liveHealth.dangerCount} ${t('critical')}` : (liveHealth.warnCount ? `${liveHealth.warnCount} ${t('reminder')}` : `0 ${t('alerts')}`)}`;
+  }
+  if (freshnessStrong) freshnessStrong.textContent = liveHealth.latest.ageText;
+  if (freshnessEm) freshnessEm.textContent = `${t('backendSampleInterval')} ${liveHealth.latest.sampleSec ? `${liveHealth.latest.sampleSec}s` : '—'}`;
+  const valid = (value) => value == null || value === '' || !Number.isFinite(Number(value)) ? null : Number(value);
+  const metrics = detailCache.healthSnapshot ? evaluateHealthSnapshot(detailCache.healthSnapshot).metrics : {};
+  const liveCpu = valid(metrics.cpuPct);
+  const liveRam = valid(metrics.ramPct);
+  const liveDisk = valid(metrics.diskPct);
+  const resourceStrong = summary.children?.[2]?.querySelector('strong');
+  const resourceEm = summary.children?.[2]?.querySelector('em');
+  if (resourceStrong) resourceStrong.textContent = `CPU ${liveCpu == null ? '—' : `${liveCpu.toFixed(1)}%`}`;
+  if (resourceEm) resourceEm.textContent = `${t('memory')} ${liveRam == null ? '—' : `${liveRam.toFixed(1)}%`} · ${t('disk')} ${liveDisk == null ? '—' : `${liveDisk.toFixed(1)}%`}`;
+  detailCache.liveHealth = liveHealth;
+  detailCache.liveSample = { cpuPct: liveCpu, ramPct: liveRam, diskPct: liveDisk, server: state.servers.find((item) => Number(item.id) === Number(serverId)) || {} };
+  syncRealtimeResourceCard(detailCache.liveSample);
 }
 
 function renderHealthSummary(server, probeRows = [], pingTargetsData = null, cpuSeries = [], ramSeries = []) {
   const h = detailHealthStatus(server, probeRows, pingTargetsData);
-  const cpu = detailMetricValue(cpuSeries, server.cpu_use, '%');
-  const mem = detailMetricValue(ramSeries, server.ram_use, '%');
-  const disk = `${pctFmt(server.disk_use)}%`;
-  const heartbeat = h.online ? t('agentOnline') : t('agentOffline');
-  const statusText = h.state === 'danger' ? t('abnormal') : (h.state === 'warn' ? t('attention') : t('healthy'));
+  const metrics = detailCache.healthSnapshot ? evaluateHealthSnapshot(detailCache.healthSnapshot).metrics : { cpuPct: null, ramPct: null, diskPct: null };
+  const metricText = (value) => value == null ? '—' : `${Number(value).toFixed(1)}%`;
+  const cpu = metricText(metrics.cpuPct);
+  const mem = metricText(metrics.ramPct);
+  const disk = metricText(metrics.diskPct);
+  const heartbeat = h.online === true ? t('agentOnline') : (h.online === false ? t('agentOffline') : t('noSample'));
+  const statusText = h.state === 'danger' ? t('abnormal') : (h.state === 'warn' ? t('attention') : (h.state === 'unknown' ? t('noSample') : t('healthy')));
   const alertText = h.dangerCount ? `${h.dangerCount} ${t('critical')}` : (h.warnCount ? `${h.warnCount} ${t('reminder')}` : `0 ${t('alerts')}`);
   return `<section class="detail-health-summary is-${h.state}" aria-label="${t('healthStatus')}">
     <div class="health-main"><span>${t('healthStatus')}</span><strong>${statusText}</strong><em>${heartbeat} · ${alertText}</em></div>
     <div><span>${t('latestSample')}</span><strong>${h.latest.ageText}</strong><em>${t('backendSampleInterval')} ${h.latest.sampleSec ? `${h.latest.sampleSec}s` : '—'}</em></div>
     <div><span>${t('healthResources')}</span><strong>CPU ${cpu}</strong><em>${t('memory')} ${mem} · ${t('disk')} ${disk}</em></div>
-    <div><span>${t('healthLink')}</span><strong>${pingTargetsData?.unavailable ? '—' : `${t('healthPacketLoss')} ${Number(h.loss || 0).toFixed(0)}%`}</strong><em>${pingTargetsData?.unavailable ? t('noPeerProbeSamples') : `${(pingTargetsData?.targets || []).length || 0} ${t('probeTargetsCount')}`}</em></div>
+    <div><span>${t('healthLink')}</span><strong>${pingTargetsData?.unavailable || h.loss == null ? '—' : `${t('healthPacketLoss')} ${Number(h.loss).toFixed(0)}%`}</strong><em>${pingTargetsData?.unavailable ? t('noPeerProbeSamples') : `${(pingTargetsData?.targets || []).length || 0} ${t('probeTargetsCount')}`}</em></div>
   </section>`;
 }
 
@@ -1464,6 +1515,9 @@ function syncRealtimeResourceCard({ cpuPct, ramPct, server } = {}) {
     setLine(t('cpu').toUpperCase(), `${pctFmt(cpuPct)}%`, cpuPct, `${cpuCores || '—'} ${t('cores')}`);
     const load = cpuCores > 0 ? (cpuPct / 100 * cpuCores).toFixed(2) : '—';
     setLine(t('load').toUpperCase(), load, cpuCores ? clampPct((Number(load) / cpuCores) * 100) : 0, `1m / ${load}`);
+  } else {
+    setLine(t('cpu').toUpperCase(), '—', 0, `${cpuCores || '—'} ${t('cores')}`);
+    setLine(t('load').toUpperCase(), '—', 0, '1m / —');
   }
   if (Number.isFinite(ramPct)) {
     const ramUsed = resourceUsageFromTotal(ramTotal, ramPct);
@@ -1475,6 +1529,13 @@ function syncRealtimeResourceCard({ cpuPct, ramPct, server } = {}) {
       if (top) top.textContent = `${fmtResourceGb(ramUsed)}${ramTotal ? ` / ${fmtResourceGb(ramTotal)}` : ''}`;
       if (bar) bar.style.width = `${clampPct(ramTotal ? (ramUsed / ramTotal * 100) : ramPct)}%`;
     }
+  } else {
+    setLine(t('mem').toUpperCase(), '—', 0, `— / ${fmtResourceGb(ramTotal)}`);
+    const meter = document.querySelector(`.probe-observability-grid .allocation-card .probe-meter-row[data-meter="${t('memory').toUpperCase()}"]`);
+    const top = meter?.querySelector('.probe-meter-top strong');
+    const bar = meter?.querySelector('.probe-meter-track i');
+    if (top) top.textContent = '—';
+    if (bar) bar.style.width = '0%';
   }
 }
 
@@ -2011,8 +2072,21 @@ function renderErrorLog(server, heartbeatSeries, pingData) {
 
 
 let detailPageGeneration = 0;
+let activeDetailServerId = null;
 
-async function renderDetailPage(serverId, hydratedPayload = null, generation = ++detailPageGeneration) {
+function beginDetailGeneration(serverId) {
+  const requested = serverId == null ? null : String(serverId);
+  const fallback = state.servers.length === 1 ? String(state.servers[0].id) : null;
+  const id = state.servers.some((item) => String(item.id) === requested) ? requested : fallback;
+  if (id !== activeDetailServerId) {
+    activeDetailServerId = id;
+    detailPageGeneration += 1;
+    resetDetailCache();
+  }
+  return detailPageGeneration;
+}
+
+async function renderDetailPage(serverId, hydratedPayload = null, generation = beginDetailGeneration(serverId)) {
   window.__DBG__.DETAIL_TRACE = ['renderDetailPage:start', String(serverId)];
   loadStoredPingSamples(serverId);
   const requestedDetailDays = Number(getDetailHistoryDays() || 0) || 0;
@@ -2031,6 +2105,7 @@ async function renderDetailPage(serverId, hydratedPayload = null, generation = +
     document.documentElement.classList.remove('detail-pending');
     return;
   }
+  if (generation !== detailPageGeneration || String(resolvedServer.id) !== activeDetailServerId) return;
 
   // Show a real mobile-safe shell immediately. Heavy history endpoints can take
   // several seconds on small VPS installs; without this, direct ?server= routes
@@ -2049,7 +2124,7 @@ async function renderDetailPage(serverId, hydratedPayload = null, generation = +
     const detailPayloadResult = await consumeAggregateWithinBudget({
       promise: detailPayloadPromise,
       budgetMs: fetchBudgetMs,
-      isCurrent: () => generation === detailPageGeneration && Number(selectedServerId) === Number(resolvedServer.id),
+      isCurrent: () => generation === detailPageGeneration && String(activeDetailServerId) === String(resolvedServer.id),
       onHydrate: (payload) => renderDetailPage(resolvedServer.id, payload, generation),
       onFailure: (error) => {
         const grid = document.getElementById('detailPageGrid');
@@ -2063,11 +2138,20 @@ async function renderDetailPage(serverId, hydratedPayload = null, generation = +
     if (detailPayloadResult.status === 'rejected') throw detailPayloadResult.reason;
     detailPayload = detailPayloadResult.value;
   }
+  if (generation !== detailPageGeneration || String(resolvedServer.id) !== activeDetailServerId) return;
   const resourceRequest = resourceHistoryRequest();
   const aggregate = normalizeDetailAggregate(
     detailPayload,
     (rows) => normalizePersistedRows(rows, historyDays * 24),
   );
+  const aggregateHealthSnapshot = buildAggregateHealthSnapshot({
+    serverId: resolvedServer.id,
+    generation,
+    receiveSeq: ++detailCache.healthReceiveSeq,
+    payload: detailPayload,
+  });
+  detailCache.healthSnapshot = acceptHealthSnapshot(detailCache.healthSnapshot, aggregateHealthSnapshot);
+  window.__DBG__.DETAIL_HEALTH_SNAPSHOT = evaluateHealthSnapshot(detailCache.healthSnapshot);
   const trafficData = aggregate.traffic;
   const pingData = null;
   const probeHistoryData = aggregate.history;
@@ -2407,12 +2491,34 @@ async function refreshDetailHistoryRange(serverId) {
 }
 
 async function refreshDetailLivePoint(serverId) {
+  const resolved = state.servers.find((item) => Number(item.id) === Number(serverId))
+    || (state.servers.length === 1 ? state.servers[0] : null);
+  if (!resolved) return false;
+  serverId = resolved.id;
+  if (typeof activeDetailServerId !== 'undefined' && activeDetailServerId != null && String(serverId) !== activeDetailServerId) return false;
+  if (typeof activeDetailServerId !== 'undefined' && activeDetailServerId == null) activeDetailServerId = String(serverId);
+  const requestGeneration = detailPageGeneration;
+  const requestServerId = String(serverId);
+  let live = null;
   try {
     const payload = await fetchJson(`${API_ROOT}/api/v1/servers/public/${serverId}/live`, { timeoutMs: 1200 });
-    const live = payload?.live;
+    if (requestGeneration !== detailPageGeneration || (typeof activeDetailServerId !== 'undefined' && requestServerId !== activeDetailServerId)) return false;
+    live = payload?.live;
     const timeMs = rowTimeMs({ created_at: live?.updated_at }, NaN);
-    if (!live || !Number.isFinite(timeMs) || timeMs <= Number(detailCache.liveUpdatedAt || 0)) return false;
+    if (live) {
+      detailCache.healthReceiveSeq += 1;
+      detailCache.healthSnapshot = acceptHealthSnapshot(detailCache.healthSnapshot, buildAggregateHealthSnapshot({
+        serverId, generation: detailPageGeneration, receiveSeq: detailCache.healthReceiveSeq, source: 'live',
+        payload: { live, resource_timeline: [] },
+      }));
+      window.__DBG__.DETAIL_HEALTH_SNAPSHOT = evaluateHealthSnapshot(detailCache.healthSnapshot, Date.now());
+    }
+    if (!live || !Number.isFinite(timeMs) || timeMs <= Number(detailCache.liveUpdatedAt || 0)) {
+      updateDetailHealthDom(serverId, live || null);
+      return false;
+    }
     const runtime = await getDetailChartRuntime();
+    if (requestGeneration !== detailPageGeneration || (typeof activeDetailServerId !== 'undefined' && requestServerId !== activeDetailServerId)) return false;
     const appended = runtime.appendDetailLiveMetrics(live, { detailCharts: runtime.detailCharts, mode: detailLivePollMode });
     detailCache.liveUpdatedAt = timeMs;
     if (appended) {
@@ -2431,15 +2537,8 @@ async function refreshDetailLivePoint(serverId) {
       if (cpu && Number.isFinite(Number(live.cpu_use))) cpu.textContent = `${Number(live.cpu_use).toFixed(1)}%`;
       if (ram && Number.isFinite(Number(live.ram_use))) ram.textContent = `${Number(live.ram_use).toFixed(1)}%`;
       if (process && Number.isFinite(Number(live.process_count))) process.textContent = `${Math.round(Number(live.process_count))} ${t('processUnit')}`.trim();
-      const summary = document.querySelector('.detail-health-summary');
-      if (summary) {
-        const liveServer = { ...state.servers.find((item) => Number(item.id) === Number(serverId)), ...live };
-        const liveHealth = detailHealthStatus(liveServer, [{ created_at: live.updated_at }], detailCache.pingTargets);
-        summary.className = `detail-health-summary is-${liveHealth.state}`;
-        const healthStrong = summary.querySelector('.health-main strong');
-        const healthEm = summary.querySelector('.health-main em');
-        const freshnessStrong = summary.children?.[1]?.querySelector('strong');
-        const freshnessEm = summary.children?.[1]?.querySelector('em');
+      updateDetailHealthDom(serverId, live);
+      /*
         // This poll runs every 5s, long after applyLanguage() localized the row.
         // Every string written here must come from the language pack, otherwise the
         // UI silently snaps back to Chinese one tick after the user switches language.
@@ -2467,11 +2566,14 @@ async function refreshDetailLivePoint(serverId) {
         // instead of translating already-rendered text.
         detailCache.liveHealth = liveHealth;
         syncRealtimeResourceCard({ cpuPct: liveCpu, ramPct: liveRam, server: liveServer });
-      }
+      */
     }
+    updateDetailHealthDom(serverId, live);
     return appended;
   } catch (error) {
+    if (requestGeneration !== detailPageGeneration || (typeof activeDetailServerId !== 'undefined' && requestServerId !== activeDetailServerId)) return false;
     window.__DBG__.DETAIL_LIVE_APPEND_ERROR = String(error?.message || error);
+    updateDetailHealthDom(serverId, null);
     return false;
   }
 }
@@ -2484,7 +2586,7 @@ async function refreshDetailLivePoint(serverId) {
 // memory charts from ~121 points back to 13 on every switch.
 async function repaintDetailChartsFromCache() {
   if (!selectedServerId) return;
-  const current = state.servers.find((item) => Number(item.id) === Number(selectedServerId));
+  const current = state.servers.find((item) => String(item.id) === activeDetailServerId);
   if (!current) return;
   const historyRows = detailCache.historyRows || [];
   const networkRows = detailCache.networkRows || [];
@@ -2527,17 +2629,34 @@ async function refreshDetailRealtime(serverId) {
   detailRefreshInFlight = true;
   try {
   // 详情页只刷新当前节点遥测，不再每轮全量重拉服务器列表(避免重复统计/重渲染循环)
-  const current = state.servers.find((item) => Number(item.id) === Number(serverId));
-  if (!current) return;
+  const current = state.servers.find((item) => Number(item.id) === Number(serverId))
+    || (state.servers.length === 1 ? state.servers[0] : null);
+  if (!current || String(current.id) !== activeDetailServerId) return;
+  serverId = current.id;
+  const requestGeneration = detailPageGeneration;
+  const requestServerId = String(current.id);
   // 5s lightweight path: append only when the persisted Server snapshot changed.
   // This avoids a one-hour history scan and Chart.js teardown for an unchanged point.
   await refreshDetailLivePoint(serverId);
+  if (requestGeneration !== detailPageGeneration || requestServerId !== activeDetailServerId) return;
   const now = Date.now();
   // Match the default Agent telemetry interval (20s). This refreshes persisted
   // CPU/memory/process chart data promptly without increasing PING probe cadence.
   const doHeavy = now - getDetailHeavyRefreshAt() > 20_000;
   if (doHeavy) {
     const detail = await getServerDetail(current.id, getDetailHistoryDays()).catch(() => ({}));
+    if (requestGeneration !== detailPageGeneration || requestServerId !== activeDetailServerId) return;
+    if (detail && Object.keys(detail).length) {
+      detailCache.healthReceiveSeq += 1;
+      detailCache.healthSnapshot = acceptHealthSnapshot(detailCache.healthSnapshot, buildAggregateHealthSnapshot({
+        serverId: current.id,
+        generation: detailPageGeneration,
+        receiveSeq: detailCache.healthReceiveSeq,
+        source: 'heavy',
+        payload: detail,
+      }));
+      window.__DBG__.DETAIL_HEALTH_SNAPSHOT = evaluateHealthSnapshot(detailCache.healthSnapshot, Date.now());
+    }
     const traffic = { status: detail.traffic ? 'fulfilled' : 'rejected', value: detail.traffic };
     const probeHistory = { status: detail.history ? 'fulfilled' : 'rejected', value: detail.history };
     const resourceHistory = { status: detail.resource_timeline ? 'fulfilled' : 'rejected', value: { data: detail.resource_timeline || [] } };

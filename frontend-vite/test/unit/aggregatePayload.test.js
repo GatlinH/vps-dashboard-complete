@@ -22,6 +22,11 @@ describe('detail aggregate payload', () => {
     expect(result.pingTargets).toBe(payload.ping_targets);
     expect(result.pingHistory).toBe(payload.ping_history);
   });
+
+  it('preserves aggregate live data for first-paint health wiring', () => {
+    const live = { server_id: 'b', updated_at: '2026-09-15T00:00:00Z', cpu_use: 4 };
+    expect(normalizeDetailAggregate({ live }).live).toEqual(live);
+  });
 });
 
 describe('delayed detail aggregate lifecycle', () => {

@@ -15,6 +15,8 @@ export const detailCache = {
   // Latest computed health snapshot (state/online/counts), used to recompose the
   // health-summary labels on a language switch without waiting for the next poll.
   liveHealth: null,
+  healthSnapshot: null,
+  healthReceiveSeq: 0,
   pingTargets: null,
   pingTargetHistory: null,
   vpsProbeTargets: null,
@@ -31,6 +33,8 @@ export function resetDetailCache() {
   detailCache.liveUpdatedAt = 0;
   detailCache.liveSample = null;
   detailCache.liveHealth = null;
+  detailCache.healthSnapshot = null;
+  detailCache.healthReceiveSeq = 0;
   detailCache.pingTargets = null;
   detailCache.pingTargetHistory = null;
   detailCache.vpsProbeTargets = null;
