@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-09-16T01:52:18.187610+00:00",
+  "source": "NASA/JPL Horizons API",
+  "coordinate_contract": {
+    "center": "Sun (10)",
+    "reference_plane": "Ecliptic of J2000.0",
+    "reference_system": "ICRF",
+    "time_scale": "TDB",
+    "position_unit": "AU",
+    "velocity_unit": "AU/day",
+    "output": "geometric Cartesian position+velocity"
+  },
+  "interpolation": "cubic Hermite using position and velocity",
+  "targets": {
+    "halley": {
+      "target_command": "90000030;",
+      "files": [
+        {
+          "segment": "pre",
+          "file": "halley-pre.txt",
+          "request": "halley-pre.request.txt",
+          "sha256": "f1535464b5fee579713cf6a8338aec2a78d1cb34c4fe545b0cdb2ed6f5646e5a",
+          "bytes": 76345,
+          "rows": 323
+        },
+        {
+          "segment": "peri",
+          "file": "halley-peri.txt",
+          "request": "halley-peri.request.txt",
+          "sha256": "d9073a6a75ec778986091652a76993c5843b40990d96ec07130f258bb0160350",
+          "bytes": 136906,
+          "rows": 606
+        },
+        {
+          "segment": "post",
+          "file": "halley-post.txt",
+          "request": "halley-post.request.txt",
+          "sha256": "7497afd54289b6b43aa28ff95521d8beccb67f40b85419fe73f2d74219091bf5",
+          "bytes": 33545,
+          "rows": 123
+        }
+      ],
+      "row_count": 1050,
+      "jd_tdb_range": [
+        2446078.5,
+        2446643.5
+      ]
+    },
+    "mars": {
+      "target_command": "499",
+      "files": [
+        {
+          "segment": "pre",
+          "file": "mars-pre.txt",
+          "request": "mars-pre.request.txt",
+          "sha256": "3cb55b93cfb38f1fe685e113c9cfbdd12efc953ebcce5e878a26fa5dc1d22531",
+          "bytes": 75129,
+          "rows": 323
+        },
+        {
+          "segment": "peri",
+          "file": "mars-peri.txt",
+          "request": "mars-peri.request.txt",
+          "sha256": "858c2cbcc6ee94c4394040038463009110914d266900269e30a5d36c1eef8d26",
+          "bytes": 135690,
+          "rows": 606
+        },
+        {
+          "segment": "post",
+          "file": "mars-post.txt",
+          "request": "mars-post.request.txt",
+          "sha256": "cc67823af45c5d6c0109b18ff5c88882fe93b364da55ade72defb3b44cee4674",
+          "bytes": 32329,
+          "rows": 123
+        }
+      ],
+      "row_count": 1050,
+      "jd_tdb_range": [
+        2446078.5,
+        2446643.5
+      ]
+    }
+  }
+}
