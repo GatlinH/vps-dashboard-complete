@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { mapRadial, physicalToDisplay } from '../../src/components/solar/CoordinateMapper.js';
 import { createEphemerisProvider, loadP1Ephemerides } from '../../src/components/solar/EphemerisProvider.js';
-import { advanceSimulationTime, antiSolarDisplayDirection, updateEphemerisTargets } from '../../src/components/solar/SolarEphemerisRuntime.js';
+import { advanceOrbitalBodies, advanceSimulationTime, antiSolarDisplayDirection, hasGenericOrbitRing, updateEphemerisTargets } from '../../src/components/solar/SolarEphemerisRuntime.js';
 
 const asset = (name) => JSON.parse(readFileSync(new URL(`../../public/assets/solar/p1/${name}.json`, import.meta.url), 'utf8'));
 const manifest = JSON.parse(readFileSync(new URL('../../public/assets/solar/p1/manifest.json', import.meta.url), 'utf8'));
@@ -55,6 +55,48 @@ describe('P1 published ephemerides', () => {
     expect(loaded.range).toEqual(mars.jd_tdb_range);
     expect(fetchImpl.mock.calls.map(([url]) => url)).toEqual(['/assets/solar/p1/manifest.json', '/assets/solar/p1/mars.json', '/assets/solar/p1/halley.json']);
   });
+
+  it('returns the strict intersection of target ranges', async () => {
+    const rangedManifest = structuredClone(manifest);
+    rangedManifest.targets.mars.jd_tdb_range = [10, 30];
+    rangedManifest.targets.halley.jd_tdb_range = [20, 40];
+    const values = {
+      'manifest.json': rangedManifest,
+      'mars.json': { ...mars, jd_tdb_range: [10, 30], states: mars.states.map((row, i, rows) => [10 + (20 * i) / (rows.length - 1), ...row.slice(1)]) },
+      'halley.json': { ...halley, jd_tdb_range: [20, 40], states: halley.states.map((row, i, rows) => [20 + (20 * i) / (rows.length - 1), ...row.slice(1)]) }
+    };
+    const fetchImpl = vi.fn(async (url) => ({ ok: true, json: async () => values[url.split('/').at(-1)] }));
+    expect((await loadP1Ephemerides(fetchImpl)).range).toEqual([20, 30]);
+  });
+
+  it.each([
+    ['missing manifest target', (value) => { delete value.targets.mars; }, 'manifest target mars missing'],
+    ['missing coordinate contract', (value) => { delete value.coordinate_contract; }, 'manifest coordinate_contract missing'],
+    ['missing range', (value) => { delete value.targets.mars.jd_tdb_range; }, 'manifest target mars range invalid'],
+    ['missing files', (value) => { delete value.targets.mars.files; }, 'manifest target mars files invalid'],
+    ['empty files', (value) => { value.targets.mars.files = []; }, 'manifest target mars files invalid'],
+    ['missing SHA', (value) => { delete value.targets.mars.files[0].sha256; }, 'manifest target mars files invalid']
+  ])('fails closed for %s', async (_label, mutate, message) => {
+    const badManifest = structuredClone(manifest); mutate(badManifest);
+    const values = { 'manifest.json': badManifest, 'mars.json': mars, 'halley.json': halley };
+    const fetchImpl = vi.fn(async (url) => ({ ok: true, status: 200, json: async () => values[url.split('/').at(-1)] }));
+    await expect(loadP1Ephemerides(fetchImpl)).rejects.toThrow(message);
+  });
+
+  it('rejects HTTP errors, provider validation errors, and disjoint ranges', async () => {
+    await expect(loadP1Ephemerides(async () => ({ ok: false, status: 503 }))).rejects.toThrow('ephemeris manifest HTTP 503');
+    const invalidValues = { 'manifest.json': manifest, 'mars.json': { ...mars, source_sha256: ['bad'] }, 'halley.json': halley };
+    await expect(loadP1Ephemerides(async (url) => ({ ok: true, status: 200, json: async () => invalidValues[url.split('/').at(-1)] }))).rejects.toThrow('mars ephemeris source_sha_mismatch');
+    const disjointManifest = structuredClone(manifest);
+    disjointManifest.targets.mars.jd_tdb_range = [10, 20];
+    disjointManifest.targets.halley.jd_tdb_range = [30, 40];
+    const disjointValues = {
+      'manifest.json': disjointManifest,
+      'mars.json': { ...mars, jd_tdb_range: [10, 20], states: mars.states.map((row, i, rows) => [10 + (10 * i) / (rows.length - 1), ...row.slice(1)]) },
+      'halley.json': { ...halley, jd_tdb_range: [30, 40], states: halley.states.map((row, i, rows) => [30 + (10 * i) / (rows.length - 1), ...row.slice(1)]) }
+    };
+    await expect(loadP1Ephemerides(async (url) => ({ ok: true, status: 200, json: async () => disjointValues[url.split('/').at(-1)] }))).rejects.toThrow('ephemeris common range invalid');
+  });
 });
 
 describe('P1 coordinate and runtime math', () => {
@@ -86,6 +128,23 @@ describe('P1 coordinate and runtime math', () => {
     expect(advanceSimulationTime(19, 1, 4, [10, 20])).toBe(13);
   });
 
+  it('omits only Mars from generic orbit rings', () => {
+    expect(hasGenericOrbitRing('Mars')).toBe(false);
+    for (const name of ['Mercury', 'Venus', 'Earth', 'Jupiter', 'Saturn', 'Uranus', 'Neptune']) expect(hasGenericOrbitRing(name)).toBe(true);
+  });
+
+  it('spins Mars without applying the generic circular orbit', () => {
+    const position = { set: vi.fn() };
+    const marsBody = { name: 'Mars', angle: 1, speed: .24, orbit: 25, spin: .4, mesh: { position, rotation: { y: 2 } } };
+    const earthBody = { name: 'Earth', angle: 1, speed: .31, orbit: 19, spin: .4, mesh: { position: { set: vi.fn() }, rotation: { y: 2 } } };
+    advanceOrbitalBodies([marsBody, earthBody], .5);
+    expect(marsBody.angle).toBe(1);
+    expect(position.set).not.toHaveBeenCalled();
+    expect(marsBody.mesh.rotation.y).toBeCloseTo(2.2);
+    expect(earthBody.angle).toBeCloseTo(1.155);
+    expect(earthBody.mesh.position.set).toHaveBeenCalledOnce();
+  });
+
   it.each([
     ['Mars failure', { mars: { ok: false, error: 'out_of_range' }, halley: { ok: true, position: [1, 2, 3] } }, false, true],
     ['Halley failure', { mars: { ok: true, position: [1, 2, 3] }, halley: { ok: false, error: 'out_of_range' } }, true, false]
@@ -110,5 +169,20 @@ describe('P1 coordinate and runtime math', () => {
     expect(statuses.halley.ok).toBe(false);
     expect(statuses.halley.lastPhysicalPosition).toBeNull();
     expect(statuses.halley.lastTailDirection).toBeNull();
+  });
+
+  it('isolates apply failures per target and recovers on the next frame', () => {
+    const targets = { mars: { visible: false }, halley: { visible: false } }, statuses = { mars: {}, halley: {} };
+    let failMars = true;
+    const args = { simulationTime: 5, providers: { mars: { sample: () => ({ ok: true, position: [1, 2, 3] }) }, halley: { sample: () => ({ ok: true, position: [4, 5, 6] }) } }, targets, statuses, applyPosition: (target, _position, name) => { if (name === 'mars' && failMars) throw new Error('mars apply exploded'); target.updated = (target.updated || 0) + 1; }, applyTail: (target) => { target.tailUpdated = (target.tailUpdated || 0) + 1; } };
+    updateEphemerisTargets(args);
+    expect(targets.mars.visible).toBe(false);
+    expect(statuses.mars).toMatchObject({ ok: false, error: 'mars apply exploded', lastPhysicalPosition: null, lastTailDirection: null });
+    expect(targets.halley).toMatchObject({ visible: true, updated: 1, tailUpdated: 1 });
+    failMars = false;
+    updateEphemerisTargets({ ...args, simulationTime: 6 });
+    expect(targets.mars.visible).toBe(true);
+    expect(statuses.mars).toMatchObject({ ok: true, error: null, lastPhysicalPosition: [1, 2, 3] });
+    expect(targets.halley.updated).toBe(2);
   });
 });
