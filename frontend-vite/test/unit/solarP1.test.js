@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { mapRadial, physicalToDisplay } from '../../src/components/solar/CoordinateMapper.js';
 import { createEphemerisProvider, loadP1Ephemerides } from '../../src/components/solar/EphemerisProvider.js';
-import { advanceOrbitalBodies, advanceSimulationTime, antiSolarDisplayDirection, hasGenericOrbitRing, updateEphemerisTargets } from '../../src/components/solar/SolarEphemerisRuntime.js';
+import { advanceOrbitalBodies, advanceSimulationTime, antiSolarDisplayDirection, hasGenericOrbitRing, orbitDisplayPosition, updateEphemerisTargets } from '../../src/components/solar/SolarEphemerisRuntime.js';
 
 const asset = (name) => JSON.parse(readFileSync(new URL(`../../public/assets/solar/p1/${name}.json`, import.meta.url), 'utf8'));
 const manifest = JSON.parse(readFileSync(new URL('../../public/assets/solar/p1/manifest.json', import.meta.url), 'utf8'));
@@ -100,6 +100,20 @@ describe('P1 published ephemerides', () => {
 });
 
 describe('P1 coordinate and runtime math', () => {
+  it('keeps placeholder, moon-relative, and asteroid-style display motion prograde', () => {
+    const position = (radius, angle) => orbitDisplayPosition(radius, angle);
+    const ly = (a, b) => a.z * b.x - a.x * b.z;
+    expect(ly(position(19, 0.2), position(19, 0.2 + 0.1))).toBeGreaterThan(0);
+    expect(ly(position(2, 1.1), position(2, 1.1 + 0.1))).toBeGreaterThan(0);
+    expect(ly(position(30, 2.2), position(30, 2.2 + 0.1))).toBeGreaterThan(0);
+  });
+
+  it('rejects the legacy positive-z sine generator', () => {
+    const legacy = (radius, angle) => ({ x: radius * Math.cos(angle), z: radius * Math.sin(angle) });
+    const ly = (a, b) => a.z * b.x - a.x * b.z;
+    expect(ly(legacy(19, 0.2), legacy(19, 0.2 + 0.1))).toBeLessThan(0);
+  });
+
   it('maps every radial node exactly and continuously', () => {
     for (const [radius, display] of [[0, 0], [.39, 9], [1, 19], [5.2, 35], [30.1, 62]]) {
       expect(mapRadial(radius)).toBe(display);

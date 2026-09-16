@@ -45,8 +45,8 @@ assert.match(advance, /advanceOrbitalBodies\(this\.bodies/);
 const runtime = readFileSync(new URL('../src/components/solar/SolarEphemerisRuntime.js', import.meta.url), 'utf8');
 assert.match(runtime, /for\s*\(const body of bodies\)/);
 assert.match(runtime, /body\.angle\s*\+=\s*body\.speed\s*\*\s*dt/);
-assert.match(runtime, /Math\.cos\(body\.angle\)/);
-assert.match(runtime, /Math\.sin\(body\.angle\)/);
+assert.match(runtime, /orbitDisplayPosition\(body\.orbit,\s*body\.angle/);
+assert.match(runtime, /z:\s*-Math\.sin\(angle\)/, 'placeholder display orbit must use the Mars-aligned negative-z sine');
 assert.match(runtime, /body\.mesh\.position\.set\(/);
 
 // Escape handling and the sun entry must not regress to their earlier broken forms.
