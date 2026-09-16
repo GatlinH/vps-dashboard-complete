@@ -14,6 +14,7 @@ Checks:
 import asyncio
 import functools
 import json
+import math
 import os
 import shutil
 import socket
@@ -36,34 +37,38 @@ DIST = REPO_ROOT / "frontend-dist"
 WS = None
 MSG_ID = 0
 NET_URLS = []
+CDP_PENDING = {}
+CDP_EVENTS = asyncio.Queue()
+CDP_READER = None
 
 
 # ----------------------------------------------------------------------------
 # CDP transport
 # ----------------------------------------------------------------------------
-async def cdp(method, **params):
+async def cdp(method, timeout=25, **params):
     """Send a CDP command and wait for the matching response id."""
     global MSG_ID
     MSG_ID += 1
     mid = MSG_ID
+    fut = asyncio.get_running_loop().create_future(); CDP_PENDING[mid] = fut
     await WS.send(json.dumps({"id": mid, "method": method, "params": params}))
-    deadline = time.time() + 25
-    while time.time() < deadline:
-        try:
-            raw = await asyncio.wait_for(WS.recv(), timeout=max(0.1, deadline - time.time()))
-        except asyncio.TimeoutError:
-            break
+    try:
+        msg = await asyncio.wait_for(fut, timeout=timeout)
+    finally:
+        CDP_PENDING.pop(mid, None)
+    if "error" in msg: raise RuntimeError("CDP error for %s: %s" % (method, msg["error"]))
+    return msg.get("result", {})
+
+async def cdp_reader():
+    async for raw in WS:
         msg = json.loads(raw)
         if msg.get("method") == "Network.requestWillBeSent":
-            try:
-                NET_URLS.append(msg["params"]["request"]["url"])
-            except KeyError:
-                pass
-        if msg.get("id") == mid:
-            if "error" in msg:
-                raise RuntimeError("CDP error for %s: %s" % (method, msg["error"]))
-            return msg.get("result", {})
-    raise RuntimeError("CDP timeout waiting for %s" % method)
+            try: NET_URLS.append(msg["params"]["request"]["url"])
+            except KeyError: pass
+        if msg.get("id") in CDP_PENDING:
+            CDP_PENDING[msg["id"]].set_result(msg)
+        else:
+            await CDP_EVENTS.put(msg)
 
 
 async def drain(seconds):
@@ -74,15 +79,9 @@ async def drain(seconds):
         if remaining <= 0:
             return
         try:
-            raw = await asyncio.wait_for(WS.recv(), timeout=remaining)
+            raw = await asyncio.wait_for(CDP_EVENTS.get(), timeout=remaining)
         except asyncio.TimeoutError:
             return
-        msg = json.loads(raw)
-        if msg.get("method") == "Network.requestWillBeSent":
-            try:
-                NET_URLS.append(msg["params"]["request"]["url"])
-            except KeyError:
-                pass
 
 
 async def js(expr):
@@ -406,6 +405,32 @@ async def check_e():
     print("FAIL: E - no Cesium chunk request observed after Earth click")
     return False
 
+async def check_f():
+    ok = await wait_for("window.__DBG__?.solarEphemeris?.status === 'ready'", "solar ephemeris ready", timeout=25)
+    targets = await js("window.__DBG__.solarEphemeris.targets") if ok else None
+    good = ok and all(targets.get(k, {}).get('ok') for k in ('mars', 'halley'))
+    print("PASS: F - ephemeris ready with both targets" if good else "FAIL: F - ephemeris targets not ready")
+    return good
+
+async def check_g():
+    expr = "window.__DBG__?.solarSystem?.getP1RuntimeSnapshot?.() || null"
+    first = await js(expr)
+    await wait_for("window.__DBG__.solarSystem.frameId !== %s" % json.dumps(first and first.get('frameId')), "a subsequent animation frame", timeout=5)
+    second = await js(expr)
+    status = await js("window.__DBG__.solarEphemeris.targets.halley")
+    if not first or not second or not status.get('lastPhysicalPosition'):
+        print("FAIL: G - runtime snapshot or physical state unavailable")
+        return False
+    move = lambda key: math.dist(first[key], second[key])
+    mars_move, halley_move = move('marsWorld'), move('halleyWorld')
+    p = status['lastPhysicalPosition']; expected = [p[0], p[2], -p[1]]
+    length = math.sqrt(sum(v*v for v in expected)); expected = [v/length for v in expected]
+    actual = second['tailWorldDirection']; dot = sum(a*b for a,b in zip(actual, expected))
+    angle = math.degrees(math.acos(max(-1, min(1, dot))))
+    good = first['frameId'] != second['frameId'] and mars_move > 0 and halley_move > 0 and abs(mars_move-halley_move) > 1e-12 and dot > 0 and angle <= 2
+    print("PASS: G - rAF moved Mars/Halley distinctly and physical anti-solar tail matches (%.4f deg)" % angle if good else "FAIL: G - frames/motion/tail mismatch: mars=%g halley=%g dot=%g angle=%g" % (mars_move, halley_move, dot, angle))
+    return good
+
 
 # ----------------------------------------------------------------------------
 # Infrastructure
@@ -450,7 +475,8 @@ def find_chromium():
 
 
 async def main():
-    global WS
+    global WS, CDP_READER
+    stage = "startup"
 
     dist = DIST
     if not (dist / "index.html").exists():
@@ -504,6 +530,7 @@ async def main():
             stderr=subprocess.DEVNULL,
         )
 
+        stage = "wait for DevTools"
         version = wait_devtools(cdp_port)
         print("       browser %s" % version.get("Browser", "?"))
 
@@ -513,19 +540,28 @@ async def main():
         # <link href="/cesium/Widgets/widgets.css"> requested during the very first
         # navigation. Handing page_url to open_tab() starts the document before the
         # Network domain is subscribed, making that capture a coin flip.
+        stage = "open blank tab"
         tab = open_tab(cdp_port, "about:blank")
         ws_url = tab["webSocketDebuggerUrl"]
 
+        stage = "connect target websocket"
         WS = await asyncio.wait_for(
             websockets.connect(ws_url, max_size=None), timeout=10
         )
+        CDP_READER = asyncio.create_task(cdp_reader())
 
+        stage = "enable Runtime"
         await cdp("Runtime.enable")
+        stage = "enable Page"
         await cdp("Page.enable")
+        stage = "enable Network"
         await cdp("Network.enable")
+        stage = "enable DOM"
         await cdp("DOM.enable")
 
-        await cdp("Page.navigate", url=page_url)
+        stage = "navigate home"
+        await cdp("Page.navigate", timeout=60, url=page_url)
+        stage = "wait document and scene"
         await wait_for("document.readyState === 'complete'", "document ready", timeout=25.0)
         await drain(1.5)
 
@@ -564,13 +600,15 @@ async def main():
         c = "SKIP" if only_b else await check_c()
         b = await check_b()
         e = "SKIP" if only_b else await check_e()
+        f = "SKIP" if only_b else await check_f()
+        g = "SKIP" if only_b else await check_g()
 
-        print("SUMMARY: A=%s B=%s C=%s D=%s E=%s" % (a, b, c, d, e))
-        checks = (b,) if only_b else (a, b, c, d, e)
+        print("SUMMARY: A=%s B=%s C=%s D=%s E=%s F=%s G=%s" % (a, b, c, d, e, f, g))
+        checks = (b,) if only_b else (a, b, c, d, e, f, g)
         return 0 if all(result is True for result in checks) else 1
 
     except Exception as exc:  # noqa: BLE001
-        print("FATAL: %s: %s" % (type(exc).__name__, exc))
+        print("FATAL: %s during %s: %s" % (type(exc).__name__, stage, exc))
         return 1
 
     finally:
@@ -579,6 +617,8 @@ async def main():
                 await WS.close()
             except Exception:  # noqa: BLE001
                 pass
+        if CDP_READER is not None:
+            CDP_READER.cancel()
         if proc is not None:
             try:
                 proc.terminate()

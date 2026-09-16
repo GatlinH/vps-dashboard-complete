@@ -96,4 +96,19 @@ describe('P1 coordinate and runtime math', () => {
     const successful = halleyVisible ? targets.halley : targets.mars;
     expect(successful.visible).toBe(true);
   });
+
+  it('publishes physical positions and clears stale debug state on failure', () => {
+    const targets = { mars: { visible: true }, halley: { visible: true } };
+    const statuses = { mars: {}, halley: {} };
+    const samples = { mars: { ok: true, position: [1, 2, 3] }, halley: { ok: true, position: [4, 5, 6] } };
+    updateEphemerisTargets({ simulationTime: 5, providers: { mars: { sample: () => samples.mars }, halley: { sample: () => samples.halley } }, targets, statuses, applyPosition: () => {}, applyTail: () => {} });
+    expect(statuses.mars.lastPhysicalPosition).toEqual([1, 2, 3]);
+    expect(statuses.halley.lastPhysicalPosition).toEqual([4, 5, 6]);
+    expect(statuses.halley.lastTailDirection).toEqual(antiSolarDisplayDirection([4, 5, 6]));
+    samples.halley = { ok: false, error: 'out_of_range' };
+    updateEphemerisTargets({ simulationTime: 6, providers: { mars: { sample: () => samples.mars }, halley: { sample: () => samples.halley } }, targets, statuses, applyPosition: () => {}, applyTail: () => {} });
+    expect(statuses.halley.ok).toBe(false);
+    expect(statuses.halley.lastPhysicalPosition).toBeNull();
+    expect(statuses.halley.lastTailDirection).toBeNull();
+  });
 });

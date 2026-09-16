@@ -30,20 +30,27 @@ export function updateEphemerisTargets({ simulationTime, providers, targets, sta
       statuses[name].ok = false;
       statuses[name].error = sample.error || 'sample_failed';
       statuses[name].lastJd = simulationTime;
+      statuses[name].lastPhysicalPosition = null;
+      statuses[name].lastTailDirection = null;
       continue;
     }
     targets[name].visible = true;
     statuses[name].ok = true;
     statuses[name].error = null;
     statuses[name].lastJd = simulationTime;
+    statuses[name].lastPhysicalPosition = components(sample.position);
     applyPosition(targets[name], sample.position, name, sample);
     if (name === 'halley') {
       const distanceAu = Math.hypot(...sample.position);
+      const direction = antiSolarDisplayDirection(sample.position);
+      statuses[name].lastTailDirection = direction;
       applyTail(targets[name], {
-        direction: antiSolarDisplayDirection(sample.position),
+        direction,
         distanceAu,
         length: Math.max(0.5, Math.min(15, Math.max(2, 16 * (1.2 / distanceAu))))
       });
+    } else {
+      statuses[name].lastTailDirection = null;
     }
   }
 }
