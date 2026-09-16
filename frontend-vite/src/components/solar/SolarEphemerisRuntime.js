@@ -21,13 +21,16 @@ export function hasGenericOrbitRing(name) {
   return name !== 'Mars';
 }
 
+export function orbitDisplayPosition(radius, angle, xFactor = 1) {
+  return { x: Math.cos(angle) * radius * xFactor, z: -Math.sin(angle) * radius * xFactor };
+}
+
 export function advanceOrbitalBodies(bodies, dt, earthCloudMesh = null) {
   for (const body of bodies) {
     if (body.name !== 'Mars') {
       body.angle += body.speed * dt;
       if (body.orbit > 0) {
-        const x = Math.cos(body.angle) * body.orbit * (body.xFactor != null ? body.xFactor : 1);
-        const z = Math.sin(body.angle) * body.orbit * (body.xFactor != null ? body.xFactor : 1);
+        const { x, z } = orbitDisplayPosition(body.orbit, body.angle, body.xFactor != null ? body.xFactor : 1);
         if (body.parent) {
           body.mesh.position.set(
             body.parent.mesh.position.x + x,
