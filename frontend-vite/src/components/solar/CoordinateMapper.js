@@ -9,8 +9,11 @@ export function mapRadial(r) {
   return 0;
 }
 export function physicalToDisplay(v) {
-  const r = Math.hypot(v.x, v.y, v.z);
+  const x = v.x ?? v[0];
+  const y = v.y ?? v[1];
+  const z = v.z ?? v[2];
+  const r = Math.hypot(x, y, z);
   if (!r) return { x: 0, y: 0, z: 0 };
   const s = mapRadial(r) / r;
-  return { x: v.x * s, y: 0, z: -v.y * s };
+  return { x: x * s, y: z * s, z: -y * s };
 }

@@ -1,10 +1,11 @@
-const REQUIRED_FRAME = 'ECLIPJ2000';
 const sameArray = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => v === b[i]);
+const sameFrame = (a, b) => a && b && Object.keys(b).every((key) => a[key] === b[key]);
 
 export function validateEphemeris(data, expected = {}) {
   if (!data || data.schema_version !== 1) return 'invalid_schema';
   if (expected.target && data.target !== expected.target) return 'invalid_target';
-  if (data.frame !== (expected.frame || REQUIRED_FRAME) || data.time_scale !== 'TDB') return 'invalid_frame';
+  if (!sameFrame(data.frame, expected.frame || data.frame)) return 'invalid_frame';
+  if (data.time_scale !== 'TDB' || data.frame?.time_scale !== 'TDB') return 'invalid_time_scale';
   if (data.units?.position !== 'AU' || data.units?.velocity !== 'AU/day') return 'invalid_units';
   if (!Array.isArray(data.states) || data.states.length !== 1050) return 'invalid_states';
   if (!sameArray(data.jd_tdb_range, expected.jd_tdb_range || data.jd_tdb_range)) return 'invalid_range';
@@ -55,5 +56,8 @@ export async function loadP1Ephemerides(fetchImpl = fetch) {
     if (!provider.ok) throw new Error(`${target} ephemeris ${provider.error}`);
     result[target] = provider;
   }
-  return result;
+  const ranges = Object.values(manifest.targets || {}).map((target) => target.jd_tdb_range);
+  const range = [Math.max(...ranges.map((item) => item[0])), Math.min(...ranges.map((item) => item[1]))];
+  if (!range.every(Number.isFinite) || range[0] > range[1]) throw new Error('ephemeris common range invalid');
+  return { providers: result, range };
 }
