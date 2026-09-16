@@ -33,7 +33,7 @@ export class SolarSystem {
     this.simulationTime = 2446078.5;
     this.simulationDaysPerSecond = options.simulationDaysPerSecond || 12;
     this.ephemerides = null;
-    this.ephemerisStatus = { status: 'idle', error: null, targets: { mars: { ok: false, error: null, lastJd: null }, halley: { ok: false, error: null, lastJd: null } } };
+    this.ephemerisStatus = { status: 'idle', error: null, targets: { mars: { ok: false, error: null, lastJd: null, lastPhysicalPosition: null, lastTailDirection: null }, halley: { ok: false, error: null, lastJd: null, lastPhysicalPosition: null, lastTailDirection: null } } };
     this.debug = (window.__DBG__ = window.__DBG__ || {});
     this.debug.solarEphemeris = this.ephemerisStatus;
     this.disposed = false;
@@ -577,7 +577,20 @@ export class SolarSystem {
 
     this.sunLight.position.copy(this.sun.position);
     if (this.asteroidBelt && this.asteroidData) { const m = new THREE.Matrix4(); this.asteroidData.forEach((a,i) => { a.angle += 0.18 * Math.pow(29.6 / a.r, 1.5) * dt; m.makeRotationY(a.spin * dt); m.setPosition(a.r * Math.cos(a.angle), a.y, a.r * Math.sin(a.angle)); m.scale(new THREE.Vector3(a.scale, a.scale, a.scale)); this.asteroidBelt.setMatrixAt(i,m); }); this.asteroidBelt.instanceMatrix.needsUpdate = true; }
-    if (this.ephemerides) updateEphemerisTargets({ simulationTime: this.simulationTime, providers: this.ephemerides.providers, targets: { mars: this.marsBody.mesh, halley: this.halley }, statuses: this.ephemerisStatus.targets, applyPosition: (target, position) => { target.position.copy(new THREE.Vector3(...Object.values(physicalToDisplay(position)))); }, applyTail: (target, tail) => { const direction = new THREE.Vector3(tail.direction.x, tail.direction.y, tail.direction.z); const len = Math.max(0.5, tail.length); /* len >= 0.5 is the minimum ion-tail extent. */ target.tail.scale.set(len, 0.6 + len * 0.06, 1); target.crossTail.scale.copy(target.tail.scale); target.tail.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), direction); target.crossTail.quaternion.copy(target.tail.quaternion); target.flame.scale.setScalar(THREE.MathUtils.clamp(2.4 * (1.2 / tail.distanceAu), 1, 4.8)); target.tail.material.opacity = THREE.MathUtils.clamp(0.12 + (0.85 - 0.12) * (1.2 / tail.distanceAu), 0.12, 0.85); target.crossTail.material.opacity = target.tail.material.opacity; } });
+    if (this.ephemerides) updateEphemerisTargets({ simulationTime: this.simulationTime, providers: this.ephemerides.providers, targets: { mars: this.marsBody.mesh, halley: this.halley.group }, statuses: this.ephemerisStatus.targets, applyPosition: (target, position) => { target.position.copy(new THREE.Vector3(...Object.values(physicalToDisplay(position)))); }, applyTail: (_target, tail) => { const target = this.halley; const direction = new THREE.Vector3(tail.direction.x, tail.direction.y, tail.direction.z); const len = Math.max(0.5, tail.length); /* len >= 0.5 is the minimum ion-tail extent. */ target.tail.scale.set(len, 0.6 + len * 0.06, 1); target.crossTail.scale.copy(target.tail.scale); target.tail.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), direction); target.crossTail.quaternion.copy(target.tail.quaternion); target.flame.scale.setScalar(THREE.MathUtils.clamp(2.4 * (1.2 / tail.distanceAu), 1, 4.8)); target.tail.material.opacity = THREE.MathUtils.clamp(0.12 + (0.85 - 0.12) * (1.2 / tail.distanceAu), 0.12, 0.85); target.crossTail.material.opacity = target.tail.material.opacity; } });
+  }
+
+  getP1RuntimeSnapshot() {
+    const world = (object) => object.getWorldPosition(new THREE.Vector3()).toArray();
+    const origin = this.halley.tail.localToWorld(new THREE.Vector3(0, 0, 0));
+    const positiveX = this.halley.tail.localToWorld(new THREE.Vector3(1, 0, 0));
+    return {
+      frameId: this.frameId,
+      simulationTime: this.simulationTime,
+      marsWorld: world(this.marsBody.mesh),
+      halleyWorld: world(this.halley.group),
+      tailWorldDirection: positiveX.sub(origin).normalize().toArray(),
+    };
   }
 
   // Project each tracked mesh to screen space and park its hit button there.
