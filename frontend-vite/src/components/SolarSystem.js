@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { physicalToDisplay } from './solar/CoordinateMapper.js';
 import { loadP1Ephemerides } from './solar/EphemerisProvider.js';
-import { advanceSimulationTime, updateEphemerisTargets } from './solar/SolarEphemerisRuntime.js';
+import { advanceOrbitalBodies, advanceSimulationTime, hasGenericOrbitRing, updateEphemerisTargets } from './solar/SolarEphemerisRuntime.js';
 
 // Solar system widget: real orbital revolution, keyboard-reachable bodies,
 // a single rAF loop that also drives the camera approach tween.
@@ -89,7 +89,11 @@ export class SolarSystem {
     } catch (error) {
       this.ephemerisStatus.status = 'error';
       this.ephemerisStatus.error = error instanceof Error ? error.message : String(error);
-      for (const target of [this.marsBody?.mesh, this.halley?.group]) if (target) target.visible = false;
+      for (const name of ['mars', 'halley']) {
+        const target = name === 'mars' ? this.marsBody?.mesh : this.halley?.group;
+        if (target) target.visible = false;
+        Object.assign(this.ephemerisStatus.targets[name], { ok: false, error: this.ephemerisStatus.error, lastJd: null, lastPhysicalPosition: null, lastTailDirection: null });
+      }
     }
   }
 
@@ -269,7 +273,7 @@ export class SolarSystem {
         this._track(ringGeometry, ringMaterial);
       }
 
-      this._buildOrbitRing(spec.orbit);
+      if (hasGenericOrbitRing(spec.name)) this._buildOrbitRing(spec.orbit);
 
       const body = {
         name: spec.name,
@@ -314,7 +318,7 @@ export class SolarSystem {
   }
   _buildAtmosphere(planetMesh, type) { if (this.isMobile && type !== 'Earth') return null; const g = new THREE.SphereGeometry(planetMesh.geometry.parameters.radius * 1.045, 16, 12); const m = new THREE.MeshBasicMaterial({ color: 0x5cb3ff, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, side: THREE.BackSide, depthWrite: false }); const shell = new THREE.Mesh(g,m); planetMesh.add(shell); this._track(g,m); return shell; }
 
-  _buildHalleyComet() { const nucleus = new THREE.Mesh(new THREE.SphereGeometry(.35,12,8), new THREE.MeshBasicMaterial({color:0xdff6ff})); this._track(nucleus.geometry,nucleus.material); const tailTexCanvas=document.createElement('canvas'); tailTexCanvas.width=128; tailTexCanvas.height=8; const c=tailTexCanvas.getContext('2d'); const g=c.createLinearGradient(0,0,128,0); g.addColorStop(0,'rgba(220,250,255,.9)'); g.addColorStop(1,'rgba(120,200,255,0)'); c.fillStyle=g;c.fillRect(0,0,128,8); const tailTex=new THREE.CanvasTexture(tailTexCanvas); const tailMaterial=new THREE.MeshBasicMaterial({map:tailTex,transparent:true,side:THREE.DoubleSide,depthWrite:false,depthTest:true,blending:THREE.AdditiveBlending}); const tailGeometry=new THREE.PlaneGeometry(1,1); tailGeometry.translate(0.5,0,0); const tail=new THREE.Mesh(tailGeometry,tailMaterial); const crossTail=new THREE.Mesh(tailGeometry.clone(),tailMaterial); this._track(tail.geometry,crossTail.geometry,tail.material,tailTex); const group=new THREE.Group(); group.add(nucleus,tail,crossTail); const flameCanvas=document.createElement('canvas'); flameCanvas.width=flameCanvas.height=64; const fc=flameCanvas.getContext('2d'); const fg=fc.createRadialGradient(32,32,2,32,32,32); fg.addColorStop(0,'rgba(255,255,240,.95)'); fg.addColorStop(.35,'rgba(120,220,255,.65)'); fg.addColorStop(1,'rgba(80,160,255,0)'); fc.fillStyle=fg; fc.fillRect(0,0,64,64); const flameTex=new THREE.CanvasTexture(flameCanvas); const flameMat=new THREE.SpriteMaterial({map:flameTex,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false}); const flame=new THREE.Sprite(flameMat); group.add(flame); this._track(flameTex,flameMat); this.scene.add(group); tail.renderOrder=1; crossTail.renderOrder=1; flame.renderOrder=1; group.renderOrder=1; this.halley={group,nucleus,tail,crossTail,flame}; }
+  _buildHalleyComet() { const nucleus = new THREE.Mesh(new THREE.SphereGeometry(.35,12,8), new THREE.MeshBasicMaterial({color:0xdff6ff})); this._track(nucleus.geometry,nucleus.material); const tailTexCanvas=document.createElement('canvas'); tailTexCanvas.width=128; tailTexCanvas.height=8; const c=tailTexCanvas.getContext('2d'); const g=c.createLinearGradient(0,0,128,0); g.addColorStop(0,'rgba(220,250,255,.9)'); g.addColorStop(1,'rgba(120,200,255,0)'); c.fillStyle=g;c.fillRect(0,0,128,8); const tailTex=new THREE.CanvasTexture(tailTexCanvas); const tailMaterial=new THREE.MeshBasicMaterial({map:tailTex,transparent:true,side:THREE.DoubleSide,depthWrite:false,depthTest:true,blending:THREE.AdditiveBlending}); const tailGeometry=new THREE.PlaneGeometry(1,1); tailGeometry.translate(0.5,0,0); const tail=new THREE.Mesh(tailGeometry,tailMaterial); const crossTail=new THREE.Mesh(tailGeometry.clone(),tailMaterial); this._track(tail.geometry,crossTail.geometry,tail.material,tailTex); const group=new THREE.Group(); group.add(nucleus,tail,crossTail); group.visible=false; const flameCanvas=document.createElement('canvas'); flameCanvas.width=flameCanvas.height=64; const fc=flameCanvas.getContext('2d'); const fg=fc.createRadialGradient(32,32,2,32,32,32); fg.addColorStop(0,'rgba(255,255,240,.95)'); fg.addColorStop(.35,'rgba(120,220,255,.65)'); fg.addColorStop(1,'rgba(80,160,255,0)'); fc.fillStyle=fg; fc.fillRect(0,0,64,64); const flameTex=new THREE.CanvasTexture(flameCanvas); const flameMat=new THREE.SpriteMaterial({map:flameTex,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false}); const flame=new THREE.Sprite(flameMat); group.add(flame); this._track(flameTex,flameMat); this.scene.add(group); tail.renderOrder=1; crossTail.renderOrder=1; flame.renderOrder=1; group.renderOrder=1; this.halley={group,nucleus,tail,crossTail,flame}; }
 
   _buildAsteroidBelt() { const count=this.isMobile?500:1200; const geo=new THREE.DodecahedronGeometry(.15,0); const mat=new THREE.MeshStandardMaterial({color:0x887766,roughness:1}); const mesh=new THREE.InstancedMesh(geo,mat,count); const m=new THREE.Matrix4(); this.asteroidData=Array.from({length:count},()=>({r:27.5+Math.random()*4.3,angle:Math.random()*Math.PI*2,y:(Math.random()*2-1)*.35,spin:Math.random(),scale:0.7+Math.random()*0.8})); this.asteroidData.forEach((a,i)=>{m.makeRotationFromEuler(new THREE.Euler(Math.random(),Math.random(),Math.random())); m.scale(new THREE.Vector3(a.scale,a.scale,a.scale)); m.setPosition(a.r*Math.cos(a.angle),a.y,a.r*Math.sin(a.angle)); mesh.setMatrixAt(i,m);}); this.scene.add(mesh); this.asteroidBelt=mesh; this._track(geo,mat); }
 
@@ -552,32 +556,11 @@ export class SolarSystem {
   // Genuine revolution: angle accumulates, position is derived from it.
   _advanceBodies(dt) {
     this.simulationTime = advanceSimulationTime(this.simulationTime, dt, this.simulationDaysPerSecond, this.ephemerides?.range || [2446078.5, 2446643.5]);
-    this.bodies.forEach((body) => {
-      if (body.name === 'Mars') return;
-      body.angle += body.speed * dt;
-
-      if (body.orbit > 0) {
-        const x = Math.cos(body.angle) * body.orbit * (body.xFactor != null ? body.xFactor : 1);
-        const z = Math.sin(body.angle) * body.orbit * (body.xFactor != null ? body.xFactor : 1);
-
-        if (body.parent) {
-          body.mesh.position.set(
-            body.parent.mesh.position.x + x,
-            body.parent.mesh.position.y + (body.yFactor ? Math.sin(body.angle) * body.orbit * body.yFactor : 0),
-            body.parent.mesh.position.z + z
-          );
-        } else {
-          body.mesh.position.set(x, 0, z);
-        }
-      }
-
-      body.mesh.rotation.y += body.spin * dt;
-      if (body.name === 'Earth' && this.earthCloudMesh) this.earthCloudMesh.rotation.y += body.spin * 1.18 * dt;
-    });
+    advanceOrbitalBodies(this.bodies, dt, this.earthCloudMesh);
 
     this.sunLight.position.copy(this.sun.position);
     if (this.asteroidBelt && this.asteroidData) { const m = new THREE.Matrix4(); this.asteroidData.forEach((a,i) => { a.angle += 0.18 * Math.pow(29.6 / a.r, 1.5) * dt; m.makeRotationY(a.spin * dt); m.setPosition(a.r * Math.cos(a.angle), a.y, a.r * Math.sin(a.angle)); m.scale(new THREE.Vector3(a.scale, a.scale, a.scale)); this.asteroidBelt.setMatrixAt(i,m); }); this.asteroidBelt.instanceMatrix.needsUpdate = true; }
-    if (this.ephemerides) updateEphemerisTargets({ simulationTime: this.simulationTime, providers: this.ephemerides.providers, targets: { mars: this.marsBody.mesh, halley: this.halley.group }, statuses: this.ephemerisStatus.targets, applyPosition: (target, position) => { target.position.copy(new THREE.Vector3(...Object.values(physicalToDisplay(position)))); }, applyTail: (_target, tail) => { const target = this.halley; const direction = new THREE.Vector3(tail.direction.x, tail.direction.y, tail.direction.z); const len = Math.max(0.5, tail.length); /* len >= 0.5 is the minimum ion-tail extent. */ target.tail.scale.set(len, 0.6 + len * 0.06, 1); target.crossTail.scale.copy(target.tail.scale); target.tail.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), direction); target.crossTail.quaternion.copy(target.tail.quaternion); target.flame.scale.setScalar(THREE.MathUtils.clamp(2.4 * (1.2 / tail.distanceAu), 1, 4.8)); target.tail.material.opacity = THREE.MathUtils.clamp(0.12 + (0.85 - 0.12) * (1.2 / tail.distanceAu), 0.12, 0.85); target.crossTail.material.opacity = target.tail.material.opacity; } });
+    if (this.ephemerides) updateEphemerisTargets({ simulationTime: this.simulationTime, providers: this.ephemerides.providers, targets: { mars: this.marsBody.mesh, halley: this.halley.group }, statuses: this.ephemerisStatus.targets, applyPosition: (target, position) => { const display = physicalToDisplay(position); target.position.copy(new THREE.Vector3(display.x, display.y, display.z)); }, applyTail: (_target, tail) => { const target = this.halley; const direction = new THREE.Vector3(tail.direction.x, tail.direction.y, tail.direction.z); const len = Math.max(0.5, tail.length); /* len >= 0.5 is the minimum ion-tail extent. */ target.tail.scale.set(len, 0.6 + len * 0.06, 1); target.crossTail.scale.copy(target.tail.scale); target.tail.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), direction); target.crossTail.quaternion.copy(target.tail.quaternion); target.crossTail.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2)); target.flame.scale.setScalar(THREE.MathUtils.clamp(2.4 * (1.2 / tail.distanceAu), 1, 4.8)); target.tail.material.opacity = THREE.MathUtils.clamp(0.12 + (0.85 - 0.12) * (1.2 / tail.distanceAu), 0.12, 0.85); } });
   }
 
   getP1RuntimeSnapshot() {
@@ -589,6 +572,9 @@ export class SolarSystem {
       simulationTime: this.simulationTime,
       marsWorld: world(this.marsBody.mesh),
       halleyWorld: world(this.halley.group),
+      marsPhysical: this.ephemerisStatus.targets.mars.lastPhysicalPosition?.slice() || null,
+      halleyPhysical: this.ephemerisStatus.targets.halley.lastPhysicalPosition?.slice() || null,
+      expectedTailWorldDirection: this.ephemerisStatus.targets.halley.lastTailDirection ? Object.values(this.ephemerisStatus.targets.halley.lastTailDirection) : null,
       tailWorldDirection: positiveX.sub(origin).normalize().toArray(),
     };
   }

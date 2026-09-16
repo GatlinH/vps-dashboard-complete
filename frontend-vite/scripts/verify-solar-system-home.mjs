@@ -25,6 +25,9 @@ assert.match(solar, /name\s*===\s*['"]Earth['"]/);
 assert.match(solar, /name\s*===\s*['"]Moon['"]/);
 assert.match(solar, /PointLight/);
 assert.match(solar, /LineLoop|RingGeometry/);
+assert.match(solar, /hasGenericOrbitRing\(spec\.name\)/, 'Mars orbit-ring exclusion must be explicit and shared with unit coverage');
+assert.match(solar, /group\.visible\s*=\s*false/, 'Halley must start hidden until its first valid sample');
+assert.match(solar, /crossTail\.quaternion\.multiply[\s\S]{0,220}Math\.PI\s*\/\s*2/, 'cross tail must rotate 90 degrees around the tail axis');
 // Planet count. An earlier revision matched /name:'[^']+'/g, which counted a quoting
 // style rather than planets and broke the moment the table gained spaces after colons.
 const planetTable = solar.slice(solar.indexOf('PLANET_TABLE'), solar.indexOf('];', solar.indexOf('PLANET_TABLE')));
@@ -38,11 +41,13 @@ assert.ok((planetTable.match(/name\s*:\s*['"][^'"]+['"]/g) || []).length >= 4);
 const advanceStart = solar.indexOf('_advanceBodies(dt) {');
 assert.ok(advanceStart > 0, '_advanceBodies(dt) definition not found');
 const advance = solar.slice(advanceStart, advanceStart + 1200);
-assert.match(advance, /this\.bodies\s*\.?\s*forEach|for\s*\(\s*const\s+\w+\s+of\s+this\.bodies\s*\)/);
-assert.match(advance, /angle\s*\+=\s*\w+\.speed\s*\*\s*dt/);
-assert.match(advance, /Math\.cos\(\s*\w+\.angle\s*\)/);
-assert.match(advance, /Math\.sin\(\s*\w+\.angle\s*\)/);
-assert.match(advance, /position\.set\(/);
+assert.match(advance, /advanceOrbitalBodies\(this\.bodies/);
+const runtime = readFileSync(new URL('../src/components/solar/SolarEphemerisRuntime.js', import.meta.url), 'utf8');
+assert.match(runtime, /for\s*\(const body of bodies\)/);
+assert.match(runtime, /body\.angle\s*\+=\s*body\.speed\s*\*\s*dt/);
+assert.match(runtime, /Math\.cos\(body\.angle\)/);
+assert.match(runtime, /Math\.sin\(body\.angle\)/);
+assert.match(runtime, /body\.mesh\.position\.set\(/);
 
 // Escape handling and the sun entry must not regress to their earlier broken forms.
 assert.doesNotMatch(table, /openFrontLogin\?\.\(\)\s*\|\|/);

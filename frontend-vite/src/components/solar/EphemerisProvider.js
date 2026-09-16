@@ -47,16 +47,27 @@ export async function loadP1Ephemerides(fetchImpl = fetch) {
   const manifestResponse = await fetchImpl(`${base}/manifest.json`);
   if (!manifestResponse.ok) throw new Error(`ephemeris manifest HTTP ${manifestResponse.status}`);
   const manifest = await manifestResponse.json();
+  if (!manifest.coordinate_contract || typeof manifest.coordinate_contract !== 'object' || !Object.keys(manifest.coordinate_contract).length) {
+    throw new Error('manifest coordinate_contract missing');
+  }
   const result = {};
+  const ranges = [];
   for (const target of ['mars', 'halley']) {
+    const expected = manifest.targets?.[target];
+    if (!expected || typeof expected !== 'object') throw new Error(`manifest target ${target} missing`);
+    if (!Array.isArray(expected.jd_tdb_range) || expected.jd_tdb_range.length !== 2 || !expected.jd_tdb_range.every(Number.isFinite) || expected.jd_tdb_range[0] > expected.jd_tdb_range[1]) {
+      throw new Error(`manifest target ${target} range invalid`);
+    }
+    if (!Array.isArray(expected.files) || expected.files.length === 0 || expected.files.some((file) => !file || typeof file.sha256 !== 'string' || !file.sha256)) {
+      throw new Error(`manifest target ${target} files invalid`);
+    }
     const response = await fetchImpl(`${base}/${target}.json`);
     if (!response.ok) throw new Error(`${target} ephemeris HTTP ${response.status}`);
-    const expected = manifest.targets?.[target];
     const provider = createEphemerisProvider(await response.json(), { target, frame: manifest.coordinate_contract, jd_tdb_range: expected?.jd_tdb_range, source_sha256: expected?.files?.map((file) => file.sha256) });
     if (!provider.ok) throw new Error(`${target} ephemeris ${provider.error}`);
     result[target] = provider;
+    ranges.push(expected.jd_tdb_range);
   }
-  const ranges = Object.values(manifest.targets || {}).map((target) => target.jd_tdb_range);
   const range = [Math.max(...ranges.map((item) => item[0])), Math.min(...ranges.map((item) => item[1]))];
   if (!range.every(Number.isFinite) || range[0] > range[1]) throw new Error('ephemeris common range invalid');
   return { providers: result, range };

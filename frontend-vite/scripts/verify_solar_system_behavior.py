@@ -40,6 +40,7 @@ NET_URLS = []
 CDP_PENDING = {}
 CDP_EVENTS = asyncio.Queue()
 CDP_READER = None
+PAGE_URL = None
 
 
 # ----------------------------------------------------------------------------
@@ -406,7 +407,7 @@ async def check_e():
     return False
 
 async def check_f():
-    ok = await wait_for("window.__DBG__?.solarEphemeris?.status === 'ready'", "solar ephemeris ready", timeout=25)
+    ok = await wait_for("window.__DBG__?.solarEphemeris?.status === 'ready' && window.__DBG__.solarEphemeris.targets.mars.ok && window.__DBG__.solarEphemeris.targets.halley.ok", "solar ephemeris ready with both targets", timeout=25)
     targets = await js("window.__DBG__.solarEphemeris.targets") if ok else None
     good = ok and all(targets.get(k, {}).get('ok') for k in ('mars', 'halley'))
     print("PASS: F - ephemeris ready with both targets" if good else "FAIL: F - ephemeris targets not ready")
@@ -417,18 +418,50 @@ async def check_g():
     first = await js(expr)
     await wait_for("window.__DBG__.solarSystem.frameId !== %s" % json.dumps(first and first.get('frameId')), "a subsequent animation frame", timeout=5)
     second = await js(expr)
-    status = await js("window.__DBG__.solarEphemeris.targets.halley")
-    if not first or not second or not status.get('lastPhysicalPosition'):
+    if not first or not second or not second.get('halleyPhysical') or not second.get('marsPhysical'):
         print("FAIL: G - runtime snapshot or physical state unavailable")
         return False
+    def asset(name):
+        with urllib.request.urlopen(PAGE_URL + "/assets/solar/p1/" + name + ".json", timeout=10) as response:
+            return json.loads(response.read().decode("utf-8"))
+    mars_asset, halley_asset = asset("mars"), asset("halley")
+    def hermite(data, jd):
+        states = data["states"]
+        for a, b in zip(states, states[1:]):
+            if a[0] <= jd <= b[0]:
+                h, t = b[0] - a[0], (jd - a[0]) / (b[0] - a[0])
+                t2, t3 = t * t, t * t * t
+                return [
+                    (2*t3-3*t2+1)*a[i+1] + (t3-2*t2+t)*h*a[i+4] +
+                    (-2*t3+3*t2)*b[i+1] + (t3-t2)*h*b[i+4] for i in range(3)
+                ]
+        return None
+    def display(v):
+        r = math.sqrt(sum(x*x for x in v))
+        nodes = [(0, 0), (.39, 9), (1, 19), (5.2, 35), (30.1, 62)]
+        if r >= nodes[-1][0]: d = nodes[-1][1] + 1.5 * (r - nodes[-1][0])
+        else:
+            for (r0, d0), (r1, d1) in zip(nodes, nodes[1:]):
+                if r <= r1:
+                    d = d0 + (r-r0)/(r1-r0)*(d1-d0); break
+        scale = d / r if r else 0
+        return [v[0]*scale, v[2]*scale, -v[1]*scale]
+    jd = second['simulationTime']
+    expected_mars_physical = hermite(mars_asset, jd)
+    expected_halley_physical = hermite(halley_asset, jd)
+    if not expected_mars_physical or not expected_halley_physical:
+        print("FAIL: G - snapshot simulationTime outside published asset range")
+        return False
+    expected_mars_world, expected_halley_world = display(expected_mars_physical), display(expected_halley_physical)
+    position_error = max(math.dist(second['marsWorld'], expected_mars_world), math.dist(second['halleyWorld'], expected_halley_world))
     move = lambda key: math.dist(first[key], second[key])
     mars_move, halley_move = move('marsWorld'), move('halleyWorld')
-    p = status['lastPhysicalPosition']; expected = [p[0], p[2], -p[1]]
+    p = expected_halley_physical; expected = [p[0], p[2], -p[1]]
     length = math.sqrt(sum(v*v for v in expected)); expected = [v/length for v in expected]
     actual = second['tailWorldDirection']; dot = sum(a*b for a,b in zip(actual, expected))
     angle = math.degrees(math.acos(max(-1, min(1, dot))))
-    good = first['frameId'] != second['frameId'] and mars_move > 0 and halley_move > 0 and abs(mars_move-halley_move) > 1e-12 and dot > 0 and angle <= 2
-    print("PASS: G - rAF moved Mars/Halley distinctly and physical anti-solar tail matches (%.4f deg)" % angle if good else "FAIL: G - frames/motion/tail mismatch: mars=%g halley=%g dot=%g angle=%g" % (mars_move, halley_move, dot, angle))
+    good = first['frameId'] != second['frameId'] and mars_move > 0 and halley_move > 0 and abs(mars_move-halley_move) > 1e-12 and position_error <= 1e-8 and dot > 0 and angle <= 2
+    print("PASS: G - independent published-state positions and anti-solar tail match (%.4f deg, position error %.3g)" % (angle, position_error) if good else "FAIL: G - snapshot mismatch: mars=%g halley=%g position_error=%g dot=%g angle=%g" % (mars_move, halley_move, position_error, dot, angle))
     return good
 
 
@@ -475,7 +508,7 @@ def find_chromium():
 
 
 async def main():
-    global WS, CDP_READER
+    global WS, CDP_READER, PAGE_URL
     stage = "startup"
 
     dist = DIST
@@ -493,6 +526,7 @@ async def main():
     http_port = httpd.server_address[1]
     Thread(target=httpd.serve_forever, daemon=True).start()
     page_url = "http://127.0.0.1:%d/" % http_port
+    PAGE_URL = page_url.rstrip('/')
     print("       serving %s at %s" % (dist, page_url))
 
     profile = tempfile.mkdtemp(prefix="solar-verify-profile-")
