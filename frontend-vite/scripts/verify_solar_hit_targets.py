@@ -8,6 +8,7 @@ import websockets
 
 ROOT = Path(__file__).resolve().parents[2]; DIST = ROOT / 'frontend-dist'
 LABELS = ('太阳（前往登录）','地球（进入三维地球）','月球（进入总览）')
+SOLAR_READY_EXPRESSION = "!!(window.__DBG__&&window.__DBG__.solarSystem&&window.__DBG__.solarSystem.renderer&&document.querySelectorAll('button.solar-system-hit').length>=3)"
 
 class Handler(SimpleHTTPRequestHandler):
     def log_message(self, *args): pass
@@ -23,12 +24,14 @@ class CDPDispatcher:
         self.pending = {}
         self.unmatched = {}
         self.events = deque(maxlen=event_limit)
+        self.event_messages = deque(maxlen=event_limit)
+        self.event_sequence = 0
         self.reader = None
         self.failure = None
 
     async def __aenter__(self):
         self.reader = asyncio.create_task(self._read_messages())
-        return self.send
+        return self
 
     async def __aexit__(self, exc_type, exc, traceback):
         self.reader.cancel()
@@ -43,6 +46,9 @@ class CDPDispatcher:
     def _diagnostics(self):
         return f'events={list(self.events)} outstanding={sorted(self.pending)} unmatched={sorted(self.unmatched)}'
 
+    async def __call__(self, method, params=None):
+        return await self.send(method, params)
+
     async def _read_messages(self):
         try:
             while True:
@@ -52,11 +58,16 @@ class CDPDispatcher:
                     pending = self.pending.get(response_id)
                     if pending is None:
                         self.unmatched[response_id] = message
+                    elif pending['future'] is None:
+                        self.unmatched[response_id] = message
+                        self.pending.pop(response_id, None)
                     elif not pending['future'].done():
                         pending['future'].set_result(message)
                     continue
                 event = message.get('method', '<unknown event>')
                 self.events.append(event)
+                self.event_sequence += 1
+                self.event_messages.append((self.event_sequence, message))
                 if event == 'Inspector.targetCrashed' or event.endswith('.targetCrashed'):
                     raise RuntimeError(f'CDP target crash event {event}')
         except asyncio.CancelledError:
@@ -64,8 +75,21 @@ class CDPDispatcher:
         except Exception as error:
             self.failure = error
             for pending in self.pending.values():
-                if not pending['future'].done():
+                if pending['future'] is not None and not pending['future'].done():
                     pending['future'].set_exception(error)
+
+    async def send_no_wait(self, method, params=None):
+        if self.reader is None:
+            self.reader = asyncio.create_task(self._read_messages())
+        if self.failure is not None:
+            raise RuntimeError(f'CDP dispatcher failed before {method}: {self.failure}; {self._diagnostics()}') from self.failure
+        self.next_id += 1
+        request_id = self.next_id
+        self.pending[request_id] = {'method': method, 'future': None}
+        await self.websocket.send(json.dumps({'id': request_id, 'method': method, 'params': params or {}}))
+        if request_id in self.unmatched:
+            self.pending.pop(request_id, None)
+        return request_id
 
     async def send(self, method, params=None):
         if self.reader is None:
@@ -90,6 +114,67 @@ class CDPDispatcher:
             return self._result(message, method, request_id)
         finally:
             self.pending.pop(request_id, None)
+
+async def navigate_and_wait(cdp, url, ready_expression=SOLAR_READY_EXPRESSION, timeout=40, poll_interval=.2):
+    await cdp('Page.enable')
+    await cdp('Page.setLifecycleEventsEnabled', {'enabled': True})
+    event_start = cdp.event_sequence
+    navigation_id = await cdp.send_no_wait('Page.navigate', {'url': url})
+    deadline = time.monotonic() + timeout
+    started = completed = ready = False
+    frame_id = loader_id = None
+    last_ready_error = None
+
+    while time.monotonic() < deadline:
+        for sequence, message in cdp.event_messages:
+            if sequence <= event_start:
+                continue
+            method = message.get('method')
+            params = message.get('params', {})
+            if method == 'Page.frameStartedNavigating' and params.get('url') == url:
+                started = True
+                frame_id = params.get('frameId')
+                loader_id = params.get('loaderId')
+            elif started and method == 'Page.lifecycleEvent' and params.get('name') == 'networkIdle':
+                same_frame = frame_id is None or params.get('frameId') == frame_id
+                same_loader = loader_id is None or params.get('loaderId') == loader_id
+                if same_frame and same_loader:
+                    completed = True
+
+        if completed:
+            try:
+                response = await cdp('Runtime.evaluate', {'expression': ready_expression, 'returnByValue': True, 'awaitPromise': True})
+                ready = bool(response.get('result', {}).get('value'))
+                last_ready_error = None
+            except RuntimeError as error:
+                if cdp.failure is not None:
+                    raise
+                ready = False
+                last_ready_error = str(error)
+
+        if started and completed and ready:
+            return navigation_id
+        await asyncio.sleep(poll_interval)
+
+    raise TimeoutError(
+        f'navigation readiness timeout url={url} id={navigation_id} '
+        f'started={started} completed={completed} ready={ready} '
+        f'last_ready_error={last_ready_error!r}; {cdp._diagnostics()}'
+    )
+
+async def evaluate_js(cdp, expression):
+    response = await cdp('Runtime.evaluate', {
+        'expression': expression,
+        'returnByValue': True,
+        'awaitPromise': True,
+        'userGesture': True,
+    })
+    return response.get('result', {}).get('value')
+
+async def js_effect(cdp, expression):
+    value = await evaluate_js(cdp, f'(()=>{{{expression}; return true;}})()')
+    if value is not True:
+        raise RuntimeError(f'JavaScript effect did not return true: {expression}')
 
 def cleanup_browser(chrome, profile, httpd):
     if chrome is not None:
@@ -131,17 +216,11 @@ async def run_viewport(width, height):
         cleanup_browser(chrome, profile, httpd)
 
 async def verify_viewport(cdp, width, height, http_port):
-            async def js(expr):
-                r = await cdp('Runtime.evaluate', {'expression':expr,'returnByValue':True,'awaitPromise':True,'userGesture':True})
-                return r.get('result',{}).get('value')
+            js = functools.partial(evaluate_js, cdp)
+            effect = functools.partial(js_effect, cdp)
             await cdp('Runtime.enable'); await cdp('Emulation.setDeviceMetricsOverride', {'width':width,'height':height,'deviceScaleFactor':1,'mobile':False})
-            await cdp('Page.navigate', {'url':f'http://127.0.0.1:{http_port}/'})
-            end = time.time() + 40
-            while time.time() < end:
-                ready = await js("!!(window.__DBG__&&window.__DBG__.solarSystem&&window.__DBG__.solarSystem.renderer&&document.querySelectorAll('button.solar-system-hit').length>=3)")
-                if ready: break
-                await asyncio.sleep(.25)
-            await js("window.__DBG__.solarSystem.bodies.forEach(b=>b.speed*=8)")
+            await navigate_and_wait(cdp, f'http://127.0.0.1:{http_port}/')
+            await effect("window.__DBG__.solarSystem.bodies.forEach(b=>b.speed*=8)")
             totals = {n:{'center':[0,0], 'target':[0,0]} for n in LABELS}; geometry = {'ok': 0, 'total': 0}; failures=[]
             for _ in range(260):
                 frame_state = await js("(()=>{const s=window.__DBG__.solarSystem;return {atHome:s.cameraAtHome,tween:!!s.cameraTween}})()")
@@ -185,16 +264,13 @@ async def run_resize_scene():
         cleanup_browser(chrome, profile, httpd)
 
 async def verify_resize_scene(cdp, http_port, width, height):
-            async def js(expr):
-                r = await cdp('Runtime.evaluate', {'expression':expr,'returnByValue':True,'awaitPromise':True,'userGesture':True})
-                return r.get('result',{}).get('value')
+            js = functools.partial(evaluate_js, cdp)
+            effect = functools.partial(js_effect, cdp)
             await cdp('Runtime.enable'); await cdp('Emulation.setDeviceMetricsOverride', {'width':width,'height':height,'deviceScaleFactor':1,'mobile':False})
-            await cdp('Page.navigate', {'url':f'http://127.0.0.1:{http_port}/'})
-            end = time.time()+40
-            while time.time()<end and not await js("!!(window.__DBG__&&window.__DBG__.solarSystem&&window.__DBG__.solarSystem.renderer&&document.querySelectorAll('button.solar-system-hit').length>=3)"): await asyncio.sleep(.2)
+            await navigate_and_wait(cdp, f'http://127.0.0.1:{http_port}/')
             assert await js("!!window.__DBG__.solarSystem.renderer"), 'ready: renderer/buttons missing'
-            await js("(()=>{const s=window.__DBG__.solarSystem;if(s.__rzWrapped)return true;window.__RZ__={calls:0};const orig=s.resize.bind(s);s.resize=function(...a){window.__RZ__.calls++;return orig(...a)};s.__rzWrapped=true;return true})()")
-            await js("[...document.querySelectorAll('button.solar-system-hit')].find(e=>e.getAttribute('aria-label').includes('地球')).click()")
+            await effect("(()=>{const s=window.__DBG__.solarSystem;if(s.__rzWrapped)return true;window.__RZ__={calls:0};const orig=s.resize.bind(s);s.resize=function(...a){window.__RZ__.calls++;return orig(...a)};s.__rzWrapped=true;return true})()")
+            await effect("[...document.querySelectorAll('button.solar-system-hit')].find(e=>e.getAttribute('aria-label').includes('地球')).click()")
             end = time.time()+40; opened = False
             while time.time()<end:
                 opened = await js("getComputedStyle(document.querySelector('#globe-container')).display !== 'none'")
@@ -203,19 +279,19 @@ async def verify_resize_scene(cdp, http_port, width, height):
             if not opened:
                 print('SKIP cesium never opened')
                 return
-            await js("__DBG__.solarSystem.pause()")
+            await effect("__DBG__.solarSystem.pause()")
             pre = await js("(()=>{const s=__DBG__.solarSystem;return {pos:s.camera.position.toArray(),dist:s.camera.position.distanceTo(s.homeCameraPosition),calls:__RZ__.calls,home:s.homeCameraPosition.toArray(),aspect:s.camera.aspect,atHome:s.cameraAtHome,tween:!!s.cameraTween,running:s.running}})()")
             if pre is None: raise AssertionError('pre state unavailable')
             assert not (pre['atHome'] and pre['tween']), f"cameraAtHome and cameraTween both truthy: {pre}"
             await cdp('Emulation.setDeviceMetricsOverride', {'width':1100,'height':913,'deviceScaleFactor':1,'mobile':False})
-            await js("(() => { window.dispatchEvent(new Event('resize')); return true; })()")
+            await effect("window.dispatchEvent(new Event('resize'))")
             post = await js("(()=>{const s=__DBG__.solarSystem;return {pos:s.camera.position.toArray(),dist:s.camera.position.distanceTo(s.homeCameraPosition),calls:__RZ__.calls,home:s.homeCameraPosition.toArray(),aspect:s.camera.aspect,atHome:s.cameraAtHome,tween:!!s.cameraTween,running:s.running}})()")
             if post is None: raise AssertionError('post state unavailable')
             assert not (post['atHome'] and post['tween']), f"cameraAtHome and cameraTween both truthy: {post}"
             assert post['calls']-pre['calls'] >= 1, f"resize() did not run: pre={pre} post={post}"
             assert post['dist'] > 5, f"resize guard snapped camera home: post_dist={post['dist']} post_pos={post['pos']}"
             assert post['pos'] == pre['pos'], f"camera moved unexpectedly: pre_pos={pre['pos']} post_pos={post['pos']}"
-            await js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))")
+            await effect("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))")
             end = time.time()+10
             while time.time()<end and await js("getComputedStyle(document.querySelector('#globe-container')).display !== 'none'"): await asyncio.sleep(.1)
             assert not await js("getComputedStyle(document.querySelector('#globe-container')).display !== 'none'"), 'escape: globe did not hide'
@@ -239,14 +315,13 @@ async def run_tween_resize_scene():
         cleanup_browser(chrome, profile, httpd)
 
 async def verify_tween_resize_scene(cdp, http_port, width, height):
-            async def js(expr):
-                r = await cdp('Runtime.evaluate', {'expression':expr,'returnByValue':True,'awaitPromise':True,'userGesture':True}); return r.get('result',{}).get('value')
-            await cdp('Runtime.enable'); await cdp('Emulation.setDeviceMetricsOverride', {'width':width,'height':height,'deviceScaleFactor':1,'mobile':False}); await cdp('Page.navigate', {'url':f'http://127.0.0.1:{http_port}/'})
-            end=time.time()+40
-            while time.time()<end and not await js("!!(window.__DBG__&&__DBG__.solarSystem&&document.querySelectorAll('button.solar-system-hit').length>=3)"): await asyncio.sleep(.2)
-            await js("(()=>{const s=__DBG__.solarSystem;window.__RZ__={calls:0};const o=s.resize.bind(s);s.resize=function(...a){__RZ__.calls++;return o(...a)};return true})()")
+            js = functools.partial(evaluate_js, cdp)
+            effect = functools.partial(js_effect, cdp)
+            await cdp('Runtime.enable'); await cdp('Emulation.setDeviceMetricsOverride', {'width':width,'height':height,'deviceScaleFactor':1,'mobile':False})
+            await navigate_and_wait(cdp, f'http://127.0.0.1:{http_port}/')
+            await effect("(()=>{const s=__DBG__.solarSystem;window.__RZ__={calls:0};const o=s.resize.bind(s);s.resize=function(...a){__RZ__.calls++;return o(...a)};return true})()")
             baseline = await js("(()=>Object.fromEntries([...document.querySelectorAll('button.solar-system-hit')].map(e=>[e.getAttribute('aria-label'),getComputedStyle(e).visibility])))()")
-            await js("[...document.querySelectorAll('button.solar-system-hit')].find(e=>e.getAttribute('aria-label').includes('地球')).click()")
+            await effect("[...document.querySelectorAll('button.solar-system-hit')].find(e=>e.getAttribute('aria-label').includes('地球')).click()")
             immediate=await js("(()=>{const s=__DBG__.solarSystem;return {atHome:s.cameraAtHome,tween:!!s.cameraTween}})()")
             assert immediate is not None and immediate['atHome'] is False and immediate['tween'], f'click state invalid: {immediate}'
             immediate_vis = await js("(()=>Object.fromEntries([...document.querySelectorAll('button.solar-system-hit')].map(e=>[e.getAttribute('aria-label'),getComputedStyle(e).visibility])))()")
@@ -259,11 +334,11 @@ async def verify_tween_resize_scene(cdp, http_port, width, height):
             assert state and state['tween'] and state['dist']>5, f'tween did not reach probe: {state}'
             before=state
             t1_vis = None; fallback = False
-            await js("(() => { window.__DBG__.solarSystem.resume(); return true; })()")
+            await effect("window.__DBG__.solarSystem.resume()")
             invariant = await js("(()=>{const s=__DBG__.solarSystem;return {atHome:s.cameraAtHome,tween:!!s.cameraTween}})()")
             assert invariant is not None and not (invariant['atHome'] and invariant['tween']), f"cameraAtHome and cameraTween both truthy: {invariant}"
-            await js("__DBG__.solarSystem.pause()")
-            await cdp('Emulation.setDeviceMetricsOverride', {'width':480,'height':850,'deviceScaleFactor':1,'mobile':False}); await js("window.dispatchEvent(new Event('resize'))")
+            await effect("__DBG__.solarSystem.pause()")
+            await cdp('Emulation.setDeviceMetricsOverride', {'width':480,'height':850,'deviceScaleFactor':1,'mobile':False}); await effect("window.dispatchEvent(new Event('resize'))")
             after=await js("(()=>{const s=__DBG__.solarSystem;return {pos:s.camera.position.toArray(),home:s.homeCameraPosition.toArray(),to:s.cameraTween&&s.cameraTween.to.toArray(),dist:s.camera.position.distanceTo(s.homeCameraPosition),aspect:s.camera.aspect,calls:__RZ__.calls}})()")
             # v3.7 letterbox: the canvas keeps a cinematic aspect at any window size,
             # so home may legitimately stay identical (or drift sub-percent) after
@@ -275,7 +350,7 @@ async def verify_tween_resize_scene(cdp, http_port, width, height):
             assert after['aspect'] == after['aspect'] and math.isfinite(after['aspect']) and after['aspect'] > 0.1, f'resize produced invalid aspect: {after}'
             store = await js("(()=>{const c=__DBG__.solarSystem.renderer.domElement;return {w:c.width,h:c.height}})()")
             assert store and store['w']>0 and store['h']>0, f'backing store not sized after resize: {store}'
-            await js("__DBG__.solarSystem.resume()")
+            await effect("__DBG__.solarSystem.resume()")
             for _ in range(160):
                 ready = await js("(()=>{const s=__DBG__.solarSystem;return s.cameraTween===null && getComputedStyle(document.querySelector('#globe-container')).display==='none'})()")
                 if ready:
@@ -320,7 +395,110 @@ class FakeWebSocket:
     async def recv(self):
         return await self.messages.get()
 
+    def feed(self, message):
+        self.messages.put_nowait(json.dumps(message))
+
+class NavigationWebSocket(FakeWebSocket):
+    def __init__(self, complete=False):
+        super().__init__([])
+        self.complete = complete
+
+    async def send(self, message):
+        request = json.loads(message)
+        self.sent.append(request)
+        if request['method'] in ('Page.enable', 'Page.setLifecycleEventsEnabled'):
+            self.feed({'id': request['id'], 'result': {}})
+        elif request['method'] == 'Page.navigate':
+            self.feed({'method': 'Page.frameStartedNavigating', 'params': {'frameId': 'frame-1', 'loaderId': 'loader-1', 'url': request['params']['url']}})
+            self.feed({'method': 'Page.frameStartedLoading', 'params': {'frameId': 'frame-1'}})
+            if self.complete:
+                self.feed({'method': 'Page.lifecycleEvent', 'params': {'frameId': 'frame-1', 'loaderId': 'loader-1', 'name': 'networkIdle'}})
+        elif request['method'] == 'Runtime.evaluate':
+            self.feed({'id': request['id'], 'result': {'result': {'value': True}}})
+
+class SerializationBoundaryWebSocket(FakeWebSocket):
+    def __init__(self):
+        super().__init__([])
+
+    async def send(self, message):
+        request = json.loads(message)
+        self.sent.append(request)
+        params = request.get('params', {})
+        expression = params.get('expression')
+        if expression == '__DBG__.solarSystem.pause()':
+            self.feed({'id': request['id'], 'error': {'code': -32000, 'message': 'Object reference chain is too long'}})
+        elif expression == '(()=>{__DBG__.solarSystem.pause(); return true;})()' and params.get('returnByValue') is True:
+            self.feed({'id': request['id'], 'result': {'result': {'value': True}}})
+        elif expression == "(()=>{throw new Error('boom'); return true;})()":
+            self.feed({'id': request['id'], 'error': {'code': -32000, 'message': 'Uncaught Error: boom'}})
+        else:
+            self.feed({'id': request['id'], 'error': {'code': -32001, 'message': 'effect expression did not return a primitive'}})
+
 class DispatcherTests(unittest.IsolatedAsyncioTestCase):
+    async def test_effect_js_returns_a_primitive_instead_of_serializing_command_result(self):
+        ws = SerializationBoundaryWebSocket()
+        dispatcher = CDPDispatcher(ws, timeout=0.05)
+        async with dispatcher as cdp:
+            with self.assertRaisesRegex(RuntimeError, 'Object reference chain is too long'):
+                await cdp('Runtime.evaluate', {
+                    'expression': '__DBG__.solarSystem.pause()',
+                    'returnByValue': True,
+                    'awaitPromise': True,
+                    'userGesture': True,
+                })
+            self.assertIsNone(await js_effect(cdp, '__DBG__.solarSystem.pause()'))
+
+        effect_request = ws.sent[-1]
+        self.assertTrue(effect_request['params']['returnByValue'])
+        self.assertNotEqual(effect_request['params']['expression'], '__DBG__.solarSystem.pause()')
+        self.assertIn('__DBG__.solarSystem.pause()', effect_request['params']['expression'])
+
+    async def test_effect_js_does_not_suppress_runtime_errors(self):
+        ws = SerializationBoundaryWebSocket()
+        dispatcher = CDPDispatcher(ws, timeout=0.05)
+        async with dispatcher as cdp:
+            with self.assertRaisesRegex(RuntimeError, 'Uncaught Error: boom'):
+                await js_effect(cdp, "throw new Error('boom')")
+
+    async def test_no_wait_navigation_is_sent_once_and_late_replies_stay_correlated(self):
+        ws = FakeWebSocket([])
+        dispatcher = CDPDispatcher(ws, timeout=0.05)
+        async with dispatcher as cdp:
+            navigation_id = await cdp.send_no_wait('Page.navigate', {'url': 'http://example.test/'})
+            ws.feed({'id': 3, 'result': {'value': 'later'}})
+            ws.feed({'id': navigation_id, 'result': {'frameId': 'frame-1'}})
+            ws.feed({'id': 2, 'result': {'value': 'current'}})
+            self.assertEqual(await cdp('Runtime.evaluate'), {'value': 'current'})
+            self.assertEqual(await cdp('Later.method'), {'value': 'later'})
+            await asyncio.sleep(0)
+
+        navigations = [request for request in ws.sent if request['method'] == 'Page.navigate']
+        self.assertEqual(navigations, [{'id': navigation_id, 'method': 'Page.navigate', 'params': {'url': 'http://example.test/'}}])
+        self.assertEqual(dispatcher.unmatched[navigation_id]['result'], {'frameId': 'frame-1'})
+
+    async def test_navigation_requires_completion_not_only_start_events(self):
+        ws = NavigationWebSocket(complete=False)
+        dispatcher = CDPDispatcher(ws, timeout=0.05)
+        async with dispatcher as cdp:
+            with self.assertRaisesRegex(TimeoutError, r'navigation readiness timeout.*started=True.*completed=False'):
+                await navigate_and_wait(cdp, 'http://example.test/', 'true', timeout=0.02, poll_interval=0)
+
+    async def test_navigation_completes_without_waiting_for_navigate_reply(self):
+        ws = NavigationWebSocket(complete=True)
+        dispatcher = CDPDispatcher(ws, timeout=0.05)
+        async with dispatcher as cdp:
+            navigation_id = await navigate_and_wait(cdp, 'http://example.test/', 'true', timeout=0.05, poll_interval=0)
+        self.assertEqual(navigation_id, 3)
+        self.assertNotIn(navigation_id, dispatcher.unmatched)
+        self.assertEqual([request['method'] for request in ws.sent].count('Page.navigate'), 1)
+
+    async def test_awaiting_navigate_times_out_after_navigation_starts(self):
+        ws = NavigationWebSocket(complete=True)
+        dispatcher = CDPDispatcher(ws, timeout=0.01)
+        async with dispatcher as cdp:
+            with self.assertRaisesRegex(TimeoutError, r'Page\.navigate.*Page\.frameStartedNavigating.*Page\.lifecycleEvent'):
+                await cdp('Page.navigate', {'url': 'http://example.test/'})
+
     async def test_buffers_out_of_order_response_for_later_request(self):
         ws = FakeWebSocket([{'id': 2, 'result': {'value': 'second'}}, {'id': 1, 'result': {'value': 'first'}}])
         dispatcher = CDPDispatcher(ws, timeout=0.05)
