@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-import asyncio, functools, json, shutil, socket, subprocess, tempfile, time, urllib.request, urllib.parse
+import asyncio, contextlib, functools, json, shutil, socket, subprocess, sys, tempfile, time, unittest, urllib.request, urllib.parse
+from collections import deque
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
@@ -13,6 +14,94 @@ class Handler(SimpleHTTPRequestHandler):
     def handle_one_request(self):
         try: return super().handle_one_request()
         except (BrokenPipeError, ConnectionResetError): return
+
+class CDPDispatcher:
+    def __init__(self, websocket, timeout=25, event_limit=20):
+        self.websocket = websocket
+        self.timeout = timeout
+        self.next_id = 0
+        self.pending = {}
+        self.unmatched = {}
+        self.events = deque(maxlen=event_limit)
+        self.reader = None
+        self.failure = None
+
+    async def __aenter__(self):
+        self.reader = asyncio.create_task(self._read_messages())
+        return self.send
+
+    async def __aexit__(self, exc_type, exc, traceback):
+        self.reader.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await self.reader
+
+    def _result(self, message, method, request_id):
+        if 'error' in message:
+            raise RuntimeError(f'CDP {method} id={request_id} failed: {message["error"]}')
+        return message.get('result', {})
+
+    def _diagnostics(self):
+        return f'events={list(self.events)} outstanding={sorted(self.pending)} unmatched={sorted(self.unmatched)}'
+
+    async def _read_messages(self):
+        try:
+            while True:
+                message = json.loads(await self.websocket.recv())
+                response_id = message.get('id')
+                if response_id is not None:
+                    pending = self.pending.get(response_id)
+                    if pending is None:
+                        self.unmatched[response_id] = message
+                    elif not pending['future'].done():
+                        pending['future'].set_result(message)
+                    continue
+                event = message.get('method', '<unknown event>')
+                self.events.append(event)
+                if event == 'Inspector.targetCrashed' or event.endswith('.targetCrashed'):
+                    raise RuntimeError(f'CDP target crash event {event}')
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            self.failure = error
+            for pending in self.pending.values():
+                if not pending['future'].done():
+                    pending['future'].set_exception(error)
+
+    async def send(self, method, params=None):
+        if self.reader is None:
+            self.reader = asyncio.create_task(self._read_messages())
+        if self.failure is not None:
+            raise RuntimeError(f'CDP dispatcher failed before {method}: {self.failure}; {self._diagnostics()}') from self.failure
+        self.next_id += 1
+        request_id = self.next_id
+        future = asyncio.get_running_loop().create_future()
+        self.pending[request_id] = {'method': method, 'future': future}
+        await self.websocket.send(json.dumps({'id': request_id, 'method': method, 'params': params or {}}))
+        try:
+            if request_id in self.unmatched:
+                message = self.unmatched.pop(request_id)
+            else:
+                try:
+                    message = await asyncio.wait_for(future, self.timeout)
+                except asyncio.TimeoutError as error:
+                    raise TimeoutError(f'CDP timeout waiting for {method} id={request_id}; {self._diagnostics()}') from error
+                except Exception as error:
+                    raise RuntimeError(f'{error} while waiting for {method} id={request_id}; {self._diagnostics()}') from error
+            return self._result(message, method, request_id)
+        finally:
+            self.pending.pop(request_id, None)
+
+def cleanup_browser(chrome, profile, httpd):
+    if chrome is not None:
+        chrome.terminate()
+        try:
+            chrome.wait(3)
+        except subprocess.TimeoutExpired:
+            chrome.kill()
+            chrome.wait()
+    shutil.rmtree(profile, ignore_errors=True)
+    httpd.shutdown()
+    httpd.server_close()
 
 def wait_devtools(port):
     end = time.time() + 30
@@ -29,18 +118,19 @@ async def run_viewport(width, height):
     http_port = httpd.server_address[1]
     sock = socket.socket(); sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]; sock.close()
     profile = tempfile.mkdtemp(prefix='solar-hit-')
-    chrome = subprocess.Popen(['chromium','--headless=new',f'--remote-debugging-port={port}',f'--user-data-dir={profile}','--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader',f'--window-size={width},{height}','about:blank'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    chrome = None
     try:
+        chrome = subprocess.Popen(['chromium','--headless=new',f'--remote-debugging-port={port}',f'--user-data-dir={profile}','--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader',f'--window-size={width},{height}','about:blank'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         wait_devtools(port)
         req = urllib.request.Request(f'http://127.0.0.1:{port}/json/new?{urllib.parse.quote("about:blank", safe="")}', method='PUT')
         with urllib.request.urlopen(req, timeout=10) as r: tab = json.loads(r.read().decode())
         async with websockets.connect(tab['webSocketDebuggerUrl'], max_size=None) as ws:
-            i = 0
-            async def cdp(method, params=None):
-                nonlocal i; i += 1; await ws.send(json.dumps({'id':i,'method':method,'params':params or {}}))
-                while True:
-                    m = json.loads(await asyncio.wait_for(ws.recv(),25))
-                    if m.get('id') == i: return m.get('result', {})
+            async with CDPDispatcher(ws) as cdp:
+                return await verify_viewport(cdp, width, height, http_port)
+    finally:
+        cleanup_browser(chrome, profile, httpd)
+
+async def verify_viewport(cdp, width, height, http_port):
             async def js(expr):
                 r = await cdp('Runtime.evaluate', {'expression':expr,'returnByValue':True,'awaitPromise':True,'userGesture':True})
                 return r.get('result',{}).get('value')
@@ -75,15 +165,6 @@ async def run_viewport(width, height):
                         failures.append(('geometry', distance, required, earth[12], moon[12], earth[11], moon[11], (earth[4], earth[5]), (moon[4], moon[5])))
                 await asyncio.sleep(.08)
             return totals, geometry, failures
-    finally:
-        chrome.terminate()
-        try:
-            chrome.wait(3)
-        except subprocess.TimeoutExpired:
-            chrome.kill()
-        shutil.rmtree(profile, ignore_errors=True)
-        httpd.shutdown()
-        httpd.server_close()
 
 async def run_resize_scene():
     width, height = 1400, 913
@@ -91,18 +172,19 @@ async def run_resize_scene():
     Thread(target=httpd.serve_forever, daemon=True).start(); http_port = httpd.server_address[1]
     sock = socket.socket(); sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]; sock.close()
     profile = tempfile.mkdtemp(prefix='solar-resize-')
-    chrome = subprocess.Popen(['chromium','--headless=new',f'--remote-debugging-port={port}',f'--user-data-dir={profile}','--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader',f'--window-size={width},{height}','about:blank'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    chrome = None
     try:
+        chrome = subprocess.Popen(['chromium','--headless=new',f'--remote-debugging-port={port}',f'--user-data-dir={profile}','--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader',f'--window-size={width},{height}','about:blank'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         wait_devtools(port)
         req = urllib.request.Request(f'http://127.0.0.1:{port}/json/new?about%3Ablank', method='PUT')
         with urllib.request.urlopen(req, timeout=10) as r: tab = json.loads(r.read().decode())
         async with websockets.connect(tab['webSocketDebuggerUrl'], max_size=None) as ws:
-            i = 0
-            async def cdp(method, params=None):
-                nonlocal i; i += 1; await ws.send(json.dumps({'id':i,'method':method,'params':params or {}}))
-                while True:
-                    m = json.loads(await asyncio.wait_for(ws.recv(),25))
-                    if m.get('id') == i: return m.get('result', {})
+            async with CDPDispatcher(ws) as cdp:
+                await verify_resize_scene(cdp, http_port, width, height)
+    finally:
+        cleanup_browser(chrome, profile, httpd)
+
+async def verify_resize_scene(cdp, http_port, width, height):
             async def js(expr):
                 r = await cdp('Runtime.evaluate', {'expression':expr,'returnByValue':True,'awaitPromise':True,'userGesture':True})
                 return r.get('result',{}).get('value')
@@ -138,11 +220,6 @@ async def run_resize_scene():
             while time.time()<end and await js("getComputedStyle(document.querySelector('#globe-container')).display !== 'none'"): await asyncio.sleep(.1)
             assert not await js("getComputedStyle(document.querySelector('#globe-container')).display !== 'none'"), 'escape: globe did not hide'
             print(f"resize: ran={post['calls']-pre['calls']} pre_dist={pre['dist']:.3f} post_dist={post['dist']:.3f} pre_pos={pre['pos']} post_pos={post['pos']} home={post['home']} aspect={post['aspect']:.4f} atHome={post['atHome']} tween={post['tween']} running={post['running']}")
-    finally:
-        chrome.terminate()
-        try: chrome.wait(3)
-        except subprocess.TimeoutExpired: chrome.kill()
-        shutil.rmtree(profile, ignore_errors=True); httpd.shutdown(); httpd.server_close()
 
 async def run_tween_resize_scene():
     width, height = 1100, 913
@@ -150,17 +227,18 @@ async def run_tween_resize_scene():
     Thread(target=httpd.serve_forever, daemon=True).start(); http_port = httpd.server_address[1]
     sock = socket.socket(); sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]; sock.close()
     profile = tempfile.mkdtemp(prefix='solar-tween-')
-    chrome = subprocess.Popen(['chromium','--headless=new',f'--remote-debugging-port={port}',f'--user-data-dir={profile}','--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader',f'--window-size={width},{height}','about:blank'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    chrome = None
     try:
+        chrome = subprocess.Popen(['chromium','--headless=new',f'--remote-debugging-port={port}',f'--user-data-dir={profile}','--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader',f'--window-size={width},{height}','about:blank'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         wait_devtools(port); req = urllib.request.Request(f'http://127.0.0.1:{port}/json/new?about%3Ablank', method='PUT')
         with urllib.request.urlopen(req, timeout=10) as r: tab = json.loads(r.read().decode())
         async with websockets.connect(tab['webSocketDebuggerUrl'], max_size=None) as ws:
-            i = 0
-            async def cdp(method, params=None):
-                nonlocal i; i += 1; await ws.send(json.dumps({'id':i,'method':method,'params':params or {}}))
-                while True:
-                    m = json.loads(await asyncio.wait_for(ws.recv(),25))
-                    if m.get('id') == i: return m.get('result', {})
+            async with CDPDispatcher(ws) as cdp:
+                await verify_tween_resize_scene(cdp, http_port, width, height)
+    finally:
+        cleanup_browser(chrome, profile, httpd)
+
+async def verify_tween_resize_scene(cdp, http_port, width, height):
             async def js(expr):
                 r = await cdp('Runtime.evaluate', {'expression':expr,'returnByValue':True,'awaitPromise':True,'userGesture':True}); return r.get('result',{}).get('value')
             await cdp('Runtime.enable'); await cdp('Emulation.setDeviceMetricsOverride', {'width':width,'height':height,'deviceScaleFactor':1,'mobile':False}); await cdp('Page.navigate', {'url':f'http://127.0.0.1:{http_port}/'})
@@ -216,11 +294,6 @@ async def run_tween_resize_scene():
                 d=((earth[2]-moon[2])**2+(earth[3]-moon[3])**2)**0.5; overlap=int(d < (earth[6]+moon[6])/2)
             assert overlap==0, f'earth/moon boxes overlap: distance={d if earth and moon else None}'
             print(f"tween: ran={after['calls']} tweenTo_before={before['to']} tweenTo_after={after['to']} home_before={before['home']} home_after={after['home']} aspect_before={before['aspect']:.4f} aspect_after={after['aspect']:.4f} camera_dist={after['dist']:.3f} visible={vis} violations={violations} overlap={overlap} visibility_frames={{t0:{baseline},t1:{t1_vis}}} fallback={fallback}")
-    finally:
-        chrome.terminate()
-        try: chrome.wait(3)
-        except subprocess.TimeoutExpired: chrome.kill()
-        shutil.rmtree(profile, ignore_errors=True); httpd.shutdown(); httpd.server_close()
 
 async def main():
     for w,h in [(1400,913),(900,800),(760,900),(480,850)]:
@@ -233,4 +306,66 @@ async def main():
         assert geometry['ok']/max(1, geometry['total']) >= .995, f'{w}x{h}: earth/moon button boxes overlap; failures={failures[:3]}'
     await run_resize_scene()
     await run_tween_resize_scene()
-asyncio.run(main())
+
+class FakeWebSocket:
+    def __init__(self, messages):
+        self.messages = asyncio.Queue()
+        for message in messages:
+            self.messages.put_nowait(json.dumps(message))
+        self.sent = []
+
+    async def send(self, message):
+        self.sent.append(json.loads(message))
+
+    async def recv(self):
+        return await self.messages.get()
+
+class DispatcherTests(unittest.IsolatedAsyncioTestCase):
+    async def test_buffers_out_of_order_response_for_later_request(self):
+        ws = FakeWebSocket([{'id': 2, 'result': {'value': 'second'}}, {'id': 1, 'result': {'value': 'first'}}])
+        dispatcher = CDPDispatcher(ws, timeout=0.05)
+        async with dispatcher as cdp:
+            first = await cdp('First.method')
+            second = await cdp('Second.method')
+        self.assertEqual(first, {'value': 'first'})
+        self.assertEqual(second, {'value': 'second'})
+
+    async def test_records_event_without_treating_it_as_reply(self):
+        ws = FakeWebSocket([{'method': 'Page.frameStartedLoading', 'params': {}}, {'id': 1, 'result': {'ok': True}}])
+        dispatcher = CDPDispatcher(ws, timeout=0.05)
+        async with dispatcher as cdp:
+            self.assertEqual(await cdp('Page.navigate'), {'ok': True})
+        self.assertEqual(list(dispatcher.events), ['Page.frameStartedLoading'])
+
+    async def test_timeout_names_request_and_diagnostics(self):
+        ws = FakeWebSocket([{'method': 'Page.lifecycleEvent', 'params': {}}, {'id': 99, 'result': {}}])
+        dispatcher = CDPDispatcher(ws, timeout=0.01)
+        async with dispatcher as cdp:
+            with self.assertRaisesRegex(TimeoutError, r'Runtime\.evaluate.*id=1.*Page\.lifecycleEvent.*outstanding=\[1\].*unmatched=\[99\]'):
+                await cdp('Runtime.evaluate')
+
+    async def test_target_crash_fails_explicitly(self):
+        ws = FakeWebSocket([{'method': 'Inspector.targetCrashed', 'params': {'status': 'crashed'}}])
+        dispatcher = CDPDispatcher(ws, timeout=0.05)
+        async with dispatcher as cdp:
+            with self.assertRaisesRegex(RuntimeError, r'Inspector\.targetCrashed.*Page\.navigate.*id=1'):
+                await cdp('Page.navigate')
+
+    async def test_legacy_receive_loop_loses_out_of_order_response(self):
+        ws = FakeWebSocket([{'id': 2, 'result': {'value': 'second'}}, {'id': 1, 'result': {'value': 'first'}}])
+
+        async def legacy_wait(request_id):
+            while True:
+                message = json.loads(await asyncio.wait_for(ws.recv(), 0.01))
+                if message.get('id') == request_id:
+                    return message.get('result', {})
+
+        self.assertEqual(await legacy_wait(1), {'value': 'first'})
+        with self.assertRaises(asyncio.TimeoutError):
+            await legacy_wait(2)
+
+if __name__ == '__main__':
+    if sys.argv[1:] == ['--test-dispatcher']:
+        unittest.main(argv=[sys.argv[0]])
+    else:
+        asyncio.run(main())
