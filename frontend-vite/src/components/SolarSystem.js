@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { physicalToDisplay } from './solar/CoordinateMapper.js';
 import { loadP1Ephemerides } from './solar/EphemerisProvider.js';
 import { advanceOrbitalBodies, advanceSimulationTime, hasGenericOrbitRing, updateEphemerisTargets } from './solar/SolarEphemerisRuntime.js';
+import { DustTailRenderer } from './solar/DustTailRenderer.js';
+import { DustTailManager } from './solar/DustTailManager.js';
 
 // Solar system widget: real orbital revolution, keyboard-reachable bodies,
 // a single rAF loop that also drives the camera approach tween.
@@ -33,6 +35,10 @@ export class SolarSystem {
     this.simulationTime = 2446078.5;
     this.simulationDaysPerSecond = options.simulationDaysPerSecond || 12;
     this.ephemerides = null;
+    // Dust tail is created only after the P1 ephemeris resolves; never
+    // dereferenced during construction.
+    this.dustTailRenderer = null;
+    this.dustTailManager = null;
     this.ephemerisStatus = { status: 'idle', error: null, targets: { mars: { ok: false, error: null, lastJd: null, lastPhysicalPosition: null, lastTailDirection: null }, halley: { ok: false, error: null, lastJd: null, lastPhysicalPosition: null, lastTailDirection: null } } };
     this.debug = (window.__DBG__ = window.__DBG__ || {});
     this.debug.solarEphemeris = this.ephemerisStatus;
@@ -86,6 +92,8 @@ export class SolarSystem {
       this.ephemerides = loaded;
       this.ephemerisStatus.status = 'ready';
       this.ephemerisStatus.error = null;
+      if (this.disposed) return;
+      this._initializeDustTail(loaded);
     } catch (error) {
       this.ephemerisStatus.status = 'error';
       this.ephemerisStatus.error = error instanceof Error ? error.message : String(error);
@@ -94,6 +102,26 @@ export class SolarSystem {
         if (target) target.visible = false;
         Object.assign(this.ephemerisStatus.targets[name], { ok: false, error: this.ephemerisStatus.error, lastJd: null, lastPhysicalPosition: null, lastTailDirection: null });
       }
+    }
+  }
+
+  // Single wiring point for the Finson–Probstein dust tail. Only runs after a
+  // successful async ephemeris load, guarded against disposal and double init.
+  _initializeDustTail(loaded) {
+    if (this.disposed || this.dustTailManager || !loaded?.providers?.halley || !loaded?.range) return;
+    try {
+      this.dustTailRenderer = new DustTailRenderer({ scene: this.scene, physicalToDisplay });
+      this.dustTailManager = new DustTailManager({
+        halleyProvider: loaded.providers.halley,
+        renderer: this.dustTailRenderer,
+        workerFactory: this.options.workerFactory || null,
+        range: loaded.range
+      });
+    } catch (err) {
+      this.dustTailRenderer?.dispose?.();
+      this.dustTailManager?.dispose?.();
+      this.dustTailRenderer = null;
+      this.dustTailManager = null;
     }
   }
 
@@ -542,6 +570,7 @@ export class SolarSystem {
     if (shouldAdvance) {
       this._advanceBodies(dt);
     }
+    this.dustTailManager?.tick(this.simulationTime, { paused: !shouldAdvance });
     this.debug.solarOrbitMotionState = this.orbitState.motionState;
     this.debug.solarOrbitResumeRemainingMs = this.orbitState.motionState === 'paused' ? Math.max(0, this.orbitState.resumeDelayMs - (Date.now() - this.orbitState.pauseStartTime)) : 0;
     this._stepCameraTween(dt);
@@ -555,7 +584,12 @@ export class SolarSystem {
 
   // Genuine revolution: angle accumulates, position is derived from it.
   _advanceBodies(dt) {
+    const previousSimulationTime = this.simulationTime;
     this.simulationTime = advanceSimulationTime(this.simulationTime, dt, this.simulationDaysPerSecond, this.ephemerides?.range || [2446078.5, 2446643.5]);
+    // P1 clock is strictly forward; a decrease can only be a range-end loop wrap.
+    if (this.simulationDaysPerSecond > 0 && this.simulationTime < previousSimulationTime) {
+      this.dustTailManager?.notifyTimeDiscontinuity();
+    }
     advanceOrbitalBodies(this.bodies, dt, this.earthCloudMesh);
 
     this.sunLight.position.copy(this.sun.position);
@@ -834,6 +868,15 @@ export class SolarSystem {
   destroy() {
     this.pause();
     this.disposed = true;
+
+    if (this.dustTailManager) {
+      this.dustTailManager.dispose();
+      this.dustTailManager = null;
+    }
+    if (this.dustTailRenderer) {
+      this.dustTailRenderer.dispose();
+      this.dustTailRenderer = null;
+    }
 
     window.removeEventListener('resize', this._onResize);
     if (this._onVisibility) {
