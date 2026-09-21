@@ -25,29 +25,38 @@ assert.match(solar, /name\s*===\s*['"]Earth['"]/);
 assert.match(solar, /name\s*===\s*['"]Moon['"]/);
 assert.match(solar, /PointLight/);
 assert.match(solar, /LineLoop|RingGeometry/);
-assert.match(solar, /hasGenericOrbitRing\(spec\.name\)/, 'Mars orbit-ring exclusion must be explicit and shared with unit coverage');
+assert.match(solar, /hasGenericOrbitRing\(spec\.name\)/, 'all planets must share the generic orbit-ring policy');
 assert.match(solar, /group\.visible\s*=\s*false/, 'Halley must start hidden until its first valid sample');
 assert.match(solar, /crossTail\.quaternion\.multiply[\s\S]{0,220}Math\.PI\s*\/\s*2/, 'cross tail must rotate 90 degrees around the tail axis');
 // Planet count. An earlier revision matched /name:'[^']+'/g, which counted a quoting
 // style rather than planets and broke the moment the table gained spaces after colons.
 const planetTable = solar.slice(solar.indexOf('PLANET_TABLE'), solar.indexOf('];', solar.indexOf('PLANET_TABLE')));
-assert.ok((planetTable.match(/name\s*:\s*['"][^'"]+['"]/g) || []).length >= 4);
+assert.deepEqual([...planetTable.matchAll(/name\s*:\s*['"]([^'"]+)['"]/g)].map((match) => match[1]),
+  ['Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune']);
 
-// Planet revolution must be position-driven. The previous regex
-// /angle\+=.*position\.set\(Math\.cos/ was satisfied by the moon's motion code alone,
-// so it stayed green even when the planets were reverted to `rotation.y += k`.
-// Anchor on the _advanceBodies definition: the iteration over every tracked body must
-// accumulate an angle and derive the position from it, so faking planet motion breaks this.
-const advanceStart = solar.indexOf('_advanceBodies(dt) {');
-assert.ok(advanceStart > 0, '_advanceBodies(dt) definition not found');
-const advance = solar.slice(advanceStart, advanceStart + 1200);
+// Every planet, the Moon, and Halley must reach the same ephemeris update.
+// Body spins stay in advanceOrbitalBodies; circular positions must not overwrite samples.
+const planets = solar.slice(...methodSpan(solar, '_buildPlanets() {'));
+assert.match(planets, /const list\s*=\s*PLANET_TABLE/);
+assert.match(planets, /list\.forEach\(\(spec,\s*index\)\s*=>/);
+assert.match(planets, /this\.ephemerisTargets\[spec\.name\.toLowerCase\(\)\]\s*=\s*mesh/);
+assert.match(planets, /this\.ephemerisTargets\.halley\s*=\s*this\.halley\.group/);
+assert.match(solar.slice(...methodSpan(solar, '_buildMoon() {')), /this\.ephemerisTargets\.moon\s*=\s*this\.moon/);
+const advance = solar.slice(...methodSpan(solar, '_advanceBodies(dt) {'));
 assert.match(advance, /advanceOrbitalBodies\(this\.bodies/);
+assert.match(advance, /updateEphemerisTargets\(\{\s*simulationTime:\s*this\.simulationTime,\s*providers:\s*this\.ephemerides\.providers,\s*targets:\s*this\.ephemerisTargets,\s*statuses:\s*this\.ephemerisStatus\.targets/);
 const runtime = readFileSync(new URL('../src/components/solar/SolarEphemerisRuntime.js', import.meta.url), 'utf8');
+const update = runtime.slice(...methodSpan(runtime, 'updateEphemerisTargets('));
+assert.match(update, /for\s*\(const \[name,\s*target\] of Object\.entries\(targets\)\)/);
+assert.match(update, /providers\[name\]\.sample\(simulationTime\)/);
+assert.match(update, /applyPosition\(target,\s*physicalPosition,\s*name,\s*sample\)/);
 assert.match(runtime, /for\s*\(const body of bodies\)/);
-assert.match(runtime, /body\.angle\s*\+=\s*body\.speed\s*\*\s*dt/);
-assert.match(runtime, /orbitDisplayPosition\(body\.orbit,\s*body\.angle/);
-assert.match(runtime, /z:\s*-Math\.sin\(angle\)/, 'placeholder display orbit must use the Mars-aligned negative-z sine');
-assert.match(runtime, /body\.mesh\.position\.set\(/);
+assert.match(runtime, /body\.mesh\.rotation\.y\s*\+=\s*body\.spin\s*\*\s*dt/);
+assert.match(runtime, /hasGenericOrbitRing\([^)]*\)\s*\{\s*return false;/);
+assert.doesNotMatch(runtime, /body\.angle\s*\+=\s*body\.speed\s*\*\s*dt/);
+assert.doesNotMatch(runtime, /orbitDisplayPosition\(body\.orbit,\s*body\.angle/);
+assert.match(runtime, /z:\s*-Math\.sin\(angle\)/, 'retained display orbit helper must use the Mars-aligned negative-z sine');
+assert.doesNotMatch(runtime, /body\.mesh\.position\.set\(/);
 
 // Escape handling and the sun entry must not regress to their earlier broken forms.
 assert.doesNotMatch(table, /openFrontLogin\?\.\(\)\s*\|\|/);

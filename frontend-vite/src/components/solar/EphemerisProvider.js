@@ -50,10 +50,12 @@ export async function loadP1Ephemerides(fetchImpl = fetch) {
   if (!manifest.coordinate_contract || typeof manifest.coordinate_contract !== 'object' || !Object.keys(manifest.coordinate_contract).length) {
     throw new Error('manifest coordinate_contract missing');
   }
+  if (!manifest.targets || typeof manifest.targets !== 'object' || Array.isArray(manifest.targets) || !Object.keys(manifest.targets).length) {
+    throw new Error('manifest targets missing');
+  }
   const result = {};
   const ranges = [];
-  for (const target of ['mars', 'halley']) {
-    const expected = manifest.targets?.[target];
+  for (const [target, expected] of Object.entries(manifest.targets)) {
     if (!expected || typeof expected !== 'object') throw new Error(`manifest target ${target} missing`);
     if (!Array.isArray(expected.jd_tdb_range) || expected.jd_tdb_range.length !== 2 || !expected.jd_tdb_range.every(Number.isFinite) || expected.jd_tdb_range[0] > expected.jd_tdb_range[1]) {
       throw new Error(`manifest target ${target} range invalid`);

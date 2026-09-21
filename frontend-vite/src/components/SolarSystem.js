@@ -11,6 +11,7 @@ import { DustTailManager } from './solar/DustTailManager.js';
 const MOBILE_QUERY = '(max-width: 720px)';
 const HOME_FOV = 52;
 const TARGET_RADIUS = (19 + 2.6 + 1.25) * 1.1;
+const MOON_DISPLAY_UNITS_PER_AU = 1089.68;
 
 // name, radius, orbital radius, angular speed (rad/s), colour, mobile-only-drop flag
 const PLANET_TABLE = [
@@ -39,7 +40,16 @@ export class SolarSystem {
     // dereferenced during construction.
     this.dustTailRenderer = null;
     this.dustTailManager = null;
-    this.ephemerisStatus = { status: 'idle', error: null, targets: { mars: { ok: false, error: null, lastJd: null, lastPhysicalPosition: null, lastTailDirection: null }, halley: { ok: false, error: null, lastJd: null, lastPhysicalPosition: null, lastTailDirection: null } } };
+    // Planets are registered before the Moon, so its offset uses this frame's Earth position.
+    this.ephemerisTargets = {};
+    this.ephemerisStatus = {
+      status: 'idle', error: null,
+      targets: Object.fromEntries(
+        [...PLANET_TABLE.map((spec) => spec.name.toLowerCase()), 'moon', 'halley'].map((name) => [name, {
+          ok: false, error: null, lastJd: null, lastPhysicalPosition: null, lastTailDirection: null
+        }])
+      )
+    };
     this.debug = (window.__DBG__ = window.__DBG__ || {});
     this.debug.solarEphemeris = this.ephemerisStatus;
     this.disposed = false;
@@ -95,11 +105,11 @@ export class SolarSystem {
       if (this.disposed) return;
       this._initializeDustTail(loaded);
     } catch (error) {
+      this.ephemerides = null;
       this.ephemerisStatus.status = 'error';
       this.ephemerisStatus.error = error instanceof Error ? error.message : String(error);
-      for (const name of ['mars', 'halley']) {
-        const target = name === 'mars' ? this.marsBody?.mesh : this.halley?.group;
-        if (target) target.visible = false;
+      for (const [name, target] of Object.entries(this.ephemerisTargets)) {
+        target.visible = false;
         Object.assign(this.ephemerisStatus.targets[name], { ok: false, error: this.ephemerisStatus.error, lastJd: null, lastPhysicalPosition: null, lastTailDirection: null });
       }
     }
@@ -287,6 +297,8 @@ export class SolarSystem {
 
       const mesh = new THREE.Mesh(geometry, material);
       mesh.name = spec.name;
+      mesh.visible = false;
+      this.ephemerisTargets[spec.name.toLowerCase()] = mesh;
       mesh.rotation.z = spec.tilt;
       this.scene.add(mesh);
       this._track(geometry, material);
@@ -317,7 +329,6 @@ export class SolarSystem {
 
       if (spec.name === 'Mars') {
         this.marsBody = body;
-        mesh.visible = false;
       }
 
       if (spec.name === 'Earth') {
@@ -332,6 +343,7 @@ export class SolarSystem {
       }
     });
     this._buildHalleyComet();
+    this.ephemerisTargets.halley = this.halley.group;
     this._buildAsteroidBelt();
   }
 
@@ -364,6 +376,8 @@ export class SolarSystem {
 
     this.moon = new THREE.Mesh(geometry, material);
     this.moon.name = 'Moon';
+    this.moon.visible = false;
+    this.ephemerisTargets.moon = this.moon;
     this.scene.add(this.moon);
     this._track(geometry, material);
 
@@ -582,7 +596,7 @@ export class SolarSystem {
     this.frameId = requestAnimationFrame(this._tick);
   }
 
-  // Genuine revolution: angle accumulates, position is derived from it.
+  // All ephemeris targets share one clock; body spins advance independently.
   _advanceBodies(dt) {
     const previousSimulationTime = this.simulationTime;
     this.simulationTime = advanceSimulationTime(this.simulationTime, dt, this.simulationDaysPerSecond, this.ephemerides?.range || [2446078.5, 2446643.5]);
@@ -594,7 +608,22 @@ export class SolarSystem {
 
     this.sunLight.position.copy(this.sun.position);
     if (this.asteroidBelt && this.asteroidData) { const m = new THREE.Matrix4(); this.asteroidData.forEach((a,i) => { a.angle += 0.18 * Math.pow(29.6 / a.r, 1.5) * dt; m.makeRotationY(a.spin * dt); m.setPosition(a.r * Math.cos(a.angle), a.y, -a.r * Math.sin(a.angle)); m.scale(new THREE.Vector3(a.scale, a.scale, a.scale)); this.asteroidBelt.setMatrixAt(i,m); }); this.asteroidBelt.instanceMatrix.needsUpdate = true; }
-    if (this.ephemerides) updateEphemerisTargets({ simulationTime: this.simulationTime, providers: this.ephemerides.providers, targets: { mars: this.marsBody.mesh, halley: this.halley.group }, statuses: this.ephemerisStatus.targets, applyPosition: (target, position) => { const display = physicalToDisplay(position); target.position.copy(new THREE.Vector3(display.x, display.y, display.z)); }, applyTail: (_target, tail) => { const target = this.halley; const direction = new THREE.Vector3(tail.direction.x, tail.direction.y, tail.direction.z); const len = Math.max(0.5, tail.length); /* len >= 0.5 is the minimum ion-tail extent. */ target.tail.scale.set(len, 0.6 + len * 0.06, 1); target.crossTail.scale.copy(target.tail.scale); target.tail.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), direction); target.crossTail.quaternion.copy(target.tail.quaternion); target.crossTail.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2)); target.flame.scale.setScalar(THREE.MathUtils.clamp(2.4 * (1.2 / tail.distanceAu), 1, 4.8)); target.tail.material.opacity = THREE.MathUtils.clamp(0.12 + (0.85 - 0.12) * (1.2 / tail.distanceAu), 0.12, 0.85); } });
+    if (this.ephemerides) updateEphemerisTargets({
+      simulationTime: this.simulationTime,
+      providers: this.ephemerides.providers,
+      targets: this.ephemerisTargets,
+      statuses: this.ephemerisStatus.targets,
+      applyPosition: (target, position, name) => {
+        if (name === 'moon') {
+          const [x, y, z] = position;
+          target.position.copy(this.earth.position).add(new THREE.Vector3(x, z, -y).multiplyScalar(MOON_DISPLAY_UNITS_PER_AU));
+          return;
+        }
+        const display = physicalToDisplay(position);
+        target.position.copy(new THREE.Vector3(display.x, display.y, display.z));
+      },
+      applyTail: (_target, tail) => { const target = this.halley; const direction = new THREE.Vector3(tail.direction.x, tail.direction.y, tail.direction.z); const len = Math.max(0.5, tail.length); /* len >= 0.5 is the minimum ion-tail extent. */ target.tail.scale.set(len, 0.6 + len * 0.06, 1); target.crossTail.scale.copy(target.tail.scale); target.tail.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), direction); target.crossTail.quaternion.copy(target.tail.quaternion); target.crossTail.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2)); target.flame.scale.setScalar(THREE.MathUtils.clamp(2.4 * (1.2 / tail.distanceAu), 1, 4.8)); target.tail.material.opacity = THREE.MathUtils.clamp(0.12 + (0.85 - 0.12) * (1.2 / tail.distanceAu), 0.12, 0.85); }
+    });
   }
 
   getP1RuntimeSnapshot() {
