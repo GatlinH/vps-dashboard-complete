@@ -4,6 +4,7 @@ import { loadP1Ephemerides } from './solar/EphemerisProvider.js';
 import { advanceOrbitalBodies, advanceSimulationTime, hasGenericOrbitRing, updateEphemerisTargets } from './solar/SolarEphemerisRuntime.js';
 import { DustTailRenderer } from './solar/DustTailRenderer.js';
 import { DustTailManager } from './solar/DustTailManager.js';
+import { TEXTURE_MANIFEST_URL, fetchTextureManifest, remapRingToPolarUv, resolveTierAsset, threeColorSpace } from './solar/PlanetTextureLoader.js';
 
 // Solar system widget: real orbital revolution, keyboard-reachable bodies,
 // a single rAF loop that also drives the camera approach tween.
@@ -13,16 +14,19 @@ const HOME_FOV = 52;
 const TARGET_RADIUS = (19 + 2.6 + 1.25) * 1.1;
 const MOON_DISPLAY_UNITS_PER_AU = 1089.68;
 
-// name, radius, orbital radius, angular speed (rad/s), colour, mobile-only-drop flag
-const PLANET_TABLE = [
-  { name: 'Mercury', radius: 0.7, orbit: 9, speed: 0.62, color: 0x9c8a7a, tilt: 0.001, mobile: false },
-  { name: 'Venus', radius: 1.1, orbit: 13.5, speed: 0.44, color: 0xd8a05a, tilt: 3.096, mobile: true },
-  { name: 'Earth', radius: 1.25, orbit: 19, speed: 0.31, color: 0x3f7fd8, tilt: 0.409, mobile: true },
-  { name: 'Mars', radius: 0.95, orbit: 25, speed: 0.24, color: 0xc1552f, tilt: 0.440, mobile: true },
-  { name: 'Jupiter', radius: 2.4, orbit: 33, speed: 0.14, color: 0xd2a679, tilt: 0.055, mobile: false, ring: [3.0, 4.13] },
-  { name: 'Saturn', radius: 2.0, orbit: 41, speed: 0.10, color: 0xe0cba0, tilt: 0.466, mobile: false, ring: [2.6, 4.4] },
-  { name: 'Uranus', radius: 1.55, orbit: 52, speed: 0.068, color: 0x55b8c8, tilt: 1.706, mobile: false, ring: [2.1, 2.95] },
-  { name: 'Neptune', radius: 1.48, orbit: 62, speed: 0.048, color: 0x2e58c8, tilt: 0.494, mobile: false, ring: [2.05, 2.8] }
+// name, radius, orbital radius, angular speed (rad/s), colour, mobile-only-drop flag.
+// roughness/metalness follow the P3-B material table: rocky bodies are pure
+// diffuse (0.95/0), Venus' sulphuric haze 0.90/0, Earth keeps a faint ocean
+// sheen (0.65/0.05) and the gas giants stay soft-banded (0.75/0).
+export const PLANET_TABLE = [
+  { name: 'Mercury', radius: 0.7, orbit: 9, speed: 0.62, color: 0x9c8a7a, tilt: 0.001, mobile: false, roughness: 0.95, metalness: 0 },
+  { name: 'Venus', radius: 1.1, orbit: 13.5, speed: 0.44, color: 0xd8a05a, tilt: 3.096, mobile: true, roughness: 0.90, metalness: 0 },
+  { name: 'Earth', radius: 1.25, orbit: 19, speed: 0.31, color: 0x3f7fd8, tilt: 0.409, mobile: true, roughness: 0.65, metalness: 0.05 },
+  { name: 'Mars', radius: 0.95, orbit: 25, speed: 0.24, color: 0xc1552f, tilt: 0.440, mobile: true, roughness: 0.95, metalness: 0 },
+  { name: 'Jupiter', radius: 2.4, orbit: 33, speed: 0.14, color: 0xd2a679, tilt: 0.055, mobile: false, ring: [3.0, 4.13], roughness: 0.75, metalness: 0 },
+  { name: 'Saturn', radius: 2.0, orbit: 41, speed: 0.10, color: 0xe0cba0, tilt: 0.466, mobile: false, ring: [2.6, 4.4], roughness: 0.75, metalness: 0 },
+  { name: 'Uranus', radius: 1.55, orbit: 52, speed: 0.068, color: 0x55b8c8, tilt: 1.706, mobile: false, ring: [2.1, 2.95], roughness: 0.75, metalness: 0 },
+  { name: 'Neptune', radius: 1.48, orbit: 62, speed: 0.048, color: 0x2e58c8, tilt: 0.494, mobile: false, ring: [2.05, 2.8], roughness: 0.75, metalness: 0 }
 ];
 
 export class SolarSystem {
@@ -93,6 +97,94 @@ export class SolarSystem {
     this._tick = this._tick.bind(this);
     this.clock = new THREE.Clock();
     this.resume();
+
+    // First frame is already on screen with procedural canvas textures; the
+    // CC-BY package is fetched afterwards and hot-swapped in when it lands.
+    this.textureLoadPromise = this._loadPlanetaryTextures();
+  }
+
+  // Async, best-effort upgrade path. Any failure (manifest, single file,
+  // disposal mid-flight) leaves the procedural textures untouched: the scene
+  // must never regress to an unlit or blank body because the network blinked.
+  async _loadPlanetaryTextures() {
+    const tier = this.isMobile ? 'mobile' : 'desktop';
+
+    let manifest;
+    try {
+      manifest = await fetchTextureManifest(TEXTURE_MANIFEST_URL);
+    } catch (error) {
+      console.warn('[SolarTexture] manifest load failed, keeping procedural textures', error);
+      return;
+    }
+    if (this.disposed) return;
+
+    const loader = typeof this.options.textureLoaderFactory === 'function'
+      ? this.options.textureLoaderFactory()
+      : new THREE.TextureLoader();
+
+    const jobs = [];
+    for (const [name, meta] of Object.entries(manifest.textures)) {
+      const target = this._resolveTextureTarget(name);
+      if (!target) continue;
+      const asset = resolveTierAsset(meta, tier);
+      if (!asset) continue;
+      jobs.push(this._swapPlanetTexture(loader, name, asset, target));
+    }
+
+    await Promise.all(jobs);
+  }
+
+  // Maps a manifest key onto the live material slot it feeds. Unknown keys and
+  // bodies that were not built (mobile drops, missing ring) resolve to null.
+  _resolveTextureTarget(name) {
+    if (name === 'earth_clouds') {
+      return this.earthCloudMesh ? { material: this.earthCloudMesh.material, slot: 'alphaMap' } : null;
+    }
+    if (name === 'saturn_ring') {
+      return this.saturnRing ? { material: this.saturnRing.material, slot: 'map' } : null;
+    }
+    const mesh = name === 'moon' ? this.moon : this.ephemerisTargets?.[name];
+    return mesh?.material ? { material: mesh.material, slot: 'map' } : null;
+  }
+
+  // Resolves (never rejects) so one broken file cannot cancel the others.
+  _swapPlanetTexture(loader, name, asset, target) {
+    return new Promise((resolve) => {
+      loader.load(asset.url, (texture) => {
+        if (this.disposed) {
+          texture.dispose();
+          resolve(false);
+          return;
+        }
+
+        // Albedo maps follow the manifest's declared colour space; anything
+        // bound to a data slot (cloud alpha) must stay unconverted or gamma
+        // decoding would distort its linear opacity ramp.
+        texture.colorSpace = target.slot === 'alphaMap' ? THREE.NoColorSpace : threeColorSpace(asset.colorSpace);
+        texture.generateMipmaps = true;
+        texture.minFilter = THREE.LinearMipmapLinearFilter;
+
+        const material = target.material;
+        const previous = material[target.slot];
+        material[target.slot] = texture;
+        // The procedural stand-in was tinted by the planet's base colour; a
+        // real albedo map must not be multiplied by it a second time.
+        if (target.slot === 'map' && material.color) material.color.setRGB(1, 1, 1);
+        material.needsUpdate = true;
+
+        // Release the procedural texture so the two never co-reside in VRAM.
+        if (previous && previous.isTexture) {
+          previous.dispose();
+          const index = this.disposables.indexOf(previous);
+          if (index !== -1) this.disposables.splice(index, 1);
+        }
+        this._track(texture);
+        resolve(true);
+      }, undefined, (error) => {
+        console.warn(`[SolarTexture] ${name} texture failed, keeping procedural fallback`, error);
+        resolve(false);
+      });
+    });
   }
 
   async _loadEphemerides() {
@@ -291,8 +383,8 @@ export class SolarSystem {
       const material = new THREE.MeshStandardMaterial({
         color: spec.color,
         map: texture,
-        roughness: 0.85,
-        metalness: 0.05
+        roughness: spec.roughness,
+        metalness: spec.metalness
       });
 
       const mesh = new THREE.Mesh(geometry, material);
@@ -306,10 +398,15 @@ export class SolarSystem {
 
       if (spec.ring && (!this.isMobile || spec.name === 'Saturn')) {
         const ringGeometry = new THREE.RingGeometry(spec.ring[0], spec.ring[1], this.isMobile ? 48 : 96);
-        const ringMaterial = new THREE.MeshStandardMaterial({ map: this._generateRingTexture(spec.name), side: THREE.DoubleSide, roughness: 0.95, metalness: 0, transparent: true, opacity: spec.name === 'Jupiter' ? 0.12 : 0.8, depthWrite: false });
+        // Radial strip textures need polar UVs, otherwise the ring renders as
+        // straight cartesian bands instead of concentric gaps.
+        remapRingToPolarUv(ringGeometry, spec.ring[0], spec.ring[1]);
+        const ringMaterial = new THREE.MeshStandardMaterial({ map: this._generateRingTexture(spec.name), side: THREE.DoubleSide, roughness: 0.9, metalness: 0, transparent: true, opacity: spec.name === 'Jupiter' ? 0.12 : 0.8, depthWrite: false });
         const ring = new THREE.Mesh(ringGeometry, ringMaterial);
         ring.rotation.x = Math.PI / 2;
         mesh.add(ring);
+        // Saturn's ring is the only one with a published CC-BY strip texture.
+        if (spec.name === 'Saturn') this.saturnRing = ring;
         this._track(ringGeometry, ringMaterial);
       }
 
@@ -336,7 +433,9 @@ export class SolarSystem {
         this.earthBody = body;
         const cg = new THREE.SphereGeometry(spec.radius * 1.018, segW, segH);
         const ct = this._buildProceduralTexture('EarthClouds');
-        const cm = new THREE.MeshStandardMaterial({ map: ct, transparent: true, opacity: 0.82, depthWrite: false, roughness: 0.9, metalness: 0 });
+        // Cloud shell is pure white lit geometry masked by an alpha map: the
+        // grey-scale cloud texture drives opacity only, never albedo.
+        const cm = new THREE.MeshStandardMaterial({ color: 0xffffff, alphaMap: ct, transparent: true, opacity: 0.85, roughness: 0.95, metalness: 0, depthWrite: false });
         this.earthCloudMesh = new THREE.Mesh(cg, cm);
         mesh.add(this.earthCloudMesh);
         this._track(cg, cm);
