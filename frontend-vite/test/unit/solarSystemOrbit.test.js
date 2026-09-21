@@ -34,7 +34,7 @@ describe('solar system F2 orbit interaction', () => {
     expect(text).toContain('this.asteroidData=Array.from');
     expect(text).toContain('instanceMatrix.needsUpdate = true');
     expect(text).toMatch(/_advanceBodies[\s\S]*asteroidBelt[\s\S]*setMatrixAt/);
-    expect(text).toMatch(/_advanceBodies[\s\S]*h\.tail\.quaternion\.setFromUnitVectors/);
+    expect(text).toMatch(/_advanceBodies[\s\S]*applyTail:\s*\(_target,\s*tail\)\s*=>\s*\{\s*const target = this\.halley;[^\n]*target\.tail\.quaternion\.setFromUnitVectors\(new THREE\.Vector3\(1, 0, 0\), direction\)/);
     expect(text).toContain('tailGeometry.translate(0.5,0,0)');
     expect(text).toContain('crossTail');
   });
