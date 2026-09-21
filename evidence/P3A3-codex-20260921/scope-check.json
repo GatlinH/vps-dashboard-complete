@@ -1,0 +1,109 @@
+{
+  "baseline": "173ca39f242f63348c3290b247899b80db33c69c",
+  "modified_tracked_paths": [
+    "frontend-vite/test/unit/solarP1.test.js",
+    "frontend-vite/test/unit/solarSystemOrbit.test.js"
+  ],
+  "protected_files": [
+    {
+      "path": "frontend-vite/public/assets/solar/p1/earth.json",
+      "sha256": "920bd652d36e8ee7e3b52a72f497d520bbe12a6d14d8f63ea17447ed3c5f8b08",
+      "identical_to_baseline": true
+    },
+    {
+      "path": "frontend-vite/public/assets/solar/p1/halley.json",
+      "sha256": "299d1afbda4dcf7250c3a4b914419707bcf25a7834b8a96274ce38ba9e20f418",
+      "identical_to_baseline": true
+    },
+    {
+      "path": "frontend-vite/public/assets/solar/p1/jupiter.json",
+      "sha256": "fd9fa799a9df555c28b67a3f0cb54524dba10574b7146580350429ef70a17864",
+      "identical_to_baseline": true
+    },
+    {
+      "path": "frontend-vite/public/assets/solar/p1/manifest.json",
+      "sha256": "7c045e015bcd474413b3373bbc5e01b02232e42a8e7f4f41bd8ca4d12dc53816",
+      "identical_to_baseline": true
+    },
+    {
+      "path": "frontend-vite/public/assets/solar/p1/mars.json",
+      "sha256": "b12c34cb77dfd5ed77b521d4671a63c4755665e4efcc2814951de194147cac2e",
+      "identical_to_baseline": true
+    },
+    {
+      "path": "frontend-vite/public/assets/solar/p1/mercury.json",
+      "sha256": "96049cbb22c4d87488a7f0ff87664d859d1dcb90337e5e7e95765434e9eebe6d",
+      "identical_to_baseline": true
+    },
+    {
+      "path": "frontend-vite/public/assets/solar/p1/moon.json",
+      "sha256": "da21767a15f812d2ea28e5f7e2b1d288854c06110bea797ef54e03327f8a655b",
+      "identical_to_baseline": true
+    },
+    {
+      "path": "frontend-vite/public/assets/solar/p1/neptune.json",
+      "sha256": "72386051bfd3497a644cb6654fbd479f2b50f40fabc8d6efe8daba2daedc6aa1",
+      "identical_to_baseline": true
+    },
+    {
+      "path": "frontend-vite/public/assets/solar/p1/saturn.json",
+      "sha256": "0cb0e73134c6b92b9b989d051b96c399f6fa2c9776841d91be3d707d8b3b4efd",
+      "identical_to_baseline": true
+    },
+    {
+      "path": "frontend-vite/public/assets/solar/p1/uranus.json",
+      "sha256": "06332991e6b132531dfe5375188fe122360f14e8e5c38ee048ebffc0dfa0b382",
+      "identical_to_baseline": true
+    },
+    {
+      "path": "frontend-vite/public/assets/solar/p1/venus.json",
+      "sha256": "5b0fd9fb5796299c21e9a7f2686beda7115b3eaaf2f6029c867226c80382c1f2",
+      "identical_to_baseline": true
+    },
+    {
+      "path": "frontend-vite/scripts/verify-solar-system-home.mjs",
+      "sha256": "2038c6fa1cd77de149fed349154f0e9abd7dfbcd24b41763c6168c6e0bc1c741",
+      "identical_to_baseline": true
+    },
+    {
+      "path": "frontend-vite/src/components/SolarSystem.js",
+      "sha256": "09f7f1b6beb530bd6d75ec37aa5df51ba7b773dcb8787b8c96e842aecd577190",
+      "identical_to_baseline": true
+    },
+    {
+      "path": "frontend-vite/src/components/solar/CoordinateMapper.js",
+      "sha256": "2d80359a7ac8f1e2f854167645530f4b45ddd33f8f3f0e0968a96e2d5889feab",
+      "identical_to_baseline": true
+    },
+    {
+      "path": "frontend-vite/src/components/solar/DustTailManager.js",
+      "sha256": "8b529a95f252f33022b1873b9de15ff1323f5bd7d4fcd0f2bbe7a7d5594f1277",
+      "identical_to_baseline": true
+    },
+    {
+      "path": "frontend-vite/src/components/solar/DustTailRenderer.js",
+      "sha256": "6f270c12e1b11b60287dc868048744557f6212580aefcca6f59b1924653bd895",
+      "identical_to_baseline": true
+    },
+    {
+      "path": "frontend-vite/src/components/solar/DustTailWorker.js",
+      "sha256": "e19b436379a6213b6a8ff7ab2f457b70c95b8c6c006d0f89438262c0e32ae68a",
+      "identical_to_baseline": true
+    },
+    {
+      "path": "frontend-vite/src/components/solar/EphemerisProvider.js",
+      "sha256": "95c2cd60336dccafef483d6d844fc3f05a1c2a8fa16bcafb143a4ffb22e92e72",
+      "identical_to_baseline": true
+    },
+    {
+      "path": "frontend-vite/src/components/solar/SolarEphemerisRuntime.js",
+      "sha256": "5787537e18996dc19b8793b34a829a4e892b9976d3446f8ab72527fc8acae84f",
+      "identical_to_baseline": true
+    },
+    {
+      "path": "frontend-vite/test/fixtures/p3-holdout.json",
+      "sha256": "2a876dee778181540dea7a4815f949dd554a40f66acfe149e71467db014947a8",
+      "identical_to_baseline": true
+    }
+  ]
+}

@@ -1,0 +1,84 @@
+
+> vps-starmap-vite@1.0.0 build
+> vite build
+
+vite v8.1.5 building client environment for production...
+[2Ktransforming...✓ 1537 modules transformed.
+rendering chunks...
+computing gzip size...
+../frontend-dist/manifest.webmanifest                        0.32 kB
+../frontend-dist/assets/rolldown-runtime-B6h-spaU.js.br      0.59 kB
+../frontend-dist/assets/rolldown-runtime-B6h-spaU.js.gz      0.65 kB
+../frontend-dist/assets/auth-Cno-ZgN5.js.br                  0.70 kB
+../frontend-dist/assets/auth-Cno-ZgN5.js.gz                  0.82 kB
+../frontend-dist/assets/DustTailWorker-UosyDwnN.js.br        1.63 kB
+../frontend-dist/assets/DustTailWorker-UosyDwnN.js.gz        1.90 kB
+../frontend-dist/index.html                                  2.22 kB │ gzip:   0.95 kB
+../frontend-dist/assets/cesium-B9DDZdqH.css.br               4.64 kB
+../frontend-dist/assets/cesium-B9DDZdqH.css.gz               5.35 kB
+../frontend-dist/assets/DustTailWorker-UosyDwnN.js           5.41 kB
+../frontend-dist/assets/CesiumGlobe-racuQJi6.css.br          8.67 kB
+../frontend-dist/assets/CesiumGlobe-racuQJi6.css.gz         10.08 kB
+../frontend-dist/admin.html                                 10.15 kB │ gzip:   3.00 kB
+../frontend-dist/assets/admin-B76cXNsE.js.br                11.64 kB
+../frontend-dist/assets/admin-B76cXNsE.js.gz                14.56 kB
+../frontend-dist/assets/detail-telemetry-mIGknok1.js.br     21.36 kB
+../frontend-dist/assets/detail-telemetry-mIGknok1.js.gz     25.70 kB
+../frontend-dist/assets/admin-nZo9K1e3.css.br               26.32 kB
+../frontend-dist/assets/main-DgD8Okyw.js.br                 32.15 kB
+../frontend-dist/assets/admin-nZo9K1e3.css.gz               32.81 kB
+../frontend-dist/assets/main-DgD8Okyw.js.gz                 39.00 kB
+../frontend-dist/assets/main-ByiNU7S7.css.br                40.83 kB
+../frontend-dist/assets/main-ByiNU7S7.css.gz                52.63 kB
+../frontend-dist/assets/chart-D82F5TVB.js.br                61.30 kB
+../frontend-dist/assets/chart-D82F5TVB.js.gz                70.96 kB
+../frontend-dist/assets/components-BM6JhJts.js.br           72.96 kB
+../frontend-dist/assets/components-BM6JhJts.js.gz           88.55 kB
+../frontend-dist/assets/vendor-m6lapwOb.js.br              333.13 kB
+../frontend-dist/assets/vendor-m6lapwOb.js.gz              411.13 kB
+../frontend-dist/assets/cesium-DWi5vveO.js.br              706.99 kB
+../frontend-dist/assets/cesium-DWi5vveO.js.gz              939.52 kB
+../frontend-dist/assets/cesium-B9DDZdqH.css                 24.01 kB │ gzip:   5.37 kB
+../frontend-dist/assets/CesiumGlobe-racuQJi6.css            47.96 kB │ gzip:  10.13 kB
+../frontend-dist/assets/admin-nZo9K1e3.css                 237.10 kB │ gzip:  32.69 kB
+../frontend-dist/assets/main-ByiNU7S7.css                  386.25 kB │ gzip:  52.57 kB
+../frontend-dist/assets/CesiumGlobe-_3yaBWDb.js              0.10 kB │ gzip:   0.10 kB
+../frontend-dist/assets/rolldown-runtime-B6h-spaU.js         1.11 kB │ gzip:   0.65 kB
+../frontend-dist/assets/auth-Cno-ZgN5.js                     1.62 kB │ gzip:   0.82 kB
+../frontend-dist/assets/admin-B76cXNsE.js                   34.92 kB │ gzip:  14.61 kB
+../frontend-dist/assets/detail-telemetry-mIGknok1.js        74.14 kB │ gzip:  25.88 kB
+../frontend-dist/assets/main-DgD8Okyw.js                   120.55 kB │ gzip:  39.37 kB
+../frontend-dist/assets/chart-D82F5TVB.js                  207.47 kB │ gzip:  71.64 kB
+../frontend-dist/assets/components-BM6JhJts.js             293.75 kB │ gzip:  88.94 kB
+../frontend-dist/assets/vendor-m6lapwOb.js               1,369.39 kB │ gzip: 414.19 kB
+../frontend-dist/assets/cesium-DWi5vveO.js               3,660.27 kB │ gzip: 945.91 kB
+
+[33m[PLUGIN_TIMINGS] [0mYour build spent significant time in plugins. Here is a breakdown:
+  - precompress-assets (46%)
+  - vite:esbuild-transpile (15%)
+  - vite:css (14%)
+  - vite:css-post (12%)
+  - vite:worker-import-meta-url (5%)
+See https://rolldown.rs/reference/InputOptions.checks#plugintimings for more details.
+
+✓ built in 15.39s
+
+PWA v1.3.0
+Building src/sw.js service worker ("es" format)...
+vite v8.1.5 building client environment for production...
+
+ WARN  inlineDynamicImports option is deprecated, please use codeSplitting: false instead.
+
+[2Ktransforming...✓ 88 modules transformed.
+rendering chunks...
+computing gzip size...
+../frontend-dist/sw.mjs  25.79 kB │ gzip: 8.41 kB
+
+✓ built in 34ms
+
+PWA v1.3.0
+mode      injectManifest
+format:   es
+precache  16 entries (2680.54 KiB)
+files generated
+  ../frontend-dist/sw.js

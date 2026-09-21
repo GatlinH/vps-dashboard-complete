@@ -1,0 +1,5 @@
+
+> vps-starmap-vite@1.0.0 test:solar-system-home
+> node scripts/verify-solar-system-home.mjs
+
+solar system home contract: ok

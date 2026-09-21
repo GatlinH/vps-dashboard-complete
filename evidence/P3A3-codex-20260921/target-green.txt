@@ -1,0 +1,173 @@
+
+> vps-starmap-vite@1.0.0 test:unit
+> vitest run --reporter=verbose test/unit/solarP1.test.js test/unit/solarSystemOrbit.test.js
+
+
+ RUN  v3.2.7 /root/.hermes/plans/solar-comet-upgrade/worktree/frontend-vite
+
+ ✓ test/unit/solarSystemOrbit.test.js > solar system F2 orbit interaction > contains orbit, wheel, hit buttons, and tween interruption contracts 5ms
+ ✓ test/unit/solarSystemOrbit.test.js > solar system F2 orbit interaction > pauses motion while dragging and uses Saturn rings and nebula background 15ms
+ ✓ test/unit/solarSystemOrbit.test.js > solar system F2 orbit interaction > updates asteroid instances and orients the Halley tail along its direction 1ms
+ ✓ test/unit/solarSystemOrbit.test.js > solar system F2 orbit interaction > covers v3.5 ring factory and portrait fitting contracts 1ms
+ ✓ test/unit/solarSystemOrbit.test.js > solar system F2 orbit interaction > keeps the sun, Earth, and Moon hit targets separated by priority 1ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > mars asset and held-out interpolation 5ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > halley asset and held-out interpolation 2ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > rejects invalid schema 0ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > rejects invalid target 0ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > rejects invalid frame 0ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > rejects invalid time scale 0ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > rejects invalid units 1ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > rejects invalid 1049 states 0ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > rejects invalid non-monotonic states 0ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > rejects invalid SHA 0ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > returns out_of_range for valid provider boundaries 1ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > freezes all ten required keys in the published manifest 0ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > loads all ten manifest targets in order with exact URLs and common range 5ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > returns the strict intersection of all ten target ranges 17ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > fails closed for missing targets 2ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > fails closed for empty targets 1ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > fails closed for array targets 0ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > fails closed for missing coordinate contract 0ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > fails closed for missing halley metadata 2ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > fails closed for missing mars metadata 2ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > fails closed for missing mercury metadata 3ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > fails closed for missing venus metadata 4ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > fails closed for missing earth metadata 6ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > fails closed for missing jupiter metadata 6ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > fails closed for missing saturn metadata 3ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > fails closed for missing uranus metadata 3ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > fails closed for missing neptune metadata 3ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > fails closed for missing moon metadata 3ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > rejects manifest HTTP errors 3ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > rejects halley HTTP and provider validation errors 1ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > rejects mars HTTP and provider validation errors 1ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > rejects mercury HTTP and provider validation errors 1ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > rejects venus HTTP and provider validation errors 1ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > rejects earth HTTP and provider validation errors 2ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > rejects jupiter HTTP and provider validation errors 2ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > rejects saturn HTTP and provider validation errors 1ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > rejects uranus HTTP and provider validation errors 1ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > rejects neptune HTTP and provider validation errors 1ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > rejects moon HTTP and provider validation errors 1ms
+ ✓ test/unit/solarP1.test.js > P1 published ephemerides > rejects disjoint ranges across the full manifest 7ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > keeps the retained asteroid-style display helper prograde 0ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > rejects the legacy positive-z sine generator 0ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > maps every radial node exactly and continuously 1ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > maps physical X,Y,Z to Three X,Z,-Y 0ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > maps +X anti-solar direction and rejects a reversed production result 1ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > maps +Y anti-solar direction and rejects a reversed production result 1ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > maps +Z anti-solar direction and rejects a reversed production result 0ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > maps diagonal anti-solar direction and rejects a reversed production result 0ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > advances and wraps a single simulation clock 0ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > omits mercury from generic orbit rings 0ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > omits venus from generic orbit rings 0ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > omits earth from generic orbit rings 0ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > omits mars from generic orbit rings 0ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > omits jupiter from generic orbit rings 0ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > omits saturn from generic orbit rings 0ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > omits uranus from generic orbit rings 0ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > omits neptune from generic orbit rings 0ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > only spins all planets, Moon, Sun and Earth clouds without changing orbital angles or positions 2ms
+stdout | test/unit/solarP1.test.js > P3-A independent published holdout accuracy > mercury: verifies all 1050 in-range heliocentric holdout epochs
+[P3-A3 holdout] mercury: valid=1050 skipped=2446644 maxRelative=4.357670637031394e-7 maxDegrees=0.00001006584283732318
+
+stdout | test/unit/solarP1.test.js > P3-A independent published holdout accuracy > venus: verifies all 1050 in-range heliocentric holdout epochs
+[P3-A3 holdout] venus: valid=1050 skipped=2446644 maxRelative=1.6928020722580175e-9 maxDegrees=0.0000017075472925031877
+
+stdout | test/unit/solarP1.test.js > P3-A independent published holdout accuracy > earth: verifies all 1050 in-range heliocentric holdout epochs
+[P3-A3 holdout] earth: valid=1050 skipped=2446644 maxRelative=6.64239749205669e-10 maxDegrees=0.0000017075472925031877
+
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > isolates Mars failure and enforces successful-target visibility 1ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > isolates Halley failure and enforces successful-target visibility 0ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > publishes physical positions and clears stale debug state on failure 1ms
+ ✓ test/unit/solarP1.test.js > P1 coordinate and runtime math > isolates apply failures per target and recovers on the next frame 1ms
+ ✓ test/unit/solarP1.test.js > P3-A independent published holdout accuracy > uses the same heliocentric TDB/AU contract and all eight independent targets 0ms
+ ✓ test/unit/solarP1.test.js > P3-A independent published holdout accuracy > mercury: verifies all 1050 in-range heliocentric holdout epochs 40ms
+ ✓ test/unit/solarP1.test.js > P3-A independent published holdout accuracy > venus: verifies all 1050 in-range heliocentric holdout epochs 34ms
+ ✓ test/unit/solarP1.test.js > P3-A independent published holdout accuracy > earth: verifies all 1050 in-range heliocentric holdout epochs 32ms
+stdout | test/unit/solarP1.test.js > P3-A independent published holdout accuracy > jupiter: verifies all 1050 in-range heliocentric holdout epochs
+[P3-A3 holdout] jupiter: valid=1050 skipped=2446644 maxRelative=9.574742875142068e-9 maxDegrees=0.0000017075472925031877
+
+stdout | test/unit/solarP1.test.js > P3-A independent published holdout accuracy > saturn: verifies all 1050 in-range heliocentric holdout epochs
+[P3-A3 holdout] saturn: valid=1050 skipped=2446644 maxRelative=1.4702749322644082e-10 maxDegrees=0.0000017075472925031877
+
+stdout | test/unit/solarP1.test.js > P3-A independent published holdout accuracy > uranus: verifies all 1050 in-range heliocentric holdout epochs
+[P3-A3 holdout] uranus: valid=1050 skipped=2446644 maxRelative=1.3184993562588723e-10 maxDegrees=0.000002091309789151873
+
+stdout | test/unit/solarP1.test.js > P3-A independent published holdout accuracy > neptune: verifies all 1050 in-range heliocentric holdout epochs
+[P3-A3 holdout] neptune: valid=1050 skipped=2446644 maxRelative=7.056655082227041e-11 maxDegrees=0.0000017075472925031877
+
+ ✓ test/unit/solarP1.test.js > P3-A independent published holdout accuracy > jupiter: verifies all 1050 in-range heliocentric holdout epochs 31ms
+ ✓ test/unit/solarP1.test.js > P3-A independent published holdout accuracy > saturn: verifies all 1050 in-range heliocentric holdout epochs 29ms
+ ✓ test/unit/solarP1.test.js > P3-A independent published holdout accuracy > uranus: verifies all 1050 in-range heliocentric holdout epochs 30ms
+ ✓ test/unit/solarP1.test.js > P3-A independent published holdout accuracy > neptune: verifies all 1050 in-range heliocentric holdout epochs 30ms
+stdout | test/unit/solarP1.test.js > P3-A independent published holdout accuracy > moon: verifies all 1050 in-range heliocentric holdout epochs
+[P3-A3 holdout] moon: valid=1050 skipped=2446644 maxRelative=3.3483447546640153e-8 maxDegrees=0.0000024148365394514667
+
+stdout | test/unit/solarP1.test.js > P3-A independent published holdout accuracy > Moon minus Earth: verifies all 1050 same-JD geocentric holdout vectors
+[P3-A3 holdout] Moon-Earth: valid=1050 maxRelative=0.000014133844249932133 maxDegrees=0.00021292026096949231
+
+ ✓ test/unit/solarP1.test.js > P3-A independent published holdout accuracy > moon: verifies all 1050 in-range heliocentric holdout epochs 29ms
+ ✓ test/unit/solarP1.test.js > P3-A independent published holdout accuracy > Moon minus Earth: verifies all 1050 same-JD geocentric holdout vectors 48ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > applies all ten provider positions at the same requested JD 2446078.5 3ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > applies all ten provider positions at the same requested JD 2446187.375 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > applies all ten provider positions at the same requested JD 2446500.12345 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > applies all ten provider positions at the same requested JD 2446643.5 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > freezes every position while paused and responds exactly to arbitrary clock jumps 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates halley when its provider throws and recovers next frame 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates halley when its provider returns failure and recovers next frame 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates mars when its provider throws and recovers next frame 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates mars when its provider returns failure and recovers next frame 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates mercury when its provider throws and recovers next frame 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates mercury when its provider returns failure and recovers next frame 0ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates venus when its provider throws and recovers next frame 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates venus when its provider returns failure and recovers next frame 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates earth when its provider throws and recovers next frame 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates earth when its provider returns failure and recovers next frame 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates jupiter when its provider throws and recovers next frame 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates jupiter when its provider returns failure and recovers next frame 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates saturn when its provider throws and recovers next frame 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates saturn when its provider returns failure and recovers next frame 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates uranus when its provider throws and recovers next frame 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates uranus when its provider returns failure and recovers next frame 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates neptune when its provider throws and recovers next frame 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates neptune when its provider returns failure and recovers next frame 0ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates moon when its provider throws and recovers next frame 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates moon when its provider returns failure and recovers next frame 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > isolates a failed Earth dependency even when Earth itself sampled successfully 1ms
+ ✓ test/unit/solarP1.test.js > P3-A unified ephemeris runtime > runs the real SolarSystem frame and display callbacks through pause and clock jumps 4ms
+stdout | test/unit/solarP1.test.js > P3-A falsifiable orbital behavior > finds Mercury apsides dynamically and requires a one-day displacement ratio >= 1.45
+[P3-A3 behavior] Mercury periJD=2446488.1 aphJD=2446444.1 oneDaySpeedRatio=1.5166436460165962
+
+stdout | test/unit/solarP1.test.js > P3-A falsifiable orbital behavior > preserves Mercury inclination with max absolute display y >= 0.5
+[P3-A3 behavior] Mercury maxAbsDisplayY=1.1527991604601247
+
+stdout | test/unit/solarP1.test.js > P3-A counterexample controls at production boundaries > C1 rejects a handwritten Venus circle and accepts real ephemeris output
+[P3-A3 control] C1 Venus circle: rejected (venus applyPosition must equal provider at requested JD)
+[P3-A3 control] C1 real ephemeris: accepted
+
+stdout | test/unit/solarP1.test.js > P3-A counterexample controls at production boundaries > C2 rejects Mars sampling at simulationTime + 0.5 even though lastJd matches
+[P3-A3 control] C2 Mars +0.5 day: rejected (mars applyPosition must equal provider at requested JD)
+[P3-A3 control] C2 requested simulationTime: accepted
+
+stdout | test/unit/solarP1.test.js > P3-A counterexample controls at production boundaries > C3 rejects heliocentric Moon wiring and accepts Moon minus Earth
+[P3-A3 control] C3 heliocentric Moon: rejected (moon applyPosition must equal provider at requested JD)
+[P3-A3 control] C3 geocentric Moon: accepted
+
+stdout | test/unit/solarP1.test.js > P3-A counterexample controls at production boundaries > C4 rejects corrupt Uranus as healthy, preserves the other nine and recovers
+[P3-A3 control] C4 corrupt Uranus cannot be healthy: rejected (uranus must succeed)
+[P3-A3 control] C4 only Uranus failed; other nine at the requested JD: accepted
+[P3-A3 control] C4 restored Uranus: accepted
+
+ ✓ test/unit/solarP1.test.js > P3-A falsifiable orbital behavior > finds Mercury apsides dynamically and requires a one-day displacement ratio >= 1.45 3ms
+ ✓ test/unit/solarP1.test.js > P3-A falsifiable orbital behavior > preserves Mercury inclination with max absolute display y >= 0.5 78ms
+ ✓ test/unit/solarP1.test.js > P3-A counterexample controls at production boundaries > C1 rejects a handwritten Venus circle and accepts real ephemeris output 9ms
+ ✓ test/unit/solarP1.test.js > P3-A counterexample controls at production boundaries > C2 rejects Mars sampling at simulationTime + 0.5 even though lastJd matches 1ms
+ ✓ test/unit/solarP1.test.js > P3-A counterexample controls at production boundaries > C3 rejects heliocentric Moon wiring and accepts Moon minus Earth 1ms
+ ✓ test/unit/solarP1.test.js > P3-A counterexample controls at production boundaries > C4 rejects corrupt Uranus as healthy, preserves the other nine and recovers 1ms
+
+ Test Files  2 passed (2)
+      Tests  110 passed (110)
+   Start at  11:14:54
+   Duration  1.00s (transform 132ms, setup 0ms, collect 255ms, tests 553ms, environment 0ms, prepare 161ms)
+
