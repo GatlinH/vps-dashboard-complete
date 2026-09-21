@@ -17,8 +17,8 @@ export function antiSolarDisplayDirection(cometPhysical, sunPhysical = [0, 0, 0]
   return { x: dx / length, y: dz / length, z: -dy / length };
 }
 
-export function hasGenericOrbitRing(name) {
-  return name !== 'Mars';
+export function hasGenericOrbitRing() {
+  return false;
 }
 
 export function orbitDisplayPosition(radius, angle, xFactor = 1) {
@@ -27,21 +27,6 @@ export function orbitDisplayPosition(radius, angle, xFactor = 1) {
 
 export function advanceOrbitalBodies(bodies, dt, earthCloudMesh = null) {
   for (const body of bodies) {
-    if (body.name !== 'Mars') {
-      body.angle += body.speed * dt;
-      if (body.orbit > 0) {
-        const { x, z } = orbitDisplayPosition(body.orbit, body.angle, body.xFactor != null ? body.xFactor : 1);
-        if (body.parent) {
-          body.mesh.position.set(
-            body.parent.mesh.position.x + x,
-            body.parent.mesh.position.y + (body.yFactor ? Math.sin(body.angle) * body.orbit * body.yFactor : 0),
-            body.parent.mesh.position.z + z
-          );
-        } else {
-          body.mesh.position.set(x, 0, z);
-        }
-      }
-    }
     body.mesh.rotation.y += body.spin * dt;
     if (body.name === 'Earth' && earthCloudMesh) earthCloudMesh.rotation.y += body.spin * 1.18 * dt;
   }
@@ -57,38 +42,43 @@ function failTarget(target, status, simulationTime, error) {
 }
 
 export function updateEphemerisTargets({ simulationTime, providers, targets, statuses, applyPosition, applyTail }) {
-  for (const name of ['mars', 'halley']) {
-    let sample;
+  for (const [name, target] of Object.entries(targets)) {
+    const status = statuses[name];
     try {
-      sample = providers[name].sample(simulationTime);
-    } catch (error) {
-      sample = { ok: false, error: error instanceof Error ? error.message : String(error) };
-    }
-    if (!sample.ok) {
-      failTarget(targets[name], statuses[name], simulationTime, sample.error || 'sample_failed');
-      continue;
-    }
-    try {
-      const physicalPosition = components(sample.position);
-      applyPosition(targets[name], sample.position, name, sample);
+      const sample = providers[name].sample(simulationTime);
+      if (!sample?.ok) {
+        failTarget(target, status, simulationTime, sample?.error);
+        continue;
+      }
+      let physicalPosition = components(sample.position);
+      if (name === 'moon') {
+        const earthSample = providers.earth.sample(simulationTime);
+        if (!earthSample?.ok) {
+          failTarget(target, status, simulationTime, earthSample?.error);
+          continue;
+        }
+        const earthPosition = components(earthSample.position);
+        physicalPosition = physicalPosition.map((value, axis) => value - earthPosition[axis]);
+      }
+      applyPosition(target, physicalPosition, name, sample);
       let tailDirection = null;
       if (name === 'halley') {
         const distanceAu = Math.hypot(...sample.position);
         tailDirection = antiSolarDisplayDirection(sample.position);
-        applyTail(targets[name], {
+        applyTail(target, {
           direction: tailDirection,
           distanceAu,
           length: Math.max(0.5, Math.min(15, Math.max(2, 16 * (1.2 / distanceAu))))
         });
       }
-      targets[name].visible = true;
-      statuses[name].ok = true;
-      statuses[name].error = null;
-      statuses[name].lastJd = simulationTime;
-      statuses[name].lastPhysicalPosition = physicalPosition;
-      statuses[name].lastTailDirection = tailDirection;
+      target.visible = true;
+      status.ok = true;
+      status.error = null;
+      status.lastJd = simulationTime;
+      status.lastPhysicalPosition = physicalPosition;
+      status.lastTailDirection = tailDirection;
     } catch (error) {
-      failTarget(targets[name], statuses[name], simulationTime, error);
+      failTarget(target, status, simulationTime, error);
     }
   }
 }
