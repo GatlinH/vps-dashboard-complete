@@ -15,7 +15,7 @@ import {
   acceleration,
   integrateStateFloat64,
   computeDustPositions,
-  runWorkerJob
+  runWorkerJob,
 } from '../../src/components/solar/DustTailWorker.js';
 import { DustTailRenderer } from '../../src/components/solar/DustTailRenderer.js';
 import { DustTailManager } from '../../src/components/solar/DustTailManager.js';
@@ -48,7 +48,7 @@ function makeValidRequest(overrides = {}) {
     betas: [0.0, 0.2, 0.5, 0.8, 1.0],
     inputBuffer,
     outputBuffer,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -101,7 +101,13 @@ describe('integrateStateFloat64 physical fidelity', () => {
 
   it('beta=1 is exact uniform straight-line motion', () => {
     const dt = 20;
-    const res = integrateStateFloat64({ position: r0, velocity: v0, beta: 1, durationDays: dt, stepDays: 0.1 });
+    const res = integrateStateFloat64({
+      position: r0,
+      velocity: v0,
+      beta: 1,
+      durationDays: dt,
+      stepDays: 0.1,
+    });
     const expected = [r0[0] + v0[0] * dt, r0[1] + v0[1] * dt, r0[2] + v0[2] * dt];
     expect(vecNorm(res.position, expected)).toBeLessThan(1e-12);
     expect(vecNorm(res.velocity, v0)).toBeLessThan(1e-12);
@@ -118,7 +124,11 @@ describe('integrateStateFloat64 physical fidelity', () => {
     const startVel = [0, speed, 0];
     const period = 2 * Math.PI * Math.sqrt((rAU * rAU * rAU) / MU_SUN_AU3_DAY2);
     const res = integrateStateFloat64({
-      position: start, velocity: startVel, beta: 0, durationDays: period, stepDays: 0.1
+      position: start,
+      velocity: startVel,
+      beta: 0,
+      durationDays: period,
+      stepDays: 0.1,
     });
     expect(vecNorm(res.position, start)).toBeLessThan(1e-9);
     const speedOut = Math.hypot(res.velocity[0], res.velocity[1], res.velocity[2]);
@@ -137,7 +147,11 @@ describe('integrateStateFloat64 physical fidelity', () => {
       const startVel = [0, speed, 0];
       const period = 2 * Math.PI * Math.sqrt((rAU * rAU * rAU) / muEff);
       const res = integrateStateFloat64({
-        position: start, velocity: startVel, beta, durationDays: period, stepDays: 0.1
+        position: start,
+        velocity: startVel,
+        beta,
+        durationDays: period,
+        stepDays: 0.1,
       });
       expect(vecNorm(res.position, start)).toBeLessThan(1e-9);
       const speedOut = Math.hypot(res.velocity[0], res.velocity[1], res.velocity[2]);
@@ -153,16 +167,46 @@ describe('integrateStateFloat64 physical fidelity', () => {
     // is asserted separately over coarser steps where the signal is above the
     // floating-point floor.)
     const dt = 15;
-    const p100 = integrateStateFloat64({ position: r0, velocity: v0, beta: 0, durationDays: dt, stepDays: 0.1 }).position;
-    const p010 = integrateStateFloat64({ position: r0, velocity: v0, beta: 0, durationDays: dt, stepDays: 0.01 }).position;
+    const p100 = integrateStateFloat64({
+      position: r0,
+      velocity: v0,
+      beta: 0,
+      durationDays: dt,
+      stepDays: 0.1,
+    }).position;
+    const p010 = integrateStateFloat64({
+      position: r0,
+      velocity: v0,
+      beta: 0,
+      durationDays: dt,
+      stepDays: 0.01,
+    }).position;
     expect(vecNorm(p100, p010)).toBeLessThan(1e-9);
   });
 
   it('RK4 exhibits ~4th order convergence under step halving', () => {
     const dt = 12;
-    const coarse = integrateStateFloat64({ position: r0, velocity: v0, beta: 0, durationDays: dt, stepDays: 0.4 }).position;
-    const mid = integrateStateFloat64({ position: r0, velocity: v0, beta: 0, durationDays: dt, stepDays: 0.2 }).position;
-    const fine = integrateStateFloat64({ position: r0, velocity: v0, beta: 0, durationDays: dt, stepDays: 0.1 }).position;
+    const coarse = integrateStateFloat64({
+      position: r0,
+      velocity: v0,
+      beta: 0,
+      durationDays: dt,
+      stepDays: 0.4,
+    }).position;
+    const mid = integrateStateFloat64({
+      position: r0,
+      velocity: v0,
+      beta: 0,
+      durationDays: dt,
+      stepDays: 0.2,
+    }).position;
+    const fine = integrateStateFloat64({
+      position: r0,
+      velocity: v0,
+      beta: 0,
+      durationDays: dt,
+      stepDays: 0.1,
+    }).position;
     const d1 = vecNorm(coarse, mid);
     const d2 = vecNorm(mid, fine);
     expect(d2).toBeLessThan(d1);
@@ -171,7 +215,14 @@ describe('integrateStateFloat64 physical fidelity', () => {
 
   it('reports exactly 4 acceleration evaluations per step', () => {
     const diag = { rk4Steps: 0, accelerationEvaluations: 0 };
-    const res = integrateStateFloat64({ position: r0, velocity: v0, beta: 0.5, durationDays: 1.0, stepDays: 0.1, diagnostics: diag });
+    const res = integrateStateFloat64({
+      position: r0,
+      velocity: v0,
+      beta: 0.5,
+      durationDays: 1.0,
+      stepDays: 0.1,
+      diagnostics: diag,
+    });
     expect(res.rk4Steps).toBe(10);
     expect(res.accelerationEvaluations).toBe(40);
     expect(diag.rk4Steps).toBe(10);
@@ -179,7 +230,13 @@ describe('integrateStateFloat64 physical fidelity', () => {
   });
 
   it('does not step past a zero-duration release (age 0)', () => {
-    const res = integrateStateFloat64({ position: r0, velocity: v0, beta: 0.2, durationDays: 0, stepDays: 0.1 });
+    const res = integrateStateFloat64({
+      position: r0,
+      velocity: v0,
+      beta: 0.2,
+      durationDays: 0,
+      stepDays: 0.1,
+    });
     expect(res.rk4Steps).toBe(0);
     expect(res.position).toEqual(r0);
     expect(res.velocity).toEqual(v0);
@@ -189,10 +246,26 @@ describe('integrateStateFloat64 physical fidelity', () => {
     // The step count must come from an integer count, not a `t += h` float
     // accumulator whose residue would sneak one extra step past the frozen
     // maximum-job budget. The oldest particle integrates 100d at 0.1d.
-    expect(integrateStateFloat64({ position: r0, velocity: v0, beta: 0, durationDays: 100, stepDays: 0.1 }).rk4Steps).toBe(1000);
+    expect(
+      integrateStateFloat64({
+        position: r0,
+        velocity: v0,
+        beta: 0,
+        durationDays: 100,
+        stepDays: 0.1,
+      }).rk4Steps,
+    ).toBe(1000);
     // A duration that is not a whole multiple of the step gets one final,
     // clamped partial step (0.2 + 0.05) rather than being truncated short.
-    expect(integrateStateFloat64({ position: r0, velocity: v0, beta: 0, durationDays: 0.25, stepDays: 0.1 }).rk4Steps).toBe(3);
+    expect(
+      integrateStateFloat64({
+        position: r0,
+        velocity: v0,
+        beta: 0,
+        durationDays: 0.25,
+        stepDays: 0.1,
+      }).rk4Steps,
+    ).toBe(3);
   });
 
   it('lands exactly on the requested duration under beta=1 straight-line motion', () => {
@@ -200,7 +273,13 @@ describe('integrateStateFloat64 physical fidelity', () => {
     // the total integrated time. A duration that is not a step multiple (0.25 at
     // step 0.1) must still integrate the full 0.25d, not stop short at 0.2d.
     const dt = 0.25;
-    const res = integrateStateFloat64({ position: r0, velocity: v0, beta: 1, durationDays: dt, stepDays: 0.1 });
+    const res = integrateStateFloat64({
+      position: r0,
+      velocity: v0,
+      beta: 1,
+      durationDays: dt,
+      stepDays: 0.1,
+    });
     const expected = [r0[0] + v0[0] * dt, r0[1] + v0[1] * dt, r0[2] + v0[2] * dt];
     expect(vecNorm(res.position, expected)).toBeLessThan(1e-12);
     expect(res.rk4Steps).toBe(3);
@@ -243,9 +322,15 @@ describe('computeDustPositions request-contract validation', () => {
   });
 
   it('enforces validReleaseCount bounds [0, 201]', () => {
-    expect(() => computeDustPositions(makeValidRequest({ validReleaseCount: -1 }))).toThrow(/validReleaseCount/);
-    expect(() => computeDustPositions(makeValidRequest({ validReleaseCount: 202 }))).toThrow(/validReleaseCount/);
-    expect(() => computeDustPositions(makeValidRequest({ validReleaseCount: 3.5 }))).toThrow(/validReleaseCount/);
+    expect(() => computeDustPositions(makeValidRequest({ validReleaseCount: -1 }))).toThrow(
+      /validReleaseCount/,
+    );
+    expect(() => computeDustPositions(makeValidRequest({ validReleaseCount: 202 }))).toThrow(
+      /validReleaseCount/,
+    );
+    expect(() => computeDustPositions(makeValidRequest({ validReleaseCount: 3.5 }))).toThrow(
+      /validReleaseCount/,
+    );
     // Boundary 201 is accepted and lands exactly on the frozen work-unit
     // budget: 5 betas * sum_{r=0..200} 5r = 502500 steps, 4 evals each. This is
     // the maximum legal job and must NOT exceed MAX_RK4_STEPS / MAX_ACCEL_EVALS.
@@ -268,15 +353,25 @@ describe('computeDustPositions request-contract validation', () => {
   });
 
   it('rejects tampered betas (wrong values, wrong length)', () => {
-    expect(() => computeDustPositions(makeValidRequest({ betas: [0.0, 0.2, 0.5, 0.8, 0.9] }))).toThrow(/betas/);
-    expect(() => computeDustPositions(makeValidRequest({ betas: [0.0, 0.2, 0.5, 0.8] }))).toThrow(/betas/);
+    expect(() =>
+      computeDustPositions(makeValidRequest({ betas: [0.0, 0.2, 0.5, 0.8, 0.9] })),
+    ).toThrow(/betas/);
+    expect(() => computeDustPositions(makeValidRequest({ betas: [0.0, 0.2, 0.5, 0.8] }))).toThrow(
+      /betas/,
+    );
     expect(() => computeDustPositions(makeValidRequest({ betas: 'nope' }))).toThrow(/betas/);
   });
 
   it('rejects buffers of the wrong byte length', () => {
-    expect(() => computeDustPositions(makeValidRequest({ inputBuffer: new ArrayBuffer(8) }))).toThrow(/inputBuffer/);
-    expect(() => computeDustPositions(makeValidRequest({ outputBuffer: new ArrayBuffer(8) }))).toThrow(/outputBuffer/);
-    expect(() => computeDustPositions(makeValidRequest({ inputBuffer: null }))).toThrow(/inputBuffer/);
+    expect(() =>
+      computeDustPositions(makeValidRequest({ inputBuffer: new ArrayBuffer(8) })),
+    ).toThrow(/inputBuffer/);
+    expect(() =>
+      computeDustPositions(makeValidRequest({ outputBuffer: new ArrayBuffer(8) })),
+    ).toThrow(/outputBuffer/);
+    expect(() => computeDustPositions(makeValidRequest({ inputBuffer: null }))).toThrow(
+      /inputBuffer/,
+    );
   });
 
   it('rejects input containing NaN inside the valid region', () => {
@@ -342,12 +437,16 @@ describe('DustTailRenderer display buffer', () => {
     // Band 0 (beta=0) filled with the sentinel; bands 1..4 with a marker.
     for (let r = 0; r < releases; r += 1) {
       const o = (0 * releases + r) * 3;
-      physical[o] = SENTINEL; physical[o + 1] = SENTINEL; physical[o + 2] = SENTINEL;
+      physical[o] = SENTINEL;
+      physical[o + 1] = SENTINEL;
+      physical[o + 2] = SENTINEL;
     }
     for (let b = 1; b <= 4; b += 1) {
       for (let r = 0; r < releases; r += 1) {
         const o = (b * releases + r) * 3;
-        physical[o] = b + r * 0.01; physical[o + 1] = 0; physical[o + 2] = 0;
+        physical[o] = b + r * 0.01;
+        physical[o + 1] = 0;
+        physical[o + 2] = 0;
       }
     }
     renderer.update(physical, releases);
@@ -368,6 +467,9 @@ describe('DustTailRenderer display buffer', () => {
 
   it('dispose() is idempotent and does not throw when called twice', () => {
     const { renderer } = makeRenderer();
-    expect(() => { renderer.dispose(); renderer.dispose(); }).not.toThrow();
+    expect(() => {
+      renderer.dispose();
+      renderer.dispose();
+    }).not.toThrow();
   });
 });

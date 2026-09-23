@@ -17,7 +17,7 @@ describe('globe return navigation and first-paint slimming', () => {
 
   it('keeps chart and detail console code out of the top-level server table module', async () => {
     const text = await source();
-    expect(text).not.toContain("new TrafficChart()");
+    expect(text).not.toContain('new TrafficChart()');
     expect(text).not.toContain("import '../styles/detail-starfleet-console.css'");
     expect(text).not.toContain("import '../styles/detail-starmap-background.css'");
     expect(text).not.toContain("from '../pages/detailCharts.js'");
@@ -32,6 +32,8 @@ describe('globe return navigation and first-paint slimming', () => {
     const body = text.match(/async function showCesiumGlobe\(\) \{([\s\S]*?)\n\}/)?.[1] || '';
     expect(body).toMatch(/const viewToken = globeViewToken/);
     expect(body).toMatch(/await getGlobe\(\);[\s\S]*?if \(viewToken !== globeViewToken\) return;/);
-    expect(body).toMatch(/await ensureStarshipMounted\(\);[\s\S]*?if \(viewToken !== globeViewToken\) return;/);
+    expect(body).toMatch(
+      /await ensureStarshipMounted\(\);[\s\S]*?if \(viewToken !== globeViewToken\) return;/,
+    );
   });
 });
