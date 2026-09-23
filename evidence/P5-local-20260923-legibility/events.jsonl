@@ -1,0 +1,11 @@
+{"t": 1790170112.985, "event": "chromium", "path": "/usr/bin/chromium"}
+{"t": 1790170112.987, "event": "http_server", "port": 36435, "root": "/root/.hermes/plans/solar-comet-upgrade/worktree/frontend-dist"}
+{"t": 1790170112.988, "event": "chromium_launch", "debug_port": 45805}
+{"t": 1790170138.477, "event": "navigated"}
+{"t": 1790170144.728, "event": "scene_ready"}
+{"t": 1790170144.737, "event": "textures", "state": "done", "sizes": {"jupiter": 2048, "earth": 2048, "mars": 2048, "neptune": 2048}}
+{"t": 1790170150.5, "event": "pass1", "bodies": 9, "viewport": [1400, 826], "scale": [1.0, 1.0]}
+{"t": 1790170151.717, "event": "pass1_metrics", "channels": 3}
+{"t": 1790170156.222, "event": "a3_diffs", "diffs": {"mercury": 69.499, "venus": 33.471, "earth": 101.863, "mars": 89.137, "jupiter": 51.575, "saturn": 27.185, "uranus": 33.977, "neptune": 110.206, "moon": 0.0}}
+{"t": 1790170161.419, "event": "pass2", "advance_days": 11.892, "bodies": 9}
+{"t": 1790170161.423, "event": "evidence_saved", "dir": "../evidence/P5-local-20260923-legibility"}
