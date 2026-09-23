@@ -19,14 +19,14 @@ const MOON_DISPLAY_UNITS_PER_AU = 1089.68;
 // diffuse (0.95/0), Venus' sulphuric haze 0.90/0, Earth keeps a faint ocean
 // sheen (0.65/0.05) and the gas giants stay soft-banded (0.75/0).
 export const PLANET_TABLE = [
-  { name: 'Mercury', radius: 0.7, orbit: 9, speed: 0.62, color: 0x9c8a7a, tilt: 0.001, mobile: false, roughness: 0.95, metalness: 0 },
-  { name: 'Venus', radius: 1.1, orbit: 13.5, speed: 0.44, color: 0xd8a05a, tilt: 3.096, mobile: true, roughness: 0.90, metalness: 0 },
-  { name: 'Earth', radius: 1.25, orbit: 19, speed: 0.31, color: 0x3f7fd8, tilt: 0.409, mobile: true, roughness: 0.65, metalness: 0.05 },
-  { name: 'Mars', radius: 0.95, orbit: 25, speed: 0.24, color: 0xc1552f, tilt: 0.440, mobile: true, roughness: 0.95, metalness: 0 },
-  { name: 'Jupiter', radius: 2.4, orbit: 33, speed: 0.14, color: 0xd2a679, tilt: 0.055, mobile: false, ring: [3.0, 4.13], roughness: 0.75, metalness: 0 },
-  { name: 'Saturn', radius: 2.0, orbit: 41, speed: 0.10, color: 0xe0cba0, tilt: 0.466, mobile: false, ring: [2.6, 4.4], roughness: 0.75, metalness: 0 },
-  { name: 'Uranus', radius: 1.55, orbit: 52, speed: 0.068, color: 0x55b8c8, tilt: 1.706, mobile: false, ring: [2.1, 2.95], roughness: 0.75, metalness: 0 },
-  { name: 'Neptune', radius: 1.48, orbit: 62, speed: 0.048, color: 0x2e58c8, tilt: 0.494, mobile: false, ring: [2.05, 2.8], roughness: 0.75, metalness: 0 }
+  { name: 'Mercury', radius: 0.7, orbit: 9, speed: 0.62, color: 0x9c8a7a, tilt: 0.001, mobile: false, roughness: 0.95, metalness: 0, legibilityEmissive: 0.22 },
+  { name: 'Venus', radius: 1.1, orbit: 13.5, speed: 0.44, color: 0xd8a05a, tilt: 3.096, mobile: true, roughness: 0.90, metalness: 0, legibilityEmissive: 0 },
+  { name: 'Earth', radius: 1.25, orbit: 19, speed: 0.31, color: 0x3f7fd8, tilt: 0.409, mobile: true, roughness: 0.65, metalness: 0.05, legibilityEmissive: 0 },
+  { name: 'Mars', radius: 0.95, orbit: 25, speed: 0.24, color: 0xc1552f, tilt: 0.440, mobile: true, roughness: 0.95, metalness: 0, legibilityEmissive: 0.16 },
+  { name: 'Jupiter', radius: 2.4, orbit: 33, speed: 0.14, color: 0xd2a679, tilt: 0.055, mobile: false, ring: [3.0, 4.13], roughness: 0.75, metalness: 0, legibilityEmissive: 0.25 },
+  { name: 'Saturn', radius: 2.0, orbit: 41, speed: 0.10, color: 0xe0cba0, tilt: 0.466, mobile: false, ring: [2.6, 4.4], roughness: 0.75, metalness: 0, legibilityEmissive: 0.2 },
+  { name: 'Uranus', radius: 1.55, orbit: 52, speed: 0.068, color: 0x55b8c8, tilt: 1.706, mobile: false, ring: [2.1, 2.95], roughness: 0.75, metalness: 0, legibilityEmissive: 0.22 },
+  { name: 'Neptune', radius: 1.48, orbit: 62, speed: 0.048, color: 0x2e58c8, tilt: 0.494, mobile: false, ring: [2.05, 2.8], roughness: 0.75, metalness: 0, legibilityEmissive: 0.32 }
 ];
 
 export class SolarSystem {
@@ -167,6 +167,7 @@ export class SolarSystem {
         const material = target.material;
         const previous = material[target.slot];
         material[target.slot] = texture;
+        if (target.slot === 'map' && previous && material.emissiveMap === previous) material.emissiveMap = texture;
         // The procedural stand-in was tinted by the planet's base colour; a
         // real albedo map must not be multiplied by it a second time.
         if (target.slot === 'map' && material.color) material.color.setRGB(1, 1, 1);
@@ -383,6 +384,8 @@ export class SolarSystem {
       const material = new THREE.MeshStandardMaterial({
         color: spec.color,
         map: texture,
+        emissive: new THREE.Color(spec.legibilityEmissive, spec.legibilityEmissive, spec.legibilityEmissive),
+        emissiveMap: spec.legibilityEmissive > 0 ? texture : null,
         roughness: spec.roughness,
         metalness: spec.metalness
       });

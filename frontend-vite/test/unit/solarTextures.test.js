@@ -212,6 +212,103 @@ function makeSystem({ isMobile = false, loader = null } = {}) {
   return { system, nav, proceduralMaps, hitButtons };
 }
 
+// P5 slice 1: the design's legibility matrix (design §2.1). Venus/Earth stay at
+// 0.00 because they are already sunlit and Earth carries the hover emissive.
+const LEGIBILITY_EMISSIVE = {
+  Mercury: 0.22,
+  Venus: 0.0,
+  Earth: 0.0,
+  Mars: 0.16,
+  Jupiter: 0.25,
+  Saturn: 0.2,
+  Uranus: 0.22,
+  Neptune: 0.32,
+};
+
+// Minimal 2D canvas boundary so the real `_buildPlanets()` can run head-less.
+// Only the browser seam is faked; every material decision stays production's.
+function stubCanvasBoundary() {
+  const gradient = { addColorStop: () => {} };
+  const context = {
+    fillStyle: '',
+    strokeStyle: '',
+    clearRect: () => {},
+    fillRect: () => {},
+    beginPath: () => {},
+    closePath: () => {},
+    ellipse: () => {},
+    arc: () => {},
+    fill: () => {},
+    stroke: () => {},
+    createLinearGradient: () => gradient,
+    createRadialGradient: () => gradient,
+  };
+  vi.stubGlobal('document', {
+    createElement: () => ({ width: 0, height: 0, getContext: () => context }),
+  });
+}
+
+// Runs the genuine `_buildPlanets()` / `_buildMoon()` builders, so the materials
+// under assertion are the ones the browser would get.
+function makeBuiltSystem({ isMobile = false, loader = null } = {}) {
+  stubCanvasBoundary();
+  const system = Object.assign(Object.create(SolarSystem.prototype), {
+    isMobile,
+    disposed: false,
+    disposables: [],
+    bodies: [],
+    ephemerisTargets: {},
+    scene: new THREE.Scene(),
+    options: { textureLoaderFactory: loader ? () => loader : undefined },
+  });
+  system._buildPlanets();
+  system._buildMoon();
+  return system;
+}
+
+const planetMaterial = (system, name) => system.ephemerisTargets[name.toLowerCase()].material;
+
+// Data-driven half of the contract: whatever the table says must be what the
+// material got. This stays green under the zeroed-Jupiter mutant on purpose -
+// it proves the compensation is read from `PLANET_TABLE`, not hard-coded.
+function assertMaterialMatchesTable(system) {
+  for (const spec of PLANET_TABLE) {
+    const material = planetMaterial(system, spec.name);
+    const scalar = spec.legibilityEmissive;
+    expect(material.emissive.r, `${spec.name} emissive.r`).toBeCloseTo(scalar, 9);
+    expect(material.emissive.g, `${spec.name} emissive.g`).toBeCloseTo(scalar, 9);
+    expect(material.emissive.b, `${spec.name} emissive.b`).toBeCloseTo(scalar, 9);
+    if (scalar > 0) {
+      expect(material.map, `${spec.name} map`).toBeTruthy();
+      // Same handle, not a clone: zero extra VRAM (design §1.1).
+      expect(material.emissiveMap, `${spec.name} emissiveMap`).toBe(material.map);
+    } else {
+      expect(material.emissiveMap, `${spec.name} emissiveMap`).toBeNull();
+    }
+  }
+}
+
+// Value half of the contract: the design matrix itself, plus the bodies that
+// must stay excluded. Turns red the moment a compensation is removed.
+function assertDesignedLegibility(system) {
+  for (const spec of PLANET_TABLE) {
+    const material = planetMaterial(system, spec.name);
+    const scalar = LEGIBILITY_EMISSIVE[spec.name];
+    expect(scalar, `${spec.name} has a design value`).toBeTypeOf('number');
+    expect(material.emissive.r, `${spec.name} designed emissive`).toBeCloseTo(scalar, 9);
+    if (scalar > 0) expect(material.emissiveMap, `${spec.name} emissiveMap`).toBe(material.map);
+    else expect(material.emissiveMap, `${spec.name} emissiveMap`).toBeNull();
+  }
+  // Design §6: the Moon projects to 1.85px, it is excluded from compensation.
+  expect(system.moon.material.emissiveMap).toBeNull();
+  expect(system.moon.material.emissive.getHex()).toBe(0x000000);
+  // Ring and cloud shells must not pick up any emissive channel.
+  expect(system.saturnRing.material.emissiveMap).toBeNull();
+  expect(system.saturnRing.material.emissive.getHex()).toBe(0x000000);
+  expect(system.earthCloudMesh.material.emissiveMap).toBeNull();
+  expect(system.earthCloudMesh.material.emissive.getHex()).toBe(0x000000);
+}
+
 // Contract assertion under test. Kept falsifiable: the counterexample blocks
 // below feed it tampered state and require it to throw.
 function assertColourSpaceContract(system) {
@@ -590,5 +687,156 @@ describe('P3-B material parameters and untouched regressions', () => {
     expect(solarSource).toContain('updateEphemerisTargets({');
     expect((solarSource.match(/requestAnimationFrame/g) || []).length).toBe(1);
     expect((solarSource.match(/new THREE\.WebGLRenderer/g) || []).length).toBe(1);
+  });
+});
+
+describe('P5 slice 1 texture-modulated emissive legibility compensation', () => {
+  it('carries the design legibility matrix in PLANET_TABLE without disturbing the physics fields', () => {
+    expect(
+      Object.fromEntries(PLANET_TABLE.map((spec) => [spec.name, spec.legibilityEmissive])),
+    ).toEqual(LEGIBILITY_EMISSIVE);
+    // Physical invariants (design §3.3): axial tilts and radii must not move.
+    expect(PLANET_TABLE.map((spec) => spec.tilt)).toEqual([
+      0.001, 3.096, 0.409, 0.44, 0.055, 0.466, 1.706, 0.494,
+    ]);
+    expect(PLANET_TABLE.map((spec) => spec.radius)).toEqual([
+      0.7, 1.1, 1.25, 0.95, 2.4, 2.0, 1.55, 1.48,
+    ]);
+    for (const spec of PLANET_TABLE) {
+      expect(typeof spec.color, spec.name).toBe('number');
+      expect(typeof spec.roughness, spec.name).toBe('number');
+      expect(typeof spec.metalness, spec.name).toBe('number');
+    }
+  });
+
+  it('binds emissiveMap to the very same texture handle as map for compensated bodies', () => {
+    const system = makeBuiltSystem({});
+
+    assertDesignedLegibility(system);
+    assertMaterialMatchesTable(system);
+
+    // Explicit, per-body spelling of the reuse claim: one handle, two slots.
+    for (const name of ['Mercury', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune']) {
+      const material = planetMaterial(system, name);
+      expect(material.emissiveMap, name).toBe(material.map);
+      expect(material.emissive.r, name).toBeCloseTo(LEGIBILITY_EMISSIVE[name], 9);
+      // One handle tracked once: binding it twice must not double-register it.
+      expect(
+        system.disposables.filter((item) => item === material.map),
+        name,
+      ).toHaveLength(1);
+    }
+  });
+
+  it('leaves Venus, Earth and the Moon on a null emissiveMap with zero emissive', () => {
+    const system = makeBuiltSystem({});
+
+    for (const name of ['Venus', 'Earth']) {
+      const material = planetMaterial(system, name);
+      expect(material.emissiveMap, name).toBeNull();
+      expect(material.emissive.getHex(), name).toBe(0x000000);
+      expect(material.map, name).toBeTruthy();
+    }
+    expect(system.moon.material.emissiveMap).toBeNull();
+    expect(system.moon.material.emissive.getHex()).toBe(0x000000);
+    // Hover highlight still starts from black, so `setScalar(0)` restores it.
+    expect(solarSource).toMatch(
+      /emissive\.setScalar\(\s*active\s*\?\s*0\.35\s*:\s*0\s*\)|emissive\.setScalar\(active \? 0\.35 : 0\)/,
+    );
+  });
+
+  it('re-points emissiveMap at the hot-swapped CC-BY texture and keeps the excluded slots null', async () => {
+    const { loader, produced } = makeLoader({});
+    const system = makeBuiltSystem({ loader });
+    stubManifestFetch(readManifest());
+    const procedural = Object.fromEntries(
+      PLANET_TABLE.map((spec) => [spec.name, planetMaterial(system, spec.name).map]),
+    );
+    const disposed = new Set();
+    for (const [name, texture] of Object.entries(procedural)) {
+      texture.addEventListener('dispose', () => disposed.add(name));
+    }
+
+    await system._loadPlanetaryTextures();
+
+    assertDesignedLegibility(system);
+    assertMaterialMatchesTable(system);
+
+    for (const spec of PLANET_TABLE) {
+      const material = planetMaterial(system, spec.name);
+      const name = spec.name;
+      // The map really was replaced by a loader product...
+      expect(material.map, name).not.toBe(procedural[name]);
+      expect(produced, name).toContain(material.map);
+      expect(material.map.__url, name).toBe(
+        `${TEXTURE_PACKAGE_BASE}${MANIFEST.textures[name.toLowerCase()].tiers.desktop.file}`,
+      );
+      expect(system.disposables, name).not.toContain(procedural[name]);
+      // ...and the emissive slot followed it to the *new* instance.
+      if (LEGIBILITY_EMISSIVE[name] > 0) expect(material.emissiveMap, name).toBe(material.map);
+      else expect(material.emissiveMap, name).toBeNull();
+      // Base colour neutralised once, texture tracked exactly once.
+      expect(material.color.getHex(), name).toBe(0xffffff);
+      expect(
+        system.disposables.filter((item) => item === material.map),
+        name,
+      ).toHaveLength(1);
+    }
+
+    // Ring / cloud / Moon untouched by the emissive channel after the swap.
+    expect(disposed).toEqual(new Set(PLANET_TABLE.map((spec) => spec.name)));
+    expect(system.saturnRing.material.map.__url).toBe(
+      `${TEXTURE_PACKAGE_BASE}${MANIFEST.textures.saturn_ring.tiers.desktop.file}`,
+    );
+    expect(system.saturnRing.material.emissiveMap).toBeNull();
+    expect(system.earthCloudMesh.material.alphaMap.colorSpace).toBe(THREE.NoColorSpace);
+    expect(system.earthCloudMesh.material.emissiveMap).toBeNull();
+    expect(system.moon.material.map.__url).toBe(
+      `${TEXTURE_PACKAGE_BASE}${MANIFEST.textures.moon.tiers.desktop.file}`,
+    );
+    expect(system.moon.material.emissiveMap).toBeNull();
+    assertColourSpaceContract(system);
+  });
+
+  it('counterexample: zeroing Jupiter in the table strips its emissiveMap and turns the contract red', () => {
+    const jupiter = PLANET_TABLE.find((spec) => spec.name === 'Jupiter');
+    const original = jupiter.legibilityEmissive;
+    try {
+      jupiter.legibilityEmissive = 0;
+      const mutant = makeBuiltSystem({});
+      const material = planetMaterial(mutant, 'Jupiter');
+      // Mutant 1 of design §4.2: compensation removed -> no emissive channel.
+      expect(material.emissiveMap).toBeNull();
+      expect(material.emissive.getHex()).toBe(0x000000);
+      // Neptune, untouched, still carries it: the mutation is body-scoped.
+      expect(planetMaterial(mutant, 'Neptune').emissiveMap).toBe(
+        planetMaterial(mutant, 'Neptune').map,
+      );
+      // The design assertion must flip; the data-driven one must not.
+      expect(() => assertDesignedLegibility(mutant)).toThrow();
+      assertMaterialMatchesTable(mutant);
+    } finally {
+      jupiter.legibilityEmissive = original;
+    }
+
+    // Restored table -> both halves green again, so the flip was the mutation.
+    const restored = makeBuiltSystem({});
+    assertDesignedLegibility(restored);
+    assertMaterialMatchesTable(restored);
+  });
+
+  it('counterexample: a hot swap that forgets emissiveMap leaves a stale handle behind', async () => {
+    const { loader } = makeLoader({});
+    const system = makeBuiltSystem({ loader });
+    stubManifestFetch(readManifest());
+    await system._loadPlanetaryTextures();
+    assertDesignedLegibility(system);
+
+    const material = planetMaterial(system, 'Neptune');
+    const stale = new THREE.Texture({ width: 4, height: 2 });
+    material.emissiveMap = stale;
+    expect(() => assertDesignedLegibility(system)).toThrow();
+    material.emissiveMap = material.map;
+    assertDesignedLegibility(system);
   });
 });
