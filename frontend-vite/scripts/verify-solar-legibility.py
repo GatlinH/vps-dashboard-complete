@@ -1148,8 +1148,11 @@ async def run_measurement(evidence_dir):
         await asyncio.sleep(0.2)
         nomap_png = await capture_png()
         await js(toggle_maps_expr("on"))
+        await asyncio.sleep(0.2)
+        restored_observed = await js(TEXTURE_SLOTS_EXPR)
+        restored_real, restored_detail = check_textures_real(restored_observed, texture_expectations)
         diffs = map_diff(baseline_png, nomap_png, bodies1, scale_x, scale_y)
-        event("a3_diffs", diffs=diffs)
+        event("a3_diffs", diffs=diffs, restored_real=restored_real)
 
         # A6: bounded simulation advance, then re-freeze and re-measure.
         t0 = await js(motion_expr("running"))
@@ -1178,6 +1181,8 @@ async def run_measurement(evidence_dir):
         event("pass2", advance_days=round(advance_days, 4), bodies=len(bodies2))
 
         checks = assess(metrics1, diffs, metrics2, advance_days)
+        a4_pass2, a4_pass2_detail = check_a4(metrics2)
+        a5_pass2, a5_pass2_detail = check_a5(metrics2)
         checks_ok = dict()
         for k in checks:
             checks_ok[k] = checks[k][0]
@@ -1190,7 +1195,8 @@ async def run_measurement(evidence_dir):
         provenance_ok = bool(head_stable and dirty_stable)
         event("provenance_end", head=prov_end["head"], stable=provenance_ok)
 
-        all_ok = real_tex and proj_ok and proj2_ok and provenance_ok
+        all_ok = real_tex and restored_real and proj_ok and proj2_ok and provenance_ok
+        all_ok = all_ok and a4_pass2 and a5_pass2
         for k in checks_ok:
             if not checks_ok[k]:
                 all_ok = False
@@ -1207,12 +1213,16 @@ async def run_measurement(evidence_dir):
         tex_report["real"] = real_tex
         tex_report["detail"] = tex_detail
         tex_report["observed"] = tex_observed
+        tex_report["restored_real"] = restored_real
+        tex_report["restored_detail"] = restored_detail
         proj_report = dict()
         proj_report["pass"] = proj_ok
         proj_report["detail"] = proj_detail
         proj_report["pass2"] = {"pass": proj2_ok, "detail": proj2_detail,
                                  "same_body_set": same_body_set,
                                  "same_viewport": same_viewport}
+        checks_report["A4_pass2"] = {"pass": a4_pass2, "detail": a4_pass2_detail}
+        checks_report["A5_pass2"] = {"pass": a5_pass2, "detail": a5_pass2_detail}
         provenance = dict()
         provenance["git_head"] = prov_start["head"]
         provenance["git_head_end"] = prov_end["head"]
@@ -1249,6 +1259,7 @@ async def run_measurement(evidence_dir):
         report["pass1_metrics"] = metrics1
         report["pass2_metrics"] = metrics2
         report["a3_diffs"] = diffs
+        report["a3_restored_real"] = restored_real
         report["a3_excluded"] = {"moon": "subpixel homepage radius; texture installation is covered by TEXTURES_REAL"}
         report["checks"] = checks_report
 

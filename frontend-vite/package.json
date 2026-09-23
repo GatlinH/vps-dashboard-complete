@@ -17,7 +17,7 @@
     "test:cesium-starship-home": "node scripts/verify-single-renderer-home.mjs",
     "test:single-renderer-home": "node scripts/verify-single-renderer-home.mjs",
     "test:solar-system-home": "node scripts/verify-solar-system-home.mjs",
-    "test:solar-legibility": "python3 scripts/verify-solar-legibility.py --evidence ../../evidence/P5-local-20260923-legibility",
+    "test:solar-legibility": "npm run build && python3 scripts/verify-solar-legibility.py --evidence ../../evidence/P5-local-20260923-legibility",
     "test:solar-legibility-mutation": "python3 scripts/verify-solar-legibility.py --mutation-test",
     "test:solar-manifest": "node scripts/verify-solar-textures-manifest.mjs",
     "test:solar-system-behavior": "python3 scripts/verify_solar_system_behavior.py",
