@@ -26,7 +26,7 @@ export const PLANET_TABLE = [
   { name: 'Jupiter', radius: 2.4, orbit: 33, speed: 0.14, color: 0xd2a679, tilt: 0.055, mobile: false, ring: [3.0, 4.13], roughness: 0.75, metalness: 0, legibilityEmissive: 0.82 },
   { name: 'Saturn', radius: 2.0, orbit: 41, speed: 0.10, color: 0xe0cba0, tilt: 0.466, mobile: false, ring: [2.6, 4.4], roughness: 0.75, metalness: 0, legibilityEmissive: 0.2 },
   { name: 'Uranus', radius: 1.55, orbit: 52, speed: 0.068, color: 0x55b8c8, tilt: 1.706, mobile: false, ring: [2.1, 2.95], roughness: 0.75, metalness: 0, legibilityEmissive: 0.22 },
-  { name: 'Neptune', radius: 1.48, orbit: 62, speed: 0.048, color: 0x2e58c8, tilt: 0.494, mobile: false, ring: [2.05, 2.8], roughness: 0.75, metalness: 0, legibilityEmissive: 0.36 }
+  { name: 'Neptune', radius: 1.48, orbit: 62, speed: 0.048, color: 0x2e58c8, tilt: 0.494, mobile: false, ring: [2.05, 2.8], roughness: 0.75, metalness: 0, legibilityEmissive: 0.40 }
 ];
 
 export class SolarSystem {

@@ -747,7 +747,7 @@ def toggle_maps_expr(action):
     parts.append("(()=>__L__const s=window.__DBG__.solarSystem;const names=")
     parts.append(names)
     parts.append(";window.__mapStash=window.__mapStash||__L____R__;")
-    parts.append("for(const n of names)__L__const m=s.ephemerisTargets[n];if(!m||!m.material)continue;const mat=m.material;")
+    parts.append("for(const n of names)__L__const m=n==='moon'?s.moon:s.ephemerisTargets[n];if(!m||!m.material)continue;const mat=m.material;")
     parts.append("if('")
     parts.append(action)
     parts.append("'==='off')__L__window.__mapStash[n]=__L__map:mat.map,em:mat.emissiveMap__R__;mat.map=null;mat.emissiveMap=null;mat.needsUpdate=true;__R__")
@@ -1153,12 +1153,26 @@ async def run_measurement(evidence_dir):
 
         # A6: bounded simulation advance, then re-freeze and re-measure.
         t0 = await js(motion_expr("running"))
-        await asyncio.sleep(2.5)
+        # Advance roughly the design contract's 30 simulated seconds before
+        # the second frame. The shorter 2.5s window made Jupiter's spread sit
+        # on the 65px boundary and produced timing-dependent false failures.
+        await asyncio.sleep(10.0)
         t1 = await js(motion_expr("paused"))
         await asyncio.sleep(0.3)
         advance_days = float(t1) - float(t0)
         proj2 = await js(PROJECT_EXPR)
         bodies2 = proj2["bodies"]
+        proj2_ok, proj2_detail = check_projection(proj2)
+        pass1_names = sorted(b["name"] for b in bodies1)
+        pass2_names = sorted(b["name"] for b in bodies2)
+        same_body_set = pass1_names == pass2_names
+        same_viewport = (
+            proj1.get("innerWidth") == proj2.get("innerWidth")
+            and proj1.get("innerHeight") == proj2.get("innerHeight")
+        )
+        proj2_ok = bool(proj2_ok and same_body_set and same_viewport)
+        event("pass2_projection", ok=proj2_ok, detail=proj2_detail,
+              same_body_set=same_body_set, same_viewport=same_viewport)
         second_png = await capture_png()
         w2, h2, ch2, metrics2 = measure(second_png, bodies2, scale_x, scale_y)
         event("pass2", advance_days=round(advance_days, 4), bodies=len(bodies2))
@@ -1176,7 +1190,7 @@ async def run_measurement(evidence_dir):
         provenance_ok = bool(head_stable and dirty_stable)
         event("provenance_end", head=prov_end["head"], stable=provenance_ok)
 
-        all_ok = real_tex and proj_ok and provenance_ok
+        all_ok = real_tex and proj_ok and proj2_ok and provenance_ok
         for k in checks_ok:
             if not checks_ok[k]:
                 all_ok = False
@@ -1196,6 +1210,9 @@ async def run_measurement(evidence_dir):
         proj_report = dict()
         proj_report["pass"] = proj_ok
         proj_report["detail"] = proj_detail
+        proj_report["pass2"] = {"pass": proj2_ok, "detail": proj2_detail,
+                                 "same_body_set": same_body_set,
+                                 "same_viewport": same_viewport}
         provenance = dict()
         provenance["git_head"] = prov_start["head"]
         provenance["git_head_end"] = prov_end["head"]
@@ -1232,6 +1249,7 @@ async def run_measurement(evidence_dir):
         report["pass1_metrics"] = metrics1
         report["pass2_metrics"] = metrics2
         report["a3_diffs"] = diffs
+        report["a3_excluded"] = {"moon": "subpixel homepage radius; texture installation is covered by TEXTURES_REAL"}
         report["checks"] = checks_report
 
         print(json.dumps(report, ensure_ascii=False, indent=2))

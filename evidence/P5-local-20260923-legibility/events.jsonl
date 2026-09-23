@@ -1,16 +1,17 @@
-{"t": 1790179565.096, "event": "provenance_start", "head": "07481b69f618a1b7b105250274babdb947252115", "dirty": [], "script_sha256": "e797dffc66369f845610785a04916365b974247a4dcc520082fae0c193ca06a5"}
-{"t": 1790179565.097, "event": "texture_expectations", "slots": ["mercury", "venus", "earth", "earth_clouds", "moon", "mars", "jupiter", "saturn", "saturn_ring", "uranus", "neptune"]}
-{"t": 1790179565.097, "event": "chromium", "path": "/usr/bin/chromium"}
-{"t": 1790179565.098, "event": "http_server", "port": 34229, "root": "/root/.hermes/plans/solar-comet-upgrade/worktree/frontend-dist"}
-{"t": 1790179565.099, "event": "chromium_launch", "debug_port": 52575}
-{"t": 1790179565.411, "event": "chromium_version", "browser": "Chrome/148.0.7778.167"}
-{"t": 1790179590.556, "event": "navigated"}
-{"t": 1790179596.984, "event": "scene_ready"}
-{"t": 1790179596.995, "event": "textures", "state": "done", "real": true, "failures": {}}
-{"t": 1790179598.801, "event": "projection", "ok": true, "failures": {}}
-{"t": 1790179603.067, "event": "pass1", "bodies": 9, "viewport": [1400, 826], "scale": [1.0, 1.0]}
-{"t": 1790179604.295, "event": "pass1_metrics", "channels": 3}
-{"t": 1790179608.678, "event": "a3_diffs", "diffs": {"mercury": 68.912, "venus": 32.7, "earth": 101.403, "mars": 88.774, "jupiter": 81.469, "saturn": 27.319, "uranus": 33.837, "neptune": 115.384, "moon": 0.0}}
-{"t": 1790179613.906, "event": "pass2", "advance_days": 12.0, "bodies": 9}
-{"t": 1790179613.922, "event": "provenance_end", "head": "07481b69f618a1b7b105250274babdb947252115", "stable": true}
-{"t": 1790179613.929, "event": "evidence_saved", "dir": "../../evidence/P5-local-20260923-legibility"}
+{"t": 1790180855.215, "event": "provenance_start", "head": "c4f0077438d7e632c162d7750285f00d7d6626e2", "dirty": ["M frontend-vite/scripts/verify-solar-legibility.py", "M frontend-vite/src/components/SolarSystem.js", "M frontend-vite/test/unit/solarTextures.test.js"], "script_sha256": "50739b6fffcb317e9d1e5b04e96ab438733a66b4da4ac16f348644b6a013a8a0"}
+{"t": 1790180855.215, "event": "texture_expectations", "slots": ["mercury", "venus", "earth", "earth_clouds", "moon", "mars", "jupiter", "saturn", "saturn_ring", "uranus", "neptune"]}
+{"t": 1790180855.215, "event": "chromium", "path": "/usr/bin/chromium"}
+{"t": 1790180855.217, "event": "http_server", "port": 37505, "root": "/root/.hermes/plans/solar-comet-upgrade/worktree/frontend-dist"}
+{"t": 1790180855.218, "event": "chromium_launch", "debug_port": 36121}
+{"t": 1790180855.495, "event": "chromium_version", "browser": "Chrome/148.0.7778.167"}
+{"t": 1790180880.669, "event": "navigated"}
+{"t": 1790180887.124, "event": "scene_ready"}
+{"t": 1790180887.137, "event": "textures", "state": "done", "real": true, "failures": {}}
+{"t": 1790180888.943, "event": "projection", "ok": true, "failures": {}}
+{"t": 1790180892.894, "event": "pass1", "bodies": 9, "viewport": [1400, 826], "scale": [1.0, 1.0]}
+{"t": 1790180894.125, "event": "pass1_metrics", "channels": 3}
+{"t": 1790180898.567, "event": "a3_diffs", "diffs": {"mercury": 69.598, "venus": 33.645, "earth": 101.936, "mars": 89.318, "jupiter": 81.439, "saturn": 27.138, "uranus": 34.006, "neptune": 119.991, "moon": 0.0}}
+{"t": 1790180908.878, "event": "pass2_projection", "ok": true, "detail": {"viewport": [1400, 826], "required": ["mercury", "venus", "earth", "mars", "jupiter", "saturn", "uranus", "neptune"], "failures": {}, "checked": 8}, "same_body_set": true, "same_viewport": true}
+{"t": 1790180911.331, "event": "pass2", "advance_days": 50.8008, "bodies": 9}
+{"t": 1790180911.348, "event": "provenance_end", "head": "c4f0077438d7e632c162d7750285f00d7d6626e2", "stable": true}
+{"t": 1790180911.354, "event": "evidence_saved", "dir": "../../evidence/P5-local-20260923-legibility"}
