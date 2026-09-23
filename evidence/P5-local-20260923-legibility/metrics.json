@@ -1,5 +1,32 @@
 {
-  "verdict": "BLOCKED",
+  "verdict": "GREEN",
+  "provenance": {
+    "git_head": "65a58c3e42055996a35d9c7632f1a299a74529bb",
+    "git_head_end": "65a58c3e42055996a35d9c7632f1a299a74529bb",
+    "git_dirty": [],
+    "git_dirty_end": [],
+    "git_dirty_excludes": "evidence/",
+    "consistent_during_run": true,
+    "script_path": "scripts/verify-solar-legibility.py",
+    "script_sha256": "e797dffc66369f845610785a04916365b974247a4dcc520082fae0c193ca06a5",
+    "build_binding": {
+      "index_html": "index.html",
+      "index_html_sha256": "b44da9649590451473b1a13f90065902d3d3819a746171f52246bba1234d6007",
+      "main_asset": "assets/main-C9ycFS0m.js",
+      "main_asset_sha256": "5d45222d1813b80a574dd17ed44c46268cf4ff4b2681ac4e36dc7d17759d23f5",
+      "texture_manifest": "assets/solar/textures-v1/manifest.json",
+      "texture_manifest_sha256": "6c4b1102f579beee04a1372b7c9b423d5839ccd583ed2285e0920dda947830ac"
+    },
+    "command": "python3 scripts/verify-solar-legibility.py --evidence ../../evidence/P5-local-20260923-legibility",
+    "viewport": [
+      1400,
+      826
+    ],
+    "chromium_version": "Chrome/148.0.7778.167",
+    "utc_timestamp": "2026-09-23T15:28:05Z",
+    "utc_completed": "2026-09-23T15:28:54Z",
+    "binding_semantics": "Evidence binds to git_head (source HEAD at run time) plus script_sha256 and build_binding SHA256s. Files under 'evidence/' are excluded from the dirty guard so writing this report does not trip it; any other source change during the run flips consistent_during_run to false and forces BLOCKED. When this evidence is folded into its own commit via amend, git_head names the pre-amend commit while the authoritative content binding is script_sha256 + build_binding hashes, which match the final committed tree."
+  },
   "viewport": [
     1400,
     826
@@ -11,234 +38,566 @@
   ],
   "textures": {
     "state": "done",
-    "sizes": {
-      "jupiter": 2048,
-      "earth": 2048,
-      "mars": 2048,
-      "neptune": 2048
+    "real": true,
+    "detail": {
+      "required": [
+        "mercury",
+        "venus",
+        "earth",
+        "earth_clouds",
+        "moon",
+        "mars",
+        "jupiter",
+        "saturn",
+        "saturn_ring",
+        "uranus",
+        "neptune"
+      ],
+      "failures": {},
+      "per_slot": {
+        "mercury": {
+          "expected_slot": "map",
+          "expected_file": "2k_mercury.jpg",
+          "expected_min": [
+            2048,
+            1024
+          ],
+          "expected_color_space": "srgb",
+          "slot": "map",
+          "present": true,
+          "width": 2048,
+          "height": 1024,
+          "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_mercury.jpg",
+          "color_space": "srgb",
+          "is_canvas": false
+        },
+        "venus": {
+          "expected_slot": "map",
+          "expected_file": "2k_venus_atmosphere.jpg",
+          "expected_min": [
+            2048,
+            1024
+          ],
+          "expected_color_space": "srgb",
+          "slot": "map",
+          "present": true,
+          "width": 2048,
+          "height": 1024,
+          "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_venus_atmosphere.jpg",
+          "color_space": "srgb",
+          "is_canvas": false
+        },
+        "earth": {
+          "expected_slot": "map",
+          "expected_file": "2k_earth_daymap.jpg",
+          "expected_min": [
+            2048,
+            1024
+          ],
+          "expected_color_space": "srgb",
+          "slot": "map",
+          "present": true,
+          "width": 2048,
+          "height": 1024,
+          "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_earth_daymap.jpg",
+          "color_space": "srgb",
+          "is_canvas": false
+        },
+        "earth_clouds": {
+          "expected_slot": "alphaMap",
+          "expected_file": "2k_earth_clouds.jpg",
+          "expected_min": [
+            2048,
+            1024
+          ],
+          "expected_color_space": "",
+          "slot": "alphaMap",
+          "present": true,
+          "width": 2048,
+          "height": 1024,
+          "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_earth_clouds.jpg",
+          "color_space": "",
+          "is_canvas": false
+        },
+        "moon": {
+          "expected_slot": "map",
+          "expected_file": "2k_moon.jpg",
+          "expected_min": [
+            2048,
+            1024
+          ],
+          "expected_color_space": "srgb",
+          "slot": "map",
+          "present": true,
+          "width": 2048,
+          "height": 1024,
+          "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_moon.jpg",
+          "color_space": "srgb",
+          "is_canvas": false
+        },
+        "mars": {
+          "expected_slot": "map",
+          "expected_file": "2k_mars.jpg",
+          "expected_min": [
+            2048,
+            1024
+          ],
+          "expected_color_space": "srgb",
+          "slot": "map",
+          "present": true,
+          "width": 2048,
+          "height": 1024,
+          "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_mars.jpg",
+          "color_space": "srgb",
+          "is_canvas": false
+        },
+        "jupiter": {
+          "expected_slot": "map",
+          "expected_file": "2k_jupiter.jpg",
+          "expected_min": [
+            2048,
+            1024
+          ],
+          "expected_color_space": "srgb",
+          "slot": "map",
+          "present": true,
+          "width": 2048,
+          "height": 1024,
+          "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_jupiter.jpg",
+          "color_space": "srgb",
+          "is_canvas": false
+        },
+        "saturn": {
+          "expected_slot": "map",
+          "expected_file": "2k_saturn.jpg",
+          "expected_min": [
+            2048,
+            1024
+          ],
+          "expected_color_space": "srgb",
+          "slot": "map",
+          "present": true,
+          "width": 2048,
+          "height": 1024,
+          "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_saturn.jpg",
+          "color_space": "srgb",
+          "is_canvas": false
+        },
+        "saturn_ring": {
+          "expected_slot": "map",
+          "expected_file": "2k_saturn_ring_alpha.png",
+          "expected_min": [
+            2048,
+            125
+          ],
+          "expected_color_space": "",
+          "slot": "map",
+          "present": true,
+          "width": 2048,
+          "height": 125,
+          "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_saturn_ring_alpha.png",
+          "color_space": "",
+          "is_canvas": false
+        },
+        "uranus": {
+          "expected_slot": "map",
+          "expected_file": "2k_uranus.jpg",
+          "expected_min": [
+            2048,
+            1024
+          ],
+          "expected_color_space": "srgb",
+          "slot": "map",
+          "present": true,
+          "width": 2048,
+          "height": 1024,
+          "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_uranus.jpg",
+          "color_space": "srgb",
+          "is_canvas": false
+        },
+        "neptune": {
+          "expected_slot": "map",
+          "expected_file": "2k_neptune.jpg",
+          "expected_min": [
+            2048,
+            1024
+          ],
+          "expected_color_space": "srgb",
+          "slot": "map",
+          "present": true,
+          "width": 2048,
+          "height": 1024,
+          "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_neptune.jpg",
+          "color_space": "srgb",
+          "is_canvas": false
+        }
+      }
     },
-    "real": true
+    "observed": {
+      "mercury": {
+        "present": true,
+        "slot": "map",
+        "mesh_present": true,
+        "width": 2048,
+        "height": 1024,
+        "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_mercury.jpg",
+        "has_src": true,
+        "colorSpace": "srgb",
+        "is_canvas": false
+      },
+      "venus": {
+        "present": true,
+        "slot": "map",
+        "mesh_present": true,
+        "width": 2048,
+        "height": 1024,
+        "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_venus_atmosphere.jpg",
+        "has_src": true,
+        "colorSpace": "srgb",
+        "is_canvas": false
+      },
+      "earth": {
+        "present": true,
+        "slot": "map",
+        "mesh_present": true,
+        "width": 2048,
+        "height": 1024,
+        "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_earth_daymap.jpg",
+        "has_src": true,
+        "colorSpace": "srgb",
+        "is_canvas": false
+      },
+      "earth_clouds": {
+        "present": true,
+        "slot": "alphaMap",
+        "mesh_present": true,
+        "width": 2048,
+        "height": 1024,
+        "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_earth_clouds.jpg",
+        "has_src": true,
+        "colorSpace": "",
+        "is_canvas": false
+      },
+      "moon": {
+        "present": true,
+        "slot": "map",
+        "mesh_present": true,
+        "width": 2048,
+        "height": 1024,
+        "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_moon.jpg",
+        "has_src": true,
+        "colorSpace": "srgb",
+        "is_canvas": false
+      },
+      "mars": {
+        "present": true,
+        "slot": "map",
+        "mesh_present": true,
+        "width": 2048,
+        "height": 1024,
+        "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_mars.jpg",
+        "has_src": true,
+        "colorSpace": "srgb",
+        "is_canvas": false
+      },
+      "jupiter": {
+        "present": true,
+        "slot": "map",
+        "mesh_present": true,
+        "width": 2048,
+        "height": 1024,
+        "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_jupiter.jpg",
+        "has_src": true,
+        "colorSpace": "srgb",
+        "is_canvas": false
+      },
+      "saturn": {
+        "present": true,
+        "slot": "map",
+        "mesh_present": true,
+        "width": 2048,
+        "height": 1024,
+        "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_saturn.jpg",
+        "has_src": true,
+        "colorSpace": "srgb",
+        "is_canvas": false
+      },
+      "saturn_ring": {
+        "present": true,
+        "slot": "map",
+        "mesh_present": true,
+        "width": 2048,
+        "height": 125,
+        "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_saturn_ring_alpha.png",
+        "has_src": true,
+        "colorSpace": "",
+        "is_canvas": false
+      },
+      "uranus": {
+        "present": true,
+        "slot": "map",
+        "mesh_present": true,
+        "width": 2048,
+        "height": 1024,
+        "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_uranus.jpg",
+        "has_src": true,
+        "colorSpace": "srgb",
+        "is_canvas": false
+      },
+      "neptune": {
+        "present": true,
+        "slot": "map",
+        "mesh_present": true,
+        "width": 2048,
+        "height": 1024,
+        "src": "http://127.0.0.1:43793/assets/solar/textures-v1/2k_neptune.jpg",
+        "has_src": true,
+        "colorSpace": "srgb",
+        "is_canvas": false
+      }
+    }
   },
-  "advance_days": 11.892,
+  "projection": {
+    "pass": true,
+    "detail": {
+      "viewport": [
+        1400,
+        826
+      ],
+      "required": [
+        "mercury",
+        "venus",
+        "earth",
+        "mars",
+        "jupiter",
+        "saturn",
+        "uranus",
+        "neptune"
+      ],
+      "failures": {},
+      "checked": 8
+    }
+  },
+  "advance_days": 11.7732,
   "pass1_metrics": {
     "mercury": {
       "visible": true,
       "radius": 4.2,
-      "pixel_floor": 18.7,
-      "pixels": 32,
-      "mean": 70.31,
+      "pixel_floor": 28.0,
+      "pixels": 31,
+      "mean": 69.82,
       "p5": 64.93,
-      "p95": 81.93,
-      "p98": 83.86,
-      "spread": 17.0
+      "p95": 74.93,
+      "p98": 82.93,
+      "spread": 10.0
     },
     "venus": {
       "visible": true,
       "radius": 5.71,
-      "pixel_floor": 34.6,
+      "pixel_floor": 51.9,
       "pixels": 56,
-      "mean": 207.4,
-      "p5": 164.05,
+      "mean": 207.94,
+      "p5": 167.19,
       "p95": 229.87,
       "p98": 232.23,
-      "spread": 65.82
+      "spread": 62.68
     },
     "earth": {
       "visible": true,
       "radius": 6.36,
-      "pixel_floor": 42.9,
-      "pixels": 72,
-      "mean": 128.97,
-      "p5": 100.89,
-      "p95": 162.86,
-      "p98": 167.3,
-      "spread": 61.97
+      "pixel_floor": 64.3,
+      "pixels": 70,
+      "mean": 129.37,
+      "p5": 102.76,
+      "p95": 163.26,
+      "p98": 165.23,
+      "spread": 60.51
     },
     "mars": {
       "visible": true,
       "radius": 5.15,
-      "pixel_floor": 28.1,
+      "pixel_floor": 42.1,
       "pixels": 46,
-      "mean": 78.55,
-      "p5": 35.86,
-      "p95": 113.44,
-      "p98": 114.73,
-      "spread": 77.58
+      "mean": 78.69,
+      "p5": 35.65,
+      "p95": 112.88,
+      "p98": 114.8,
+      "spread": 77.23
     },
     "jupiter": {
       "visible": true,
       "radius": 17.46,
-      "pixel_floor": 323.3,
+      "pixel_floor": 484.9,
       "pixels": 539,
-      "mean": 93.78,
-      "p5": 74.29,
-      "p95": 117.86,
-      "p98": 120.94,
-      "spread": 43.57
+      "mean": 156.48,
+      "p5": 125.55,
+      "p95": 195.21,
+      "p98": 199.88,
+      "spread": 69.66
     },
     "saturn": {
       "visible": true,
       "radius": 14.64,
-      "pixel_floor": 227.3,
+      "pixel_floor": 341.0,
       "pixels": 379,
       "mean": 104.15,
-      "p5": 84.62,
-      "p95": 127.46,
-      "p98": 142.9,
-      "spread": 42.83
+      "p5": 83.69,
+      "p95": 126.76,
+      "p98": 142.97,
+      "spread": 43.06
     },
     "uranus": {
       "visible": true,
       "radius": 13.26,
-      "pixel_floor": 186.4,
+      "pixel_floor": 279.6,
       "pixels": 313,
-      "mean": 104.44,
+      "mean": 104.4,
       "p5": 90.69,
-      "p95": 117.19,
+      "p95": 116.91,
       "p98": 119.19,
-      "spread": 26.5
+      "spread": 26.21
     },
     "neptune": {
       "visible": true,
       "radius": 14.96,
-      "pixel_floor": 237.4,
+      "pixel_floor": 356.0,
       "pixels": 392,
-      "mean": 50.54,
-      "p5": 33.84,
-      "p95": 65.96,
-      "p98": 69.18,
-      "spread": 32.13
+      "mean": 53.47,
+      "p5": 35.84,
+      "p95": 69.68,
+      "p98": 72.9,
+      "spread": 33.84
     },
     "moon": {
       "visible": true,
       "radius": 1.86,
       "pixel_floor": 8,
       "pixels": 6,
-      "mean": 143.94,
-      "p5": 118.22,
-      "p95": 154.51,
-      "p98": 154.51,
-      "spread": 36.29
+      "mean": 144.78,
+      "p5": 117.29,
+      "p95": 155.29,
+      "p98": 155.29,
+      "spread": 38.01
     }
   },
   "pass2_metrics": {
     "mercury": {
       "visible": true,
       "radius": 4.27,
-      "pixel_floor": 19.3,
-      "pixels": 32,
-      "mean": 69.32,
-      "p5": 64.86,
-      "p95": 74.93,
-      "p98": 74.93,
-      "spread": 10.07
+      "pixel_floor": 29.0,
+      "pixels": 34,
+      "mean": 69.22,
+      "p5": 63.93,
+      "p95": 73.93,
+      "p98": 75.86,
+      "spread": 10.0
     },
     "venus": {
       "visible": true,
       "radius": 5.69,
-      "pixel_floor": 34.3,
-      "pixels": 57,
-      "mean": 225.33,
-      "p5": 204.26,
-      "p95": 244.11,
-      "p98": 244.75,
-      "spread": 39.85
+      "pixel_floor": 51.4,
+      "pixels": 58,
+      "mean": 224.91,
+      "p5": 201.11,
+      "p95": 245.47,
+      "p98": 245.54,
+      "spread": 44.36
     },
     "earth": {
       "visible": true,
       "radius": 6.44,
-      "pixel_floor": 44.0,
-      "pixels": 69,
-      "mean": 100.48,
-      "p5": 64.81,
-      "p95": 130.75,
-      "p98": 139.39,
-      "spread": 65.95
+      "pixel_floor": 66.0,
+      "pixels": 71,
+      "mean": 99.22,
+      "p5": 63.02,
+      "p95": 133.39,
+      "p98": 137.53,
+      "spread": 70.38
     },
     "mars": {
       "visible": true,
       "radius": 5.07,
-      "pixel_floor": 27.2,
+      "pixel_floor": 40.8,
       "pixels": 46,
-      "mean": 85.48,
-      "p5": 46.98,
-      "p95": 107.74,
-      "p98": 116.19,
-      "spread": 60.76
+      "mean": 86.05,
+      "p5": 45.84,
+      "p95": 107.02,
+      "p98": 119.63,
+      "spread": 61.18
     },
     "jupiter": {
       "visible": true,
       "radius": 17.42,
-      "pixel_floor": 321.6,
-      "pixels": 534,
-      "mean": 93.48,
-      "p5": 74.64,
-      "p95": 115.42,
-      "p98": 119.93,
-      "spread": 40.78
+      "pixel_floor": 482.5,
+      "pixels": 535,
+      "mean": 156.04,
+      "p5": 125.91,
+      "p95": 191.08,
+      "p98": 198.49,
+      "spread": 65.17
     },
     "saturn": {
       "visible": true,
       "radius": 14.66,
-      "pixel_floor": 228.0,
-      "pixels": 377,
-      "mean": 103.27,
+      "pixel_floor": 342.0,
+      "pixels": 378,
+      "mean": 103.31,
       "p5": 85.84,
       "p95": 124.97,
-      "p98": 138.25,
+      "p98": 138.04,
       "spread": 39.13
     },
     "uranus": {
       "visible": true,
       "radius": 13.26,
-      "pixel_floor": 186.6,
-      "pixels": 313,
-      "mean": 107.17,
+      "pixel_floor": 279.8,
+      "pixels": 314,
+      "mean": 107.22,
       "p5": 93.98,
       "p95": 115.91,
-      "p98": 116.7,
+      "p98": 116.63,
       "spread": 21.94
     },
     "neptune": {
       "visible": true,
       "radius": 14.96,
-      "pixel_floor": 237.3,
+      "pixel_floor": 356.0,
       "pixels": 394,
-      "mean": 46.91,
-      "p5": 33.7,
-      "p95": 59.46,
-      "p98": 61.24,
-      "spread": 25.76
+      "mean": 49.71,
+      "p5": 35.77,
+      "p95": 62.67,
+      "p98": 64.96,
+      "spread": 26.9
     },
     "moon": {
       "visible": true,
       "radius": 1.84,
       "pixel_floor": 8,
-      "pixels": 5,
-      "mean": 158.52,
-      "p5": 106.86,
-      "p95": 175.78,
-      "p98": 175.78,
-      "spread": 68.92
+      "pixels": 6,
+      "mean": 161.13,
+      "p5": 143.71,
+      "p95": 168.36,
+      "p98": 168.36,
+      "spread": 24.64
     }
   },
   "a3_diffs": {
-    "mercury": 69.499,
-    "venus": 33.471,
-    "earth": 101.863,
-    "mars": 89.137,
-    "jupiter": 51.575,
-    "saturn": 27.185,
-    "uranus": 33.977,
-    "neptune": 110.206,
+    "mercury": 69.561,
+    "venus": 33.632,
+    "earth": 101.846,
+    "mars": 89.266,
+    "jupiter": 81.437,
+    "saturn": 27.14,
+    "uranus": 34.01,
+    "neptune": 115.243,
     "moon": 0.0
   },
   "checks": {
     "A1": {
-      "pass": false,
+      "pass": true,
       "detail": {
-        "jupiter_mean": 93.78,
-        "jupiter_spread": 43.57,
+        "jupiter_mean": 156.48,
+        "jupiter_spread": 69.66,
         "need_mean": 70.0,
         "need_spread": 65.0
       }
@@ -246,8 +605,8 @@
     "A2": {
       "pass": true,
       "detail": {
-        "neptune_mean": 50.54,
-        "neptune_spread": 32.13,
+        "neptune_mean": 53.47,
+        "neptune_spread": 33.84,
         "need_mean": 45.0,
         "need_spread": 25.0
       }
@@ -255,18 +614,18 @@
     "A3": {
       "pass": true,
       "detail": {
-        "aggregate_diff": 64.614,
+        "aggregate_diff": 69.017,
         "need_aggregate": 8.0,
         "need_each": 2.0,
         "per_body": {
-          "mercury": 69.499,
-          "venus": 33.471,
-          "earth": 101.863,
-          "mars": 89.137,
-          "jupiter": 51.575,
-          "saturn": 27.185,
-          "uranus": 33.977,
-          "neptune": 110.206,
+          "mercury": 69.561,
+          "venus": 33.632,
+          "earth": 101.846,
+          "mars": 89.266,
+          "jupiter": 81.437,
+          "saturn": 27.14,
+          "uranus": 34.01,
+          "neptune": 115.243,
           "moon": 0.0
         }
       }
@@ -277,14 +636,14 @@
         "p98_max": 245.0,
         "over_limit": {},
         "p98": {
-          "mercury": 83.86,
+          "mercury": 82.93,
           "venus": 232.23,
-          "earth": 167.3,
-          "mars": 114.73,
-          "jupiter": 120.94,
-          "saturn": 142.9,
+          "earth": 165.23,
+          "mars": 114.8,
+          "jupiter": 199.88,
+          "saturn": 142.97,
           "uranus": 119.19,
-          "neptune": 69.18
+          "neptune": 72.9
         }
       }
     },
@@ -305,19 +664,19 @@
       }
     },
     "A6": {
-      "pass": false,
+      "pass": true,
       "detail": {
-        "advance_days": 11.892,
+        "advance_days": 11.7732,
         "max_advance": 300.0,
         "bounded": true,
         "outer_spread": {
           "jupiter": {
-            "spread": 40.78,
+            "spread": 65.17,
             "need": 65.0,
-            "ok": false
+            "ok": true
           },
           "neptune": {
-            "spread": 25.76,
+            "spread": 26.9,
             "need": 25.0,
             "ok": true
           }
