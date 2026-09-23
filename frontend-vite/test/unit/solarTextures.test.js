@@ -15,27 +15,46 @@ import {
   TEXTURE_PACKAGE_BASE,
   fetchTextureManifest,
   remapRingToPolarUv,
-  resolveTierAsset
+  resolveTierAsset,
 } from '../../src/components/solar/PlanetTextureLoader.js';
 
-const solarSource = readFileSync(new URL('../../src/components/SolarSystem.js', import.meta.url), 'utf8');
+const solarSource = readFileSync(
+  new URL('../../src/components/SolarSystem.js', import.meta.url),
+  'utf8',
+);
 const manifestUrl = new URL('../../public/assets/solar/textures-v1/manifest.json', import.meta.url);
 const readManifest = () => JSON.parse(readFileSync(manifestUrl, 'utf8'));
 const MANIFEST = readManifest();
 
 // Bodies whose albedo map must end up in sRGB. `saturn_ring` is declared
 // `linear` by the manifest and is asserted separately.
-const ALBEDO_BODIES = ['mercury', 'venus', 'earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'moon'];
+const ALBEDO_BODIES = [
+  'mercury',
+  'venus',
+  'earth',
+  'mars',
+  'jupiter',
+  'saturn',
+  'uranus',
+  'neptune',
+  'moon',
+];
 
 function trackedTexture(label) {
   const texture = new THREE.CanvasTexture({ width: 8, height: 4, label });
   texture.__label = label;
   texture.__disposed = false;
-  texture.addEventListener('dispose', () => { texture.__disposed = true; });
+  texture.addEventListener('dispose', () => {
+    texture.__disposed = true;
+  });
   return texture;
 }
 
-function makeLoader({ failUrl = () => false, deferred = false, defaultColorSpace = THREE.LinearSRGBColorSpace } = {}) {
+function makeLoader({
+  failUrl = () => false,
+  deferred = false,
+  defaultColorSpace = THREE.LinearSRGBColorSpace,
+} = {}) {
   const requested = [];
   const produced = [];
   const queue = [];
@@ -53,14 +72,16 @@ function makeLoader({ failUrl = () => false, deferred = false, defaultColorSpace
         // Hostile default: production must set the colour space explicitly,
         // a texture that merely kept the three.js default would be a false green.
         texture.colorSpace = defaultColorSpace;
-        texture.addEventListener('dispose', () => { texture.__disposed = true; });
+        texture.addEventListener('dispose', () => {
+          texture.__disposed = true;
+        });
         produced.push(texture);
         onLoad(texture);
       };
       if (deferred) queue.push(run);
       else queueMicrotask(run);
       return new THREE.Texture();
-    }
+    },
   };
   return { loader, requested, produced, flush: () => queue.splice(0).forEach((run) => run()) };
 }
@@ -89,7 +110,12 @@ function makeSystem({ isMobile = false, loader = null } = {}) {
   const sphere = (radius) => new THREE.SphereGeometry(radius, 4, 3);
   for (const spec of PLANET_TABLE) {
     const map = trackedTexture(spec.name);
-    const material = new THREE.MeshStandardMaterial({ color: spec.color, map, roughness: spec.roughness, metalness: spec.metalness });
+    const material = new THREE.MeshStandardMaterial({
+      color: spec.color,
+      map,
+      roughness: spec.roughness,
+      metalness: spec.metalness,
+    });
     const mesh = new THREE.Mesh(sphere(spec.radius), material);
     mesh.name = spec.name;
     ephemerisTargets[spec.name.toLowerCase()] = mesh;
@@ -98,28 +124,54 @@ function makeSystem({ isMobile = false, loader = null } = {}) {
   ephemerisTargets.halley = new THREE.Group();
 
   const moonMap = trackedTexture('Moon');
-  const moon = new THREE.Mesh(sphere(0.36), new THREE.MeshStandardMaterial({ color: 0xcfcfcf, map: moonMap, roughness: 0.95, metalness: 0 }));
+  const moon = new THREE.Mesh(
+    sphere(0.36),
+    new THREE.MeshStandardMaterial({
+      color: 0xcfcfcf,
+      map: moonMap,
+      roughness: 0.95,
+      metalness: 0,
+    }),
+  );
   moon.name = 'Moon';
   ephemerisTargets.moon = moon;
   disposables.push(moonMap);
 
   const cloudAlpha = trackedTexture('EarthClouds');
-  const earthCloudMesh = new THREE.Mesh(sphere(1.272), new THREE.MeshStandardMaterial({
-    color: 0xffffff, alphaMap: cloudAlpha, transparent: true, opacity: 0.85, roughness: 0.95, metalness: 0, depthWrite: false
-  }));
+  const earthCloudMesh = new THREE.Mesh(
+    sphere(1.272),
+    new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      alphaMap: cloudAlpha,
+      transparent: true,
+      opacity: 0.85,
+      roughness: 0.95,
+      metalness: 0,
+      depthWrite: false,
+    }),
+  );
   disposables.push(cloudAlpha);
 
   const ringMap = trackedTexture('SaturnRing');
   const ringGeometry = new THREE.RingGeometry(2.6, 4.4, 8);
   remapRingToPolarUv(ringGeometry, 2.6, 4.4);
-  const saturnRing = new THREE.Mesh(ringGeometry, new THREE.MeshStandardMaterial({
-    map: ringMap, side: THREE.DoubleSide, roughness: 0.9, metalness: 0, transparent: true, opacity: 0.8, depthWrite: false
-  }));
+  const saturnRing = new THREE.Mesh(
+    ringGeometry,
+    new THREE.MeshStandardMaterial({
+      map: ringMap,
+      side: THREE.DoubleSide,
+      roughness: 0.9,
+      metalness: 0,
+      transparent: true,
+      opacity: 0.8,
+      depthWrite: false,
+    }),
+  );
   disposables.push(ringMap);
 
   const hitButtons = [
     { el: { dataset: {}, style: {} }, mesh: ephemerisTargets.earth, onActivate: () => {} },
-    { el: { dataset: {}, style: {} }, mesh: moon, onActivate: () => {} }
+    { el: { dataset: {}, style: {} }, mesh: moon, onActivate: () => {} },
   ];
 
   const camera = new THREE.PerspectiveCamera(52, 16 / 9, 0.1, 500);
@@ -131,9 +183,15 @@ function makeSystem({ isMobile = false, loader = null } = {}) {
     disposables,
     options: {
       textureLoaderFactory: loader ? () => loader : undefined,
-      onSunClick: () => { nav.sun += 1; },
-      onMoonClick: () => { nav.moon += 1; },
-      onEarthClick: () => { nav.earth += 1; }
+      onSunClick: () => {
+        nav.sun += 1;
+      },
+      onMoonClick: () => {
+        nav.moon += 1;
+      },
+      onEarthClick: () => {
+        nav.earth += 1;
+      },
     },
     ephemerisTargets,
     moon,
@@ -147,7 +205,7 @@ function makeSystem({ isMobile = false, loader = null } = {}) {
     cameraAtHome: true,
     homeCameraPosition: camera.position.clone(),
     homeCameraTarget: new THREE.Vector3(0, 0, 0),
-    orbitState: { spherical: new THREE.Spherical() }
+    orbitState: { spherical: new THREE.Spherical() },
   });
 
   const proceduralMaps = new Map(disposables.map((texture) => [texture.__label, texture]));
@@ -196,18 +254,26 @@ describe('P3-B planetary texture manifest plumbing', () => {
     expect(resolveTierAsset(earth, 'desktop')).toEqual({
       url: '/assets/solar/textures-v1/2k_earth_daymap.jpg',
       file: '2k_earth_daymap.jpg',
-      colorSpace: 'srgb'
+      colorSpace: 'srgb',
     });
-    expect(resolveTierAsset(earth, 'mobile').url).toBe('/assets/solar/textures-v1/2k_earth_daymap-1k.jpg');
+    expect(resolveTierAsset(earth, 'mobile').url).toBe(
+      '/assets/solar/textures-v1/2k_earth_daymap-1k.jpg',
+    );
     expect(resolveTierAsset({ tiers: {} }, 'desktop')).toBeNull();
     expect(resolveTierAsset(null, 'desktop')).toBeNull();
   });
 
   it('rejects a non-ok manifest response instead of parsing garbage', async () => {
-    await expect(fetchTextureManifest(TEXTURE_MANIFEST_URL, async () => ({ ok: false, status: 404 })))
-      .rejects.toThrow(/404/);
-    await expect(fetchTextureManifest(TEXTURE_MANIFEST_URL, async () => ({ ok: true, status: 200, json: async () => ({}) })))
-      .rejects.toThrow(/textures/);
+    await expect(
+      fetchTextureManifest(TEXTURE_MANIFEST_URL, async () => ({ ok: false, status: 404 })),
+    ).rejects.toThrow(/404/);
+    await expect(
+      fetchTextureManifest(TEXTURE_MANIFEST_URL, async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      })),
+    ).rejects.toThrow(/textures/);
   });
 });
 
@@ -224,7 +290,9 @@ describe('P3-B texture hot swap and colour space', () => {
 
     await system._loadPlanetaryTextures();
 
-    const expectedUrls = Object.values(MANIFEST.textures).map((meta) => `${TEXTURE_PACKAGE_BASE}${meta.tiers.desktop.file}`);
+    const expectedUrls = Object.values(MANIFEST.textures).map(
+      (meta) => `${TEXTURE_PACKAGE_BASE}${meta.tiers.desktop.file}`,
+    );
     expect([...requested].sort()).toEqual([...expectedUrls].sort());
     expect(produced).toHaveLength(expectedUrls.length);
 
@@ -232,7 +300,9 @@ describe('P3-B texture hot swap and colour space', () => {
       const map = system._resolveTextureTarget(name).material.map;
       expect(map.isCanvasTexture, name).not.toBe(true);
       expect(produced, name).toContain(map);
-      expect(map.__url, name).toBe(`${TEXTURE_PACKAGE_BASE}${MANIFEST.textures[name].tiers.desktop.file}`);
+      expect(map.__url, name).toBe(
+        `${TEXTURE_PACKAGE_BASE}${MANIFEST.textures[name].tiers.desktop.file}`,
+      );
       expect(system.disposables, name).toContain(map);
     }
 
@@ -242,9 +312,13 @@ describe('P3-B texture hot swap and colour space', () => {
     }
 
     const clouds = system.earthCloudMesh.material;
-    expect(clouds.alphaMap.__url).toBe(`${TEXTURE_PACKAGE_BASE}${MANIFEST.textures.earth_clouds.tiers.desktop.file}`);
+    expect(clouds.alphaMap.__url).toBe(
+      `${TEXTURE_PACKAGE_BASE}${MANIFEST.textures.earth_clouds.tiers.desktop.file}`,
+    );
     expect(clouds.map).toBeNull();
-    expect(system.saturnRing.material.map.__url).toBe(`${TEXTURE_PACKAGE_BASE}${MANIFEST.textures.saturn_ring.tiers.desktop.file}`);
+    expect(system.saturnRing.material.map.__url).toBe(
+      `${TEXTURE_PACKAGE_BASE}${MANIFEST.textures.saturn_ring.tiers.desktop.file}`,
+    );
   });
 
   it('honours the manifest colour space: sRGB albedo, NoColorSpace cloud alpha', async () => {
@@ -260,7 +334,9 @@ describe('P3-B texture hot swap and colour space', () => {
     expect(MANIFEST.textures.saturn_ring.color_space).toBe('linear');
     expect(system.saturnRing.material.map.colorSpace).toBe(THREE.NoColorSpace);
     for (const name of ALBEDO_BODIES) {
-      expect(system._resolveTextureTarget(name).material.map.minFilter).toBe(THREE.LinearMipmapLinearFilter);
+      expect(system._resolveTextureTarget(name).material.map.minFilter).toBe(
+        THREE.LinearMipmapLinearFilter,
+      );
       expect(system._resolveTextureTarget(name).material.map.generateMipmaps).toBe(true);
     }
   });
@@ -307,7 +383,9 @@ describe('P3-B texture hot swap and colour space', () => {
 
     await system._loadPlanetaryTextures();
 
-    const expectedUrls = Object.values(MANIFEST.textures).map((meta) => `${TEXTURE_PACKAGE_BASE}${meta.tiers.mobile.file}`);
+    const expectedUrls = Object.values(MANIFEST.textures).map(
+      (meta) => `${TEXTURE_PACKAGE_BASE}${meta.tiers.mobile.file}`,
+    );
     expect([...requested].sort()).toEqual([...expectedUrls].sort());
     expect(requested.every((url) => url.includes('-1k.'))).toBe(true);
     assertColourSpaceContract(system);
@@ -374,7 +452,10 @@ describe('P3-B texture load degradation keeps the procedural scene', () => {
     const { loader, requested } = makeLoader({});
     harness.system.options.textureLoaderFactory = () => loader;
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 404, json: async () => ({}) })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: false, status: 404, json: async () => ({}) })),
+    );
 
     await harness.system._loadPlanetaryTextures();
 
@@ -390,7 +471,12 @@ describe('P3-B texture load degradation keeps the procedural scene', () => {
     const { loader, requested } = makeLoader({});
     harness.system.options.textureLoaderFactory = () => loader;
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('network down'); }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('network down');
+      }),
+    );
 
     await harness.system._loadPlanetaryTextures();
 
@@ -439,13 +525,17 @@ describe('P3-B Saturn ring polar UV remap', () => {
     assertPolarRingUv(geometry, 2.6, 4.4);
     // needsUpdate is write-only in three.js; the GPU upload flag is `version`.
     expect(geometry.attributes.uv.version).toBe(versionBefore + 1);
-    const us = [...Array(geometry.attributes.uv.count).keys()].map((i) => geometry.attributes.uv.getX(i));
+    const us = [...Array(geometry.attributes.uv.count).keys()].map((i) =>
+      geometry.attributes.uv.getX(i),
+    );
     expect(Math.min(...us)).toBeCloseTo(0, 6);
     expect(Math.max(...us)).toBeCloseTo(1, 6);
   });
 
   it('is wired into the production ring branch with the spec radii', () => {
-    expect(solarSource).toMatch(/remapRingToPolarUv\(ringGeometry, spec\.ring\[0\], spec\.ring\[1\]\)/);
+    expect(solarSource).toMatch(
+      /remapRingToPolarUv\(ringGeometry, spec\.ring\[0\], spec\.ring\[1\]\)/,
+    );
     expect(solarSource).toContain('side: THREE.DoubleSide');
     expect(solarSource).toMatch(/ringMaterial[\s\S]{0,200}depthWrite: false/);
   });
@@ -453,7 +543,9 @@ describe('P3-B Saturn ring polar UV remap', () => {
 
 describe('P3-B material parameters and untouched regressions', () => {
   it('uses the P3-B roughness/metalness table for rocky, Venus, Earth and gas giants', () => {
-    const params = Object.fromEntries(PLANET_TABLE.map((spec) => [spec.name, [spec.roughness, spec.metalness]]));
+    const params = Object.fromEntries(
+      PLANET_TABLE.map((spec) => [spec.name, [spec.roughness, spec.metalness]]),
+    );
     expect(params.Mercury).toEqual([0.95, 0]);
     expect(params.Mars).toEqual([0.95, 0]);
     expect(params.Venus).toEqual([0.9, 0]);
@@ -468,7 +560,9 @@ describe('P3-B material parameters and untouched regressions', () => {
   });
 
   it('rebuilds the cloud shell as an alphaMap-only material and keeps its slow spin', () => {
-    const cloudMaterial = solarSource.match(/const cm = new THREE\.MeshStandardMaterial\(\{[^}]*\}\)/)?.[0];
+    const cloudMaterial = solarSource.match(
+      /const cm = new THREE\.MeshStandardMaterial\(\{[^}]*\}\)/,
+    )?.[0];
     expect(cloudMaterial).toBeTruthy();
     expect(cloudMaterial).toContain('color: 0xffffff');
     expect(cloudMaterial).toContain('alphaMap: ct');
@@ -484,7 +578,10 @@ describe('P3-B material parameters and untouched regressions', () => {
   it('keeps the constructor async trigger and the untouched P1/P2/P3-A wiring', () => {
     expect(typeof SolarSystem.prototype._loadPlanetaryTextures).toBe('function');
     expect(typeof SolarSystem.prototype._resolveTextureTarget).toBe('function');
-    const constructorBlock = solarSource.slice(solarSource.indexOf('constructor('), solarSource.indexOf('async _loadEphemerides()'));
+    const constructorBlock = solarSource.slice(
+      solarSource.indexOf('constructor('),
+      solarSource.indexOf('async _loadEphemerides()'),
+    );
     expect(constructorBlock).toContain('this._loadPlanetaryTextures()');
     expect(constructorBlock).toContain('this._loadEphemerides();');
     // Untouched neighbours: hit buttons, belt sizing, ion tail, ephemeris drive.
