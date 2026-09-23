@@ -219,10 +219,10 @@ const LEGIBILITY_EMISSIVE = {
   Venus: 0.0,
   Earth: 0.0,
   Mars: 0.16,
-  Jupiter: 0.25,
+  Jupiter: 0.82,
   Saturn: 0.2,
   Uranus: 0.22,
-  Neptune: 0.32,
+  Neptune: 0.36,
 };
 
 // Minimal 2D canvas boundary so the real `_buildPlanets()` can run head-less.
