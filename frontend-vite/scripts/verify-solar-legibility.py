@@ -17,9 +17,11 @@ import argparse
 import asyncio
 import base64
 import functools
+import hashlib
 import json
 import math
 import os
+import re
 import shutil
 import socket
 import struct
@@ -35,6 +37,12 @@ from threading import Thread
 
 ROOT = Path(__file__).resolve().parents[2]
 DIST = ROOT / "frontend-dist"
+SCRIPT_PATH = Path(__file__).resolve()
+# Evidence lives inside the repo; writing it must not trip the dirty guard, so
+# any path under this top-level directory is excluded from the provenance diff
+# while every other (source) path is still caught.
+EVIDENCE_EXCLUDE_PREFIX = "evidence/"
+BUILT_MANIFEST = DIST / "assets" / "solar" / "textures-v1" / "manifest.json"
 
 A1_JUP_MEAN = 70.0
 A1_JUP_SPREAD = 65.0
@@ -51,6 +59,33 @@ A6_MAX_ADVANCE_DAYS = 300.0
 PLANETS = ["mercury", "venus", "earth", "mars", "jupiter", "saturn", "uranus", "neptune"]
 REQUIRED = list(PLANETS)
 
+# Every manifest slot the CC-BY upgrade must populate on a desktop viewport,
+# paired with the live mesh it feeds and the exact material channel it targets.
+# "map" is the albedo channel; "alphaMap" is the cloud opacity mask. The gate
+# fails closed unless all eleven are bound to the real (non-canvas) manifest
+# texture with the declared file, minimum desktop dimensions and colour space.
+#   (manifest_key, mesh_kind, material_slot)
+TEXTURE_TARGETS = [
+    ("mercury", "planet", "map"),
+    ("venus", "planet", "map"),
+    ("earth", "planet", "map"),
+    ("earth_clouds", "cloud", "alphaMap"),
+    ("moon", "moon", "map"),
+    ("mars", "planet", "map"),
+    ("jupiter", "planet", "map"),
+    ("saturn", "planet", "map"),
+    ("saturn_ring", "ring", "map"),
+    ("uranus", "planet", "map"),
+    ("neptune", "planet", "map"),
+]
+TEXTURE_KEYS = [t[0] for t in TEXTURE_TARGETS]
+
+# Projection-coverage tolerances. The screen-space radius is the max projected
+# offset across six orthogonal world-radius directions, so the sampling disc
+# never depends on a single transformed axis that a bug could collapse.
+PROJ_MIN_RADIUS = A5_MIN_RADIUS
+PROJ_RADIUS_TOL = 0.75
+
 A6_OUTER_SPREAD = dict()
 A6_OUTER_SPREAD["jupiter"] = A1_JUP_SPREAD
 A6_OUTER_SPREAD["neptune"] = A2_NEP_SPREAD
@@ -58,6 +93,233 @@ A6_OUTER_SPREAD["neptune"] = A2_NEP_SPREAD
 
 def _js(t):
     return t.replace("__L__", chr(123)).replace("__R__", chr(125))
+
+
+def _finite(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+
+def _sha256_file(path):
+    try:
+        h = hashlib.sha256()
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(65536), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except Exception:
+        return None
+
+
+def _git(args):
+    try:
+        proc = subprocess.run(
+            ["git"] + args, cwd=str(ROOT), capture_output=True, text=True, timeout=30
+        )
+    except Exception:
+        return None
+    if proc.returncode != 0:
+        return None
+    return proc.stdout
+
+
+def git_head():
+    out = _git(["rev-parse", "HEAD"])
+    return out.strip() if out else None
+
+
+def git_dirty_entries():
+    # Sorted "XY path" tuples for every tracked/untracked change EXCEPT the
+    # evidence tree, which this very run rewrites. Returns None when git is
+    # unavailable so the caller can fail closed instead of faking a clean tree.
+    out = _git(["status", "--porcelain"])
+    if out is None:
+        return None
+    entries = []
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        status = line[:2].strip()
+        path = line[3:] if len(line) > 3 else ""
+        norm = path.split(" -> ")[-1].strip().strip('"')
+        if norm.startswith(EVIDENCE_EXCLUDE_PREFIX):
+            continue
+        entries.append(status + " " + norm)
+    return sorted(entries)
+
+
+def provenance_snapshot():
+    return {"head": git_head(), "dirty": git_dirty_entries()}
+
+
+def compute_build_binding():
+    # Exact binding to the built artifacts the browser actually loads: the
+    # entry HTML, its hashed main module chunk and the texture manifest.
+    binding = dict()
+    index_path = DIST / "index.html"
+    binding["index_html"] = "index.html"
+    binding["index_html_sha256"] = _sha256_file(index_path)
+    main_rel = None
+    try:
+        html = index_path.read_text(encoding="utf-8", errors="replace")
+        m = re.search(r'<script[^>]+type="module"[^>]+src="([^"]+)"', html)
+        if not m:
+            m = re.search(r'<script[^>]+src="([^"]+)"[^>]+type="module"', html)
+        if m:
+            main_rel = m.group(1).lstrip("/")
+    except Exception:
+        main_rel = None
+    binding["main_asset"] = main_rel
+    binding["main_asset_sha256"] = _sha256_file(DIST / main_rel) if main_rel else None
+    binding["texture_manifest"] = "assets/solar/textures-v1/manifest.json"
+    binding["texture_manifest_sha256"] = _sha256_file(BUILT_MANIFEST)
+    return binding
+
+
+def build_texture_expectations(manifest, tier="desktop"):
+    # Turn the built manifest into per-slot acceptance criteria that mirror the
+    # runtime swap: albedo maps keep their declared sRGB colour space; the cloud
+    # alphaMap and the linear ring strip are forced to NoColorSpace ("").
+    textures = (manifest or dict()).get("textures") or dict()
+    expected = dict()
+    for key, _kind, slot in TEXTURE_TARGETS:
+        meta = textures.get(key)
+        if not isinstance(meta, dict):
+            continue
+        tiers = meta.get("tiers") or dict()
+        entry = tiers.get(tier) or tiers.get("desktop")
+        if not isinstance(entry, dict):
+            continue
+        dims = entry.get("dimensions") or [0, 0]
+        declared = meta.get("color_space", "srgb")
+        three_cs = "" if (slot == "alphaMap" or declared != "srgb") else "srgb"
+        expected[key] = {
+            "slot": slot,
+            "file": entry.get("file"),
+            "min_width": int(dims[0]) if len(dims) > 0 else 0,
+            "min_height": int(dims[1]) if len(dims) > 1 else 0,
+            "color_space": three_cs,
+        }
+    return expected
+
+
+def check_textures_real(observed, expected):
+    # Fails closed unless every expected slot carries the real manifest texture:
+    # correct material channel (map vs alphaMap), no leftover procedural canvas,
+    # at least the declared desktop dimensions, a src bound to the manifest file
+    # and the declared colour-space semantics.
+    detail = dict()
+    keys = list(expected.keys())
+    detail["required"] = keys
+    if len(keys) != len(TEXTURE_TARGETS):
+        detail["failures"] = {"_manifest": "expectation set incomplete"}
+        detail["per_slot"] = dict()
+        return False, detail
+    observed = observed or dict()
+    failures = dict()
+    per = dict()
+    for key in keys:
+        e = expected[key]
+        o = observed.get(key)
+        row = dict()
+        row["expected_slot"] = e["slot"]
+        row["expected_file"] = e["file"]
+        row["expected_min"] = [e["min_width"], e["min_height"]]
+        row["expected_color_space"] = e["color_space"]
+        if not o:
+            failures[key] = "no observation"
+            per[key] = row
+            continue
+        row["slot"] = o.get("slot")
+        row["present"] = bool(o.get("present"))
+        row["width"] = o.get("width")
+        row["height"] = o.get("height")
+        row["src"] = o.get("src")
+        row["color_space"] = o.get("colorSpace")
+        row["is_canvas"] = o.get("is_canvas")
+        per[key] = row
+        if not o.get("present"):
+            failures[key] = "slot empty"
+            continue
+        if o.get("slot") != e["slot"]:
+            failures[key] = "wrong material slot"
+            continue
+        if o.get("is_canvas"):
+            failures[key] = "procedural canvas still bound"
+            continue
+        w = o.get("width") or 0
+        h = o.get("height") or 0
+        if w < e["min_width"] or h < e["min_height"]:
+            failures[key] = "below minimum desktop dimensions"
+            continue
+        src = o.get("src") or ""
+        if not o.get("has_src") or not e["file"] or not src.endswith(e["file"]):
+            failures[key] = "src not bound to manifest file"
+            continue
+        if (o.get("colorSpace") or "") != e["color_space"]:
+            failures[key] = "colour-space mismatch"
+            continue
+    detail["failures"] = failures
+    detail["per_slot"] = per
+    return len(failures) == 0, detail
+
+
+def check_projection(proj, required=None):
+    # Validates the screen-space projection feeding the pixel sampler: finite,
+    # on-screen centre; finite radius at/above the floor; a non-empty radius
+    # sample set; and a reported radius that is not underreported versus the
+    # robust six-direction maximum. No empty set silently passes.
+    required = REQUIRED if required is None else required
+    detail = dict()
+    iw = proj.get("innerWidth") or 0
+    ih = proj.get("innerHeight") or 0
+    detail["viewport"] = [iw, ih]
+    detail["required"] = list(required)
+    if not required:
+        detail["reason"] = "empty required set"
+        detail["failures"] = {"_": "empty required set"}
+        return False, detail
+    if not (iw > 0 and ih > 0):
+        detail["reason"] = "viewport not measured"
+        detail["failures"] = {"_": "viewport not measured"}
+        return False, detail
+    bodies = dict()
+    for b in proj.get("bodies", []):
+        bodies[b.get("name")] = b
+    failures = dict()
+    checked = 0
+    for name in required:
+        b = bodies.get(name)
+        if not b:
+            failures[name] = "missing projection"
+            continue
+        x = b.get("x")
+        y = b.get("y")
+        r = b.get("r")
+        samples = b.get("r_samples") or []
+        if not (_finite(x) and _finite(y)):
+            failures[name] = "center not finite"
+            continue
+        if not _finite(r):
+            failures[name] = "radius not finite"
+            continue
+        if not samples or not all(_finite(s) for s in samples):
+            failures[name] = "no finite radius samples"
+            continue
+        if not (0 <= x <= iw and 0 <= y <= ih):
+            failures[name] = "center off-screen"
+            continue
+        if r < PROJ_MIN_RADIUS:
+            failures[name] = "radius below floor"
+            continue
+        expected_r = max(max(samples), PROJ_MIN_RADIUS)
+        if r < expected_r - PROJ_RADIUS_TOL:
+            failures[name] = "radius underreported vs robust samples"
+            continue
+        checked += 1
+    detail["failures"] = failures
+    detail["checked"] = checked
+    return (checked == len(required) and not failures), detail
+
 
 
 WS = None
@@ -403,9 +665,73 @@ READY_EXPR = _js("(()=>__L__const s=window.__DBG__&&window.__DBG__.solarSystem;i
 
 TEXTURE_EXPR = _js("new Promise(res=>__L__const s=window.__DBG__.solarSystem;const p=s&&s.textureLoadPromise;if(!p)__L__res('no-promise');return;__R__Promise.resolve(p).then(()=>res('done')).catch(e=>res('err:'+e));__R__)")
 
-TEXTURE_CHECK_EXPR = _js("(()=>__L__const s=window.__DBG__.solarSystem;const out=__L____R__;for(const n of ['jupiter','earth','mars','neptune'])__L__const m=s.ephemerisTargets[n];const img=m&&m.material&&m.material.map&&m.material.map.image;out[n]=img?(img.width||img.naturalWidth||0):0;__R__return out;__R__)()")
 
-PROJECT_EXPR = _js("(()=>__L__const s=window.__DBG__.solarSystem,c=s.canvas.getBoundingClientRect(),cam=s.camera;const P=cam.projectionMatrix.elements,V=cam.matrixWorldInverse.elements,W=cam.matrixWorld.elements;function mul(a,v)__L__return [a[0]*v[0]+a[4]*v[1]+a[8]*v[2]+a[12]*v[3],a[1]*v[0]+a[5]*v[1]+a[9]*v[2]+a[13]*v[3],a[2]*v[0]+a[6]*v[1]+a[10]*v[2]+a[14]*v[3],a[3]*v[0]+a[7]*v[1]+a[11]*v[2]+a[15]*v[3]];__R__function proj(p)__L__const e=mul(V,[p[0],p[1],p[2],1]);const q=mul(P,e);return [q[0]/q[3],q[1]/q[3]];__R__let rx=W[0],ry=W[1],rz=W[2];const rl=Math.hypot(rx,ry,rz)||1;rx/=rl;ry/=rl;rz/=rl;const bodies=[];for(const [name,m] of Object.entries(s.ephemerisTargets))__L__if(!m||!m.isMesh||!m.visible)continue;const e=m.matrixWorld.elements;const p=[e[12],e[13],e[14]];const rad=(m.geometry&&m.geometry.parameters&&m.geometry.parameters.radius)||0.5;const q=proj(p);const q2=proj([p[0]+rad*rx,p[1]+rad*ry,p[2]+rad*rz]);const x=c.left+(q[0]+1)*0.5*c.width;const y=c.top+(1-q[1])*0.5*c.height;const x2=c.left+(q2[0]+1)*0.5*c.width;const y2=c.top+(1-q2[1])*0.5*c.height;const r=Math.max(1,Math.hypot(x2-x,y2-y));bodies.push(__L__name:name,x:x,y:y,r:r,visible:m.visible__R__);__R__const out=__L__innerWidth:window.innerWidth,innerHeight:window.innerHeight,rect:__L__left:c.left,top:c.top,w:c.width,h:c.height__R__,bodies:bodies__R__;return out;__R__)()")
+def texture_slots_expr():
+    # Reads every expected manifest slot straight off the live materials the
+    # runtime populates, distinguishing map from alphaMap and flagging any
+    # slot still holding the procedural <canvas> stand-in.
+    specs = json.dumps([[k, kind, slot] for (k, kind, slot) in TEXTURE_TARGETS])
+    body = (
+        "(()=>{"
+        "const s=window.__DBG__.solarSystem;"
+        "const specs=" + specs + ";"
+        "const out={};"
+        "for(const spec of specs){"
+        "const key=spec[0],kind=spec[1],slot=spec[2];"
+        "let mesh=null;"
+        "if(kind==='cloud')mesh=s.earthCloudMesh;"
+        "else if(kind==='ring')mesh=s.saturnRing;"
+        "else if(kind==='moon')mesh=s.moon;"
+        "else mesh=s.ephemerisTargets?s.ephemerisTargets[key]:null;"
+        "const rec={present:false,slot:slot,mesh_present:!!mesh};"
+        "const mat=mesh?mesh.material:null;"
+        "const tex=mat?mat[slot]:null;"
+        "if(tex){"
+        "rec.present=true;"
+        "const img=tex.image||{};"
+        "rec.width=img.naturalWidth||img.width||0;"
+        "rec.height=img.naturalHeight||img.height||0;"
+        "rec.src=((img.currentSrc||img.src||'')+'');"
+        "rec.has_src=!!(img&&(img.currentSrc||img.src));"
+        "rec.colorSpace=(tex.colorSpace===undefined||tex.colorSpace===null)?null:tex.colorSpace;"
+        "let canvasLike=false;"
+        "try{canvasLike=(typeof HTMLCanvasElement!=='undefined')&&(img instanceof HTMLCanvasElement);}catch(e){canvasLike=false;}"
+        "if(!canvasLike&&img&&img.tagName==='CANVAS')canvasLike=true;"
+        "rec.is_canvas=canvasLike;"
+        "}"
+        "out[key]=rec;"
+        "}"
+        "return out;"
+        "})()"
+    )
+    return body
+
+
+TEXTURE_SLOTS_EXPR = texture_slots_expr()
+
+PROJECT_EXPR = (
+    "(()=>{"
+    "const s=window.__DBG__.solarSystem,c=s.canvas.getBoundingClientRect(),cam=s.camera;"
+    "const P=cam.projectionMatrix.elements,V=cam.matrixWorldInverse.elements;"
+    "function mul(a,v){return [a[0]*v[0]+a[4]*v[1]+a[8]*v[2]+a[12]*v[3],a[1]*v[0]+a[5]*v[1]+a[9]*v[2]+a[13]*v[3],a[2]*v[0]+a[6]*v[1]+a[10]*v[2]+a[14]*v[3],a[3]*v[0]+a[7]*v[1]+a[11]*v[2]+a[15]*v[3]];}"
+    "function toScreen(p){const e=mul(V,[p[0],p[1],p[2],1]);const q=mul(P,e);const w=q[3];if(!(Math.abs(w)>1e-9))return null;const nx=q[0]/w,ny=q[1]/w;return [c.left+(nx+1)*0.5*c.width,c.top+(1-ny)*0.5*c.height,w];}"
+    "const dirs=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];"
+    "const bodies=[];"
+    "for(const [name,m] of Object.entries(s.ephemerisTargets)){"
+    "if(!m||!m.isMesh||!m.visible)continue;"
+    "const e=m.matrixWorld.elements;const p=[e[12],e[13],e[14]];"
+    "const rad=(m.geometry&&m.geometry.parameters&&m.geometry.parameters.radius)||0.5;"
+    "const cs=toScreen(p);if(!cs)continue;"
+    "const samples=[];"
+    "for(const d of dirs){const q=toScreen([p[0]+rad*d[0],p[1]+rad*d[1],p[2]+rad*d[2]]);if(q)samples.push(Math.hypot(q[0]-cs[0],q[1]-cs[1]));}"
+    "let r=0;for(const sm of samples){if(sm>r)r=sm;}"
+    "r=Math.max(1,r);"
+    "bodies.push({name:name,x:cs[0],y:cs[1],r:r,r_samples:samples,world_radius:rad,visible:m.visible,depth:cs[2]});"
+    "}"
+    "return {innerWidth:window.innerWidth,innerHeight:window.innerHeight,rect:{left:c.left,top:c.top,w:c.width,h:c.height},bodies:bodies};"
+    "})()"
+)
+
 
 
 def motion_expr(state):
@@ -546,6 +872,136 @@ def run_mutation_test():
     d["collapsed_spread_fails"] = not ok_collapse
     results.append(("A6", ok_pass and not ok_frozen and not ok_huge and not ok_collapse, d))
 
+    # TEXTURES_REAL: prove every one of the eleven manifest slots can fail the
+    # gate independently, plus wrong-slot/canvas/dimension/src/colour faults.
+    def texture_fixture():
+        expected = dict()
+        observed = dict()
+        for key, _kind, slot in TEXTURE_TARGETS:
+            fname = key + ("_alpha.png" if key == "saturn_ring" else ".jpg")
+            cs = "" if (slot == "alphaMap" or key == "saturn_ring") else "srgb"
+            minw, minh = (2048, 125) if key == "saturn_ring" else (2048, 1024)
+            expected[key] = {
+                "slot": slot, "file": fname,
+                "min_width": minw, "min_height": minh, "color_space": cs,
+            }
+            observed[key] = {
+                "present": True, "slot": slot, "width": minw, "height": minh,
+                "src": "http://h/assets/solar/textures-v1/" + fname,
+                "has_src": True, "colorSpace": cs, "is_canvas": False,
+                "mesh_present": True,
+            }
+        return expected, observed
+
+    def clone(obs):
+        return json.loads(json.dumps(obs))
+
+    tex_exp, tex_good = texture_fixture()
+    ok_tex_pass, _ = check_textures_real(tex_good, tex_exp)
+    missing_slot_fails = dict()
+    for key in tex_exp:
+        obs = clone(tex_good)
+        del obs[key]
+        ok_missing, _ = check_textures_real(obs, tex_exp)
+        missing_slot_fails[key] = not ok_missing
+    obs = clone(tex_good)
+    obs["earth_clouds"]["slot"] = "map"
+    wrong_slot_fails = not check_textures_real(obs, tex_exp)[0]
+    obs = clone(tex_good)
+    obs["saturn_ring"]["is_canvas"] = True
+    canvas_fails = not check_textures_real(obs, tex_exp)[0]
+    obs = clone(tex_good)
+    obs["jupiter"]["width"] = 1024
+    small_fails = not check_textures_real(obs, tex_exp)[0]
+    obs = clone(tex_good)
+    obs["earth"]["colorSpace"] = ""
+    colorspace_fails = not check_textures_real(obs, tex_exp)[0]
+    obs = clone(tex_good)
+    obs["neptune"]["src"] = "http://h/assets/solar/textures-v1/wrong_file.jpg"
+    src_fails = not check_textures_real(obs, tex_exp)[0]
+    obs = clone(tex_good)
+    obs["mars"]["present"] = False
+    empty_slot_fails = not check_textures_real(obs, tex_exp)[0]
+    incomplete_expectation_fails = not check_textures_real(tex_good, dict())[0]
+    d = dict()
+    d["pass"] = ok_tex_pass
+    d["all_eleven_missing_slots_fail"] = all(missing_slot_fails.values())
+    d["missing_earth_clouds_fails"] = missing_slot_fails.get("earth_clouds", False)
+    d["missing_saturn_ring_fails"] = missing_slot_fails.get("saturn_ring", False)
+    d["missing_slot_fails"] = missing_slot_fails
+    d["wrong_slot_fails"] = wrong_slot_fails
+    d["canvas_fails"] = canvas_fails
+    d["small_dims_fails"] = small_fails
+    d["colorspace_fails"] = colorspace_fails
+    d["src_mismatch_fails"] = src_fails
+    d["empty_slot_fails"] = empty_slot_fails
+    d["incomplete_expectation_fails"] = incomplete_expectation_fails
+    tex_proven = (
+        ok_tex_pass
+        and all(missing_slot_fails.values())
+        and wrong_slot_fails
+        and canvas_fails
+        and small_fails
+        and colorspace_fails
+        and src_fails
+        and empty_slot_fails
+        and incomplete_expectation_fails
+    )
+    results.append(("TEXTURES_REAL", tex_proven, d))
+
+    # PROJECTION: prove the coverage check rejects off-screen centres, an
+    # underreported radius, empty sample sets, missing bodies and empty sets.
+    def projection_fixture():
+        bodies = []
+        for n in REQUIRED:
+            bodies.append({
+                "name": n, "x": 700.0, "y": 450.0, "r": 20.0,
+                "r_samples": [20.0, 19.6, 20.0, 18.4, 19.1, 20.0],
+                "world_radius": 2.0, "visible": True, "depth": 5.0,
+            })
+        return {
+            "innerWidth": 1400, "innerHeight": 913,
+            "rect": {"left": 0, "top": 0, "w": 1400, "h": 913},
+            "bodies": bodies,
+        }
+
+    proj_good = projection_fixture()
+    ok_proj_pass, _ = check_projection(proj_good)
+    p = projection_fixture()
+    p["bodies"][0]["x"] = 2000.0
+    shifted_fails = not check_projection(p)[0]
+    p = projection_fixture()
+    p["bodies"][0]["r"] = 5.0
+    underreport_fails = not check_projection(p)[0]
+    p = projection_fixture()
+    p["bodies"][0]["r_samples"] = []
+    empty_samples_fails = not check_projection(p)[0]
+    p = projection_fixture()
+    p["bodies"][0]["x"] = None
+    nonfinite_fails = not check_projection(p)[0]
+    p = projection_fixture()
+    p["bodies"] = p["bodies"][1:]
+    missing_body_fails = not check_projection(p)[0]
+    empty_required_fails = not check_projection(proj_good, required=[])[0]
+    d = dict()
+    d["pass"] = ok_proj_pass
+    d["shifted_center_fails"] = shifted_fails
+    d["underreported_radius_fails"] = underreport_fails
+    d["empty_samples_fails"] = empty_samples_fails
+    d["nonfinite_center_fails"] = nonfinite_fails
+    d["missing_body_fails"] = missing_body_fails
+    d["empty_required_fails"] = empty_required_fails
+    proj_proven = (
+        ok_proj_pass
+        and shifted_fails
+        and underreport_fails
+        and empty_samples_fails
+        and nonfinite_fails
+        and missing_body_fails
+        and empty_required_fails
+    )
+    results.append(("PROJECTION", proj_proven, d))
+
     report = dict()
     all_proven = True
     for name, proven, detail in results:
@@ -575,6 +1031,25 @@ async def run_measurement(evidence_dir):
     if not (DIST / "index.html").exists():
         print("FATAL: frontend-dist/index.html missing; build the frontend first", file=sys.stderr)
         return 1, events, None
+
+    # Provenance is captured before the run and re-checked afterwards. The
+    # evidence tree is excluded from the dirty diff so writing this report can
+    # not trip the guard, while any source change during the run still does.
+    prov_start = provenance_snapshot()
+    script_sha = _sha256_file(SCRIPT_PATH)
+    build_binding = compute_build_binding()
+    utc_started = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    command = "python3 scripts/verify-solar-legibility.py --evidence " + str(evidence_dir)
+    event("provenance_start", head=prov_start["head"], dirty=prov_start["dirty"], script_sha256=script_sha)
+
+    manifest = None
+    try:
+        manifest = json.loads(BUILT_MANIFEST.read_text(encoding="utf-8"))
+    except Exception as err:
+        print("FATAL: built texture manifest unreadable: " + str(err), file=sys.stderr)
+        return 1, events, None
+    texture_expectations = build_texture_expectations(manifest, tier="desktop")
+    event("texture_expectations", slots=list(texture_expectations.keys()))
 
     candidates = ["chromium", "chromium-browser", "google-chrome", "google-chrome-stable", "chrome"]
     chrome = None
@@ -621,7 +1096,9 @@ async def run_measurement(evidence_dir):
         ]
         proc = subprocess.Popen(chrome_args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         event("chromium_launch", debug_port=dbg_port)
-        wait_devtools(dbg_port)
+        version_info = wait_devtools(dbg_port)
+        chromium_version = (version_info or dict()).get("Browser")
+        event("chromium_version", browser=chromium_version)
         import websockets
         tab = open_tab(dbg_port)
         WS = await websockets.connect(tab["webSocketDebuggerUrl"], max_size=None, ping_interval=None)
@@ -641,12 +1118,10 @@ async def run_measurement(evidence_dir):
         event("scene_ready")
 
         tex_state = await js(TEXTURE_EXPR, await_promise=True, timeout=60)
-        tex_sizes = await js(TEXTURE_CHECK_EXPR)
-        event("textures", state=tex_state, sizes=tex_sizes)
-        real_tex = True
-        for nm in ("jupiter", "neptune", "mars"):
-            if (tex_sizes or dict()).get(nm, 0) < 1024:
-                real_tex = False
+        tex_observed = await js(TEXTURE_SLOTS_EXPR)
+        tex_real, tex_detail = check_textures_real(tex_observed, texture_expectations)
+        event("textures", state=tex_state, real=tex_real, failures=tex_detail.get("failures"))
+        real_tex = tex_real
         await asyncio.sleep(1.5)
 
         # Pass 1: freeze motion so baseline and no-map align pixel-for-pixel.
@@ -654,6 +1129,8 @@ async def run_measurement(evidence_dir):
         await asyncio.sleep(0.3)
         proj1 = await js(PROJECT_EXPR)
         bodies1 = proj1["bodies"]
+        proj_ok, proj_detail = check_projection(proj1)
+        event("projection", ok=proj_ok, failures=proj_detail.get("failures"))
         baseline_png = await capture_png()
         w_probe, h_probe, _cc, _rr = decode_png(baseline_png)
         scale_x = 1.0
@@ -690,7 +1167,16 @@ async def run_measurement(evidence_dir):
         checks_ok = dict()
         for k in checks:
             checks_ok[k] = checks[k][0]
-        all_ok = real_tex
+
+        # Re-snapshot provenance: a source edit or HEAD move mid-run forces
+        # BLOCKED even if every pixel assertion passed.
+        prov_end = provenance_snapshot()
+        head_stable = prov_start["head"] is not None and prov_start["head"] == prov_end["head"]
+        dirty_stable = prov_start["dirty"] is not None and prov_start["dirty"] == prov_end["dirty"]
+        provenance_ok = bool(head_stable and dirty_stable)
+        event("provenance_end", head=prov_end["head"], stable=provenance_ok)
+
+        all_ok = real_tex and proj_ok and provenance_ok
         for k in checks_ok:
             if not checks_ok[k]:
                 all_ok = False
@@ -704,14 +1190,44 @@ async def run_measurement(evidence_dir):
             checks_report[k] = row
         tex_report = dict()
         tex_report["state"] = tex_state
-        tex_report["sizes"] = tex_sizes
         tex_report["real"] = real_tex
+        tex_report["detail"] = tex_detail
+        tex_report["observed"] = tex_observed
+        proj_report = dict()
+        proj_report["pass"] = proj_ok
+        proj_report["detail"] = proj_detail
+        provenance = dict()
+        provenance["git_head"] = prov_start["head"]
+        provenance["git_head_end"] = prov_end["head"]
+        provenance["git_dirty"] = prov_start["dirty"]
+        provenance["git_dirty_end"] = prov_end["dirty"]
+        provenance["git_dirty_excludes"] = EVIDENCE_EXCLUDE_PREFIX
+        provenance["consistent_during_run"] = provenance_ok
+        provenance["script_path"] = "scripts/verify-solar-legibility.py"
+        provenance["script_sha256"] = script_sha
+        provenance["build_binding"] = build_binding
+        provenance["command"] = command
+        provenance["viewport"] = [w1, h1]
+        provenance["chromium_version"] = chromium_version
+        provenance["utc_timestamp"] = utc_started
+        provenance["utc_completed"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        provenance["binding_semantics"] = (
+            "Evidence binds to git_head (source HEAD at run time) plus script_sha256 "
+            "and build_binding SHA256s. Files under '" + EVIDENCE_EXCLUDE_PREFIX + "' are "
+            "excluded from the dirty guard so writing this report does not trip it; any "
+            "other source change during the run flips consistent_during_run to false and "
+            "forces BLOCKED. When this evidence is folded into its own commit via amend, "
+            "git_head names the pre-amend commit while the authoritative content binding "
+            "is script_sha256 + build_binding hashes, which match the final committed tree."
+        )
         report = dict()
         report["verdict"] = "GREEN" if all_ok else "BLOCKED"
+        report["provenance"] = provenance
         report["viewport"] = [w1, h1]
         report["channels"] = ch1
         report["scale"] = [round(scale_x, 4), round(scale_y, 4)]
         report["textures"] = tex_report
+        report["projection"] = proj_report
         report["advance_days"] = round(advance_days, 4)
         report["pass1_metrics"] = metrics1
         report["pass2_metrics"] = metrics2
@@ -723,6 +1239,8 @@ async def run_measurement(evidence_dir):
             label = "PASS" if checks_ok[name] else "FAIL"
             print(name + " " + label)
         print("TEXTURES_REAL " + ("PASS" if real_tex else "FAIL"))
+        print("PROJECTION " + ("PASS" if proj_ok else "FAIL"))
+        print("PROVENANCE " + ("PASS" if provenance_ok else "FAIL"))
         print("VERDICT " + ("GREEN" if all_ok else "BLOCKED"))
 
         if evidence_dir:
@@ -753,7 +1271,7 @@ def main():
     parser = argparse.ArgumentParser(description="Solar-system legibility gate")
     default_ev = os.environ.get("SOLAR_LEGIBILITY_EVIDENCE")
     parser.add_argument("--evidence", default=default_ev, help="directory for JSON metrics and screenshots")
-    parser.add_argument("--mutation-test", action="store_true", help="prove A1-A6 assertions can fail; no browser needed")
+    parser.add_argument("--mutation-test", action="store_true", help="prove A1-A6, TEXTURES_REAL and PROJECTION assertions can fail; no browser needed")
     args = parser.parse_args()
 
     if args.mutation_test:
