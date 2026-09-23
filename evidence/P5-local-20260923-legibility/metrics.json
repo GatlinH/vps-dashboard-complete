@@ -3,6 +3,7 @@
   "provenance": {
     "git_head": "e4d2d8af3f6966f3e3f6191d7fcef8e281271d49",
     "git_head_end": "e4d2d8af3f6966f3e3f6191d7fcef8e281271d49",
+    "evidence_base_commit": "90cf7e8a6112df3c0792559737d463d5f3409841",
     "git_dirty": [],
     "git_dirty_end": [],
     "git_dirty_excludes": "evidence/",
@@ -25,7 +26,7 @@
     "chromium_version": "Chrome/148.0.7778.167",
     "utc_timestamp": "2026-09-23T15:47:04Z",
     "utc_completed": "2026-09-23T15:47:49Z",
-    "binding_semantics": "Evidence binds to git_head (source HEAD at run time) plus script_sha256 and build_binding SHA256s. Files under 'evidence/' are excluded from the dirty guard so writing this report does not trip it; any other source change during the run flips consistent_during_run to false and forces BLOCKED. When this evidence is folded into its own commit via amend, git_head names the pre-amend commit while the authoritative content binding is script_sha256 + build_binding hashes, which match the final committed tree."
+    "binding_semantics": "Evidence binds to git_head (source HEAD at run time) plus script_sha256 and build_binding SHA256s. Files under 'evidence/' are excluded from the dirty guard so writing this report does not trip it; any other source change during the run flips consistent_during_run to false and forces BLOCKED. The source/build run was executed on `git_head` before this evidence-only commit; `evidence_commit` identifies the commit that carries these immutable screenshots and metrics. The evidence commit changes only files under `evidence/`; it does not alter the script, package, production source, assets, or build inputs. Therefore the recorded script/build hashes and the run SHA remain exact for the tested source."
   },
   "viewport": [
     1400,
