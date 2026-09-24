@@ -13,7 +13,10 @@ const BETAS = [0.0, 0.2, 0.5, 0.8, 1.0];
 const STEP_DAYS = 0.1;
 const RELEASE_INTERVAL_DAYS = 0.5;
 const MAX_RELEASES = 201;
-const QUANTIZE_TOLERANCE = 0.05;
+
+const isValidState = (sample) => sample && sample.ok === true &&
+  Array.isArray(sample.position) && sample.position.length === 3 && sample.position.every(Number.isFinite) &&
+  Array.isArray(sample.velocity) && sample.velocity.length === 3 && sample.velocity.every(Number.isFinite);
 
 export class DustTailManager {
   constructor({ halleyProvider, renderer, workerFactory, range }) {
@@ -28,6 +31,7 @@ export class DustTailManager {
     this.currentGeneration = 1;
     this.nextRequestId = 1;
     this.displayTObs = null;
+    this.previewTObs = null;
     this.requestedTObs = null;
     this.lastWorkerDiagnostics = null;
 
@@ -171,6 +175,7 @@ export class DustTailManager {
     const physicalArray = new Float32Array(response.outputBuffer);
     if (this.renderer) this.renderer.update(physicalArray, response.validReleaseCount);
     this.displayTObs = response.tObs;
+    this.previewTObs = null;
 
     // If a result lands during pause, hold 'paused' rather than flipping to 'ready'.
     this.status = this._isPaused ? 'paused' : 'ready';
@@ -193,11 +198,59 @@ export class DustTailManager {
     }
   }
 
-  tick(simulationTime, { paused } = {}) {
+  _containsTime(simulationTime) {
+    const [start, end] = this.range;
+    return Number.isFinite(simulationTime) && Number.isFinite(start) && Number.isFinite(end) &&
+      simulationTime >= start && simulationTime < end;
+  }
+
+  _sampleHalley(jd) {
+    try {
+      return this.halleyProvider.sample(jd);
+    } catch (err) {
+      return null;
+    }
+  }
+
+  _rejectSample() {
+    this.status = 'error';
+    this.errorLatched = true;
+    this._controlledErrors += 1;
+    this.latestPending = null;
+    this.previewTObs = null;
+    if (this.renderer) this.renderer.clear();
+  }
+
+  _invalidateJobs() {
+    this.currentGeneration += 1;
+    if (this.workerBusyJob) this.workerBusyJob.stale = true;
+    this.latestPending = null;
+    this.displayTObs = null;
+    this.previewTObs = null;
+    this.requestedTObs = null;
+  }
+
+  tick(simulationTime, { paused, bodyValid = true } = {}) {
     if (this.disposed || this.status === 'disposed') return;
 
     if (this.errorLatched) {
       this.status = 'error';
+      return;
+    }
+
+    // A failed current body sample must also suppress previously accepted or
+    // in-flight dust, even if quantization would reuse an already drawn epoch.
+    if (!bodyValid) {
+      this._rejectSample();
+      return;
+    }
+
+    // The caller supplies the shared, normalized [start, end) animation time.
+    // Never wrap or tolerate/clamp an invalid raw input inside this component.
+    if (!this._containsTime(simulationTime)) {
+      this._invalidateJobs();
+      this.status = 'out_of_range';
+      if (this.renderer) this.renderer.clear();
       return;
     }
 
@@ -210,13 +263,8 @@ export class DustTailManager {
     }
 
     const [rangeStart, rangeEnd] = this.range;
-    if (simulationTime < rangeStart - QUANTIZE_TOLERANCE || simulationTime > rangeEnd + QUANTIZE_TOLERANCE) {
-      this.status = 'out_of_range';
-      if (this.renderer) this.renderer.clear();
-      return;
-    }
-
-    // Stable anchor quantization with strict double-ended clamp.
+    // Quantize a valid frame only. Providers accept the closed published range,
+    // so rounding end-epsilon to the actual end sample is valid, not a time wrap.
     const tObsRaw = rangeStart + Math.round((simulationTime - rangeStart) / STEP_DAYS) * STEP_DAYS;
     const tObs = Math.min(rangeEnd, Math.max(rangeStart, tObsRaw));
     this.requestedTObs = tObs;
@@ -259,24 +307,10 @@ export class DustTailManager {
     // On-demand sampling with strict fail-closed validation.
     for (let i = 0; i < validReleaseCount; i += 1) {
       const tRelease = tObs - i * RELEASE_INTERVAL_DAYS;
-      let sample;
-      try {
-        sample = this.halleyProvider.sample(tRelease);
-      } catch (err) {
-        sample = { ok: false };
-      }
-
-      const isValid = sample && sample.ok === true &&
-        Array.isArray(sample.position) && sample.position.length === 3 && sample.position.every(Number.isFinite) &&
-        Array.isArray(sample.velocity) && sample.velocity.length === 3 && sample.velocity.every(Number.isFinite);
-
-      if (!isValid) {
+      const sample = this._sampleHalley(tRelease);
+      if (!isValidState(sample)) {
         this.inputPool.push(inputBuffer);
-        this.status = 'error';
-        this.errorLatched = true;
-        this._controlledErrors += 1;
-        this.latestPending = null;
-        if (this.renderer) this.renderer.clear();
+        this._rejectSample();
         return;
       }
 
@@ -344,14 +378,33 @@ export class DustTailManager {
     this._postedJobs += 1;
   }
 
-  // Time discontinuity (jump / seek / loop wrap): bump generation, mark the
-  // in-flight job stale, clear the picture, drop pending.
-  notifyTimeDiscontinuity() {
+  // Invalidate pre-jump work. When the shared clock supplies a valid new epoch,
+  // show its zero-age release immediately through the SAME particle renderer.
+  // At age zero all beta bands equal the sampled nucleus position exactly; no
+  // history or position is invented while the worker computes the full tail.
+  notifyTimeDiscontinuity(simulationTime) {
     if (this.disposed || this.errorLatched) return;
-    this.currentGeneration += 1;
-    if (this.workerBusyJob) this.workerBusyJob.stale = true;
-    this.latestPending = null;
-    if (this.renderer) this.renderer.clear();
+    this._invalidateJobs();
+    if (!this._containsTime(simulationTime)) {
+      this.status = simulationTime === undefined ? 'idle' : 'out_of_range';
+      if (this.renderer) this.renderer.clear();
+      return;
+    }
+    const sample = this._sampleHalley(simulationTime);
+    const outputBuffer = this.outputPool.at(-1);
+    if (!isValidState(sample) || !outputBuffer) {
+      this._rejectSample();
+      return;
+    }
+    // At most one job is in flight, leaving the second pooled output available.
+    // The renderer copies synchronously; no extra backing store is allocated.
+    const physical = new Float32Array(outputBuffer);
+    for (let beta = 0; beta < BETAS.length; beta += 1) {
+      physical.set(sample.position, beta * 3);
+    }
+    if (this.renderer) this.renderer.update(physical, 1);
+    this.previewTObs = simulationTime;
+    this.status = this._isPaused ? 'paused' : 'computing';
   }
 
   getDiagnostics() {
@@ -361,6 +414,7 @@ export class DustTailManager {
       inFlight: this.inFlight,
       currentGeneration: this.currentGeneration,
       displayTObs: this.displayTObs,
+      previewTObs: this.previewTObs,
       requestedTObs: this.requestedTObs,
       pending: this.latestPending !== null,
       inputPoolAvailable: this.inputPool.length,

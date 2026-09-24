@@ -3,8 +3,11 @@ const components = (value) => [value.x ?? value[0], value.y ?? value[1], value.z
 export function advanceSimulationTime(simulationTime, dt, daysPerSecond, range) {
   const [start, end] = range;
   const span = end - start;
-  if (!(span > 0)) return start;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || !(span > 0)) return NaN;
   const next = simulationTime + Math.max(0, dt) * daysPerSecond;
+  // Animation uses [start, end): exact end wraps to start. Normalize once here;
+  // body sampling and DustTailManager both consume this same frame time.
+  // The underlying provider still accepts both published endpoint samples.
   return start + (((next - start) % span) + span) % span;
 }
 
@@ -51,6 +54,7 @@ export function updateEphemerisTargets({ simulationTime, providers, targets, sta
         continue;
       }
       let physicalPosition = components(sample.position);
+      if (!physicalPosition.every(Number.isFinite)) throw new Error('invalid_position');
       if (name === 'moon') {
         const earthSample = providers.earth.sample(simulationTime);
         if (!earthSample?.ok) {
@@ -58,6 +62,7 @@ export function updateEphemerisTargets({ simulationTime, providers, targets, sta
           continue;
         }
         const earthPosition = components(earthSample.position);
+        if (!earthPosition.every(Number.isFinite)) throw new Error('invalid_earth_position');
         physicalPosition = physicalPosition.map((value, axis) => value - earthPosition[axis]);
       }
       applyPosition(target, physicalPosition, name, sample);
@@ -67,8 +72,7 @@ export function updateEphemerisTargets({ simulationTime, providers, targets, sta
         tailDirection = antiSolarDisplayDirection(sample.position);
         applyTail(target, {
           direction: tailDirection,
-          distanceAu,
-          length: Math.max(0.5, Math.min(15, Math.max(2, 16 * (1.2 / distanceAu))))
+          distanceAu
         });
       }
       target.visible = true;

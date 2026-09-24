@@ -372,7 +372,7 @@ function mountDisplayPage() {
   const app = document.getElementById('pageRoot');
   app.innerHTML = `
     <section class="display-page-fullscreen globe-only-page" id="page-globe">
-      <div id="solar-system-container" class="display-globe-fullscreen immersive-globe-canvas-wrap three-globe-host"></div>
+      <div id="solar-system-container" data-solar-viewport class="display-globe-fullscreen immersive-globe-canvas-wrap three-globe-host"></div>
       <div id="globe-container" class="display-globe-fullscreen immersive-globe-canvas-wrap three-globe-host" style="display:none"></div>
       <div class="photo-space-showcase" aria-hidden="true">
         <div class="photo-nebula-field"></div>

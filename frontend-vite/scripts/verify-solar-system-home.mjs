@@ -27,7 +27,10 @@ assert.match(solar, /PointLight/);
 assert.match(solar, /LineLoop|RingGeometry/);
 assert.match(solar, /hasGenericOrbitRing\(spec\.name\)/, 'all planets must share the generic orbit-ring policy');
 assert.match(solar, /group\.visible\s*=\s*false/, 'Halley must start hidden until its first valid sample');
-assert.match(solar, /crossTail\.quaternion\.multiply[\s\S]{0,220}Math\.PI\s*\/\s*2/, 'cross tail must rotate 90 degrees around the tail axis');
+const comet = solar.slice(...methodSpan(solar, '_buildHalleyComet() {'));
+assert.doesNotMatch(comet, /PlaneGeometry|crossTail|tailGeometry/, 'legacy comet planes must not compete with the particle tail');
+assert.equal((solar.match(/new DustTailRenderer\(/g) || []).length, 1, 'one particle renderer owns the visible tail');
+assert.match(comet, /tail\.visible\s*=\s*false/, 'the compatibility direction object must not render');
 // Planet count. An earlier revision matched /name:'[^']+'/g, which counted a quoting
 // style rather than planets and broke the moment the table gained spaces after colons.
 const planetTable = solar.slice(solar.indexOf('PLANET_TABLE'), solar.indexOf('];', solar.indexOf('PLANET_TABLE')));
@@ -102,7 +105,8 @@ assert.match(solar, /this\._syncHitButtons\(\);\s*\n\s*return this;/);
 assert.match(solar, /HOME_FOV/);
 assert.match(solar, /\(earthSize \+ moonSize\) \* 0\.5 \* 1\.1/, 'FAIL: separation threshold must be half-width sum plus 10% margin (* 0.5 * 1.1) to prevent hit-box overlap');
 assert.match(solar, /getWorldPosition/);
-assert.match(solar, /len\s*>=\s*0\.5/);
+const dustRenderer = readFileSync(new URL('../src/components/solar/DustTailRenderer.js', import.meta.url), 'utf8');
+assert.match(dustRenderer, /setDrawRange\(0, visibleCount\)/, 'the particle draw range owns the visible dust output');
 assert.match(table, /modelUrl: '\/globe\/xinjian1-opt\.glb\?v=20260909'/); assert.match(table, /fallbackModelUrl: '\/globe\/xinjian1\.glb\?v=20260728'/);
 assert.match(entry, /export function renderSunBadge/); assert.match(entry, /export function renderMoonPanel/);
 assert.doesNotMatch(css, /\.starship-gltf-stage\s*\{[^}]*inset:\s*0/);

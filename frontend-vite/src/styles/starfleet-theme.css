@@ -386,6 +386,29 @@ body::after {
   z-index: 8;
 }
 .starship-gltf-stage.is-loaded { opacity: 1; }
+/* Keep the canvas's original intrinsic desktop ratio independent of its resized
+   drawing buffer. Explicit container heights still take precedence. */
+[data-solar-viewport] > canvas {
+  aspect-ratio: 2 / 1;
+}
+
+@media (max-width: 720px) {
+  #solar-system-container[data-solar-viewport] {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 16 / 9;
+    overflow: visible;
+  }
+
+  [data-solar-viewport] > canvas {
+    position: absolute;
+    inset: 0;
+  }
+}
+
 .solar-system-hit {
   position: absolute;
   width: 48px;
