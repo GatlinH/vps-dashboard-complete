@@ -488,6 +488,20 @@ def _disc_pixels(w, h, cx, cy, radius):
     return out
 
 
+def _a5_pixel_floor(radius):
+    # measure() reports radius to 0.01 px; use its lower rounding endpoint.
+    rr = max(1.0, 0.75 * max(0.0, radius - 0.005))
+    # Every point within rr - sqrt(1/2) rounds to a pixel centre within rr.
+    # The unit squares of those centres therefore cover that inner disc, so
+    # its area is a lower bound on _disc_pixels' full, unclipped count at ANY
+    # sub-pixel offset. Cap the continuous floor by this bound; clipping or
+    # missing pixels must not lower it. Ceil is safe because counts are integer.
+    inner = max(0.0, rr - math.sqrt(0.5))
+    guaranteed = math.pi * inner ** 2
+    continuous = A5_PIXEL_FLOOR_FRAC * math.pi * rr ** 2
+    return max(A5_MIN_PIXELS, math.ceil(min(continuous, guaranteed)))
+
+
 def _pct(sorted_vals, p):
     if not sorted_vals:
         return 0.0
@@ -507,11 +521,10 @@ def measure(png_bytes, bodies, scale_x, scale_y):
         radius = b["r"] * scale_x
         pts = _disc_pixels(w, h, cx, cy, radius)
         vals = sorted(_lum_at(rows, channels, px, py) for (px, py) in pts)
-        floor = max(A5_MIN_PIXELS, A5_PIXEL_FLOOR_FRAC * math.pi * (0.75 * radius) ** 2)
         entry = dict()
         entry["visible"] = bool(b.get("visible"))
         entry["radius"] = round(radius, 2)
-        entry["pixel_floor"] = round(floor, 1)
+        entry["pixel_floor"] = _a5_pixel_floor(entry["radius"])
         if not vals:
             entry["pixels"] = 0
             metrics[name] = entry
@@ -622,7 +635,7 @@ def check_a5(metrics):
         if m.get("radius", 0) < A5_MIN_RADIUS:
             failures[n] = "radius below floor"
             continue
-        if m.get("pixels", 0) < m.get("pixel_floor", A5_MIN_PIXELS):
+        if m.get("pixels", 0) < _a5_pixel_floor(m.get("radius", 0)):
             failures[n] = "pixel count below floor"
     detail["failures"] = failures
     return len(failures) == 0, detail
@@ -857,6 +870,104 @@ def run_mutation_test():
     d["thin_fails"] = not ok_thin
     d["absent_fails"] = not ok_absent
     results.append(("A5", ok_pass and not ok_invis and not ok_thin and not ok_absent, d))
+
+    def a5_raster_fixture(name, radius, pixels):
+        m = good_metrics()
+        # Preserve the original continuous-area floor, including its reporting
+        # precision, so the recorded Mercury failure is replayed exactly.
+        m[name].update({
+            "radius": radius, "pixels": pixels,
+            "pixel_floor": round(max(
+                A5_MIN_PIXELS,
+                A5_PIXEL_FLOOR_FRAC * math.pi * (0.75 * radius) ** 2,
+            ), 1),
+        })
+        return m
+
+    m = a5_raster_fixture("mercury", 3.82, 23)
+    ok_flake, flake_detail = check_a5(m)
+    d = {
+        "observed": {k: m["mercury"][k] for k in ("radius", "pixels", "pixel_floor")},
+        "observed_pass": ok_flake,
+        "observed_failures": flake_detail["failures"],
+    }
+    faults = {
+        "absent_fails": None,
+        "invisible_fails": {"visible": False},
+        "small_radius_fails": {"radius": A5_MIN_RADIUS / 2},
+        "half_minimum_fails": {"pixels": 23 // 2},
+    }
+    for name, fault in faults.items():
+        m = a5_raster_fixture("mercury", 3.82, 23)
+        if fault is None:
+            del m["mercury"]
+        else:
+            m["mercury"].update(fault)
+        d[name] = not check_a5(m)[0]
+    results.append(("A5_RASTER_FLOOR", ok_flake and all(d[n] for n in faults), d))
+
+    # Fixed pass1/pass2 radii from the clean 4d849e2 gate evidence, plus the
+    # adjacent Mercury radius known to flake. No browser or evidence file is
+    # needed: sweep a full pixel cell away from viewport clipping boundaries.
+    radii = {
+        "mercury": (4.20, 3.82, 3.84), "venus": (5.71, 5.98),
+        "earth": (6.36, 6.91), "mars": (5.14, 4.86),
+        "jupiter": (17.46, 17.26), "saturn": (14.64, 14.73),
+        "uranus": (13.26, 13.28), "neptune": (14.96, 14.96),
+    }
+    size = 64
+    steps = 40
+
+    def png_chunk(kind, data):
+        return (struct.pack(">I", len(data)) + kind + data
+                + struct.pack(">I", zlib.crc32(kind + data) & 0xffffffff))
+
+    sample_png = (
+        b"\x89PNG\r\n\x1a\n"
+        + png_chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0))
+        + png_chunk(b"IDAT", zlib.compress((b"\0" + b"\x80" * (size * 3)) * size))
+        + png_chunk(b"IEND", b"")
+    )
+    per_body = dict()
+    sweep_proven = set(radii) == set(REQUIRED)
+    for name, body_radii in radii.items():
+        per_body[name] = []
+        for radius in body_radii:
+            m = a5_raster_fixture(name, radius, 0)
+            counts = set()
+            verdicts = set()
+            min_center = None
+            for ix in range(steps):
+                for iy in range(steps):
+                    cx, cy = size / 2 + ix / steps, size / 2 + iy / steps
+                    count = len(_disc_pixels(size, size, cx, cy, radius))
+                    if not counts or count < min(counts):
+                        min_center = (cx, cy)
+                    counts.add(count)
+                    m[name]["pixels"] = count
+                    verdicts.add(check_a5(m)[0])
+            minimum = min(counts)
+            m[name]["pixels"] = minimum // 2
+            half_minimum_fails = not check_a5(m)[0]
+            # Exercise measure() as well: its reported floor must agree with
+            # acceptance even at a placement producing the minimum count.
+            body = {"name": name, "r": radius, "x": min_center[0],
+                    "y": min_center[1], "visible": True}
+            measured = measure(sample_png, [body], 1.0, 1.0)[3][name]
+            measured_floor_met = measured["pixel_floor"] <= measured["pixels"] == minimum
+            row = {
+                "radius": radius, "pixel_range": [minimum, max(counts)],
+                "verdicts": sorted(verdicts),
+                "all_placements_pass": verdicts == {True},
+                "half_minimum_fails": half_minimum_fails,
+                "measured_floor_met": measured_floor_met,
+            }
+            per_body[name].append(row)
+            sweep_proven = (sweep_proven and row["all_placements_pass"]
+                            and half_minimum_fails and measured_floor_met)
+    results.append(("A5_SUBPIXEL_SWEEP", sweep_proven, {
+        "offsets_per_radius": steps ** 2, "per_body": per_body,
+    }))
 
     m2 = good_metrics()
     ok_pass, _ = check_a6(m2, 30.0)
