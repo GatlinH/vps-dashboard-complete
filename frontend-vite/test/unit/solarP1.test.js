@@ -460,9 +460,9 @@ describe('P1 coordinate and runtime math', () => {
     },
   );
 
-  it('advances and wraps a single simulation clock', () => {
+  it('advances a single monotonically increasing simulation clock', () => {
     expect(advanceSimulationTime(10, 0.5, 4, [10, 20])).toBe(12);
-    expect(advanceSimulationTime(19, 1, 4, [10, 20])).toBe(13);
+    expect(advanceSimulationTime(19, 1, 4, [10, 20])).toBe(23);
   });
 
   it.each(planetNames)('omits %s from generic orbit rings', (name) => {

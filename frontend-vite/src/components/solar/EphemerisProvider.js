@@ -33,7 +33,8 @@ export function createEphemerisProvider(data, expected = {}) {
   const error = validateEphemeris(data, expected);
   if (error) return { ok: false, error };
   const states = data.states;
-  return { ok: true, sample(jd) {
+  const endpoint = (row) => ({ jd: row[0], position: row.slice(1, 4), velocity: row.slice(4, 7) });
+  return { ok: true, range: [...data.jd_tdb_range], endpointStates: { start: endpoint(states[0]), end: endpoint(states.at(-1)) }, sample(jd) {
     if (!Number.isFinite(jd) || jd < states[0][0] || jd > states.at(-1)[0]) return { ok: false, error: 'out_of_range' };
     let lo = 0, hi = states.length - 1;
     while (lo + 1 < hi) { const mid = Math.floor((lo + hi) / 2); if (states[mid][0] < jd) lo = mid; else hi = mid; }

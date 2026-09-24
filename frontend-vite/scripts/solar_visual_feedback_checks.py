@@ -48,7 +48,9 @@ async def check_visual_feedback(cdp, js, wait_for):
           halleyStatus: s.ephemerisStatus.targets.halley.ok,
           halleyJd: s.ephemerisStatus.targets.halley.lastJd,
           tailStatus: s.dustTailManager.status,
-          drawRangeCount: s.dustTailRenderer.geometry.drawRange.count
+          drawRangeCount: s.dustTailRenderer.geometry.drawRange.count,
+          bodies: Object.fromEntries(Object.entries(s.ephemerisStatus.targets).map(([name, state]) =>
+            [name, {ok: state.ok, jd: state.lastJd, position: state.lastPhysicalPosition}]))
         };
       };
       return true;
@@ -86,13 +88,17 @@ async def check_visual_feedback(cdp, js, wait_for):
                 halleyStatus: s.ephemerisStatus.targets.halley.ok,
                 halleyJd: s.ephemerisStatus.targets.halley.lastJd,
                 tailStatus: s.dustTailManager.status,
-                drawRangeCount: s.dustTailRenderer.geometry.drawRange.count
+                drawRangeCount: s.dustTailRenderer.geometry.drawRange.count,
+                bodies: Object.fromEntries(Object.entries(s.ephemerisStatus.targets).map(([name, state]) =>
+                  [name, {ok: state.ok, jd: state.lastJd, position: state.lastPhysicalPosition}]))
               };
             })()""")
             boundaries.append({"boundary": label, "immediate": immediate, "settled": final})
             good &= settled and final["halleyVisible"] and final["halleyStatus"]
             good &= final["halleyJd"] == final["simulationTime"]
             good &= final["tailStatus"] == "ready" and final["drawRangeCount"] > 0
+            good &= all(body["ok"] and body["jd"] == final["simulationTime"] and
+                        len(body["position"] or []) == 3 for body in final["bodies"].values())
             if label in ("exact-end", "end-plus-dt"):
                 good &= immediate["halleyVisible"] and immediate["halleyStatus"]
                 good &= immediate["drawRangeCount"] > 0
@@ -166,8 +172,8 @@ async def check_visual_feedback(cdp, js, wait_for):
         good &= measurements["directionalTailCount"] == 1
         good &= measurements["directionalTailTypes"] == ["Points"]
         good &= measurements["drawRangeCount"] == measurements["visibleParticleCount"] > 0
-        good &= measurements["range"][0] <= measurements["simulationTime"] < measurements["range"][1]
-        good &= abs(measurements["simulationTime"] - (measurements["range"][0] + 0.3)) < 1e-8
+        good &= measurements["simulationTime"] > measurements["range"][1]
+        good &= abs(measurements["simulationTime"] - (measurements["range"][1] + 0.3)) < 1e-8
         if width <= 720:
             good &= abs(measurements["measuredRatio"] - 16 / 9) < 0.005
             good &= abs(measurements["cameraAspect"] - 16 / 9) < 0.005

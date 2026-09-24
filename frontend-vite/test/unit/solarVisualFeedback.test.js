@@ -8,6 +8,7 @@ import { advanceSimulationTime } from '../../src/components/solar/SolarEphemeris
 import { DustTailManager } from '../../src/components/solar/DustTailManager.js';
 import { DustTailRenderer } from '../../src/components/solar/DustTailRenderer.js';
 import { runWorkerJob } from '../../src/components/solar/DustTailWorker.js';
+import { createContinuousEphemerisProviders } from '../../src/components/solar/TwoBodyEphemeris.js';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const halleyData = JSON.parse(read('../../public/assets/solar/p1/halley.json'));
@@ -57,10 +58,10 @@ function makeSystem() {
     simulationDaysPerSecond: 12,
     ephemerides: {
       range: [start, end],
-      providers: {
+      providers: createContinuousEphemerisProviders({
         halley: createEphemerisProvider(halleyData),
         mars: createEphemerisProvider(marsData),
-      },
+      }),
     },
     ephemerisStatus: { targets: { halley: {}, mars: {} } },
     bodies: [],
@@ -136,22 +137,22 @@ describe('Solar visual feedback: one tail authority', () => {
     ]);
     expect(system.halley.flame.scale.x).toBe(system.halley.flame.scale.y);
     expect(system.halley.flame.position.toArray()).toEqual([0, 0, 0]);
-    expect(system.dustTailRenderer.geometry.drawRange).toEqual({ start: 0, count: 12 });
-    expect(system.dustTailRenderer.visibleCount).toBe(12);
+    expect(system.dustTailRenderer.geometry.drawRange).toEqual({ start: 0, count: 804 });
+    expect(system.dustTailRenderer.visibleCount).toBe(804);
     system.dustTailRenderer.clear();
     expect(directionalOutputs(system)).toEqual([]);
   });
 });
 
 describe('Solar visual feedback: shared time boundary', () => {
-  it('keeps start, end-epsilon, exact end and end-plus-dt valid without clearing on wrap', () => {
+  it('keeps start, end-epsilon, exact end and end-plus-dt valid without rollback', () => {
     const { system, worker, requests } = makeSystem();
     const clear = vi.spyOn(system.dustTailRenderer, 'clear');
     for (const [time, dt, expectedJd] of [
       [start, 0, start],
       [end - 0.001, 0, end - 0.001],
-      [end, 0, start],
-      [end, 0.025, start + 0.3],
+      [end, 0, end],
+      [end, 0.025, end + 0.3],
     ]) {
       system.simulationTime = time;
       system.clock.getDelta = () => dt;
@@ -165,7 +166,7 @@ describe('Solar visual feedback: shared time boundary', () => {
     }
   });
 
-  it('rejects a pre-wrap worker result while retaining a valid release at the new nucleus', () => {
+  it('coalesces a pre-boundary worker result into the continuous post-boundary frame', () => {
     const { system, worker, requests } = makeSystem();
     system._tick();
     worker.finish();
@@ -177,37 +178,29 @@ describe('Solar visual feedback: shared time boundary', () => {
     system.simulationTime = end;
     system.clock.getDelta = () => 0.025;
     system._tick();
-    assertValidFrame(system, start + 0.3);
-    expect(system.dustTailManager.currentGeneration).toBe(generation + 1);
-    expect(system.dustTailRenderer.visibleCount).toBe(4);
-    const preview = system.dustTailRenderer.copyVisiblePositions();
-    for (let i = 0; i < 4; i += 1) {
-      const nucleus = system.halley.group.position.toArray();
-      nucleus.forEach((value, axis) => expect(preview[i * 3 + axis]).toBeCloseTo(value, 5));
-    }
+    expect(system.simulationTime).toBeCloseTo(end + 0.3, 8);
+    expect(system.dustTailManager.currentGeneration).toBe(generation);
     worker.finish();
-    expect(system.dustTailManager.getDiagnostics().staleJobs).toBe(1);
-    expect(system.dustTailRenderer.copyVisiblePositions()).toEqual(preview);
     worker.finish();
-    assertValidFrame(system, start + 0.3);
-    expect(system.dustTailManager.displayTObs).toBeCloseTo(start + 0.3, 8);
+    assertValidFrame(system, end + 0.3);
+    expect(system.dustTailManager.displayTObs).toBeCloseTo(end + 0.3, 8);
     expect(system.dustTailManager.getDiagnostics().backingStoreAllocations).toBe(4);
   });
 
-  it('normalizes an exact-end seek even while motion is paused', () => {
+  it('keeps an exact-end seek unchanged while motion is paused', () => {
     const { system, worker, requests } = makeSystem();
     system._tick();
     worker.finish();
     system.simulationTime = end;
     system.orbitState.motionState = 'paused';
     system._tick();
-    assertValidFrame(system, start);
+    assertValidFrame(system, end);
     expect(system.dustTailManager.status).toBe('paused');
     expect(requests).toHaveLength(0);
   });
 
-  it('rejects non-finite and out-of-range manager inputs without clamping them to a sample', () => {
-    for (const jd of [NaN, Infinity, start - 0.01, end, end + 0.01]) {
+  it('rejects non-finite manager inputs without clamping them to a sample', () => {
+    for (const jd of [NaN, Infinity]) {
       const { system, requests } = makeSystem();
       const sample = vi.spyOn(system.ephemerides.providers.halley, 'sample');
       system.dustTailManager.tick(jd);

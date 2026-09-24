@@ -4,11 +4,8 @@ export function advanceSimulationTime(simulationTime, dt, daysPerSecond, range) 
   const [start, end] = range;
   const span = end - start;
   if (!Number.isFinite(start) || !Number.isFinite(end) || !(span > 0)) return NaN;
-  const next = simulationTime + Math.max(0, dt) * daysPerSecond;
-  // Animation uses [start, end): exact end wraps to start. Normalize once here;
-  // body sampling and DustTailManager both consume this same frame time.
-  // The underlying provider still accepts both published endpoint samples.
-  return start + (((next - start) % span) + span) % span;
+  if (!Number.isFinite(simulationTime) || !Number.isFinite(dt) || !Number.isFinite(daysPerSecond)) return NaN;
+  return simulationTime + Math.max(0, dt) * daysPerSecond;
 }
 
 export function antiSolarDisplayDirection(cometPhysical, sunPhysical = [0, 0, 0]) {
