@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { physicalToDisplay } from './solar/CoordinateMapper.js';
 import { loadP1Ephemerides } from './solar/EphemerisProvider.js';
 import { advanceOrbitalBodies, advanceSimulationTime, hasGenericOrbitRing, updateEphemerisTargets } from './solar/SolarEphemerisRuntime.js';
+import { createContinuousEphemerisProviders } from './solar/TwoBodyEphemeris.js';
 import { DustTailRenderer } from './solar/DustTailRenderer.js';
 import { DustTailManager } from './solar/DustTailManager.js';
 import { TEXTURE_MANIFEST_URL, fetchTextureManifest, remapRingToPolarUv, resolveTierAsset, threeColorSpace } from './solar/PlanetTextureLoader.js';
@@ -192,11 +193,11 @@ export class SolarSystem {
     this.ephemerisStatus.status = 'loading';
     try {
       const loaded = await loadP1Ephemerides();
-      this.ephemerides = loaded;
+      this.ephemerides = { ...loaded, providers: createContinuousEphemerisProviders(loaded.providers) };
       this.ephemerisStatus.status = 'ready';
       this.ephemerisStatus.error = null;
       if (this.disposed) return;
-      this._initializeDustTail(loaded);
+      this._initializeDustTail(this.ephemerides);
     } catch (error) {
       this.ephemerides = null;
       this.ephemerisStatus.status = 'error';
@@ -735,12 +736,7 @@ export class SolarSystem {
 
   // All ephemeris targets share one clock; body spins advance independently.
   _advanceBodies(dt) {
-    const previousSimulationTime = this.simulationTime;
     this.simulationTime = advanceSimulationTime(this.simulationTime, dt, this.simulationDaysPerSecond, this.ephemerides?.range || [2446078.5, 2446643.5]);
-    // P1 clock is strictly forward; a decrease can only be a range-end loop wrap.
-    if (this.simulationDaysPerSecond > 0 && this.simulationTime < previousSimulationTime) {
-      this.dustTailManager?.notifyTimeDiscontinuity(this.simulationTime);
-    }
     advanceOrbitalBodies(this.bodies, dt, this.earthCloudMesh);
 
     this.sunLight.position.copy(this.sun.position);

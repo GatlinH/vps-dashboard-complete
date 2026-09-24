@@ -199,9 +199,7 @@ export class DustTailManager {
   }
 
   _containsTime(simulationTime) {
-    const [start, end] = this.range;
-    return Number.isFinite(simulationTime) && Number.isFinite(start) && Number.isFinite(end) &&
-      simulationTime >= start && simulationTime < end;
+    return Number.isFinite(simulationTime);
   }
 
   _sampleHalley(jd) {
@@ -245,8 +243,8 @@ export class DustTailManager {
       return;
     }
 
-    // The caller supplies the shared, normalized [start, end) animation time.
-    // Never wrap or tolerate/clamp an invalid raw input inside this component.
+    // The caller supplies the shared continuous animation time. Never wrap or
+    // tolerate/clamp an invalid raw input inside this component.
     if (!this._containsTime(simulationTime)) {
       this._invalidateJobs();
       this.status = 'out_of_range';
@@ -262,11 +260,7 @@ export class DustTailManager {
       return;
     }
 
-    const [rangeStart, rangeEnd] = this.range;
-    // Quantize a valid frame only. Providers accept the closed published range,
-    // so rounding end-epsilon to the actual end sample is valid, not a time wrap.
-    const tObsRaw = rangeStart + Math.round((simulationTime - rangeStart) / STEP_DAYS) * STEP_DAYS;
-    const tObs = Math.min(rangeEnd, Math.max(rangeStart, tObsRaw));
+    const tObs = Math.round(simulationTime / STEP_DAYS) * STEP_DAYS;
     this.requestedTObs = tObs;
 
     if (tObs === this.displayTObs && !this.latestPending) {
@@ -275,15 +269,8 @@ export class DustTailManager {
       return;
     }
 
-    // Compute the valid release count with history truncation at range start.
-    let validReleaseCount = MAX_RELEASES;
-    for (let i = 0; i < MAX_RELEASES; i += 1) {
-      const tRelease = tObs - i * RELEASE_INTERVAL_DAYS;
-      if (tRelease < rangeStart) {
-        validReleaseCount = i;
-        break;
-      }
-    }
+    // The continuous provider makes the complete 100-day release history valid.
+    const validReleaseCount = MAX_RELEASES;
 
     if (validReleaseCount === 0) {
       if (this.renderer) this.renderer.clear();
