@@ -9,6 +9,7 @@ Checks:
   C - Sun click calls openFrontLogin exactly once and never navigates
   D - Cesium absent on first paint
   E - Cesium chunk requested after Earth click
+  H - mobile 16:9 viewport, one dust output and synchronized time boundaries
 """
 
 import asyncio
@@ -30,6 +31,7 @@ from pathlib import Path
 from threading import Thread
 
 import websockets
+from solar_visual_feedback_checks import check_visual_feedback
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DIST = REPO_ROOT / "frontend-dist"
@@ -461,7 +463,7 @@ async def check_g():
     actual = second['tailWorldDirection']; dot = sum(a*b for a,b in zip(actual, expected))
     angle = math.degrees(math.acos(max(-1, min(1, dot))))
     good = first['frameId'] != second['frameId'] and mars_move > 0 and halley_move > 0 and abs(mars_move-halley_move) > 1e-12 and position_error <= 1e-8 and dot > 0 and angle <= 2
-    print("PASS: G - independent published-state positions and anti-solar tail match (%.4f deg, position error %.3g)" % (angle, position_error) if good else "FAIL: G - snapshot mismatch: mars=%g halley=%g position_error=%g dot=%g angle=%g" % (mars_move, halley_move, position_error, dot, angle))
+    print("PASS: G - independent published-state positions and anti-solar reference match (%.4f deg, position error %.3g)" % (angle, position_error) if good else "FAIL: G - snapshot mismatch: mars=%g halley=%g position_error=%g dot=%g angle=%g" % (mars_move, halley_move, position_error, dot, angle))
     return good
 
 
@@ -624,6 +626,9 @@ async def main():
                   "window.__DBG__.solarSystem.renderer and the three hit buttons never appeared.")
             return 1
 
+        if "--visual-feedback-only" in sys.argv:
+            return 0 if await check_visual_feedback(cdp, js, wait_for) else 1
+
         # Order matters: A first, then the D probe (before any Earth click mounts
         # Cesium), then C (also before B), then B.
         only_b = "--only-b" in sys.argv
@@ -636,9 +641,10 @@ async def main():
         e = "SKIP" if only_b else await check_e()
         f = "SKIP" if only_b else await check_f()
         g = "SKIP" if only_b else await check_g()
+        h = "SKIP" if only_b else await check_visual_feedback(cdp, js, wait_for)
 
-        print("SUMMARY: A=%s B=%s C=%s D=%s E=%s F=%s G=%s" % (a, b, c, d, e, f, g))
-        checks = (b,) if only_b else (a, b, c, d, e, f, g)
+        print("SUMMARY: A=%s B=%s C=%s D=%s E=%s F=%s G=%s H=%s" % (a, b, c, d, e, f, g, h))
+        checks = (b,) if only_b else (a, b, c, d, e, f, g, h)
         return 0 if all(result is True for result in checks) else 1
 
     except Exception as exc:  # noqa: BLE001

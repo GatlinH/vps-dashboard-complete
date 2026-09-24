@@ -31,6 +31,7 @@ export class DustTailRenderer {
     });
 
     this.points = new THREE.Points(this.geometry, this.material);
+    this.points.name = 'halley-dust-tail';
     this.points.renderOrder = 2;
     this.points.raycast = () => {}; // never intercept picking rays
     this.points.frustumCulled = false;

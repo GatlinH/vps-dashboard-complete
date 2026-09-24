@@ -30,16 +30,14 @@ describe('solar system F2 orbit interaction', () => {
     expect(text).toContain('_buildAsteroidBelt');
   });
 
-  it('updates asteroid instances and orients the Halley tail along its direction', async () => {
+  it('updates asteroid instances and leaves the particle renderer as the only Halley tail', async () => {
     const text = await source();
     expect(text).toContain('this.asteroidData=Array.from');
     expect(text).toContain('instanceMatrix.needsUpdate = true');
     expect(text).toMatch(/_advanceBodies[\s\S]*asteroidBelt[\s\S]*setMatrixAt/);
-    expect(text).toMatch(
-      /_advanceBodies[\s\S]*applyTail:\s*\(_target,\s*tail\)\s*=>\s*\{\s*const target = this\.halley;[^\n]*target\.tail\.quaternion\.setFromUnitVectors\(new THREE\.Vector3\(1, 0, 0\), direction\)/,
-    );
-    expect(text).toContain('tailGeometry.translate(0.5,0,0)');
-    expect(text).toContain('crossTail');
+    expect(text.match(/new DustTailRenderer\(/g)).toHaveLength(1);
+    expect(text).not.toContain('tailGeometry');
+    expect(text).not.toContain('crossTail');
   });
 
   it('covers v3.5 ring factory and portrait fitting contracts', async () => {
