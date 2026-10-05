@@ -5,7 +5,6 @@ export function createDashboardTab({
   loadServers,
   getMountedGlobe,
   renderOverview,
-  renderMoonPanel,
 }) {
   let refreshTimer = null;
 
@@ -21,7 +20,6 @@ export function createDashboardTab({
         names: state.servers.map((server) => server.name),
       };
     }
-    renderMoonPanel();
   }
 
   function startRefresh() {
