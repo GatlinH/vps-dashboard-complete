@@ -6,11 +6,19 @@ export const R_S = 12;
 export const BOX = 24;
 // Units: CSS px. Retain the existing 13.5 (= 12 + 1.5) clearance target;
 // the 1.5 is a legacy allowance, not a device-pixel conversion.
+// For the unbounded K1 pair (d = 2.14, center separation = SEP_X), the
+// worst-case collinear target is reachable iff
+// anchor >= R_YIELD + SEP_X / 2 - MAX_OFF_S = 14.7.
+// At anchor in [14.2, 14.7), MAX_OFF_S caps the collinear clearance at
+// anchor + MAX_OFF_S - SEP_X / 2 = anchor - 1.2, in [13.0, 13.5).
+// At 14.2 this is 13.0, with a positive 1.0 margin above the hard R_S = 12
+// threshold. Other angles can meet R_YIELD below 14.7; canvas bounds require
+// their own audit. R_YIELD is a target, not an unconditional invariant.
 // Unclipped Chromium measurements supplied on 2026-10-04 show up to
 // 1.42 CSS px of directional hit-test overshoot. The 2026-10-02 Sun
-// ablations used an interior probe and did not rule out hit geometry.
+// ablations used a probe 3.94 CSS px inside the boundary and therefore
+// could not discriminate the hit-geometry explanation.
 // All three targets require an explicit circular hit clip.
-// This change does not recalibrate R_YIELD or resolve its envelope failures.
 export const R_YIELD = 13.5;
 export const MAX_OFF_S = 11;
 export const D0 = 1.6;
