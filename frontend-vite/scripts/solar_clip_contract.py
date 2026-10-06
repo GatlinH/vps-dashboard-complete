@@ -1,4 +1,9 @@
-"""Independent C0-C3 checker for raw native browser records. No product imports."""
+"""Independent C0-C3 checker for raw native browser records. No product imports.
+
+C2/C3 use elementsFromPoint stacks. Option (ii) deliberately drops cross-API
+agreement as a correctness requirement: Chromium disagrees at clip boundaries.
+Both native results remain evidence; see docs/c2-stack-criterion.md.
+"""
 import hashlib
 import math
 
@@ -31,6 +36,12 @@ def distance(a, b):
     return math.hypot(a['x'] - b['x'], a['y'] - b['y'])
 
 
+def native_reference_valid(top, stack, agrees):
+    """Validate the recorded flag, without requiring the native APIs to agree."""
+    return ((top is None or isinstance(top, str) and bool(top))
+            and type(agrees) is bool and agrees == (top == stack[0]))
+
+
 def check_ray(key, ray):
     failures = []
     rows = ray.get('rows', [])
@@ -48,8 +59,8 @@ def check_ray(key, ray):
         if (abs(row[1] - (center['x'] + i / 100 * math.cos(angle))) > 1e-12
                 or abs(row[2] - (center['y'] + i / 100 * math.sin(angle))) > 1e-12):
             failures.append('C0_RAW_COORDINATE')
-        if row[5] is not True or row[3] != row[4][0]:
-            failures.append('C2_NATIVE_APIS_DISAGREE')
+        if not native_reference_valid(row[3], row[4], row[5]):
+            failures.append('C0_NATIVE_API_REFERENCE')
         members.append(key in row[4])
     j = next((i for i, member in enumerate(members) if not member), -1)
     if not members[0]: failures.append('C3_CENTER_MISSING')
@@ -74,13 +85,16 @@ def check_points(points, centers):
     for p in points:
         if not point(p) or not isinstance(p.get('stack'), list) or not p['stack']:
             return verdict(['C0_POINT_FIELDS'], failureCount=6, modelMatchesNative=False, points=[])
+        if 'top' not in p or not native_reference_valid(p['top'], p['stack'], p.get('apisAgree')):
+            return verdict(['C0_NATIVE_API_REFERENCE'], failureCount=6, modelMatchesNative=False, points=[])
         # This is deliberately independent of SolarHitLayout/classifySolarHitLayout.
         model = next((key for key in KEYS if distance(p, centers[key]) <= 12), None)
-        agrees = p.get('apisAgree') is True and p.get('top') == p['stack'][0]
-        correct = agrees and p['top'] == model == p['key']
+        native = p['stack'][0]  # Keep occluders: membership alone cannot prove ownership.
+        correct = native == model == p['key']
         if p['kind'] == 'probe' and p['key'] == 'moon':
             correct = correct and 'moon' in p['stack'] and 'earth' not in p['stack']
-        checked.append({**p, 'modelOwner': model, 'modelMatchesNative': model == p.get('top'), 'correct': correct})
+        checked.append({**p, 'nativeOwner': native, 'modelOwner': model,
+                        'modelMatchesNative': model == native, 'correct': correct})
     count = sum(not p['correct'] for p in checked)
     return verdict(['C2_OWNERSHIP'] if count else [], failureCount=count,
                    modelMatchesNative=all(p['modelMatchesNative'] for p in checked), points=checked)
@@ -166,11 +180,13 @@ def _check_record(record):
         c1.append('C1_IDLE_STATE')
 
     c2 = check_points(record['points'], centers)
+    failures.extend(f for f in c2['failures'] if f.startswith('C0'))
     for p in record['points']:
         expected = (probes if p['kind'] == 'probe' else centers)[p['key']]
         if p['x'] != expected['x'] or p['y'] != expected['y']:
             failures.append('C0_POINT_COORDINATES')
-        if any(node not in registry for node in p['stack']): failures.append('C0_UNKNOWN_ID')
+        nodes = p['stack'] + ([p['top']] if p.get('top') is not None else [])
+        if any(not isinstance(node, str) or node not in registry for node in nodes): failures.append('C0_UNKNOWN_ID')
     c3, distributions, measured_rays = [], {}, 0
     toward = math.atan2(probes['moon']['y'] - centers['earth']['y'], probes['moon']['x'] - centers['earth']['x'])
     angles = [i * math.pi / 8 for i in range(16)] + [toward, toward + math.pi]
@@ -187,12 +203,13 @@ def _check_record(record):
                     or abs(ray['angle'] - angle) > 1e-12): failures.append('C0_RAY_IDENTITY')
             failures.extend(f for f in result['failures'] if f.startswith('C0'))
             c3.extend(f for f in result['failures'] if f.startswith('C3'))
-            c2['failures'].extend(f for f in result['failures'] if f.startswith('C2'))
             js.append(result['firstMissIndex'])
             for row in ray.get('rows', []):
-                if len(row) == 6 and isinstance(row[4], list) and any(node not in registry for node in row[4]):
-                    failures.append('C0_UNKNOWN_ID')
-                    break
+                if len(row) == 6 and isinstance(row[4], list):
+                    nodes = row[4] + ([row[3]] if row[3] is not None else [])
+                    if any(not isinstance(node, str) or node not in registry for node in nodes):
+                        failures.append('C0_UNKNOWN_ID')
+                        break
         c3.extend(check_spread(js))
         distributions[key] = {'firstMissIndices': js}
         if all(type(j) is int and j >= 0 for j in js):

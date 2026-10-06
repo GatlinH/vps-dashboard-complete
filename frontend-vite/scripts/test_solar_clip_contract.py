@@ -147,3 +147,88 @@ def test_incomplete_scan_cannot_claim_c3_pass(complete_record):
     result = check_record(complete_record)
     assert result['C0']['status'] == 'FAIL'
     assert result['C3']['status'] == 'NOT_MEASURED'
+
+
+@pytest.mark.parametrize('index,top', [(600, 'moon'), (1201, 'moon'), (2134, 'earth')])
+def test_c2_accepts_truthful_api_disagreement_in_radial_samples(complete_record, index, top):
+    row = complete_record['buttons']['moon']['rays'][0]['rows'][index]
+    row[3], row[5] = top, False
+    assert row[3] != row[4][0]
+    if index == 600:
+        assert 'moon' in row[4]  # Membership survives a different native top.
+    else:
+        assert 'moon' not in row[4]  # A miss after the boundary is legitimate.
+    result = check_record(complete_record)
+    assert all(result[c]['status'] == 'PASS' for c in ('C0', 'C1', 'C3'))
+    assert result['C2']['status'] == 'PASS', result['C2']['failures']
+    assert result['C2']['failureCount'] == 0
+    assert result['C2']['modelMatchesNative'] is True
+    assert row[3] == top and row[5] is False  # Reference evidence stays intact.
+
+
+def test_missing_interior_member_cannot_be_rescued_by_native_top(complete_record):
+    row = complete_record['buttons']['moon']['rays'][0]['rows'][600]
+    row[3], row[4], row[5] = 'moon', ['occluder'], False
+    result = check_record(complete_record)
+    assert result['C0']['status'] == 'PASS'
+    assert result['C3']['status'] == 'FAIL'
+    assert result['C3']['distributions']['moon']['firstMissIndices'][0] == 600
+    assert 'C3_RADIUS_ENVELOPE' in result['C3']['failures']
+    assert 'C3_REENTRY' in result['C3']['failures']
+
+
+@pytest.mark.parametrize('kind', ['probe', 'center'])
+def test_c2_point_ownership_uses_stack_with_native_top_as_reference(complete_record, kind):
+    p = next(p for p in complete_record['points'] if p['kind'] == kind and p['key'] == 'moon')
+    p.update(top='occluder', apisAgree=False)
+    result = check_record(complete_record)
+    assert all(result[c]['status'] == 'PASS' for c in ('C0', 'C1', 'C3'))
+    assert result['C2']['status'] == 'PASS', result['C2']['failures']
+    assert result['C2']['failureCount'] == 0
+    assert result['C2']['modelMatchesNative'] is True
+    checked = next(p for p in result['C2']['points'] if p['kind'] == kind and p['key'] == 'moon')
+    assert checked['nativeOwner'] == checked['modelOwner'] == 'moon'
+    assert checked['top'] == 'occluder' and checked['apisAgree'] is False
+
+
+@pytest.mark.parametrize('stack', [['occluder'], ['earth', 'moon'], ['occluder', 'moon'], ['moon', 'earth']])
+def test_c2_rejects_missing_stolen_or_nonexclusive_moon_probe(complete_record, stack):
+    p = next(p for p in complete_record['points'] if p['kind'] == 'probe' and p['key'] == 'moon')
+    p.update(stack=stack, apisAgree=p['top'] == stack[0])
+    result = check_record(complete_record)
+    assert result['C0']['status'] == 'PASS'
+    assert result['C2']['status'] == 'FAIL'
+    assert 'C2_OWNERSHIP' in result['C2']['failures']
+    assert result['C2']['failureCount'] == 1
+    checked = next(p for p in result['C2']['points'] if p['kind'] == 'probe' and p['key'] == 'moon')
+    assert checked['correct'] is False
+
+
+@pytest.mark.parametrize('location', ['ray', 'point'])
+@pytest.mark.parametrize('change', ['false-disagreement', 'false-agreement', 'nonboolean'])
+def test_reference_flag_must_truthfully_encode_raw_values(complete_record, location, change):
+    if location == 'ray':
+        row = complete_record['buttons']['moon']['rays'][0]['rows'][600]
+        if change == 'false-disagreement': row[5] = False
+        if change == 'false-agreement': row[3] = 'moon'
+        if change == 'nonboolean': row[5] = 1
+    else:
+        p = complete_record['points'][2]
+        if change == 'false-disagreement': p['apisAgree'] = False
+        if change == 'false-agreement': p['top'] = 'occluder'
+        if change == 'nonboolean': p['apisAgree'] = 1
+    result = check_record(complete_record)
+    assert result['C0']['status'] == 'FAIL'
+    assert 'C0_NATIVE_API_REFERENCE' in result['C0']['failures']
+
+
+@pytest.mark.parametrize('location', ['ray', 'point'])
+def test_reference_top_still_requires_a_registered_node(complete_record, location):
+    if location == 'ray':
+        row = complete_record['buttons']['moon']['rays'][0]['rows'][600]
+        row[3], row[5] = 'unregistered', False
+    else:
+        complete_record['points'][2].update(top='unregistered', apisAgree=False)
+    result = check_record(complete_record)
+    assert result['C0']['status'] == 'FAIL'
+    assert 'C0_UNKNOWN_ID' in result['C0']['failures']
