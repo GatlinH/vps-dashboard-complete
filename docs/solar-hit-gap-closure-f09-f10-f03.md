@@ -255,9 +255,11 @@ class 精确项：moon-drag-only, moon-solar, three-globe-sun, three-globe-moon,
              moon-core, moon-copy, moon-stat, moon-section-title
 ```
 
-已在 `src/**/*.{js,jsx,html}` 核对：除将删除的模块/模板外，没有这些 token 的生产者。对于以上 token 参与的每个逗号分隔 selector 分支，删掉该分支；剩余分支保留原声明及顺序，全部为空才删规则，并清除因此变空的 media 容器。当前 PostCSS 只读盘点为：`styles/globe.css` 166 个完全专属规则可删、1 个混合规则裁剪；`src/globe.css` 5 个；`starfleet-theme.css` 5 个。数量是定位校验，不是未来永久断言。
+已在 `src/**/*.{js,jsx,html}` 核对：除将删除的模块/模板外，没有这些 token 的生产者。对于以上 token 参与的每个逗号分隔 selector 分支，删掉该分支；剩余分支保留原声明及顺序，全部为空才删规则，并清除因此变空的 media 容器。PostCSS 只读盘点（前三文件为删除前基线，第四文件为本次未删工作树）为：`src/styles/globe.css` 166 条完全专属规则、1 条混合规则；`src/globe.css` 5 条完全专属规则；`src/styles/starfleet-theme.css` 5 条完全专属规则；`src/styles/main.css` 11 条完全专属规则、5 条混合规则，其中 main.css 合计命中 16 条规则、29 个旧 selector 分支。main.css 五条混合规则均删 1 留 2。数量仅作此次定位校验，不是未来永久断言；前三文件已完成的删除不重做。
 
 明确保留 `styles/globe.css:1467–1473` 中 `.globe-hint, .globe-focus-badge { z-index:40 !important }` 两个分支；保留 `.three-globe-host`、Cesium、所有 `public-overview-*`、`overview-*`、现役 solar 类及原有动画。`src/globe.css` 虽未在当前首页图中引用，也只删上述五个规则，不删除整个文件。
+
+第四文件边界：`main.css` 由首页静态依赖 `serverTable.js:4` 导入；其 3–9 行依次导入 variables、base、dashboard、server-card、pages、dom-fixes、starfleet-theme。保留该导入序列及所有范围外规则。它参与首页冷启动，不依赖 Cesium 懒加载。3332、3344、3352、3362、3373 行混合规则只裁旧分支，保留 sun/solar-corona 与 sun/solar-widget 对应的完整 selector、声明、顺序和 600px 媒体条件。这四类未找到生产者，称“范围外保留分支”，不称“已证实活分支”；另案审查其去留，不加入 F-10 删除集。仅清除裁剪后变空的 media；当前 main.css 此类容器只有原 3384 行一处。
 
 ### 2. 拖拽 / 焦点守卫的真实历史
 
@@ -300,7 +302,7 @@ See docs/solar-hit-gap-closure-f09-f10-f03.md, F-10 history and scope.
 | --- | --- |
 | 删除文件 | `src/ui/sunMoonEntry.js` 全文件。dashboard globals 已由 `serverTable.js:1` 导入，不需要另补副作用 import。 |
 | 删除函数 | `src/pages/overviewPage.js` 仅私有 `mountDisplayPage()`（当前 83–99 行）；`summarizeMoonPanel()`、`renderPublicOverviewPage()` 及其 helpers 不变。 |
-| 删除/裁剪规则 | `src/styles/globe.css`、`src/globe.css`、`src/styles/starfleet-theme.css` 按上述 token 集合逐 selector 分支操作；不动混合规则的活分支。 |
+| 删除/裁剪规则 | `src/styles/globe.css`、`src/globe.css`、`src/styles/starfleet-theme.css`、`src/styles/main.css` 按 §F-10.1 原 token 集逐 selector 分支删除；保留所有非命中分支的声明、顺序及媒体条件。main.css 新增 11 条整删、5 条裁剪，共删 29 个旧分支；不得扩大 token 集。 |
 | 新增 | `scripts/lib/legacySolarDom.mjs`：旧 API/ID/selector 集合、JS/JSX AST 扫描和 `assertLegacySunMoonRemoval()`；仅开发门禁导入。 |
 | 修改 | `scripts/verify-solar-system-home.mjs` 删除 `entry` 文件读取、141 行两个存在断言，改为调用 removal 检查；9–10 行旧负向断言在这一提交仍保留。 |
 | 新增 | `test/unit/legacySunMoonRemoval.test.js`：删除与防恢复、混合 CSS 活分支、真实 overview 输出的有限回归检查。 |
@@ -316,7 +318,7 @@ See docs/solar-hit-gap-closure-f09-f10-f03.md, F-10 history and scope.
 | `assert.deepEqual(findLegacyDefinitions(allSourceAsts), [], 'F10_LEGACY_DEFINITION')` | 把 `renderMoonPanel` 搬到新文件、写成 const 函数或导出别名：具体 file:line 伴随 `F10_LEGACY_DEFINITION`。正常 `summarizeMoonPanel` 不匹配。 |
 | `assert.equal(hasLocalFunction(overviewAst,'mountDisplayPage'), false, 'F10_DEAD_MOUNT_EXISTS')` | 只恢复 overview 的死函数，即使还没接调用：失败。限定 overview 文件，不能禁掉 serverTable 的活同名函数。 |
 | `assert.deepEqual(findLegacyDomIds(overviewAst), [], 'F10_OLD_OVERVIEW_TEMPLATE')` | 把旧三 ID 模板塞进一个改名函数：失败。注释不算模板，模板字符串和普通字符串均检查。 |
-| `assert.deepEqual(findLegacySelectors(allCssAsts), [], 'F10_LEGACY_SELECTOR')` | 只恢复 `.globe-moon-drawer` 基规则、后置 `.moon-solar-core` 或另一个 CSS 文件中的旧 ID 规则：给出文件/selector 的 `F10_LEGACY_SELECTOR`。基础块删了但移动覆盖留下也必须失败。 |
+| `assert.deepEqual(findLegacySelectors(allCssAsts), [], 'F10_LEGACY_SELECTOR')` | 枚举 `src/**/*.css` 全部源码文件，包括 main.css 及任意新增 CSS，按 §F-10.1 原 token 集断言零旧 selector 分支；覆盖 media 内规则和 `:has()` 等函数参数中的 token，失败包含 file:line 与完整 selector。 |
 | 对 `.globe-hint` / `.globe-focus-badge` 的保留分支，`assert.deepEqual(declarations, [{prop:'z-index',value:'40',important:true}], 'F10_SHARED_LAYER_LOST')` | 误删整个 1467–1473 混合规则，或漏保留其中一个活分支：`F10_SHARED_LAYER_LOST`。应按 selector token 查分支，不要求某种逗号排版。 |
 | `assert.match(html, /<span>totalNodes<\/span><strong>3<\/strong>/, 'F10_OVERVIEW_STATS')` | fixture 固定三个价格 10/20/30、在线/告警/离线各一的节点，t mock 返回 key，货币转换固定。误删 summary 调用或改成空列表：`F10_OVERVIEW_STATS`（若 renderer 直接抛错，测试须把渲染失败包装为该错误前缀）。 |
 | `assert.equal(monthlyKpi(html), '¥60', 'F10_OVERVIEW_COST:total')`；`assert.match(panelByTitle(html,'monthlyByRegion'), /<b>region-A<\/b><span>¥60<\/span>/, 'F10_OVERVIEW_COST:region')`；`assert.match(panelByTitle(html,'monthlyByProvider'), /<b>provider-A<\/b><span>¥60<\/span>/, 'F10_OVERVIEW_COST:provider')` | 三节点设同一 region/provider；删除总成本、地区列表或供应商列表分别失败。检查限定相应 KPI/摘要 section，不能让节点卡片中也有 region/provider 文字而假绿。 |

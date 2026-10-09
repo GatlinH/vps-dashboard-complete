@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { assertLegacySunMoonRemoval, readLegacySolarSources } from './lib/legacySolarDom.mjs';
 const table = readFileSync(new URL('../src/modules/serverTable.js', import.meta.url), 'utf8');
 const solar = readFileSync(new URL('../src/components/SolarSystem.js', import.meta.url), 'utf8');
-const entry = readFileSync(new URL('../src/ui/sunMoonEntry.js', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../src/styles/starfleet-theme.css', import.meta.url), 'utf8');
 assert.match(table, /id="solar-system-container"/);
 assert.doesNotMatch(table, /globeSunMount|globeMoonRoot|globeMoonPanel/);
@@ -108,6 +108,6 @@ assert.match(solar, /getWorldPosition/);
 const dustRenderer = readFileSync(new URL('../src/components/solar/DustTailRenderer.js', import.meta.url), 'utf8');
 assert.match(dustRenderer, /setDrawRange\(0, visibleCount\)/, 'the particle draw range owns the visible dust output');
 assert.match(table, /modelUrl: '\/globe\/xinjian1-opt\.glb\?v=20260909'/); assert.match(table, /fallbackModelUrl: '\/globe\/xinjian1\.glb\?v=20260728'/);
-assert.match(entry, /export function renderSunBadge/); assert.match(entry, /export function renderMoonPanel/);
+assertLegacySunMoonRemoval({ files: readLegacySolarSources() });
 assert.doesNotMatch(css, /\.starship-gltf-stage\s*\{[^}]*inset:\s*0/);
 console.log('solar system home contract: ok');

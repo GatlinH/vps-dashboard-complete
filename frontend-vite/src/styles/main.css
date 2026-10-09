@@ -3329,7 +3329,6 @@ canvas, svg, img, video{ max-width:100%; }
     white-space:nowrap!important;
     transform:translate(-50%,-50%) scale(.86)!important;
   }
-  html body .moon-solar-corona,
   html body .sun-corona,
   html body .solar-corona{
     max-width:36vw!important;
@@ -3341,7 +3340,6 @@ canvas, svg, img, video{ max-width:100%; }
 
 /* responsive-home-corona-final-pass-20260608 */
 @media (max-width: 600px){
-  html body .moon-solar-corona,
   html body .sun-corona,
   html body .solar-corona{
     right:auto!important;
@@ -3349,7 +3347,6 @@ canvas, svg, img, video{ max-width:100%; }
     max-height:32vw!important;
     clip-path:inset(0 0 0 0)!important;
   }
-  html body:has(.moon-solar-corona),
   html body:has(.sun-corona),
   html body:has(.solar-corona){
     overflow-x:hidden!important;
@@ -3359,7 +3356,6 @@ canvas, svg, img, video{ max-width:100%; }
 
 /* home-corona-zero-overflow-pass-20260608 */
 @media (max-width: 600px){
-  html body .moon-solar-corona,
   html body .sun-corona,
   html body .solar-corona{
     width:30vw!important;
@@ -3370,7 +3366,6 @@ canvas, svg, img, video{ max-width:100%; }
     overflow:hidden!important;
     contain:paint!important;
   }
-  html body .moon-solar,
   html body .sun-widget,
   html body .solar-widget{
     max-width:34vw!important;
@@ -3381,15 +3376,6 @@ canvas, svg, img, video{ max-width:100%; }
 
 
 /* mobile-corona-force-hidden-after-globe-only-pass-20260608 */
-@media (max-width: 600px){
-  html body.globe-only-page .moon-solar-corona,
-  html body .globe-only-page .moon-solar-corona,
-  html body .moon-solar .moon-solar-corona{
-    display:none!important;
-    opacity:0!important;
-    visibility:hidden!important;
-  }
-}
 
 
 /* mobile-home-projection-zero-pass-20260608 */
@@ -3550,20 +3536,6 @@ img, canvas, svg, video { max-width: 100%; }
 
 /* mobile-layout-polish-20260618 */
 @media (max-width: 720px) {
-  .three-globe-sun-badge {
-    left: 18px !important;
-    top: 18px !important;
-    width: 64px !important;
-    height: 64px !important;
-  }
-  .globe-moon-pill.moon-drag-only,
-  .globe-moon-pill.moon-solar-style {
-    right: 18px !important;
-    top: 18px !important;
-    width: 58px !important;
-    height: 58px !important;
-    min-width: 58px !important;
-  }
   .google-earth-label,
   .google-earth-place-label,
   .three-vps-label {
@@ -4264,19 +4236,6 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
     max-height:none!important;
   }
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .network-legend{display:none!important;}
-  .three-globe-sun-badge,
-  .globe-moon-pill.moon-drag-only,
-  .globe-moon-pill.moon-solar-style{
-    top:18px!important;
-    width:64px!important;
-    height:64px!important;
-    min-width:64px!important;
-    min-height:64px!important;
-    box-sizing:border-box!important;
-  }
-  .three-globe-sun-badge{left:18px!important;}
-  .globe-moon-pill.moon-drag-only,
-  .globe-moon-pill.moon-solar-style{right:18px!important;}
 }
 
 
@@ -4323,25 +4282,6 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-table{
     max-width:100%!important;
   }
-  html body .three-globe-sun-badge,
-  html body .globe-moon-pill,
-  html body .globe-moon-pill.moon-drag-only,
-  html body .globe-moon-pill.moon-solar-style{
-    top:18px!important;
-    width:64px!important;
-    height:64px!important;
-    min-width:64px!important;
-    min-height:64px!important;
-    max-width:64px!important;
-    max-height:64px!important;
-    margin:0!important;
-    transform:none!important;
-    box-sizing:border-box!important;
-  }
-  html body .three-globe-sun-badge{left:18px!important;right:auto!important;}
-  html body .globe-moon-pill,
-  html body .globe-moon-pill.moon-drag-only,
-  html body .globe-moon-pill.moon-solar-style{right:18px!important;left:auto!important;}
 }
 
 
@@ -4385,21 +4325,6 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
     height:auto!important;
     max-height:none!important;
   }
-  html body .home-shell .globe-moon-pill,
-  html body .globe-stage .globe-moon-pill,
-  html body .globe-moon-pill.moon-drag-only.moon-solar-style{
-    position:absolute!important;
-    top:18px!important;
-    right:18px!important;
-    left:auto!important;
-    width:64px!important;
-    height:64px!important;
-    min-width:64px!important;
-    min-height:64px!important;
-    max-width:64px!important;
-    max-height:64px!important;
-    transform:none!important;
-  }
 }
 
 
@@ -4431,21 +4356,6 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
     height:220px!important;
     min-height:220px!important;
     max-height:220px!important;
-  }
-  html body .globe-moon-pill.moon-drag-only.moon-solar-style{
-    position:fixed!important;
-    top:18px!important;
-    right:18px!important;
-    left:auto!important;
-    bottom:auto!important;
-    width:64px!important;
-    height:64px!important;
-    min-width:64px!important;
-    min-height:64px!important;
-    max-width:64px!important;
-    max-height:64px!important;
-    transform:none!important;
-    margin:0!important;
   }
 }
 
