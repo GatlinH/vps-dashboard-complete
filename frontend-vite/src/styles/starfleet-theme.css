@@ -610,35 +610,12 @@ body::after {
 }
 
 /* User cleanup 3: remove the remaining static white moon/dot in the top-right. */
-.globe-moon-root,
-#globeMoonRoot,
-#globeMoonPanel,
-#globeMoonToggle,
-.moon-solar-glow,
-.moon-solar-corona,
-.moon-solar-halo,
-.moon-solar-core {
-  display: none !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
-  pointer-events: none !important;
-}
 
 /* User cleanup 4: remove remaining yellow/orange star/accent color from the globe view. */
 .globe-only-page,
 .globe-only-page .display-globe-fullscreen,
 .globe-only-page #cesium-globe-container {
   --star-accent-yellow: transparent;
-}
-.globe-only-page .three-globe-sun-badge,
-.globe-only-page .three-globe-sun-glow,
-.globe-only-page .three-globe-sun-corona,
-.globe-only-page .three-globe-sun-halo,
-.globe-only-page .three-globe-sun-core {
-  display: none !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
-  pointer-events: none !important;
 }
 .globe-only-page .google-earth-node-html-label.is-vps-node {
   border-color: rgba(115,205,255,.36) !important;
@@ -667,30 +644,3 @@ body:has(.globe-only-page) {
 }
 
 /* Restore interaction contract: visible draggable sun and moon entrances. */
-.globe-only-page .three-globe-sun-badge,
-#globeMoonRoot {
-  display: flex !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
-}
-.globe-only-page .three-globe-sun-glow,
-.globe-only-page .three-globe-sun-corona,
-.globe-only-page .three-globe-sun-halo,
-.globe-only-page .three-globe-sun-core,
-#globeMoonPanel,
-.moon-solar-glow,
-.moon-solar-corona,
-.moon-solar-halo,
-.moon-solar-core {
-  display: block !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  pointer-events: none !important;
-}
-#globeMoonToggle {
-  display: inline-flex !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
-}
