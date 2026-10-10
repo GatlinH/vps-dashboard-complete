@@ -361,6 +361,7 @@ export function assertLegacySunMoonRemoval({ files }) {
     [],
     `F10_LEGACY_DEFINITION ${definitions.map(({ file, line, name }) => `${file}:${line} ${name}`).join(', ')}`,
   );
+  assert.ok(sources.has(overviewFile), `F10_OVERVIEW_FILE_MISSING ${overviewFile}`);
   const overview = sources.get(overviewFile);
   assert.equal(hasLocalFunction(overview, 'mountDisplayPage'), false, 'F10_DEAD_MOUNT_EXISTS');
   const ids = findLegacyDomIds(overview);

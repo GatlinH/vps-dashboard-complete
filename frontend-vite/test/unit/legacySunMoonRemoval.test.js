@@ -238,6 +238,11 @@ async function verifyMutation({
 
 const staticMutations = [
   {
+    name: 'overview file removed from source collection',
+    prefix: 'F10_OVERVIEW_FILE_MISSING',
+    mutate: (copy) => copy.delete(overviewFile),
+  },
+  {
     name: 'empty legacy file',
     prefix: 'F10_LEGACY_FILE_EXISTS',
     mutate: (copy) => copy.set('src/ui/sunMoonEntry.js', ''),
