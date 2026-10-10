@@ -642,5 +642,3 @@ body:has(.globe-only-page) {
   transition: opacity 160ms ease;
   transform: translate(-50%, -100%);
 }
-
-/* Restore interaction contract: visible draggable sun and moon entrances. */
