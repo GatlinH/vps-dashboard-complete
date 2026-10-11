@@ -41,6 +41,7 @@ export const LEGACY_CLASSES = Object.freeze([
 
 const sourceParser = Parser.extend(jsx());
 const overviewFile = 'src/pages/overviewPage.js';
+const liveMountFile = 'src/modules/serverTable.js';
 const sharedStyleFile = 'src/styles/globe.css';
 const mainStyleFile = 'src/styles/main.css';
 
@@ -225,41 +226,55 @@ export function findLegacyDefinitions(asts) {
   return found;
 }
 
-function hasLocalFunction(ast, name) {
-  let found = false;
-  walk(ast, (node) => {
-    if (
-      ['FunctionDeclaration', 'FunctionExpression'].includes(node.type) &&
-      node.id?.name === name
-    ) {
-      found = true;
-    }
-    if (
-      node.type === 'VariableDeclarator' &&
-      ['FunctionExpression', 'ArrowFunctionExpression'].includes(node.init?.type) &&
-      bindingNames(node.id).some((binding) => binding.name === name)
-    ) {
-      found = true;
-    }
-  });
+function findLocalFunctions(asts, name) {
+  const found = [];
+  for (const [file, ast] of asts) {
+    walk(ast, (node) => {
+      if (
+        ['FunctionDeclaration', 'FunctionExpression'].includes(node.type) &&
+        node.id &&
+        node.id.name === name
+      ) {
+        found.push({
+          file,
+          line: node.id.loc.start.line,
+          name,
+          topLevelDeclaration: node.type === 'FunctionDeclaration' && ast.body.includes(node),
+        });
+      }
+      if (
+        node.type === 'VariableDeclarator' &&
+        node.init &&
+        ['FunctionExpression', 'ArrowFunctionExpression'].includes(node.init.type)
+      ) {
+        for (const binding of bindingNames(node.id)) {
+          if (binding.name === name) {
+            found.push({ file, line: binding.loc.start.line, name, topLevelDeclaration: false });
+          }
+        }
+      }
+    });
+  }
   return found;
 }
 
-export function findLegacyDomIds(ast) {
+export function findLegacyDomIds(asts) {
   const found = [];
-  walk(ast, (node) => {
-    const value =
-      node.type === 'TemplateElement'
-        ? node.value.cooked
-        : node.type === 'Literal' && typeof node.value === 'string'
-          ? node.value
-          : null;
-    if (value == null) return;
-    const tokens = value.split(/[^\w$-]+/);
-    for (const id of LEGACY_OVERVIEW_IDS) {
-      if (tokens.includes(id)) found.push({ line: node.loc.start.line, id });
-    }
-  });
+  for (const [file, ast] of asts) {
+    walk(ast, (node) => {
+      const value =
+        node.type === 'TemplateElement'
+          ? node.value.cooked
+          : node.type === 'Literal' && typeof node.value === 'string'
+            ? node.value
+            : null;
+      if (value == null) return;
+      const tokens = value.split(/[^\w$-]+/);
+      for (const id of LEGACY_DOM_IDS) {
+        if (tokens.includes(id)) found.push({ file, line: node.loc.start.line, id });
+      }
+    });
+  }
   return found;
 }
 
@@ -361,11 +376,29 @@ export function assertLegacySunMoonRemoval({ files }) {
     [],
     `F10_LEGACY_DEFINITION ${definitions.map(({ file, line, name }) => `${file}:${line} ${name}`).join(', ')}`,
   );
-  assert.ok(sources.has(overviewFile), `F10_OVERVIEW_FILE_MISSING ${overviewFile}`);
-  const overview = sources.get(overviewFile);
-  assert.equal(hasLocalFunction(overview, 'mountDisplayPage'), false, 'F10_DEAD_MOUNT_EXISTS');
-  const ids = findLegacyDomIds(overview);
-  assert.deepEqual(ids, [], `F10_OLD_OVERVIEW_TEMPLATE ${overviewFile} ${JSON.stringify(ids)}`);
+  assert.ok(sources.has(overviewFile), `F10_OVERVIEW_FILE_MISSING ${overviewFile}:1`);
+  const mounts = findLocalFunctions(sources, 'mountDisplayPage');
+  // Allow only the home entry's top-level declaration, never its whole file.
+  // Nested definitions in serverTable and definitions in any other src fail.
+  const unexpectedMounts = mounts.filter(
+    ({ file, topLevelDeclaration }) => file !== liveMountFile || !topLevelDeclaration,
+  );
+  assert.deepEqual(
+    unexpectedMounts,
+    [],
+    `F10_DEAD_MOUNT_EXISTS ${unexpectedMounts.map(({ file, line, name }) => `${file}:${line} ${name}`).join(', ')}`,
+  );
+  assert.equal(
+    mounts.length,
+    1,
+    `F10_LIVE_MOUNT_MISSING ${liveMountFile}:1 expected exactly one top-level mountDisplayPage declaration`,
+  );
+  const ids = findLegacyDomIds(sources);
+  assert.deepEqual(
+    ids,
+    [],
+    `F10_OLD_OVERVIEW_TEMPLATE ${ids.map(({ file, line, id }) => `${file}:${line} ${id}`).join(', ')}`,
+  );
   const selectors = findLegacySelectors(styles);
   // Enumerate every src/**/*.css source, including main.css and new files;
   // reject any frozen legacy token in a selector branch, including media and
