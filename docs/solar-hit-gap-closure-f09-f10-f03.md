@@ -310,20 +310,26 @@ See docs/solar-hit-gap-closure-f09-f10-f03.md, F-10 history and scope.
 
 ### 4. 验收断言及其变异
 
-`assertLegacySunMoonRemoval({ files })` 接受以仓库相对路径为键的只读源码集合；真实门禁从磁盘枚举，单测可传 Map 副本。范围是 `src/**/*.{js,jsx,mjs}` 中的声明、overview 私有旧模板，以及 `src/**/*.css` 中上述 selector token。既不读 docs/evidence，也不执行产品模块。定义扫描包含函数声明、命名函数表达式、变量绑定、导出别名；避免把换文件的同名定义漏掉。F-03 再负责首页图中的所有引用。
+`assertLegacySunMoonRemoval({ files })` 接受以仓库相对路径为键的只读源码集合；真实门禁从磁盘枚举，单测可传 Map 副本。范围是 `src/**/*.{js,jsx,mjs}` 中的旧 API 定义、`mountDisplayPage` 函数定义及五个旧 DOM ID 的字符串/模板，以及 `src/**/*.css` 中上述 selector token。既不读 docs/evidence，也不执行产品模块。旧 API 定义扫描包含函数声明、命名函数表达式、变量绑定、导出别名；避免把换文件的同名定义漏掉。F-03 再负责首页图中的所有引用。
+
+2026-10-10 n1 作用域裁定：采用“全树旧 ID + 单一活 mount 定义”方案。无条件禁止全树同名函数与 `serverTable.js` 的现役首页入口及 single-renderer 门禁矛盾；仅保留 overview 单文件检查则仍允许在兄弟文件复活。全树 mount 扫描保留原先对函数声明、命名函数表达式、函数/箭头初始化变量绑定的识别，唯一允许的形态是 `src/modules/serverTable.js` 的顶层 `function mountDisplayPage` 声明；该文件内部的额外嵌套定义也失败。允许声明的位置是受审查的契约，合法迁移需要同步更新此判据及原有首页门禁，不硬编码当前行号或本次源码文件数。旧 ID 扫描在该文件也没有例外。
 
 | 直接断言 / 落点 | 必杀变异与失败信息 |
 | --- | --- |
 | `assert.equal(files.has('src/ui/sunMoonEntry.js'), false, 'F10_LEGACY_FILE_EXISTS')` | 即使只恢复一个空旧文件，也失败；不能仅靠“目前无调用”放过存在。 |
 | `assert.deepEqual(findLegacyDefinitions(allSourceAsts), [], 'F10_LEGACY_DEFINITION')` | 把 `renderMoonPanel` 搬到新文件、写成 const 函数或导出别名：具体 file:line 伴随 `F10_LEGACY_DEFINITION`。正常 `summarizeMoonPanel` 不匹配。 |
-| `assert.equal(hasLocalFunction(overviewAst,'mountDisplayPage'), false, 'F10_DEAD_MOUNT_EXISTS')` | 只恢复 overview 的死函数，即使还没接调用：失败。限定 overview 文件，不能禁掉 serverTable 的活同名函数。 |
-| `assert.deepEqual(findLegacyDomIds(overviewAst), [], 'F10_OLD_OVERVIEW_TEMPLATE')` | 把旧三 ID 模板塞进一个改名函数：失败。注释不算模板，模板字符串和普通字符串均检查。 |
+| `assert.ok(allSourceAsts.has('src/pages/overviewPage.js'), 'F10_OVERVIEW_FILE_MISSING')` | 保留文件存在护栏；删除 overview 文件仍失败。缺失节点没有实际行号，诊断以预期文件的 `:1` 定位。 |
+| `assert.deepEqual(unexpectedMounts, [], 'F10_DEAD_MOUNT_EXISTS')` | 全树找 `mountDisplayPage` 函数定义，排除上述唯一允许的顶层声明后必须为空；overview、任意兄弟/新目录或 serverTable 内部额外定义均失败，含实际 `file:line` 与函数名。 |
+| `assert.equal(mounts.length, 1, 'F10_LIVE_MOUNT_MISSING')` | 在零意外定义检查之后要求活声明存在；删除/改名声明或删除其文件以此新前缀失败，缺失诊断定位 `src/modules/serverTable.js:1`。“恰好一个”来自所选契约，不是把实测数量固化；活定义原样存在的正向对照必须通过。 |
+| `assert.deepEqual(findLegacyDomIds(allSourceAsts), [], 'F10_OLD_OVERVIEW_TEMPLATE')` | 全树扫描 `globeSunMount` / `globeMoonRoot` / `globeMoonPanel` / `globeSunBadge` / `globeMoonToggle`；函数改名、换文件、留下 overview 再导出壳都不能放过旧 ID。注释不算模板，普通字符串、模板字符串和 JSX 字符串属性均检查；保留历史错误前缀表示旧模板类别，以实际 `file:line` 与 ID 区分命中文件。 |
 | `assert.deepEqual(findLegacySelectors(allCssAsts), [], 'F10_LEGACY_SELECTOR')` | 枚举 `src/**/*.css` 全部源码文件，包括 main.css 及任意新增 CSS，按 §F-10.1 原 token 集断言零旧 selector 分支；覆盖 media 内规则和 `:has()` 等函数参数中的 token，失败包含 file:line 与完整 selector。 |
 | 对 `.globe-hint` / `.globe-focus-badge` 的保留分支，`assert.deepEqual(declarations, [{prop:'z-index',value:'40',important:true}], 'F10_SHARED_LAYER_LOST')` | 误删整个 1467–1473 混合规则，或漏保留其中一个活分支：`F10_SHARED_LAYER_LOST`。应按 selector token 查分支，不要求某种逗号排版。 |
 | `assert.match(html, /<span>totalNodes<\/span><strong>3<\/strong>/, 'F10_OVERVIEW_STATS')` | fixture 固定三个价格 10/20/30、在线/告警/离线各一的节点，t mock 返回 key，货币转换固定。误删 summary 调用或改成空列表：`F10_OVERVIEW_STATS`（若 renderer 直接抛错，测试须把渲染失败包装为该错误前缀）。 |
 | `assert.equal(monthlyKpi(html), '¥60', 'F10_OVERVIEW_COST:total')`；`assert.match(panelByTitle(html,'monthlyByRegion'), /<b>region-A<\/b><span>¥60<\/span>/, 'F10_OVERVIEW_COST:region')`；`assert.match(panelByTitle(html,'monthlyByProvider'), /<b>provider-A<\/b><span>¥60<\/span>/, 'F10_OVERVIEW_COST:provider')` | 三节点设同一 region/provider；删除总成本、地区列表或供应商列表分别失败。检查限定相应 KPI/摘要 section，不能让节点卡片中也有 region/provider 文字而假绿。 |
 | `assert.match(panelByData(html,'expiry'), /node-expiring/, 'F10_OVERVIEW_ALERTS:expiry')`；`assert.match(panelByData(html,'abnormal'), /node-offline/, 'F10_OVERVIEW_ALERTS:abnormal')` | 在线节点 node-expiring 固定两天后到期，离线节点 node-offline 无到期日。保留总数却误删到期/异常渲染：对应前缀失败。固定时钟，避免日期变化导致假失败。 |
 | `assert.equal(legacyTokensInRenderedHtml(html).length, 0, 'F10_RENDERED_LEGACY_DOM')` | 误把死模板内容合进活 renderer：`F10_RENDERED_LEGACY_DOM`。正向 summary 断言同时阻止拿空 HTML 通过。 |
+
+n1 配对变异必须覆盖“shim + 兄弟文件复活 mount/ids”与“overview 原样保留、仅兄弟文件复活”两种绕过；二者先以 `F10_DEAD_MOUNT_EXISTS` 失败，再各自改名 mount、保留旧 ID，以 `F10_OLD_OVERVIEW_TEMPLATE` 独立失败，证明后者没有被更早断言遮住。另覆盖无旧 ID 的异地函数、活文件内额外定义、活声明缺失与迁移，以及五个 ID 在 JS/MJS/JSX 中复活。每例在同一内存 Map 上执行原版 PASS → 指定前缀且 `code === 'ERR_ASSERTION'` → 还原 PASS；语法、模块或读取错误不能充当有效杀死。
 
 overview 测试必须执行真正的 `renderPublicOverviewPage()`：可以 mock 翻译、货币转换、服务器归一化及浏览器外壳，但不得 mock summary 或 renderer。最小 DOM 外壳提供 `pageRoot.innerHTML`、`querySelectorAll()=>[]`、`querySelector()=>null` 和 `documentElement.getAttribute`；存储和时间固定。测试捕获真实 HTML；`monthlyKpi` 按翻译 key 对应的 KPI 提取 strong 文本，`panelByTitle` / `panelByData` 按该标题或 data-panel 提取所在 section（缺失返回空串）。它们只定位实际输出，不重算业务数据。已有 dashboard 测试的 `renderOverview` 是 mock，不能拿它替代此处验证。
 

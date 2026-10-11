@@ -14,6 +14,8 @@ import {
 
 const files = readLegacySolarSources(new URL('../../', import.meta.url));
 const overviewFile = 'src/pages/overviewPage.js';
+const liveMountFile = 'src/modules/serverTable.js';
+const siblingFile = 'src/pages/display.js';
 const globeStyleFile = 'src/styles/globe.css';
 const mainStyleFile = 'src/styles/main.css';
 const epoch = Date.parse('2026-10-07T00:00:00.000Z');
@@ -233,7 +235,9 @@ async function verifyMutation({
     assert.deepEqual([...files], [...original], 'the original source collection stays read-only');
   }
   const actual = failure.message.match(/^F10_[A-Z_]+(?::[a-z]+)?/)[0];
-  console.log(`F10_MUTATION | ${name} | original=PASS | mutant=${actual} | restored=PASS`);
+  console.log(
+    `F10_MUTATION | ${name} | original=PASS | mutant=${actual} | code=${failure.code} | restored=PASS | diagnostic=${failure.message.split('\n')[0]}`,
+  );
 }
 
 const staticMutations = [
@@ -241,6 +245,7 @@ const staticMutations = [
     name: 'overview file removed from source collection',
     prefix: 'F10_OVERVIEW_FILE_MISSING',
     mutate: (copy) => copy.delete(overviewFile),
+    diagnostic: /src\/pages\/overviewPage\.js:1\b/,
   },
   {
     name: 'empty legacy file',
@@ -280,12 +285,14 @@ const staticMutations = [
     name,
     prefix: 'F10_DEAD_MOUNT_EXISTS',
     mutate: append(overviewFile, source),
+    diagnostic: /src\/pages\/overviewPage\.js:\d+ mountDisplayPage/,
   })),
   ...['globeSunMount', 'globeMoonRoot', 'globeMoonPanel'].flatMap((id) => [
     {
       name: `renamed string template ${id}`,
       prefix: 'F10_OLD_OVERVIEW_TEMPLATE',
       mutate: append(overviewFile, `function renamedMount() { return '<div id="${id}"></div>'; }`),
+      diagnostic: /src\/pages\/overviewPage\.js:\d+ globe/,
     },
     {
       name: `renamed template literal ${id}`,
@@ -294,6 +301,7 @@ const staticMutations = [
         overviewFile,
         `function renamedMount() { return \`<div id="${id}">\${'child'}</div>\`; }`,
       ),
+      diagnostic: /src\/pages\/overviewPage\.js:\d+ globe/,
     },
   ]),
   ...[
@@ -349,6 +357,152 @@ const staticMutations = [
         }),
       ),
   },
+];
+
+const n1Scenarios = [
+  { name: 'n1 full: shim + sibling mount/ids', shim: true },
+  { name: 'n1 B: sibling mount/ids, overview unchanged', shim: false },
+];
+
+function resurrectSibling(copy, shim, mountName) {
+  assert.equal(copy.has(siblingFile), false, 'unique n1 sibling mutation path');
+  const overview = copy.get(overviewFile);
+  copy.set(
+    siblingFile,
+    `function ${mountName}() {
+  return '<div id="globeSunMount"></div><div id="globeMoonRoot"><div id="globeMoonPanel"></div></div>';
+}
+${shim ? overview : ''}`,
+  );
+  if (shim) {
+    copy.set(overviewFile, "export { renderPublicOverviewPage } from './display.js';\n");
+  } else {
+    assert.equal(copy.get(overviewFile), files.get(overviewFile), 'B leaves overview unchanged');
+  }
+}
+
+function liveMountDeclaration(copy) {
+  const ast = parseSolarSource(copy.get(liveMountFile), liveMountFile);
+  const declarations = ast.body.filter(
+    (node) => node.type === 'FunctionDeclaration' && node.id.name === 'mountDisplayPage',
+  );
+  assert.equal(declarations.length, 1, 'unique live mount mutation anchor');
+  return declarations[0];
+}
+
+const n1MountMutations = [
+  ...n1Scenarios.map(({ name, shim }) => ({
+    name,
+    prefix: 'F10_DEAD_MOUNT_EXISTS',
+    mutate: (copy) => resurrectSibling(copy, shim, 'mountDisplayPage'),
+    diagnostic: /src\/pages\/display\.js:1 mountDisplayPage/,
+  })),
+  ...[
+    ['n1 mount-only MJS declaration', 'src/moved/deadMount.mjs', 'function mountDisplayPage() {}'],
+    [
+      'n1 mount-only JSX arrow',
+      'src/moved/deadMount.jsx',
+      'const mountDisplayPage = () => <aside />;',
+    ],
+    [
+      'n1 mount-only named function expression',
+      'src/moved/deadMount.js',
+      'const renamed = function mountDisplayPage() {};',
+    ],
+    [
+      'n1 mount-only const function',
+      'src/moved/deadMount.js',
+      'const mountDisplayPage = function () {};',
+    ],
+    [
+      'n1 extra nested mount in live owner',
+      liveMountFile,
+      'function historicalTemplate() { function mountDisplayPage() {} }',
+    ],
+    [
+      'n1 extra nested arrow in live owner',
+      liveMountFile,
+      'function historicalTemplate() { const mountDisplayPage = () => {}; }',
+    ],
+  ].map(([name, file, source]) => ({
+    name,
+    prefix: 'F10_DEAD_MOUNT_EXISTS',
+    mutate: append(file, source),
+    diagnostic: new RegExp(`${file.replaceAll('.', '\\.')}:[0-9]+ mountDisplayPage`),
+  })),
+  {
+    name: 'n1 live declaration removed',
+    prefix: 'F10_LIVE_MOUNT_MISSING',
+    mutate: (copy) => {
+      const node = liveMountDeclaration(copy);
+      const source = copy.get(liveMountFile);
+      copy.set(liveMountFile, source.slice(0, node.start) + source.slice(node.end));
+    },
+    diagnostic: /src\/modules\/serverTable\.js:1\b/,
+  },
+  {
+    name: 'n1 live declaration renamed',
+    prefix: 'F10_LIVE_MOUNT_MISSING',
+    mutate: (copy) =>
+      replaceOnce(
+        copy,
+        liveMountFile,
+        'function mountDisplayPage()',
+        'function renamedDisplayPage()',
+      ),
+    diagnostic: /src\/modules\/serverTable\.js:1\b/,
+  },
+  {
+    name: 'n1 live owner file removed',
+    prefix: 'F10_LIVE_MOUNT_MISSING',
+    mutate: (copy) => copy.delete(liveMountFile),
+    diagnostic: /src\/modules\/serverTable\.js:1\b/,
+  },
+  {
+    name: 'n1 sole live declaration moved to sibling',
+    prefix: 'F10_DEAD_MOUNT_EXISTS',
+    mutate: (copy) => {
+      assert.equal(copy.has(siblingFile), false, 'unique n1 sibling mutation path');
+      const node = liveMountDeclaration(copy);
+      const source = copy.get(liveMountFile);
+      copy.set(siblingFile, source.slice(node.start, node.end));
+      copy.set(liveMountFile, source.slice(0, node.start) + source.slice(node.end));
+    },
+    diagnostic: /src\/pages\/display\.js:1 mountDisplayPage/,
+  },
+];
+
+const n1IdMutations = [
+  // Both bypasses also need an ID-only variant: the mount assertion must pass
+  // before the ID assertion can prove it scans the moved template.
+  ...n1Scenarios.map(({ name, shim }) => ({
+    name: `${name}, renamed mount isolates IDs`,
+    prefix: 'F10_OLD_OVERVIEW_TEMPLATE',
+    mutate: (copy) => resurrectSibling(copy, shim, 'renamedMount'),
+    diagnostic: /src\/pages\/display\.js:2 globeSunMount/,
+  })),
+  ...[
+    'globeSunMount',
+    'globeMoonRoot',
+    'globeMoonPanel',
+    'globeSunBadge',
+    'globeMoonToggle',
+  ].flatMap((id) =>
+    [
+      ['JS string', 'src/moved/template.js', `const template = '<div id="${id}"></div>';`],
+      [
+        'MJS template',
+        'src/moved/template.mjs',
+        `const template = \`<div id="${id}">\${'child'}</div>\`;`,
+      ],
+      ['JSX attribute', 'src/moved/template.jsx', `const template = <div id="${id}" />;`],
+    ].map(([kind, file, source]) => ({
+      name: `n1 ID-only ${kind} ${id}`,
+      prefix: 'F10_OLD_OVERVIEW_TEMPLATE',
+      mutate: append(file, source),
+      diagnostic: new RegExp(`${file.replaceAll('.', '\\.')}:[0-9]+ ${id}`),
+    })),
+  ),
 ];
 
 // Mutation anchors identify the five original rules, independently of the
@@ -593,8 +747,42 @@ describe('F-10 legacy sun/moon DOM removal', () => {
     assert.match(panelByData(html, 'expiry'), /<span>2 overviewExpiryIn<\/span>/);
   });
 
+  it('n1 positive control: the unchanged live serverTable mount must PASS', () => {
+    const copy = new Map(files);
+    const source = copy.get(liveMountFile);
+    const mount = liveMountDeclaration(copy);
+    assert.match(
+      source,
+      /function mountDisplayPage\(\) \{[\s\S]*?\n\}\n\nfunction renderPublicOverviewPage/,
+    );
+    assert.match(source, /\bmountDisplayPage\(\);/);
+    assertLegacySunMoonRemoval({ files: copy });
+    assert.deepEqual([...copy], [...files]);
+    console.log(
+      `F10_CONTROL | n1 live mount ${liveMountFile}:${mount.loc.start.line} | unchanged=PASS | adjacent renderer=PASS | call retained=PASS`,
+    );
+  });
+
+  it('n1 positive control: shim and moved overview without resurrection must PASS', () => {
+    const copy = new Map(files);
+    assertLegacySunMoonRemoval({ files: copy });
+    try {
+      assert.equal(copy.has(siblingFile), false, 'unique n1 sibling control path');
+      copy.set(siblingFile, copy.get(overviewFile));
+      copy.set(overviewFile, "export { renderPublicOverviewPage } from './display.js';\n");
+      assertLegacySunMoonRemoval({ files: copy });
+    } finally {
+      copy.clear();
+      for (const entry of files) copy.set(...entry);
+      assertLegacySunMoonRemoval({ files: copy });
+    }
+    console.log('F10_CONTROL | n1 shim only | original=PASS | moved=PASS | restored=PASS');
+  });
+
   it.each([
     ...staticMutations,
+    ...n1MountMutations,
+    ...n1IdMutations,
     ...mainLegacyMutations,
     ...mainSharedMutations,
     ...overviewMutations,
@@ -621,9 +809,12 @@ describe('F-10 legacy sun/moon DOM removal', () => {
       'src/allowed.jsx',
       `
       // function renderMoonPanel() {} <div id="globeMoonRoot"></div>
+      // function mountDisplayPage() {} <div id="globeMoonToggle"></div>
       const label = 'renderSunBadge';
+      const mountLabel = 'mountDisplayPage';
       function summarizeMoonPanel() { return <div className="public-overview-panel" />; }
       function renderMoonPanelPreview() {}
+      function mountDisplayPagePreview() {}
       renderMoonPanel(); // References belong to F-03, not this definition scan.
     `,
     )(copy);
