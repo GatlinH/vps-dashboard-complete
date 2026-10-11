@@ -107,6 +107,33 @@ jobs:
         working-directory: frontend-vite
         run: node scripts/verify-vendor-chunk-budget.mjs
 
+      # Advisory-only companion to the Production dependency audit above, which
+      # runs --omit=dev and therefore cannot see devDependency advisories at
+      # all. That omission is deliberate for a blocking gate - vitest and
+      # tinypool never reach a user's browser - but it leaves the build-time
+      # attack surface unwatched, and devDependencies execute with this
+      # runner's permissions. source-map-js only became visible to the
+      # blocking gate because vite-plugin-cesium happens to pull it into the
+      # production tree; the identical postcss -> source-map-js path on the dev
+      # side was invisible.
+      #
+      # Starts at --audit-level critical with its own empty allowlist, so it
+      # reports the two tinypool RCE advisories rather than a wall of
+      # moderates. continue-on-error keeps it a signal, not a blocker: tighten
+      # by removing that line once the dev allowlist has converged. The
+      # pre-generated JSON is required because the script hardcodes --omit=dev
+      # when it shells out to npm itself.
+      - name: Dev dependency audit (advisory)
+        working-directory: frontend-vite
+        continue-on-error: true
+        run: |
+          npm audit --audit-level=critical --json > /tmp/dev-audit.json || true
+          python3 ../scripts/check-npm-audit.py \
+            --root . \
+            --audit-json /tmp/dev-audit.json \
+            --allowlist npm-audit-dev-allowlist.json \
+            --audit-level critical
+
       - name: Upload frontend artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
