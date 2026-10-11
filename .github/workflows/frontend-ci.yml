@@ -107,6 +107,11 @@ jobs:
         working-directory: frontend-vite
         run: node scripts/verify-vendor-chunk-budget.mjs
 
+      # test:unit is deliberately absent from this workflow. The reason, the
+      # two blockers and the conditions for adding it are tracked in
+      # docs/known-red-test-unit.md; delete that file in the commit that adds
+      # the step.
+
       # Advisory-only companion to the Production dependency audit above, which
       # runs --omit=dev and therefore cannot see devDependency advisories at
       # all. That omission is deliberate for a blocking gate - vitest and
