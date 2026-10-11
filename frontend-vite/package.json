@@ -50,6 +50,9 @@
     "workbox-routing": "7.4.1",
     "workbox-strategies": "7.4.1"
   },
+  "overrides": {
+    "source-map-js": "^1.2.2"
+  },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "acorn": "^8.17.0",
