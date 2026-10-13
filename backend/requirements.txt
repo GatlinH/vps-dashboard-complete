@@ -37,7 +37,7 @@ pluggy==1.6.0
 prometheus-client==0.25.0
 pycparser==3.0
 pygments==2.20.0
-pyjwt==2.13.0
+pyjwt==2.15.1
 pymysql==1.2.0
 pytest==9.1.1
 pytest-cov==7.1.0
@@ -52,8 +52,8 @@ sortedcontainers==2.4.0
 sqlalchemy==2.0.49
 typing-extensions==4.15.0
 tzlocal==5.3.1
-urllib3==2.7.0
-werkzeug==3.1.8
+urllib3==2.8.0
+werkzeug==3.1.9
 wrapt==2.1.2
 
 authlib==1.6.12
