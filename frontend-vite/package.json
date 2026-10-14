@@ -33,7 +33,7 @@
     "quality": "npm run lint && npm run format:check && npm run test:unit"
   },
   "dependencies": {
-    "@deck.gl/layers": "^9.3.6",
+    "@deck.gl/layers": "^9.4.0",
     "cesium": "1.143",
     "chart.js": "^4.4.1",
     "react": "^19.2.7",
