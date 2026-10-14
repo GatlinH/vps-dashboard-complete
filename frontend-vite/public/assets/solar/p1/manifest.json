@@ -1,0 +1,357 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-09-16T01:52:18.187610+00:00",
+  "source": "NASA/JPL Horizons API",
+  "coordinate_contract": {
+    "center": "Sun (10)",
+    "reference_plane": "Ecliptic of J2000.0",
+    "reference_system": "ICRF",
+    "time_scale": "TDB",
+    "position_unit": "AU",
+    "velocity_unit": "AU/day",
+    "output": "geometric Cartesian position+velocity"
+  },
+  "interpolation": "cubic Hermite using position and velocity",
+  "targets": {
+    "halley": {
+      "target_command": "90000030;",
+      "files": [
+        {
+          "segment": "pre",
+          "file": "halley-pre.txt",
+          "request": "halley-pre.request.txt",
+          "sha256": "f1535464b5fee579713cf6a8338aec2a78d1cb34c4fe545b0cdb2ed6f5646e5a",
+          "bytes": 76345,
+          "rows": 323
+        },
+        {
+          "segment": "peri",
+          "file": "halley-peri.txt",
+          "request": "halley-peri.request.txt",
+          "sha256": "d9073a6a75ec778986091652a76993c5843b40990d96ec07130f258bb0160350",
+          "bytes": 136906,
+          "rows": 606
+        },
+        {
+          "segment": "post",
+          "file": "halley-post.txt",
+          "request": "halley-post.request.txt",
+          "sha256": "7497afd54289b6b43aa28ff95521d8beccb67f40b85419fe73f2d74219091bf5",
+          "bytes": 33545,
+          "rows": 123
+        }
+      ],
+      "row_count": 1050,
+      "jd_tdb_range": [
+        2446078.5,
+        2446643.5
+      ]
+    },
+    "mars": {
+      "target_command": "499",
+      "files": [
+        {
+          "segment": "pre",
+          "file": "mars-pre.txt",
+          "request": "mars-pre.request.txt",
+          "sha256": "3cb55b93cfb38f1fe685e113c9cfbdd12efc953ebcce5e878a26fa5dc1d22531",
+          "bytes": 75129,
+          "rows": 323
+        },
+        {
+          "segment": "peri",
+          "file": "mars-peri.txt",
+          "request": "mars-peri.request.txt",
+          "sha256": "858c2cbcc6ee94c4394040038463009110914d266900269e30a5d36c1eef8d26",
+          "bytes": 135690,
+          "rows": 606
+        },
+        {
+          "segment": "post",
+          "file": "mars-post.txt",
+          "request": "mars-post.request.txt",
+          "sha256": "cc67823af45c5d6c0109b18ff5c88882fe93b364da55ade72defb3b44cee4674",
+          "bytes": 32329,
+          "rows": 123
+        }
+      ],
+      "row_count": 1050,
+      "jd_tdb_range": [
+        2446078.5,
+        2446643.5
+      ]
+    },
+    "mercury": {
+      "target_command": "199",
+      "files": [
+        {
+          "segment": "pre",
+          "file": "mercury-pre.txt",
+          "request": "mercury-pre.request.txt",
+          "sha256": "ee477647e28cf1f6ab7c543a63b75875cb906d5bf754b9b8e0e74664eeaf1d13",
+          "bytes": 75032,
+          "rows": 323
+        },
+        {
+          "segment": "peri",
+          "file": "mercury-peri.txt",
+          "request": "mercury-peri.request.txt",
+          "sha256": "bb8343388d7909b4997f205f9ec54af101d96348f86dd85d6888f817bda462f2",
+          "bytes": 135593,
+          "rows": 606
+        },
+        {
+          "segment": "post",
+          "file": "mercury-post.txt",
+          "request": "mercury-post.request.txt",
+          "sha256": "8e03379f57d967fcf6f92fa0fb1a701bc47b8c6ae79e5961704b5ce0edb64355",
+          "bytes": 32232,
+          "rows": 123
+        }
+      ],
+      "row_count": 1050,
+      "jd_tdb_range": [
+        2446078.5,
+        2446643.5
+      ]
+    },
+    "venus": {
+      "target_command": "299",
+      "files": [
+        {
+          "segment": "pre",
+          "file": "venus-pre.txt",
+          "request": "venus-pre.request.txt",
+          "sha256": "702ef99ef5b2f4c2318a6d5d603b2a4cff978e1fdbaa2dba5cc9b1dc6e306d40",
+          "bytes": 75021,
+          "rows": 323
+        },
+        {
+          "segment": "peri",
+          "file": "venus-peri.txt",
+          "request": "venus-peri.request.txt",
+          "sha256": "144516b9c280c35903f78b9833f6b17d24436236615c833cd42863538f6ba026",
+          "bytes": 135582,
+          "rows": 606
+        },
+        {
+          "segment": "post",
+          "file": "venus-post.txt",
+          "request": "venus-post.request.txt",
+          "sha256": "90b6f30107554d9aa1c2a9375851d54765f32d75326a612164d56d788f6ff6b6",
+          "bytes": 32221,
+          "rows": 123
+        }
+      ],
+      "row_count": 1050,
+      "jd_tdb_range": [
+        2446078.5,
+        2446643.5
+      ]
+    },
+    "earth": {
+      "target_command": "399",
+      "files": [
+        {
+          "segment": "pre",
+          "file": "earth-pre.txt",
+          "request": "earth-pre.request.txt",
+          "sha256": "2545e49261db8d8e83e1749197ac017ee7cbc1bcba3749f74d54c0017f58fb27",
+          "bytes": 75587,
+          "rows": 323
+        },
+        {
+          "segment": "peri",
+          "file": "earth-peri.txt",
+          "request": "earth-peri.request.txt",
+          "sha256": "d3b74fbbb912df39de2d15c44df001e60d23fcd69b7d3a23851b4913e491da4e",
+          "bytes": 136148,
+          "rows": 606
+        },
+        {
+          "segment": "post",
+          "file": "earth-post.txt",
+          "request": "earth-post.request.txt",
+          "sha256": "cf2e18a66ffbf342f8326a7f004260e447bf2181b2926526e818e1ebaf046474",
+          "bytes": 32787,
+          "rows": 123
+        }
+      ],
+      "row_count": 1050,
+      "jd_tdb_range": [
+        2446078.5,
+        2446643.5
+      ]
+    },
+    "jupiter": {
+      "target_command": "599",
+      "files": [
+        {
+          "segment": "pre",
+          "file": "jupiter-pre.txt",
+          "request": "jupiter-pre.request.txt",
+          "sha256": "4e3a251e0f327403650f7fd9e962a157d94fc645a0094d80679598eac5d5ec88",
+          "bytes": 75094,
+          "rows": 323
+        },
+        {
+          "segment": "peri",
+          "file": "jupiter-peri.txt",
+          "request": "jupiter-peri.request.txt",
+          "sha256": "7353c753b292fea841aa331563aaa7301f2ede4cd168bf405eb2c84b8c737246",
+          "bytes": 135655,
+          "rows": 606
+        },
+        {
+          "segment": "post",
+          "file": "jupiter-post.txt",
+          "request": "jupiter-post.request.txt",
+          "sha256": "855f3506569dab127d571d01189d15cc4c69ee0b1b168e6ceb7c785f7b9af944",
+          "bytes": 32294,
+          "rows": 123
+        }
+      ],
+      "row_count": 1050,
+      "jd_tdb_range": [
+        2446078.5,
+        2446643.5
+      ]
+    },
+    "saturn": {
+      "target_command": "699",
+      "files": [
+        {
+          "segment": "pre",
+          "file": "saturn-pre.txt",
+          "request": "saturn-pre.request.txt",
+          "sha256": "ce5c0907286ac1a50cf0edcca0f08098f209cb41c791dcfc7c69253f7adfb607",
+          "bytes": 75058,
+          "rows": 323
+        },
+        {
+          "segment": "peri",
+          "file": "saturn-peri.txt",
+          "request": "saturn-peri.request.txt",
+          "sha256": "18f2a753bd8ff44ff9dde27112783d2d5151d1c6f422de326a654b70e4855d90",
+          "bytes": 135619,
+          "rows": 606
+        },
+        {
+          "segment": "post",
+          "file": "saturn-post.txt",
+          "request": "saturn-post.request.txt",
+          "sha256": "06531e21fc565cb7770c0cdbc0fed2d3ad5bcc337769b7ab80c48319a2aea515",
+          "bytes": 32258,
+          "rows": 123
+        }
+      ],
+      "row_count": 1050,
+      "jd_tdb_range": [
+        2446078.5,
+        2446643.5
+      ]
+    },
+    "uranus": {
+      "target_command": "799",
+      "files": [
+        {
+          "segment": "pre",
+          "file": "uranus-pre.txt",
+          "request": "uranus-pre.request.txt",
+          "sha256": "be3deeae19febb60742e9735572ec48ddde9ac0100dd1e273e72fb7b933f87ae",
+          "bytes": 75050,
+          "rows": 323
+        },
+        {
+          "segment": "peri",
+          "file": "uranus-peri.txt",
+          "request": "uranus-peri.request.txt",
+          "sha256": "eff7796383d6eb0091fbf24504392955feecb42838654aa7ec541f8c8fe048a0",
+          "bytes": 135611,
+          "rows": 606
+        },
+        {
+          "segment": "post",
+          "file": "uranus-post.txt",
+          "request": "uranus-post.request.txt",
+          "sha256": "6a23c572cbe1f59c67b449f2a6b10236d42e8a8b3ab1b7babeb0604e4b68b850",
+          "bytes": 32250,
+          "rows": 123
+        }
+      ],
+      "row_count": 1050,
+      "jd_tdb_range": [
+        2446078.5,
+        2446643.5
+      ]
+    },
+    "neptune": {
+      "target_command": "899",
+      "files": [
+        {
+          "segment": "pre",
+          "file": "neptune-pre.txt",
+          "request": "neptune-pre.request.txt",
+          "sha256": "6032132508724b6b2b044fc9e66b6a2593ff47949a045b2560abac747d907344",
+          "bytes": 75056,
+          "rows": 323
+        },
+        {
+          "segment": "peri",
+          "file": "neptune-peri.txt",
+          "request": "neptune-peri.request.txt",
+          "sha256": "784c4ee4c6328ba6c7cf64e60104b195a76793669b368722a4d28d6bda844db0",
+          "bytes": 135617,
+          "rows": 606
+        },
+        {
+          "segment": "post",
+          "file": "neptune-post.txt",
+          "request": "neptune-post.request.txt",
+          "sha256": "75dc37190049890df1c6999fa37f2e49a439dcb1a028b1c9ce2c3dcd936a859b",
+          "bytes": 32256,
+          "rows": 123
+        }
+      ],
+      "row_count": 1050,
+      "jd_tdb_range": [
+        2446078.5,
+        2446643.5
+      ]
+    },
+    "moon": {
+      "target_command": "301",
+      "files": [
+        {
+          "segment": "pre",
+          "file": "moon-pre.txt",
+          "request": "moon-pre.request.txt",
+          "sha256": "6e7813906b216318a491f6474d86042bb9844373f65d42d9111c8fb6d1933906",
+          "bytes": 75155,
+          "rows": 323
+        },
+        {
+          "segment": "peri",
+          "file": "moon-peri.txt",
+          "request": "moon-peri.request.txt",
+          "sha256": "4e72165bfc1d46fa32148d9416281be098716d23aeeafbd9000ebccd0b15ac61",
+          "bytes": 135716,
+          "rows": 606
+        },
+        {
+          "segment": "post",
+          "file": "moon-post.txt",
+          "request": "moon-post.request.txt",
+          "sha256": "54825bd7c9e05fab8440a3d318f62ee6f3a42d961f588c30dbf32459d440525e",
+          "bytes": 32355,
+          "rows": 123
+        }
+      ],
+      "row_count": 1050,
+      "jd_tdb_range": [
+        2446078.5,
+        2446643.5
+      ]
+    }
+  }
+}

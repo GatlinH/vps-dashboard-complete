@@ -9,11 +9,13 @@ Checks:
   C - Sun click calls openFrontLogin exactly once and never navigates
   D - Cesium absent on first paint
   E - Cesium chunk requested after Earth click
+  H - mobile 16:9 viewport, one dust output and synchronized time boundaries
 """
 
 import asyncio
 import functools
 import json
+import math
 import os
 import shutil
 import socket
@@ -29,6 +31,7 @@ from pathlib import Path
 from threading import Thread
 
 import websockets
+from solar_visual_feedback_checks import check_visual_feedback
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DIST = REPO_ROOT / "frontend-dist"
@@ -36,34 +39,39 @@ DIST = REPO_ROOT / "frontend-dist"
 WS = None
 MSG_ID = 0
 NET_URLS = []
+CDP_PENDING = {}
+CDP_EVENTS = asyncio.Queue()
+CDP_READER = None
+PAGE_URL = None
 
 
 # ----------------------------------------------------------------------------
 # CDP transport
 # ----------------------------------------------------------------------------
-async def cdp(method, **params):
+async def cdp(method, timeout=25, **params):
     """Send a CDP command and wait for the matching response id."""
     global MSG_ID
     MSG_ID += 1
     mid = MSG_ID
+    fut = asyncio.get_running_loop().create_future(); CDP_PENDING[mid] = fut
     await WS.send(json.dumps({"id": mid, "method": method, "params": params}))
-    deadline = time.time() + 25
-    while time.time() < deadline:
-        try:
-            raw = await asyncio.wait_for(WS.recv(), timeout=max(0.1, deadline - time.time()))
-        except asyncio.TimeoutError:
-            break
+    try:
+        msg = await asyncio.wait_for(fut, timeout=timeout)
+    finally:
+        CDP_PENDING.pop(mid, None)
+    if "error" in msg: raise RuntimeError("CDP error for %s: %s" % (method, msg["error"]))
+    return msg.get("result", {})
+
+async def cdp_reader():
+    async for raw in WS:
         msg = json.loads(raw)
         if msg.get("method") == "Network.requestWillBeSent":
-            try:
-                NET_URLS.append(msg["params"]["request"]["url"])
-            except KeyError:
-                pass
-        if msg.get("id") == mid:
-            if "error" in msg:
-                raise RuntimeError("CDP error for %s: %s" % (method, msg["error"]))
-            return msg.get("result", {})
-    raise RuntimeError("CDP timeout waiting for %s" % method)
+            try: NET_URLS.append(msg["params"]["request"]["url"])
+            except KeyError: pass
+        if msg.get("id") in CDP_PENDING:
+            CDP_PENDING[msg["id"]].set_result(msg)
+        else:
+            await CDP_EVENTS.put(msg)
 
 
 async def drain(seconds):
@@ -74,15 +82,9 @@ async def drain(seconds):
         if remaining <= 0:
             return
         try:
-            raw = await asyncio.wait_for(WS.recv(), timeout=remaining)
+            raw = await asyncio.wait_for(CDP_EVENTS.get(), timeout=remaining)
         except asyncio.TimeoutError:
             return
-        msg = json.loads(raw)
-        if msg.get("method") == "Network.requestWillBeSent":
-            try:
-                NET_URLS.append(msg["params"]["request"]["url"])
-            except KeyError:
-                pass
 
 
 async def js(expr):
@@ -406,6 +408,64 @@ async def check_e():
     print("FAIL: E - no Cesium chunk request observed after Earth click")
     return False
 
+async def check_f():
+    ok = await wait_for("window.__DBG__?.solarEphemeris?.status === 'ready' && window.__DBG__.solarEphemeris.targets.mars.ok && window.__DBG__.solarEphemeris.targets.halley.ok", "solar ephemeris ready with both targets", timeout=25)
+    targets = await js("window.__DBG__.solarEphemeris.targets") if ok else None
+    good = ok and all(targets.get(k, {}).get('ok') for k in ('mars', 'halley'))
+    print("PASS: F - ephemeris ready with both targets" if good else "FAIL: F - ephemeris targets not ready")
+    return good
+
+async def check_g():
+    expr = "window.__DBG__?.solarSystem?.getP1RuntimeSnapshot?.() || null"
+    first = await js(expr)
+    await wait_for("window.__DBG__.solarSystem.frameId !== %s" % json.dumps(first and first.get('frameId')), "a subsequent animation frame", timeout=5)
+    second = await js(expr)
+    if not first or not second or not second.get('halleyPhysical') or not second.get('marsPhysical'):
+        print("FAIL: G - runtime snapshot or physical state unavailable")
+        return False
+    def asset(name):
+        with urllib.request.urlopen(PAGE_URL + "/assets/solar/p1/" + name + ".json", timeout=10) as response:
+            return json.loads(response.read().decode("utf-8"))
+    mars_asset, halley_asset = asset("mars"), asset("halley")
+    def hermite(data, jd):
+        states = data["states"]
+        for a, b in zip(states, states[1:]):
+            if a[0] <= jd <= b[0]:
+                h, t = b[0] - a[0], (jd - a[0]) / (b[0] - a[0])
+                t2, t3 = t * t, t * t * t
+                return [
+                    (2*t3-3*t2+1)*a[i+1] + (t3-2*t2+t)*h*a[i+4] +
+                    (-2*t3+3*t2)*b[i+1] + (t3-t2)*h*b[i+4] for i in range(3)
+                ]
+        return None
+    def display(v):
+        r = math.sqrt(sum(x*x for x in v))
+        nodes = [(0, 0), (.39, 9), (1, 19), (5.2, 35), (30.1, 62)]
+        if r >= nodes[-1][0]: d = nodes[-1][1] + 1.5 * (r - nodes[-1][0])
+        else:
+            for (r0, d0), (r1, d1) in zip(nodes, nodes[1:]):
+                if r <= r1:
+                    d = d0 + (r-r0)/(r1-r0)*(d1-d0); break
+        scale = d / r if r else 0
+        return [v[0]*scale, v[2]*scale, -v[1]*scale]
+    jd = second['simulationTime']
+    expected_mars_physical = hermite(mars_asset, jd)
+    expected_halley_physical = hermite(halley_asset, jd)
+    if not expected_mars_physical or not expected_halley_physical:
+        print("FAIL: G - snapshot simulationTime outside published asset range")
+        return False
+    expected_mars_world, expected_halley_world = display(expected_mars_physical), display(expected_halley_physical)
+    position_error = max(math.dist(second['marsWorld'], expected_mars_world), math.dist(second['halleyWorld'], expected_halley_world))
+    move = lambda key: math.dist(first[key], second[key])
+    mars_move, halley_move = move('marsWorld'), move('halleyWorld')
+    p = expected_halley_physical; expected = [p[0], p[2], -p[1]]
+    length = math.sqrt(sum(v*v for v in expected)); expected = [v/length for v in expected]
+    actual = second['tailWorldDirection']; dot = sum(a*b for a,b in zip(actual, expected))
+    angle = math.degrees(math.acos(max(-1, min(1, dot))))
+    good = first['frameId'] != second['frameId'] and mars_move > 0 and halley_move > 0 and abs(mars_move-halley_move) > 1e-12 and position_error <= 1e-8 and dot > 0 and angle <= 2
+    print("PASS: G - independent published-state positions and anti-solar reference match (%.4f deg, position error %.3g)" % (angle, position_error) if good else "FAIL: G - snapshot mismatch: mars=%g halley=%g position_error=%g dot=%g angle=%g" % (mars_move, halley_move, position_error, dot, angle))
+    return good
+
 
 # ----------------------------------------------------------------------------
 # Infrastructure
@@ -450,7 +510,8 @@ def find_chromium():
 
 
 async def main():
-    global WS
+    global WS, CDP_READER, PAGE_URL
+    stage = "startup"
 
     dist = DIST
     if not (dist / "index.html").exists():
@@ -467,6 +528,7 @@ async def main():
     http_port = httpd.server_address[1]
     Thread(target=httpd.serve_forever, daemon=True).start()
     page_url = "http://127.0.0.1:%d/" % http_port
+    PAGE_URL = page_url.rstrip('/')
     print("       serving %s at %s" % (dist, page_url))
 
     profile = tempfile.mkdtemp(prefix="solar-verify-profile-")
@@ -504,6 +566,7 @@ async def main():
             stderr=subprocess.DEVNULL,
         )
 
+        stage = "wait for DevTools"
         version = wait_devtools(cdp_port)
         print("       browser %s" % version.get("Browser", "?"))
 
@@ -513,19 +576,28 @@ async def main():
         # <link href="/cesium/Widgets/widgets.css"> requested during the very first
         # navigation. Handing page_url to open_tab() starts the document before the
         # Network domain is subscribed, making that capture a coin flip.
+        stage = "open blank tab"
         tab = open_tab(cdp_port, "about:blank")
         ws_url = tab["webSocketDebuggerUrl"]
 
+        stage = "connect target websocket"
         WS = await asyncio.wait_for(
             websockets.connect(ws_url, max_size=None), timeout=10
         )
+        CDP_READER = asyncio.create_task(cdp_reader())
 
+        stage = "enable Runtime"
         await cdp("Runtime.enable")
+        stage = "enable Page"
         await cdp("Page.enable")
+        stage = "enable Network"
         await cdp("Network.enable")
+        stage = "enable DOM"
         await cdp("DOM.enable")
 
-        await cdp("Page.navigate", url=page_url)
+        stage = "navigate home"
+        await cdp("Page.navigate", timeout=60, url=page_url)
+        stage = "wait document and scene"
         await wait_for("document.readyState === 'complete'", "document ready", timeout=25.0)
         await drain(1.5)
 
@@ -554,6 +626,9 @@ async def main():
                   "window.__DBG__.solarSystem.renderer and the three hit buttons never appeared.")
             return 1
 
+        if "--visual-feedback-only" in sys.argv:
+            return 0 if await check_visual_feedback(cdp, js, wait_for) else 1
+
         # Order matters: A first, then the D probe (before any Earth click mounts
         # Cesium), then C (also before B), then B.
         only_b = "--only-b" in sys.argv
@@ -564,13 +639,16 @@ async def main():
         c = "SKIP" if only_b else await check_c()
         b = await check_b()
         e = "SKIP" if only_b else await check_e()
+        f = "SKIP" if only_b else await check_f()
+        g = "SKIP" if only_b else await check_g()
+        h = "SKIP" if only_b else await check_visual_feedback(cdp, js, wait_for)
 
-        print("SUMMARY: A=%s B=%s C=%s D=%s E=%s" % (a, b, c, d, e))
-        checks = (b,) if only_b else (a, b, c, d, e)
+        print("SUMMARY: A=%s B=%s C=%s D=%s E=%s F=%s G=%s H=%s" % (a, b, c, d, e, f, g, h))
+        checks = (b,) if only_b else (a, b, c, d, e, f, g, h)
         return 0 if all(result is True for result in checks) else 1
 
     except Exception as exc:  # noqa: BLE001
-        print("FATAL: %s: %s" % (type(exc).__name__, exc))
+        print("FATAL: %s during %s: %s" % (type(exc).__name__, stage, exc))
         return 1
 
     finally:
@@ -579,6 +657,8 @@ async def main():
                 await WS.close()
             except Exception:  # noqa: BLE001
                 pass
+        if CDP_READER is not None:
+            CDP_READER.cancel()
         if proc is not None:
             try:
                 proc.terminate()

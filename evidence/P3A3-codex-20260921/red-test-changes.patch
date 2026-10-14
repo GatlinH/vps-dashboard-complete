@@ -1,0 +1,151 @@
+diff --git a/frontend-vite/test/unit/solarP1.test.js b/frontend-vite/test/unit/solarP1.test.js
+index 7327079..32b55eb 100644
+--- a/frontend-vite/test/unit/solarP1.test.js
++++ b/frontend-vite/test/unit/solarP1.test.js
+@@ -6,10 +6,44 @@ import { advanceOrbitalBodies, advanceSimulationTime, antiSolarDisplayDirection,
+ 
+ const asset = (name) => JSON.parse(readFileSync(new URL(`../../public/assets/solar/p1/${name}.json`, import.meta.url), 'utf8'));
+ const manifest = JSON.parse(readFileSync(new URL('../../public/assets/solar/p1/manifest.json', import.meta.url), 'utf8'));
+-const mars = asset('mars');
+-const halley = asset('halley');
++const targetNames = Object.keys(manifest.targets);
++const assets = Object.fromEntries(targetNames.map((name) => [name, asset(name)]));
++const { mars, halley } = assets;
++const planetNames = ['mercury', 'venus', 'earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune'];
++const requiredTargets = [...planetNames, 'moon', 'halley'];
+ const expected = (target) => ({ target, frame: manifest.coordinate_contract, jd_tdb_range: manifest.targets[target].jd_tdb_range, source_sha256: manifest.targets[target].files.map((file) => file.sha256) });
+ 
++// Every stub starts with the complete published manifest. Unknown URLs fail
++// explicitly instead of returning undefined and masking the intended failure.
++function publishedFetch(overrides = {}, httpErrors = {}) {
++  const values = {
++    '/assets/solar/p1/manifest.json': manifest,
++    ...Object.fromEntries(targetNames.map((name) => [`/assets/solar/p1/${name}.json`, assets[name]])),
++    ...overrides,
++  };
++  return vi.fn(async (url) => {
++    if (!Object.hasOwn(values, url)) throw new Error(`unexpected ephemeris URL: ${url}`);
++    if (Object.hasOwn(httpErrors, url)) return { ok: false, status: httpErrors[url] };
++    return { ok: true, status: 200, json: async () => values[url] };
++  });
++}
++
++function rangedFetch(ranges) {
++  const rangedManifest = structuredClone(manifest);
++  const overrides = { '/assets/solar/p1/manifest.json': rangedManifest };
++  for (const name of targetNames) {
++    const [start, end] = ranges[name];
++    rangedManifest.targets[name].jd_tdb_range = [start, end];
++    overrides[`/assets/solar/p1/${name}.json`] = {
++      ...assets[name], jd_tdb_range: [start, end],
++      states: assets[name].states.map((row, i, rows) => [
++        start + ((end - start) * i) / (rows.length - 1), ...row.slice(1),
++      ]),
++    };
++  }
++  return publishedFetch(overrides);
++}
++
+ function independentHermite(a, b, jd) {
+   const h = b[0] - a[0], t = (jd - a[0]) / h, t2 = t * t, t3 = t2 * t;
+   return [0, 1, 2].map((i) => (2*t3-3*t2+1)*a[i+1] + (t3-2*t2+t)*h*a[i+4] + (-2*t3+3*t2)*b[i+1] + (t3-t2)*h*b[i+4]);
+@@ -47,55 +81,63 @@ describe('P1 published ephemerides', () => {
+     expect(provider.sample(mars.jd_tdb_range[1] + 1)).toEqual({ ok: false, error: 'out_of_range' });
+   });
+ 
++  it('freezes all ten required keys in the published manifest', () => {
++    expect([...targetNames].sort()).toEqual([...requiredTargets].sort());
++  });
++
+   it('loads only both published P1 targets', async () => {
+-    const values = { 'manifest.json': manifest, 'mars.json': mars, 'halley.json': halley };
+-    const fetchImpl = vi.fn(async (url) => ({ ok: true, json: async () => values[url.split('/').at(-1)] }));
++    const fetchImpl = publishedFetch();
+     const loaded = await loadP1Ephemerides(fetchImpl);
+     expect(Object.keys(loaded.providers)).toEqual(['mars', 'halley']);
+     expect(loaded.range).toEqual(mars.jd_tdb_range);
+     expect(fetchImpl.mock.calls.map(([url]) => url)).toEqual(['/assets/solar/p1/manifest.json', '/assets/solar/p1/mars.json', '/assets/solar/p1/halley.json']);
+   });
+ 
+-  it('returns the strict intersection of target ranges', async () => {
+-    const rangedManifest = structuredClone(manifest);
+-    rangedManifest.targets.mars.jd_tdb_range = [10, 30];
+-    rangedManifest.targets.halley.jd_tdb_range = [20, 40];
+-    const values = {
+-      'manifest.json': rangedManifest,
+-      'mars.json': { ...mars, jd_tdb_range: [10, 30], states: mars.states.map((row, i, rows) => [10 + (20 * i) / (rows.length - 1), ...row.slice(1)]) },
+-      'halley.json': { ...halley, jd_tdb_range: [20, 40], states: halley.states.map((row, i, rows) => [20 + (20 * i) / (rows.length - 1), ...row.slice(1)]) }
+-    };
+-    const fetchImpl = vi.fn(async (url) => ({ ok: true, json: async () => values[url.split('/').at(-1)] }));
+-    expect((await loadP1Ephemerides(fetchImpl)).range).toEqual([20, 30]);
++  it('returns the strict intersection of all ten target ranges', async () => {
++    const ranges = Object.fromEntries(targetNames.map((name, i) => [name, [10 + i, 40 - i]]));
++    // Different targets constrain the two ends; a two-target loader cannot pass.
++    ranges.moon = [12, 29];
++    expect((await loadP1Ephemerides(rangedFetch(ranges))).range).toEqual([18, 29]);
+   });
+ 
+   it.each([
+-    ['missing manifest target', (value) => { delete value.targets.mars; }, 'manifest target mars missing'],
++    ['missing targets', (value) => { delete value.targets; }, 'manifest targets missing'],
++    ['empty targets', (value) => { value.targets = {}; }, 'manifest targets missing'],
++    ['array targets', (value) => { value.targets = []; }, 'manifest targets missing'],
+     ['missing coordinate contract', (value) => { delete value.coordinate_contract; }, 'manifest coordinate_contract missing'],
+-    ['missing range', (value) => { delete value.targets.mars.jd_tdb_range; }, 'manifest target mars range invalid'],
+-    ['missing files', (value) => { delete value.targets.mars.files; }, 'manifest target mars files invalid'],
+-    ['empty files', (value) => { value.targets.mars.files = []; }, 'manifest target mars files invalid'],
+-    ['missing SHA', (value) => { delete value.targets.mars.files[0].sha256; }, 'manifest target mars files invalid']
+   ])('fails closed for %s', async (_label, mutate, message) => {
+     const badManifest = structuredClone(manifest); mutate(badManifest);
+-    const values = { 'manifest.json': badManifest, 'mars.json': mars, 'halley.json': halley };
+-    const fetchImpl = vi.fn(async (url) => ({ ok: true, status: 200, json: async () => values[url.split('/').at(-1)] }));
+-    await expect(loadP1Ephemerides(fetchImpl)).rejects.toThrow(message);
+-  });
+-
+-  it('rejects HTTP errors, provider validation errors, and disjoint ranges', async () => {
+-    await expect(loadP1Ephemerides(async () => ({ ok: false, status: 503 }))).rejects.toThrow('ephemeris manifest HTTP 503');
+-    const invalidValues = { 'manifest.json': manifest, 'mars.json': { ...mars, source_sha256: ['bad'] }, 'halley.json': halley };
+-    await expect(loadP1Ephemerides(async (url) => ({ ok: true, status: 200, json: async () => invalidValues[url.split('/').at(-1)] }))).rejects.toThrow('mars ephemeris source_sha_mismatch');
+-    const disjointManifest = structuredClone(manifest);
+-    disjointManifest.targets.mars.jd_tdb_range = [10, 20];
+-    disjointManifest.targets.halley.jd_tdb_range = [30, 40];
+-    const disjointValues = {
+-      'manifest.json': disjointManifest,
+-      'mars.json': { ...mars, jd_tdb_range: [10, 20], states: mars.states.map((row, i, rows) => [10 + (10 * i) / (rows.length - 1), ...row.slice(1)]) },
+-      'halley.json': { ...halley, jd_tdb_range: [30, 40], states: halley.states.map((row, i, rows) => [30 + (10 * i) / (rows.length - 1), ...row.slice(1)]) }
+-    };
+-    await expect(loadP1Ephemerides(async (url) => ({ ok: true, status: 200, json: async () => disjointValues[url.split('/').at(-1)] }))).rejects.toThrow('ephemeris common range invalid');
++    await expect(loadP1Ephemerides(publishedFetch({ '/assets/solar/p1/manifest.json': badManifest }))).rejects.toThrow(message);
++  });
++
++  it.each(targetNames)('fails closed for missing %s metadata', async (name) => {
++    for (const [mutate, reason] of [
++      [(value) => { value.targets[name] = null; }, 'missing'],
++      [(value) => { delete value.targets[name].jd_tdb_range; }, 'range invalid'],
++      [(value) => { delete value.targets[name].files; }, 'files invalid'],
++      [(value) => { value.targets[name].files = []; }, 'files invalid'],
++      [(value) => { delete value.targets[name].files[0].sha256; }, 'files invalid'],
++    ]) {
++      const badManifest = structuredClone(manifest); mutate(badManifest);
++      await expect(loadP1Ephemerides(publishedFetch({ '/assets/solar/p1/manifest.json': badManifest }))).rejects.toThrow(`manifest target ${name} ${reason}`);
++    }
++  });
++
++  it('rejects manifest HTTP errors', async () => {
++    await expect(loadP1Ephemerides(publishedFetch({}, { '/assets/solar/p1/manifest.json': 503 }))).rejects.toThrow('ephemeris manifest HTTP 503');
++  });
++
++  it.each(targetNames)('rejects %s HTTP and provider validation errors', async (name) => {
++    const url = `/assets/solar/p1/${name}.json`;
++    await expect(loadP1Ephemerides(publishedFetch({}, { [url]: 404 }))).rejects.toThrow(`${name} ephemeris HTTP 404`);
++    await expect(loadP1Ephemerides(publishedFetch({ [url]: { ...assets[name], source_sha256: ['bad'] } }))).rejects.toThrow(`${name} ephemeris source_sha_mismatch`);
++  });
++
++  it('rejects disjoint ranges across the full manifest', async () => {
++    const ranges = Object.fromEntries(targetNames.map((name) => [name, [10, 40]]));
++    ranges.uranus = [10, 20];
++    ranges.moon = [30, 40];
++    await expect(loadP1Ephemerides(rangedFetch(ranges))).rejects.toThrow('ephemeris common range invalid');
+   });
+ });
+ 

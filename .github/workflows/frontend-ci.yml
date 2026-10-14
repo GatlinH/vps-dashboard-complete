@@ -63,6 +63,82 @@ jobs:
         working-directory: frontend-vite
         run: npm run test:sw-precache-excludes-cesium
 
+      # Source-contract gates. These were authored with the solar work but were
+      # never invoked by any workflow, so nothing enforced them on a pull
+      # request. Each one below was measured green on a clean checkout after a
+      # real `npm ci`, so adding them cannot turn main red on its own. They
+      # need no browser and no local socket.
+      - name: Verify solar system home contract
+        working-directory: frontend-vite
+        run: npm run test:solar-system-home
+
+      - name: Verify single renderer home
+        working-directory: frontend-vite
+        run: npm run test:single-renderer-home
+
+      - name: Verify solar texture manifest
+        working-directory: frontend-vite
+        run: npm run test:solar-manifest
+
+      - name: Verify Cesium module workers
+        working-directory: frontend-vite
+        run: npm run test:cesium-module-workers
+
+      - name: Verify account password UI
+        working-directory: frontend-vite
+        run: npm run test:account-password-ui
+
+      - name: Verify admin CSS structure
+        working-directory: frontend-vite
+        run: npm run test:admin-css-structure
+
+      # These two npm aliases are `npm run build && node <script>`. The build
+      # already ran above, so the scripts are called directly to avoid building
+      # the bundle twice. That moves one guarantee out of the script and into
+      # this file: the aliases verified whatever they had just built, whereas
+      # these steps verify whatever `Build frontend` left in frontend-dist/.
+      # They must therefore stay AFTER that step, and nothing between the two
+      # may modify frontend-dist/, or they would silently check a stale bundle.
+      - name: Verify solar texture precache exclusions
+        working-directory: frontend-vite
+        run: node scripts/verify-sw-precache-solar.mjs
+
+      - name: Verify vendor chunk budget
+        working-directory: frontend-vite
+        run: node scripts/verify-vendor-chunk-budget.mjs
+
+      # test:unit is deliberately absent from this workflow. The reason, the
+      # two blockers and the conditions for adding it are tracked in
+      # docs/known-red-test-unit.md; delete that file in the commit that adds
+      # the step.
+
+      # Advisory-only companion to the Production dependency audit above, which
+      # runs --omit=dev and therefore cannot see devDependency advisories at
+      # all. That omission is deliberate for a blocking gate - vitest and
+      # tinypool never reach a user's browser - but it leaves the build-time
+      # attack surface unwatched, and devDependencies execute with this
+      # runner's permissions. source-map-js only became visible to the
+      # blocking gate because vite-plugin-cesium happens to pull it into the
+      # production tree; the identical postcss -> source-map-js path on the dev
+      # side was invisible.
+      #
+      # Starts at --audit-level critical with its own empty allowlist, so it
+      # reports the two tinypool RCE advisories rather than a wall of
+      # moderates. continue-on-error keeps it a signal, not a blocker: tighten
+      # by removing that line once the dev allowlist has converged. The
+      # pre-generated JSON is required because the script hardcodes --omit=dev
+      # when it shells out to npm itself.
+      - name: Dev dependency audit (advisory)
+        working-directory: frontend-vite
+        continue-on-error: true
+        run: |
+          npm audit --audit-level=critical --json > /tmp/dev-audit.json || true
+          python3 ../scripts/check-npm-audit.py \
+            --root . \
+            --audit-json /tmp/dev-audit.json \
+            --allowlist npm-audit-dev-allowlist.json \
+            --audit-level critical
+
       - name: Upload frontend artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

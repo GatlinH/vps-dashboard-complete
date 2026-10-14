@@ -6,7 +6,9 @@ describe('detail refresh visibility timer', () => {
     globalThis.window = { __DBG__: {} };
     globalThis.document = {
       hidden: false,
-      addEventListener: vi.fn((_, handler) => { document.visibilityHandler = handler; }),
+      addEventListener: vi.fn((_, handler) => {
+        document.visibilityHandler = handler;
+      }),
       removeEventListener: vi.fn(),
     };
   });

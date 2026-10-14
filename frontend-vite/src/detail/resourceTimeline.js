@@ -41,14 +41,15 @@ export function shouldReplaceResourceTimeline(currentRows = [], candidateRows = 
   // A history endpoint can return a newer final bucket while still being much
   // coarser than the live series already on screen. Compare average spacing so
   // that a 5-minute response cannot replace second-resolution points.
-  const spacing = (rows) => rows.length > 1
-    ? (rows.at(-1).__timeMs - rows[0].__timeMs) / (rows.length - 1)
-    : Infinity;
+  const spacing = (rows) =>
+    rows.length > 1 ? (rows.at(-1).__timeMs - rows[0].__timeMs) / (rows.length - 1) : Infinity;
   const currentSpacing = spacing(current);
   const candidateSpacing = spacing(candidate);
-  return !Number.isFinite(currentSpacing)
-    || !Number.isFinite(candidateSpacing)
-    || candidateSpacing <= currentSpacing * 1.5;
+  return (
+    !Number.isFinite(currentSpacing) ||
+    !Number.isFinite(candidateSpacing) ||
+    candidateSpacing <= currentSpacing * 1.5
+  );
 }
 
 export function mergeResourceTimelineHistory(currentRows = [], historyRows = []) {

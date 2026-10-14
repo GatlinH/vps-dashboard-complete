@@ -1,0 +1,17 @@
+{"t": 1790182045.275, "event": "provenance_start", "head": "3e0f70b9b9811f4241f42a7237a55b508aa6420b", "dirty": ["M frontend-vite/package.json", "M frontend-vite/scripts/verify-solar-legibility.py"], "script_sha256": "65694c9fc8f77c8999b25b2bfd78c2ea48042086c52304b3306b791aa60d6c4a"}
+{"t": 1790182045.275, "event": "texture_expectations", "slots": ["mercury", "venus", "earth", "earth_clouds", "moon", "mars", "jupiter", "saturn", "saturn_ring", "uranus", "neptune"]}
+{"t": 1790182045.275, "event": "chromium", "path": "/usr/bin/chromium"}
+{"t": 1790182045.277, "event": "http_server", "port": 36005, "root": "/root/.hermes/plans/solar-comet-upgrade/worktree/frontend-dist"}
+{"t": 1790182045.278, "event": "chromium_launch", "debug_port": 40741}
+{"t": 1790182045.559, "event": "chromium_version", "browser": "Chrome/148.0.7778.167"}
+{"t": 1790182070.714, "event": "navigated"}
+{"t": 1790182076.994, "event": "scene_ready"}
+{"t": 1790182077.016, "event": "textures", "state": "done", "real": true, "failures": {}}
+{"t": 1790182078.823, "event": "projection", "ok": true, "failures": {}}
+{"t": 1790182082.816, "event": "pass1", "bodies": 9, "viewport": [1400, 826], "scale": [1.0, 1.0]}
+{"t": 1790182084.077, "event": "pass1_metrics", "channels": 3}
+{"t": 1790182088.826, "event": "a3_diffs", "diffs": {"mercury": 69.255, "venus": 33.497, "earth": 102.397, "mars": 88.782, "jupiter": 81.454, "saturn": 27.242, "uranus": 33.911, "neptune": 120.047, "moon": 0.0}, "restored_real": true}
+{"t": 1790182099.146, "event": "pass2_projection", "ok": true, "detail": {"viewport": [1400, 826], "required": ["mercury", "venus", "earth", "mars", "jupiter", "saturn", "uranus", "neptune"], "failures": {}, "checked": 8}, "same_body_set": true, "same_viewport": true}
+{"t": 1790182101.425, "event": "pass2", "advance_days": 48.5112, "bodies": 9}
+{"t": 1790182101.453, "event": "provenance_end", "head": "3e0f70b9b9811f4241f42a7237a55b508aa6420b", "stable": true}
+{"t": 1790182101.459, "event": "evidence_saved", "dir": "../../evidence/P5-local-20260923-legibility"}

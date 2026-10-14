@@ -1,0 +1,83 @@
+
+> vps-starmap-vite@1.0.0 test:unit
+> vitest run
+
+
+ RUN  v3.2.7 /root/.hermes/plans/solar-comet-upgrade/worktree/frontend-vite
+
+stdout | test/unit/solarP1.test.js > P3-A independent published holdout accuracy > mercury: verifies all 1050 in-range heliocentric holdout epochs
+[P3-A3 holdout] mercury: valid=1050 skipped=2446644 maxRelative=4.357670637031394e-7 maxDegrees=0.00001006584283732318
+
+stdout | test/unit/solarP1.test.js > P3-A independent published holdout accuracy > venus: verifies all 1050 in-range heliocentric holdout epochs
+[P3-A3 holdout] venus: valid=1050 skipped=2446644 maxRelative=1.6928020722580175e-9 maxDegrees=0.0000017075472925031877
+
+stdout | test/unit/solarP1.test.js > P3-A independent published holdout accuracy > earth: verifies all 1050 in-range heliocentric holdout epochs
+[P3-A3 holdout] earth: valid=1050 skipped=2446644 maxRelative=6.64239749205669e-10 maxDegrees=0.0000017075472925031877
+
+stdout | test/unit/solarP1.test.js > P3-A independent published holdout accuracy > jupiter: verifies all 1050 in-range heliocentric holdout epochs
+[P3-A3 holdout] jupiter: valid=1050 skipped=2446644 maxRelative=9.574742875142068e-9 maxDegrees=0.0000017075472925031877
+
+stdout | test/unit/solarP1.test.js > P3-A independent published holdout accuracy > saturn: verifies all 1050 in-range heliocentric holdout epochs
+[P3-A3 holdout] saturn: valid=1050 skipped=2446644 maxRelative=1.4702749322644082e-10 maxDegrees=0.0000017075472925031877
+
+stdout | test/unit/solarP1.test.js > P3-A independent published holdout accuracy > uranus: verifies all 1050 in-range heliocentric holdout epochs
+[P3-A3 holdout] uranus: valid=1050 skipped=2446644 maxRelative=1.3184993562588723e-10 maxDegrees=0.000002091309789151873
+
+stdout | test/unit/solarP1.test.js > P3-A independent published holdout accuracy > neptune: verifies all 1050 in-range heliocentric holdout epochs
+[P3-A3 holdout] neptune: valid=1050 skipped=2446644 maxRelative=7.056655082227041e-11 maxDegrees=0.0000017075472925031877
+
+stdout | test/unit/solarP1.test.js > P3-A independent published holdout accuracy > moon: verifies all 1050 in-range heliocentric holdout epochs
+[P3-A3 holdout] moon: valid=1050 skipped=2446644 maxRelative=3.3483447546640153e-8 maxDegrees=0.0000024148365394514667
+
+stdout | test/unit/solarP1.test.js > P3-A independent published holdout accuracy > Moon minus Earth: verifies all 1050 same-JD geocentric holdout vectors
+[P3-A3 holdout] Moon-Earth: valid=1050 maxRelative=0.000014133844249932133 maxDegrees=0.00021292026096949231
+
+ ✓ test/unit/detailHealthRefresh.test.js (5 tests) 717ms
+stdout | test/unit/solarP1.test.js > P3-A falsifiable orbital behavior > finds Mercury apsides dynamically and requires a one-day displacement ratio >= 1.45
+[P3-A3 behavior] Mercury periJD=2446488.1 aphJD=2446444.1 oneDaySpeedRatio=1.5166436460165962
+
+stdout | test/unit/solarP1.test.js > P3-A falsifiable orbital behavior > preserves Mercury inclination with max absolute display y >= 0.5
+[P3-A3 behavior] Mercury maxAbsDisplayY=1.1527991604601247
+
+stdout | test/unit/solarP1.test.js > P3-A counterexample controls at production boundaries > C1 rejects a handwritten Venus circle and accepts real ephemeris output
+[P3-A3 control] C1 Venus circle: rejected (venus applyPosition must equal provider at requested JD)
+[P3-A3 control] C1 real ephemeris: accepted
+
+stdout | test/unit/solarP1.test.js > P3-A counterexample controls at production boundaries > C2 rejects Mars sampling at simulationTime + 0.5 even though lastJd matches
+[P3-A3 control] C2 Mars +0.5 day: rejected (mars applyPosition must equal provider at requested JD)
+[P3-A3 control] C2 requested simulationTime: accepted
+
+stdout | test/unit/solarP1.test.js > P3-A counterexample controls at production boundaries > C3 rejects heliocentric Moon wiring and accepts Moon minus Earth
+[P3-A3 control] C3 heliocentric Moon: rejected (moon applyPosition must equal provider at requested JD)
+[P3-A3 control] C3 geocentric Moon: accepted
+
+stdout | test/unit/solarP1.test.js > P3-A counterexample controls at production boundaries > C4 rejects corrupt Uranus as healthy, preserves the other nine and recovers
+[P3-A3 control] C4 corrupt Uranus cannot be healthy: rejected (uranus must succeed)
+[P3-A3 control] C4 only Uranus failed; other nine at the requested JD: accepted
+[P3-A3 control] C4 restored Uranus: accepted
+
+ ✓ test/unit/solarP1.test.js (105 tests) 733ms
+ ✓ test/unit/solarP2.test.js (29 tests) 263ms
+ ✓ test/unit/displayDataCache.test.js (1 test) 65ms
+ ✓ test/unit/aggregatePayload.test.js (5 tests) 42ms
+ ✓ test/unit/sourceSurfaceGuard.test.js (4 tests) 47ms
+ ✓ test/unit/cssImportantRatchet.test.js (5 tests) 45ms
+ ✓ test/unit/globeReturnNav.test.js (4 tests) 29ms
+ ✓ test/unit/detailFallbackIdentity.test.js (10 tests) 2608ms
+   ✓ canonical detail identity and accepted snapshot DOM > repaints real generation for route 7  456ms
+   ✓ canonical detail identity and accepted snapshot DOM > realtime entry requests canonical live for route 999  494ms
+   ✓ canonical detail identity and accepted snapshot DOM > direct live entry resolves the fallback ID  313ms
+ ✓ test/unit/solarSystemOrbit.test.js (5 tests) 43ms
+ ✓ test/unit/starshipLifecycle.test.js (8 tests) 19ms
+ ✓ test/unit/refreshState.test.js (1 test) 16ms
+ ✓ test/unit/resourceTimeline.test.js (5 tests) 10ms
+ ✓ test/unit/telemetryAxis.test.js (7 tests) 24ms
+ ✓ test/unit/healthSnapshot.test.js (9 tests) 14ms
+ ✓ test/unit/escapeHtml.test.js (4 tests) 6ms
+ ✓ test/unit/servers.test.js (2 tests) 5ms
+
+ Test Files  17 passed (17)
+      Tests  209 passed (209)
+   Start at  11:15:51
+   Duration  4.09s (transform 270ms, setup 0ms, collect 850ms, tests 4.68s, environment 4ms, prepare 1.90s)
+
