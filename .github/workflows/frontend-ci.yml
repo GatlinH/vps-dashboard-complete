@@ -8,11 +8,13 @@ on:
     branches: [main]
     paths:
       - 'frontend-vite/**'
+      - 'scripts/check-npm-audit.py'
       - '.github/workflows/frontend-ci.yml'
   pull_request:
     branches: [main]
     paths:
       - 'frontend-vite/**'
+      - 'scripts/check-npm-audit.py'
       - '.github/workflows/frontend-ci.yml'
 
 jobs:
@@ -62,6 +64,41 @@ jobs:
       - name: Verify Cesium precache exclusions
         working-directory: frontend-vite
         run: npm run test:sw-precache-excludes-cesium
+
+      # Advisory-only companion to the Production dependency audit above, which
+      # runs --omit=dev and therefore cannot see devDependency advisories at
+      # all. That omission is deliberate for a blocking gate - vitest and
+      # tinypool never reach a user's browser - but it leaves the build-time
+      # attack surface unwatched, and devDependencies execute with this
+      # runner's permissions.
+      #
+      # Starts at --audit-level critical with its own empty allowlist so the
+      # first run reports the two tinypool RCE advisories rather than a wall of
+      # moderates. Lower this to `high` once the dev allowlist has an owner and
+      # a review date: `critical` is a starting point, not a settled policy.
+      #
+      # continue-on-error makes it a signal rather than a merge blocker. Its
+      # stated exit condition (the dev allowlist converging) is already met, so
+      # this line is expected to come out before long - if it is still here and
+      # still justified by stale wording, that is the bug.
+      #
+      # The pre-generated JSON is required because check-npm-audit.py hardcodes
+      # --omit=dev when it shells out to npm itself.
+      - name: Dev dependency audit (advisory)
+        working-directory: frontend-vite
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          npm audit --audit-level=critical --json > /tmp/dev-audit.json || true
+          # Guard the false-green path: a failed `npm audit` writes
+          # {"error": ...}, which the checker would read as "no findings".
+          jq -e 'has("vulnerabilities") and (.metadata.dependencies.total > 0)' \
+            /tmp/dev-audit.json > /dev/null
+          python3 ../scripts/check-npm-audit.py \
+            --root . \
+            --audit-json /tmp/dev-audit.json \
+            --allowlist npm-audit-dev-allowlist.json \
+            --audit-level critical
 
       - name: Upload frontend artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
