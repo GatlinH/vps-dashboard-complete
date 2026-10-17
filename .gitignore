@@ -78,3 +78,6 @@ _archive/
 *.gz
 *.bak_*
 *.bak.*
+
+# ── 验证证据：截图、指标与门禁日志不入库（docs/evidence-policy.md）──
+/evidence/
