@@ -817,10 +817,7 @@ export class SolarSystem {
       row.y = Math.max(half0, Math.min(rect.height - half0, row.y));
     });
 
-    const sizes = new Map(entries.map(({ entry, world }) => {
-      const scale = entry.mesh.geometry.parameters.radius || 1;
-      return [entry, 24];
-    }));
+    const sizes = new Map(entries.map(({ entry }) => [entry, 24]));
     const priorityRows = [this.sun, this.earth, this.moon]
       .map((mesh) => entries.find((item) => item.entry.mesh === mesh))
       .filter(Boolean);
