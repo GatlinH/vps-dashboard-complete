@@ -1,0 +1,327 @@
+{
+  "schema_version": 1,
+  "package_version": "v1",
+  "license": "CC-BY-4.0",
+  "attribution_statement": "Textures by Solar System Scope (CC BY 4.0), color-adjusted, based on NASA data",
+  "textures": {
+    "mercury": {
+      "source_url": "https://www.solarsystemscope.com/textures/download/2k_mercury.jpg",
+      "license": "CC-BY-4.0",
+      "attribution": "Textures by Solar System Scope (CC BY 4.0), color-adjusted, based on NASA data",
+      "retrieved_at_utc": "2026-09-21T09:41:41.085Z",
+      "color_space": "srgb",
+      "tiers": {
+        "desktop": {
+          "file": "2k_mercury.jpg",
+          "sha256": "5a5c80607f643496bac9a631e71957def35ed788895f18b678ac849c2b38e48a",
+          "bytes": 872555,
+          "dimensions": [
+            2048,
+            1024
+          ],
+          "processing": "original 2K source, unmodified"
+        },
+        "mobile": {
+          "file": "2k_mercury-1k.jpg",
+          "sha256": "7c6938ec5a875b556e36926bfbaa3a4ee08d7a270d8850dc7f5f863a9de0b339",
+          "bytes": 111661,
+          "dimensions": [
+            1024,
+            512
+          ],
+          "processing": "convert -resize 1024x512 -quality 82 (ImageMagick)"
+        }
+      }
+    },
+    "venus": {
+      "source_url": "https://www.solarsystemscope.com/textures/download/2k_venus_atmosphere.jpg",
+      "license": "CC-BY-4.0",
+      "attribution": "Textures by Solar System Scope (CC BY 4.0), color-adjusted, based on NASA data",
+      "retrieved_at_utc": "2026-09-21T09:41:41.085Z",
+      "color_space": "srgb",
+      "tiers": {
+        "desktop": {
+          "file": "2k_venus_atmosphere.jpg",
+          "sha256": "225012ad4911730605c4e189ca2a3bf674fce50cc48aab4102b936b47d6991ac",
+          "bytes": 229696,
+          "dimensions": [
+            2048,
+            1024
+          ],
+          "processing": "original 2K source, unmodified"
+        },
+        "mobile": {
+          "file": "2k_venus_atmosphere-1k.jpg",
+          "sha256": "068d23986f18523f98dc1cabffedbf77ddfc493687ce1ca04db3977476d86615",
+          "bytes": 36113,
+          "dimensions": [
+            1024,
+            512
+          ],
+          "processing": "convert -resize 1024x512 -quality 82 (ImageMagick)"
+        }
+      }
+    },
+    "earth": {
+      "source_url": "https://www.solarsystemscope.com/textures/download/2k_earth_daymap.jpg",
+      "license": "CC-BY-4.0",
+      "attribution": "Textures by Solar System Scope (CC BY 4.0), color-adjusted, based on NASA data",
+      "retrieved_at_utc": "2026-09-21T09:41:41.085Z",
+      "color_space": "srgb",
+      "tiers": {
+        "desktop": {
+          "file": "2k_earth_daymap.jpg",
+          "sha256": "767ee1dc6eb3802699bfccf6f264880f8acd0b80de3191cd24984fe279b07b7c",
+          "bytes": 463087,
+          "dimensions": [
+            2048,
+            1024
+          ],
+          "processing": "original 2K source, unmodified"
+        },
+        "mobile": {
+          "file": "2k_earth_daymap-1k.jpg",
+          "sha256": "190abfe4cf6042855441bb84d21717eb3349cb3e878ca1c57544dee91022a94b",
+          "bytes": 84039,
+          "dimensions": [
+            1024,
+            512
+          ],
+          "processing": "convert -resize 1024x512 -quality 82 (ImageMagick)"
+        }
+      }
+    },
+    "earth_clouds": {
+      "source_url": "https://www.solarsystemscope.com/textures/download/2k_earth_clouds.jpg",
+      "license": "CC-BY-4.0",
+      "attribution": "Textures by Solar System Scope (CC BY 4.0), color-adjusted, based on NASA data",
+      "retrieved_at_utc": "2026-09-21T09:41:41.085Z",
+      "color_space": "srgb",
+      "tiers": {
+        "desktop": {
+          "file": "2k_earth_clouds.jpg",
+          "sha256": "fffd7f68d41b37274822150e54a6ef605af1d3ec35624d9f628c3b896bfa42ed",
+          "bytes": 965676,
+          "dimensions": [
+            2048,
+            1024
+          ],
+          "processing": "original 2K source, unmodified"
+        },
+        "mobile": {
+          "file": "2k_earth_clouds-1k.jpg",
+          "sha256": "bb77cc0584cd54aa1de6ab2d5a60e8659211367469780f123a5a7b38d2e0cfb0",
+          "bytes": 151072,
+          "dimensions": [
+            1024,
+            512
+          ],
+          "processing": "convert -resize 1024x512 -quality 82 (ImageMagick)"
+        }
+      }
+    },
+    "moon": {
+      "source_url": "https://www.solarsystemscope.com/textures/download/2k_moon.jpg",
+      "license": "CC-BY-4.0",
+      "attribution": "Textures by Solar System Scope (CC BY 4.0), color-adjusted, based on NASA data",
+      "retrieved_at_utc": "2026-09-21T10:12:26.179Z",
+      "color_space": "srgb",
+      "tiers": {
+        "desktop": {
+          "file": "2k_moon.jpg",
+          "sha256": "2764ba6535ea0481a062846ee033cc7a909dae05b31a8fd13f3e98f3a7fd92bd",
+          "bytes": 1053869,
+          "dimensions": [
+            2048,
+            1024
+          ],
+          "processing": "original 2K source, unmodified"
+        },
+        "mobile": {
+          "file": "2k_moon-1k.jpg",
+          "sha256": "735ec36daf3170506ba7c7d3a6b37936116ac0d24a84c94a0aa816c25f252327",
+          "bytes": 142788,
+          "dimensions": [
+            1024,
+            512
+          ],
+          "processing": "convert -resize 1024x512 -quality 82 (ImageMagick)"
+        }
+      }
+    },
+    "mars": {
+      "source_url": "https://www.solarsystemscope.com/textures/download/2k_mars.jpg",
+      "license": "CC-BY-4.0",
+      "attribution": "Textures by Solar System Scope (CC BY 4.0), color-adjusted, based on NASA data",
+      "retrieved_at_utc": "2026-09-21T09:41:41.085Z",
+      "color_space": "srgb",
+      "tiers": {
+        "desktop": {
+          "file": "2k_mars.jpg",
+          "sha256": "2d187f3e77a98eaa8cea5f4cc722f633c122ef170b9e94ace6b5fb6cbc3f8e01",
+          "bytes": 750547,
+          "dimensions": [
+            2048,
+            1024
+          ],
+          "processing": "original 2K source, unmodified"
+        },
+        "mobile": {
+          "file": "2k_mars-1k.jpg",
+          "sha256": "75c5fc681db7e0f42f131d16b4a913d0255c3977527b739da61899b0768d64f9",
+          "bytes": 115538,
+          "dimensions": [
+            1024,
+            512
+          ],
+          "processing": "convert -resize 1024x512 -quality 82 (ImageMagick)"
+        }
+      }
+    },
+    "jupiter": {
+      "source_url": "https://www.solarsystemscope.com/textures/download/2k_jupiter.jpg",
+      "license": "CC-BY-4.0",
+      "attribution": "Textures by Solar System Scope (CC BY 4.0), color-adjusted, based on NASA data",
+      "retrieved_at_utc": "2026-09-21T09:41:41.085Z",
+      "color_space": "srgb",
+      "tiers": {
+        "desktop": {
+          "file": "2k_jupiter.jpg",
+          "sha256": "b0f04d005350252636b0e3396fc592548cbd9e9126b269d32d5c6abd4b0e4f2b",
+          "bytes": 498976,
+          "dimensions": [
+            2048,
+            1024
+          ],
+          "processing": "original 2K source, unmodified"
+        },
+        "mobile": {
+          "file": "2k_jupiter-1k.jpg",
+          "sha256": "f1c0ac9b5f2fd12a83a647cb6b32b86fc84c9ded0d9e86a2a726bc656fd844c0",
+          "bytes": 86628,
+          "dimensions": [
+            1024,
+            512
+          ],
+          "processing": "convert -resize 1024x512 -quality 82 (ImageMagick)"
+        }
+      }
+    },
+    "saturn": {
+      "source_url": "https://www.solarsystemscope.com/textures/download/2k_saturn.jpg",
+      "license": "CC-BY-4.0",
+      "attribution": "Textures by Solar System Scope (CC BY 4.0), color-adjusted, based on NASA data",
+      "retrieved_at_utc": "2026-09-21T09:41:41.085Z",
+      "color_space": "srgb",
+      "tiers": {
+        "desktop": {
+          "file": "2k_saturn.jpg",
+          "sha256": "54a900ca9bf7ab62e70f862852759abdf342e6d6436a95a2fe9ebdb6bcd3bbac",
+          "bytes": 199916,
+          "dimensions": [
+            2048,
+            1024
+          ],
+          "processing": "original 2K source, unmodified"
+        },
+        "mobile": {
+          "file": "2k_saturn-1k.jpg",
+          "sha256": "8d25faf17c5df68a17753c4d66ec009ff48cf8207b180fda5328ca723331cbd0",
+          "bytes": 32987,
+          "dimensions": [
+            1024,
+            512
+          ],
+          "processing": "convert -resize 1024x512 -quality 82 (ImageMagick)"
+        }
+      }
+    },
+    "saturn_ring": {
+      "source_url": "https://www.solarsystemscope.com/textures/download/2k_saturn_ring_alpha.png",
+      "license": "CC-BY-4.0",
+      "attribution": "Textures by Solar System Scope (CC BY 4.0), color-adjusted, based on NASA data",
+      "retrieved_at_utc": "2026-09-21T09:41:41.085Z",
+      "color_space": "linear",
+      "tiers": {
+        "desktop": {
+          "file": "2k_saturn_ring_alpha.png",
+          "sha256": "4b0644b2f3ef259fd0bfaedd9dc52f9e7d9738f65f50363e8c4dd19f650d7334",
+          "bytes": 12119,
+          "dimensions": [
+            2048,
+            125
+          ],
+          "processing": "original 2K source, unmodified"
+        },
+        "mobile": {
+          "file": "2k_saturn_ring_alpha-1k.png",
+          "sha256": "d43320d07440a79ae5adc75c13d2ed0da994fb3e6c0eb12e27e252333c49bbcf",
+          "bytes": 6731,
+          "dimensions": [
+            1024,
+            63
+          ],
+          "processing": "convert -resize 1024x64 (ImageMagick)"
+        }
+      }
+    },
+    "uranus": {
+      "source_url": "https://www.solarsystemscope.com/textures/download/2k_uranus.jpg",
+      "license": "CC-BY-4.0",
+      "attribution": "Textures by Solar System Scope (CC BY 4.0), color-adjusted, based on NASA data",
+      "retrieved_at_utc": "2026-09-21T09:41:41.085Z",
+      "color_space": "srgb",
+      "tiers": {
+        "desktop": {
+          "file": "2k_uranus.jpg",
+          "sha256": "d15239d46f82d3ea13d2b260b5b29b2a382f42f2916dae0694d0387b1204a09d",
+          "bytes": 77751,
+          "dimensions": [
+            2048,
+            1024
+          ],
+          "processing": "original 2K source, unmodified"
+        },
+        "mobile": {
+          "file": "2k_uranus-1k.jpg",
+          "sha256": "60040dd5dfbbee8c1c537ba9f2b6dcfd5ff1361885ce65a3baee87580b10012c",
+          "bytes": 10108,
+          "dimensions": [
+            1024,
+            512
+          ],
+          "processing": "convert -resize 1024x512 -quality 82 (ImageMagick)"
+        }
+      }
+    },
+    "neptune": {
+      "source_url": "https://www.solarsystemscope.com/textures/download/2k_neptune.jpg",
+      "license": "CC-BY-4.0",
+      "attribution": "Textures by Solar System Scope (CC BY 4.0), color-adjusted, based on NASA data",
+      "retrieved_at_utc": "2026-09-21T09:41:41.085Z",
+      "color_space": "srgb",
+      "tiers": {
+        "desktop": {
+          "file": "2k_neptune.jpg",
+          "sha256": "cb42ea82709741d28b0af44d8b283cbc6dbd0c521a7f0e1e1e010ade00977df6",
+          "bytes": 241580,
+          "dimensions": [
+            2048,
+            1024
+          ],
+          "processing": "original 2K source, unmodified"
+        },
+        "mobile": {
+          "file": "2k_neptune-1k.jpg",
+          "sha256": "935fc12979b622226e7a0abb2bb1ae779fbe28ae9ecdaccf486f5c77540abdac",
+          "bytes": 17877,
+          "dimensions": [
+            1024,
+            512
+          ],
+          "processing": "convert -resize 1024x512 -quality 82 (ImageMagick)"
+        }
+      }
+    }
+  }
+}

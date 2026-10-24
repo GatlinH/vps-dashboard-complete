@@ -80,24 +80,6 @@ function summarizeMoonPanel(servers = []) {
   };
 }
 
-function mountDisplayPage() {
-  document.body.classList.remove('front-login-page-mode');
-  const app = document.getElementById('pageRoot');
-  app.innerHTML = `
-    <section class="display-page-fullscreen globe-only-page" id="page-globe">
-      <div id="globe-container" class="display-globe-fullscreen immersive-globe-canvas-wrap three-globe-host"></div>
-      <div class="photo-space-showcase" aria-hidden="true">
-        <div class="photo-nebula-field"></div>
-        <div class="photo-sun-star"></div>
-        <div class="starship-gltf-stage" id="starship-gltf-stage"></div>
-      </div>
-      <div class="globe-overlay-layer">
-        <div id="globeSunMount"></div>
-        <div class="globe-tooltip" id="globeTooltip"></div>
-        <div class="globe-moon-root" id="globeMoonRoot"><div id="globeMoonPanel"></div></div>      </div>
-    </section>`;
-}
-
 function maskIpForOverview(value) {
   const raw = String(value || '').trim();
   if (!raw || raw === '—') return '—';

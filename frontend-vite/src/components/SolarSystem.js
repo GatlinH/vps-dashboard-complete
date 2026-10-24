@@ -1,4 +1,11 @@
 import * as THREE from 'three';
+import { physicalToDisplay } from './solar/CoordinateMapper.js';
+import { loadP1Ephemerides } from './solar/EphemerisProvider.js';
+import { advanceOrbitalBodies, advanceSimulationTime, hasGenericOrbitRing, updateEphemerisTargets } from './solar/SolarEphemerisRuntime.js';
+import { createContinuousEphemerisProviders } from './solar/TwoBodyEphemeris.js';
+import { DustTailRenderer } from './solar/DustTailRenderer.js';
+import { DustTailManager } from './solar/DustTailManager.js';
+import { TEXTURE_MANIFEST_URL, fetchTextureManifest, remapRingToPolarUv, resolveTierAsset, threeColorSpace } from './solar/PlanetTextureLoader.js';
 
 // Solar system widget: real orbital revolution, keyboard-reachable bodies,
 // a single rAF loop that also drives the camera approach tween.
@@ -6,17 +13,21 @@ import * as THREE from 'three';
 const MOBILE_QUERY = '(max-width: 720px)';
 const HOME_FOV = 52;
 const TARGET_RADIUS = (19 + 2.6 + 1.25) * 1.1;
+const MOON_DISPLAY_UNITS_PER_AU = 1089.68;
 
-// name, radius, orbital radius, angular speed (rad/s), colour, mobile-only-drop flag
-const PLANET_TABLE = [
-  { name: 'Mercury', radius: 0.7, orbit: 9, speed: 0.62, color: 0x9c8a7a, tilt: 0.001, mobile: false },
-  { name: 'Venus', radius: 1.1, orbit: 13.5, speed: 0.44, color: 0xd8a05a, tilt: 3.096, mobile: true },
-  { name: 'Earth', radius: 1.25, orbit: 19, speed: 0.31, color: 0x3f7fd8, tilt: 0.409, mobile: true },
-  { name: 'Mars', radius: 0.95, orbit: 25, speed: 0.24, color: 0xc1552f, tilt: 0.440, mobile: true },
-  { name: 'Jupiter', radius: 2.4, orbit: 33, speed: 0.14, color: 0xd2a679, tilt: 0.055, mobile: false, ring: [3.0, 4.13] },
-  { name: 'Saturn', radius: 2.0, orbit: 41, speed: 0.10, color: 0xe0cba0, tilt: 0.466, mobile: false, ring: [2.6, 4.4] },
-  { name: 'Uranus', radius: 1.55, orbit: 52, speed: 0.068, color: 0x55b8c8, tilt: 1.706, mobile: false, ring: [2.1, 2.95] },
-  { name: 'Neptune', radius: 1.48, orbit: 62, speed: 0.048, color: 0x2e58c8, tilt: 0.494, mobile: false, ring: [2.05, 2.8] }
+// name, radius, orbital radius, angular speed (rad/s), colour, mobile-only-drop flag.
+// roughness/metalness follow the P3-B material table: rocky bodies are pure
+// diffuse (0.95/0), Venus' sulphuric haze 0.90/0, Earth keeps a faint ocean
+// sheen (0.65/0.05) and the gas giants stay soft-banded (0.75/0).
+export const PLANET_TABLE = [
+  { name: 'Mercury', radius: 0.7, orbit: 9, speed: 0.62, color: 0x9c8a7a, tilt: 0.001, mobile: false, roughness: 0.95, metalness: 0, legibilityEmissive: 0.22 },
+  { name: 'Venus', radius: 1.1, orbit: 13.5, speed: 0.44, color: 0xd8a05a, tilt: 3.096, mobile: true, roughness: 0.90, metalness: 0, legibilityEmissive: 0 },
+  { name: 'Earth', radius: 1.25, orbit: 19, speed: 0.31, color: 0x3f7fd8, tilt: 0.409, mobile: true, roughness: 0.65, metalness: 0.05, legibilityEmissive: 0 },
+  { name: 'Mars', radius: 0.95, orbit: 25, speed: 0.24, color: 0xc1552f, tilt: 0.440, mobile: true, roughness: 0.95, metalness: 0, legibilityEmissive: 0.16 },
+  { name: 'Jupiter', radius: 2.4, orbit: 33, speed: 0.14, color: 0xd2a679, tilt: 0.055, mobile: false, ring: [3.0, 4.13], roughness: 0.75, metalness: 0, legibilityEmissive: 0.82 },
+  { name: 'Saturn', radius: 2.0, orbit: 41, speed: 0.10, color: 0xe0cba0, tilt: 0.466, mobile: false, ring: [2.6, 4.4], roughness: 0.75, metalness: 0, legibilityEmissive: 0.2 },
+  { name: 'Uranus', radius: 1.55, orbit: 52, speed: 0.068, color: 0x55b8c8, tilt: 1.706, mobile: false, ring: [2.1, 2.95], roughness: 0.75, metalness: 0, legibilityEmissive: 0.22 },
+  { name: 'Neptune', radius: 1.48, orbit: 62, speed: 0.048, color: 0x2e58c8, tilt: 0.494, mobile: false, ring: [2.05, 2.8], roughness: 0.75, metalness: 0, legibilityEmissive: 0.40 }
 ];
 
 export class SolarSystem {
@@ -27,6 +38,25 @@ export class SolarSystem {
 
     this.options = options;
     this.running = false;
+    this.simulationTime = 2446078.5;
+    this.simulationDaysPerSecond = options.simulationDaysPerSecond || 12;
+    this.ephemerides = null;
+    // Dust tail is created only after the P1 ephemeris resolves; never
+    // dereferenced during construction.
+    this.dustTailRenderer = null;
+    this.dustTailManager = null;
+    // Planets are registered before the Moon, so its offset uses this frame's Earth position.
+    this.ephemerisTargets = {};
+    this.ephemerisStatus = {
+      status: 'idle', error: null,
+      targets: Object.fromEntries(
+        [...PLANET_TABLE.map((spec) => spec.name.toLowerCase()), 'moon', 'halley'].map((name) => [name, {
+          ok: false, error: null, lastJd: null, lastPhysicalPosition: null, lastTailDirection: null
+        }])
+      )
+    };
+    this.debug = (window.__DBG__ = window.__DBG__ || {});
+    this.debug.solarEphemeris = this.ephemerisStatus;
     this.disposed = false;
 
     this.bodies = [];        // { name, mesh, angle, speed, orbit, spin, parent }
@@ -41,7 +71,6 @@ export class SolarSystem {
     this.orbitState = { spherical: new THREE.Spherical(), isDragging: false, pointerStart: new THREE.Vector2(), dragMoved: false, motionState: 'running', resumeTimerId: null, resumeDelayMs: 10000, pauseStartTime: 0 };
     this._touchState = null;
 
-    this.debug = (window.__DBG__ = window.__DBG__ || {});
     this.debug.solarSystem = this;
 
     if (!this.container) {
@@ -64,10 +93,140 @@ export class SolarSystem {
     this._buildMoon();
     this._buildHitButtons();
     this._bindEvents();
+    this._loadEphemerides();
 
     this._tick = this._tick.bind(this);
     this.clock = new THREE.Clock();
     this.resume();
+
+    // First frame is already on screen with procedural canvas textures; the
+    // CC-BY package is fetched afterwards and hot-swapped in when it lands.
+    this.textureLoadPromise = this._loadPlanetaryTextures();
+  }
+
+  // Async, best-effort upgrade path. Any failure (manifest, single file,
+  // disposal mid-flight) leaves the procedural textures untouched: the scene
+  // must never regress to an unlit or blank body because the network blinked.
+  async _loadPlanetaryTextures() {
+    const tier = this.isMobile ? 'mobile' : 'desktop';
+
+    let manifest;
+    try {
+      manifest = await fetchTextureManifest(TEXTURE_MANIFEST_URL);
+    } catch (error) {
+      console.warn('[SolarTexture] manifest load failed, keeping procedural textures', error);
+      return;
+    }
+    if (this.disposed) return;
+
+    const loader = typeof this.options.textureLoaderFactory === 'function'
+      ? this.options.textureLoaderFactory()
+      : new THREE.TextureLoader();
+
+    const jobs = [];
+    for (const [name, meta] of Object.entries(manifest.textures)) {
+      const target = this._resolveTextureTarget(name);
+      if (!target) continue;
+      const asset = resolveTierAsset(meta, tier);
+      if (!asset) continue;
+      jobs.push(this._swapPlanetTexture(loader, name, asset, target));
+    }
+
+    await Promise.all(jobs);
+  }
+
+  // Maps a manifest key onto the live material slot it feeds. Unknown keys and
+  // bodies that were not built (mobile drops, missing ring) resolve to null.
+  _resolveTextureTarget(name) {
+    if (name === 'earth_clouds') {
+      return this.earthCloudMesh ? { material: this.earthCloudMesh.material, slot: 'alphaMap' } : null;
+    }
+    if (name === 'saturn_ring') {
+      return this.saturnRing ? { material: this.saturnRing.material, slot: 'map' } : null;
+    }
+    const mesh = name === 'moon' ? this.moon : this.ephemerisTargets?.[name];
+    return mesh?.material ? { material: mesh.material, slot: 'map' } : null;
+  }
+
+  // Resolves (never rejects) so one broken file cannot cancel the others.
+  _swapPlanetTexture(loader, name, asset, target) {
+    return new Promise((resolve) => {
+      loader.load(asset.url, (texture) => {
+        if (this.disposed) {
+          texture.dispose();
+          resolve(false);
+          return;
+        }
+
+        // Albedo maps follow the manifest's declared colour space; anything
+        // bound to a data slot (cloud alpha) must stay unconverted or gamma
+        // decoding would distort its linear opacity ramp.
+        texture.colorSpace = target.slot === 'alphaMap' ? THREE.NoColorSpace : threeColorSpace(asset.colorSpace);
+        texture.generateMipmaps = true;
+        texture.minFilter = THREE.LinearMipmapLinearFilter;
+
+        const material = target.material;
+        const previous = material[target.slot];
+        material[target.slot] = texture;
+        if (target.slot === 'map' && previous && material.emissiveMap === previous) material.emissiveMap = texture;
+        // The procedural stand-in was tinted by the planet's base colour; a
+        // real albedo map must not be multiplied by it a second time.
+        if (target.slot === 'map' && material.color) material.color.setRGB(1, 1, 1);
+        material.needsUpdate = true;
+
+        // Release the procedural texture so the two never co-reside in VRAM.
+        if (previous && previous.isTexture) {
+          previous.dispose();
+          const index = this.disposables.indexOf(previous);
+          if (index !== -1) this.disposables.splice(index, 1);
+        }
+        this._track(texture);
+        resolve(true);
+      }, undefined, (error) => {
+        console.warn(`[SolarTexture] ${name} texture failed, keeping procedural fallback`, error);
+        resolve(false);
+      });
+    });
+  }
+
+  async _loadEphemerides() {
+    this.ephemerisStatus.status = 'loading';
+    try {
+      const loaded = await loadP1Ephemerides();
+      this.ephemerides = { ...loaded, providers: createContinuousEphemerisProviders(loaded.providers) };
+      this.ephemerisStatus.status = 'ready';
+      this.ephemerisStatus.error = null;
+      if (this.disposed) return;
+      this._initializeDustTail(this.ephemerides);
+    } catch (error) {
+      this.ephemerides = null;
+      this.ephemerisStatus.status = 'error';
+      this.ephemerisStatus.error = error instanceof Error ? error.message : String(error);
+      for (const [name, target] of Object.entries(this.ephemerisTargets)) {
+        target.visible = false;
+        Object.assign(this.ephemerisStatus.targets[name], { ok: false, error: this.ephemerisStatus.error, lastJd: null, lastPhysicalPosition: null, lastTailDirection: null });
+      }
+    }
+  }
+
+  // Single wiring point for the Finson–Probstein dust tail. Only runs after a
+  // successful async ephemeris load, guarded against disposal and double init.
+  _initializeDustTail(loaded) {
+    if (this.disposed || this.dustTailManager || !loaded?.providers?.halley || !loaded?.range) return;
+    try {
+      this.dustTailRenderer = new DustTailRenderer({ scene: this.scene, physicalToDisplay });
+      this.dustTailManager = new DustTailManager({
+        halleyProvider: loaded.providers.halley,
+        renderer: this.dustTailRenderer,
+        workerFactory: this.options.workerFactory || null,
+        range: loaded.range
+      });
+    } catch (err) {
+      this.dustTailRenderer?.dispose?.();
+      this.dustTailManager?.dispose?.();
+      this.dustTailRenderer = null;
+      this.dustTailManager = null;
+    }
   }
 
   // ---------------------------------------------------------------- setup
@@ -148,8 +307,10 @@ export class SolarSystem {
 
   _measure() {
     const rect = this.container.getBoundingClientRect();
-    const width = Math.max(1, Math.round(rect.width || this.container.clientWidth || 640));
-    const height = Math.max(1, Math.round(rect.height || this.container.clientHeight || 360));
+    // CSS owns the content box, including fractional mobile 16:9 heights.
+    // WebGLRenderer rounds only the backing store after applying pixel ratio.
+    const width = Math.max(1, rect.width || this.container.clientWidth || 640);
+    const height = Math.max(1, rect.height || this.container.clientHeight || 360);
     return { width, height };
   }
 
@@ -199,7 +360,7 @@ export class SolarSystem {
 
     for (let i = 0; i <= segments; i += 1) {
       const a = (i / segments) * Math.PI * 2;
-      points.push(new THREE.Vector3(Math.cos(a) * radius, 0, Math.sin(a) * radius));
+      points.push(new THREE.Vector3(Math.cos(a) * radius, 0, -Math.sin(a) * radius));
     }
 
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
@@ -226,12 +387,16 @@ export class SolarSystem {
       const material = new THREE.MeshStandardMaterial({
         color: spec.color,
         map: texture,
-        roughness: 0.85,
-        metalness: 0.05
+        emissive: new THREE.Color(spec.legibilityEmissive, spec.legibilityEmissive, spec.legibilityEmissive),
+        emissiveMap: spec.legibilityEmissive > 0 ? texture : null,
+        roughness: spec.roughness,
+        metalness: spec.metalness
       });
 
       const mesh = new THREE.Mesh(geometry, material);
       mesh.name = spec.name;
+      mesh.visible = false;
+      this.ephemerisTargets[spec.name.toLowerCase()] = mesh;
       mesh.rotation.z = spec.tilt;
       this.scene.add(mesh);
       this._track(geometry, material);
@@ -239,14 +404,19 @@ export class SolarSystem {
 
       if (spec.ring && (!this.isMobile || spec.name === 'Saturn')) {
         const ringGeometry = new THREE.RingGeometry(spec.ring[0], spec.ring[1], this.isMobile ? 48 : 96);
-        const ringMaterial = new THREE.MeshStandardMaterial({ map: this._generateRingTexture(spec.name), side: THREE.DoubleSide, roughness: 0.95, metalness: 0, transparent: true, opacity: spec.name === 'Jupiter' ? 0.12 : 0.8, depthWrite: false });
+        // Radial strip textures need polar UVs, otherwise the ring renders as
+        // straight cartesian bands instead of concentric gaps.
+        remapRingToPolarUv(ringGeometry, spec.ring[0], spec.ring[1]);
+        const ringMaterial = new THREE.MeshStandardMaterial({ map: this._generateRingTexture(spec.name), side: THREE.DoubleSide, roughness: 0.9, metalness: 0, transparent: true, opacity: spec.name === 'Jupiter' ? 0.12 : 0.8, depthWrite: false });
         const ring = new THREE.Mesh(ringGeometry, ringMaterial);
         ring.rotation.x = Math.PI / 2;
         mesh.add(ring);
+        // Saturn's ring is the only one with a published CC-BY strip texture.
+        if (spec.name === 'Saturn') this.saturnRing = ring;
         this._track(ringGeometry, ringMaterial);
       }
 
-      this._buildOrbitRing(spec.orbit);
+      if (hasGenericOrbitRing(spec.name)) this._buildOrbitRing(spec.orbit);
 
       const body = {
         name: spec.name,
@@ -260,18 +430,25 @@ export class SolarSystem {
 
       this.bodies.push(body);
 
+      if (spec.name === 'Mars') {
+        this.marsBody = body;
+      }
+
       if (spec.name === 'Earth') {
         this.earth = mesh;
         this.earthBody = body;
         const cg = new THREE.SphereGeometry(spec.radius * 1.018, segW, segH);
         const ct = this._buildProceduralTexture('EarthClouds');
-        const cm = new THREE.MeshStandardMaterial({ map: ct, transparent: true, opacity: 0.82, depthWrite: false, roughness: 0.9, metalness: 0 });
+        // Cloud shell is pure white lit geometry masked by an alpha map: the
+        // grey-scale cloud texture drives opacity only, never albedo.
+        const cm = new THREE.MeshStandardMaterial({ color: 0xffffff, alphaMap: ct, transparent: true, opacity: 0.85, roughness: 0.95, metalness: 0, depthWrite: false });
         this.earthCloudMesh = new THREE.Mesh(cg, cm);
         mesh.add(this.earthCloudMesh);
         this._track(cg, cm);
       }
     });
     this._buildHalleyComet();
+    this.ephemerisTargets.halley = this.halley.group;
     this._buildAsteroidBelt();
   }
 
@@ -286,9 +463,41 @@ export class SolarSystem {
   }
   _buildAtmosphere(planetMesh, type) { if (this.isMobile && type !== 'Earth') return null; const g = new THREE.SphereGeometry(planetMesh.geometry.parameters.radius * 1.045, 16, 12); const m = new THREE.MeshBasicMaterial({ color: 0x5cb3ff, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, side: THREE.BackSide, depthWrite: false }); const shell = new THREE.Mesh(g,m); planetMesh.add(shell); this._track(g,m); return shell; }
 
-  _buildHalleyComet() { const nucleus = new THREE.Mesh(new THREE.SphereGeometry(.35,12,8), new THREE.MeshBasicMaterial({color:0xdff6ff})); this._track(nucleus.geometry,nucleus.material); const tailTexCanvas=document.createElement('canvas'); tailTexCanvas.width=128; tailTexCanvas.height=8; const c=tailTexCanvas.getContext('2d'); const g=c.createLinearGradient(0,0,128,0); g.addColorStop(0,'rgba(220,250,255,.9)'); g.addColorStop(1,'rgba(120,200,255,0)'); c.fillStyle=g;c.fillRect(0,0,128,8); const tailTex=new THREE.CanvasTexture(tailTexCanvas); const tailMaterial=new THREE.MeshBasicMaterial({map:tailTex,transparent:true,side:THREE.DoubleSide,depthWrite:false,depthTest:false}); const tailGeometry=new THREE.PlaneGeometry(1,1); tailGeometry.translate(0.5,0,0); const tail=new THREE.Mesh(tailGeometry,tailMaterial); const crossTail=new THREE.Mesh(tailGeometry.clone(),tailMaterial); this._track(tail.geometry,crossTail.geometry,tail.material,tailTex); const group=new THREE.Group(); group.add(nucleus,tail,crossTail); const flameCanvas=document.createElement('canvas'); flameCanvas.width=flameCanvas.height=64; const fc=flameCanvas.getContext('2d'); const fg=fc.createRadialGradient(32,32,2,32,32,32); fg.addColorStop(0,'rgba(255,255,240,.95)'); fg.addColorStop(.35,'rgba(120,220,255,.65)'); fg.addColorStop(1,'rgba(80,160,255,0)'); fc.fillStyle=fg; fc.fillRect(0,0,64,64); const flameTex=new THREE.CanvasTexture(flameCanvas); const flameMat=new THREE.SpriteMaterial({map:flameTex,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false}); const flame=new THREE.Sprite(flameMat); group.add(flame); this._track(flameTex,flameMat); this.scene.add(group); tail.renderOrder=-1; crossTail.renderOrder=-1; flame.renderOrder=-1; const orbitGeom=new THREE.BufferGeometry().setFromPoints(Array.from({length:128},(_,i)=>{const t=i/128*Math.PI*2,r=14.34/(1+.789*Math.cos(t)); return new THREE.Vector3(r*Math.cos(t),r*Math.sin(t)*Math.sin(Math.PI/12),r*Math.sin(t)*Math.cos(Math.PI/12));})); const orbitMat=new THREE.LineDashedMaterial({color:0x406080,transparent:true,opacity:.32,dashSize:.8,gapSize:.5}); const orbitMesh=new THREE.LineLoop(orbitGeom,orbitMat); orbitMesh.computeLineDistances(); this.scene.add(orbitMesh); this._track(orbitGeom,orbitMat); this.halley={group,nucleus,tail,crossTail,flame,theta:0,tailRoll:0}; }
+  _buildHalleyComet() {
+    const nucleus = new THREE.Mesh(new THREE.SphereGeometry(.35, 12, 8), new THREE.MeshBasicMaterial({ color: 0xdff6ff }));
+    this._track(nucleus.geometry, nucleus.material);
 
-  _buildAsteroidBelt() { const count=this.isMobile?500:1200; const geo=new THREE.DodecahedronGeometry(.15,0); const mat=new THREE.MeshStandardMaterial({color:0x887766,roughness:1}); const mesh=new THREE.InstancedMesh(geo,mat,count); const m=new THREE.Matrix4(); this.asteroidData=Array.from({length:count},()=>({r:27.5+Math.random()*4.3,angle:Math.random()*Math.PI*2,y:(Math.random()*2-1)*.35,spin:Math.random(),scale:0.7+Math.random()*0.8})); this.asteroidData.forEach((a,i)=>{m.makeRotationFromEuler(new THREE.Euler(Math.random(),Math.random(),Math.random())); m.scale(new THREE.Vector3(a.scale,a.scale,a.scale)); m.setPosition(a.r*Math.cos(a.angle),a.y,a.r*Math.sin(a.angle)); mesh.setMatrixAt(i,m);}); this.scene.add(mesh); this.asteroidBelt=mesh; this._track(geo,mat); }
+    // Compatibility reference for getP1RuntimeSnapshot's anti-solar axis.
+    // It has no geometry/material; DustTailRenderer owns the only visible tail.
+    const tail = new THREE.Object3D();
+    tail.name = 'halley-anti-solar-reference';
+    tail.visible = false;
+
+    // A centered, circular coma: no directional elongation or offset.
+    const flameCanvas = document.createElement('canvas');
+    flameCanvas.width = flameCanvas.height = 64;
+    const fc = flameCanvas.getContext('2d');
+    const fg = fc.createRadialGradient(32, 32, 2, 32, 32, 32);
+    fg.addColorStop(0, 'rgba(255,255,240,.95)');
+    fg.addColorStop(.35, 'rgba(120,220,255,.65)');
+    fg.addColorStop(1, 'rgba(80,160,255,0)');
+    fc.fillStyle = fg;
+    fc.fillRect(0, 0, 64, 64);
+    const flameTex = new THREE.CanvasTexture(flameCanvas);
+    const flameMat = new THREE.SpriteMaterial({ map: flameTex, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false });
+    const flame = new THREE.Sprite(flameMat);
+    this._track(flameTex, flameMat);
+
+    const group = new THREE.Group();
+    group.add(nucleus, tail, flame);
+    group.visible = false;
+    flame.renderOrder = 1;
+    group.renderOrder = 1;
+    this.scene.add(group);
+    this.halley = { group, nucleus, tail, flame };
+  }
+
+  _buildAsteroidBelt() { const count=this.isMobile?500:1200; const geo=new THREE.DodecahedronGeometry(.15,0); const mat=new THREE.MeshStandardMaterial({color:0x887766,roughness:1}); const mesh=new THREE.InstancedMesh(geo,mat,count); const m=new THREE.Matrix4(); this.asteroidData=Array.from({length:count},()=>({r:27.5+Math.random()*4.3,angle:Math.random()*Math.PI*2,y:(Math.random()*2-1)*.35,spin:Math.random(),scale:0.7+Math.random()*0.8})); this.asteroidData.forEach((a,i)=>{m.makeRotationFromEuler(new THREE.Euler(Math.random(),Math.random(),Math.random())); m.scale(new THREE.Vector3(a.scale,a.scale,a.scale)); m.setPosition(a.r*Math.cos(a.angle),a.y,-a.r*Math.sin(a.angle)); mesh.setMatrixAt(i,m);}); this.scene.add(mesh); this.asteroidBelt=mesh; this._track(geo,mat); }
 
   _buildMoon() {
     if (!this.earthBody) {
@@ -304,6 +513,8 @@ export class SolarSystem {
 
     this.moon = new THREE.Mesh(geometry, material);
     this.moon.name = 'Moon';
+    this.moon.visible = false;
+    this.ephemerisTargets.moon = this.moon;
     this.scene.add(this.moon);
     this._track(geometry, material);
 
@@ -507,9 +718,11 @@ export class SolarSystem {
     const dt = Math.min(0.05, this.clock.getDelta());
 
     const shouldAdvance = !this.orbitState.isDragging && this.orbitState.motionState !== 'paused';
-    if (shouldAdvance) {
-      this._advanceBodies(dt);
-    }
+    this._advanceBodies(shouldAdvance ? dt : 0);
+    this.dustTailManager?.tick(this.simulationTime, {
+      paused: !shouldAdvance,
+      bodyValid: this.ephemerisStatus.targets.halley.ok
+    });
     this.debug.solarOrbitMotionState = this.orbitState.motionState;
     this.debug.solarOrbitResumeRemainingMs = this.orbitState.motionState === 'paused' ? Math.max(0, this.orbitState.resumeDelayMs - (Date.now() - this.orbitState.pauseStartTime)) : 0;
     this._stepCameraTween(dt);
@@ -521,73 +734,49 @@ export class SolarSystem {
     this.frameId = requestAnimationFrame(this._tick);
   }
 
-  // Genuine revolution: angle accumulates, position is derived from it.
+  // All ephemeris targets share one clock; body spins advance independently.
   _advanceBodies(dt) {
-    this.bodies.forEach((body) => {
-      body.angle += body.speed * dt;
-
-      if (body.orbit > 0) {
-        const x = Math.cos(body.angle) * body.orbit * (body.xFactor != null ? body.xFactor : 1);
-        const z = Math.sin(body.angle) * body.orbit * (body.xFactor != null ? body.xFactor : 1);
-
-        if (body.parent) {
-          body.mesh.position.set(
-            body.parent.mesh.position.x + x,
-            body.parent.mesh.position.y + (body.yFactor ? Math.sin(body.angle) * body.orbit * body.yFactor : 0),
-            body.parent.mesh.position.z + z
-          );
-        } else {
-          body.mesh.position.set(x, 0, z);
-        }
-      }
-
-      body.mesh.rotation.y += body.spin * dt;
-      if (body.name === 'Earth' && this.earthCloudMesh) this.earthCloudMesh.rotation.y += body.spin * 1.18 * dt;
-    });
+    this.simulationTime = advanceSimulationTime(this.simulationTime, dt, this.simulationDaysPerSecond, this.ephemerides?.range || [2446078.5, 2446643.5]);
+    advanceOrbitalBodies(this.bodies, dt, this.earthCloudMesh);
 
     this.sunLight.position.copy(this.sun.position);
-    if (this.asteroidBelt && this.asteroidData) { const m = new THREE.Matrix4(); this.asteroidData.forEach((a,i) => { a.angle += 0.18 * Math.pow(29.6 / a.r, 1.5) * dt; m.makeRotationY(a.spin * dt); m.setPosition(a.r * Math.cos(a.angle), a.y, a.r * Math.sin(a.angle)); m.scale(new THREE.Vector3(a.scale, a.scale, a.scale)); this.asteroidBelt.setMatrixAt(i,m); }); this.asteroidBelt.instanceMatrix.needsUpdate = true; }
-    if (this.halley) { const h=this.halley; h.theta += 0.08*Math.pow(38/(14.34/(1+.789*Math.cos(h.theta))),1.25)*dt; const r=14.34/(1+.789*Math.cos(h.theta)); const pos=new THREE.Vector3(r*Math.cos(h.theta),r*Math.sin(h.theta)*Math.sin(Math.PI/12),r*Math.sin(h.theta)*Math.cos(Math.PI/12)); h.group.position.copy(pos); const len=THREE.MathUtils.clamp(16*(8/r),2,15); const dir=pos.clone().normalize(); const dr=(r*r*.789*Math.sin(h.theta))/14.34; const v=new THREE.Vector3(dr*Math.cos(h.theta)-r*Math.sin(h.theta),dr*Math.sin(h.theta)*Math.sin(Math.PI/12)+r*Math.cos(h.theta)*Math.sin(Math.PI/12),dr*Math.sin(h.theta)*Math.cos(Math.PI/12)+r*Math.cos(h.theta)*Math.cos(Math.PI/12)); const tangent=v.clone().sub(dir.clone().multiplyScalar(v.dot(dir))); const tangentLength=tangent.length(); h.tail.scale.set(len,0.6+len*0.06,1); h.crossTail.scale.copy(h.tail.scale); // Dust tail: anti-sun (75%) bent backward along the orbit (25%) — the classic
-  // curved dust tail whose visible streak tracks the motion path; the ion
-  // cross-tail stays straight anti-sunward.
-  const fallbackTangent=new THREE.Vector3(1,0,0).addScaledVector(dir,-dir.x).normalize(); const tangentUnit=tangentLength>1e-8?tangent.clone().multiplyScalar(1/tangentLength):fallbackTangent; const dustDir=dir.clone().multiplyScalar(.75).addScaledVector(tangentUnit,-.25).normalize(); h.tail.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0),dustDir); const localY=new THREE.Vector3(0,1,0).applyQuaternion(h.tail.quaternion); if (tangentLength > 1e-8) { h.tailRoll=Math.atan2(localY.clone().cross(tangentUnit).dot(dustDir),localY.dot(tangentUnit)); h.tail.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(dustDir,h.tailRoll)); } h.crossTail.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0),dir); h.flame.scale.setScalar(THREE.MathUtils.clamp(2.4*(8/r),1,4.8)); h.tail.material.opacity=THREE.MathUtils.clamp(.12+(.85-.12)*(8/r),.12,.85);
-  // Fade the light tail where it would cross a planet's disc: sample points
-  // along the tail axes, project them, and shrink opacity by the deepest
-  // overlap (the tail visually yields to planets instead of painting over).
-  const base=THREE.MathUtils.clamp(.12+(.85-.12)*(8/r),.12,.85);
-  try {
-    const cam2=this.camera, size2=this.renderer.getSize(new THREE.Vector2());
-    const proj=new THREE.Vector3();
-    const toScreen=(v)=>{ proj.copy(v).project(cam2); return {x:(proj.x*.5+.5)*size2.x, y:(-proj.y*.5+.5)*size2.y, z:proj.z}; };
-    // Per-body screen centers + radii, computed once per frame.
-    const discs=[];
-    for (const body of this.bodies) {
-      const disc=body.mesh;
-      const geoR=(disc.geometry && disc.geometry.parameters && disc.geometry.parameters.radius) || .9;
-      const scaleR=Math.max(disc.scale.x, disc.scale.y, disc.scale.z);
-      const dCam=cam2.position.distanceTo(disc.position);
-      if (dCam<1e-3) continue;
-      const c=toScreen(disc.position);
-      if (c.z>=1) continue;
-      discs.push({c, rPx: geoR*scaleR/dCam*(size2.y*.5)/Math.tan((cam2.fov*Math.PI/180)*.5)});
-    }
-    let fade=1;
-    for (const mesh of [h.tail, h.crossTail]) {
-      const dirW=new THREE.Vector3(1,0,0).applyQuaternion(mesh.quaternion);
-      const len=mesh.scale.x;
-      for (let s=.15; s<=1.001; s+=.1417) { // 7 samples, includes the tip
-        const pt=h.group.position.clone().addScaledVector(dirW, len*s);
-        const sp=toScreen(pt);
-        if (sp.z>=1) continue;
-        for (const d of discs) {
-          const dist=Math.hypot(sp.x-d.c.x, sp.y-d.c.y);
-          if (dist<d.rPx*1.05) { const f=THREE.MathUtils.clamp((dist-d.rPx*.45)/(d.rPx*.6),0,1); fade=Math.min(fade, f); }
+    if (this.asteroidBelt && this.asteroidData) { const m = new THREE.Matrix4(); this.asteroidData.forEach((a,i) => { a.angle += 0.18 * Math.pow(29.6 / a.r, 1.5) * dt; m.makeRotationY(a.spin * dt); m.setPosition(a.r * Math.cos(a.angle), a.y, -a.r * Math.sin(a.angle)); m.scale(new THREE.Vector3(a.scale, a.scale, a.scale)); this.asteroidBelt.setMatrixAt(i,m); }); this.asteroidBelt.instanceMatrix.needsUpdate = true; }
+    if (this.ephemerides) updateEphemerisTargets({
+      simulationTime: this.simulationTime,
+      providers: this.ephemerides.providers,
+      targets: this.ephemerisTargets,
+      statuses: this.ephemerisStatus.targets,
+      applyPosition: (target, position, name) => {
+        if (name === 'moon') {
+          const [x, y, z] = position;
+          target.position.copy(this.earth.position).add(new THREE.Vector3(x, z, -y).multiplyScalar(MOON_DISPLAY_UNITS_PER_AU));
+          return;
         }
+        const display = physicalToDisplay(position);
+        target.position.copy(new THREE.Vector3(display.x, display.y, display.z));
+      },
+      applyTail: (_target, tail) => {
+        const direction = new THREE.Vector3(tail.direction.x, tail.direction.y, tail.direction.z);
+        this.halley.tail.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), direction);
+        this.halley.flame.scale.setScalar(THREE.MathUtils.clamp(2.4 * (1.2 / tail.distanceAu), 1, 4.8));
       }
-    }
-    h.tail.material.opacity=base*fade; h.crossTail.material.opacity=base*fade; h.flame.material.opacity=fade;
-  } catch(e) { h.tail.material.opacity=base; h.crossTail.material.opacity=base; h.flame.material.opacity=1; }
-}
+    });
+  }
+
+  getP1RuntimeSnapshot() {
+    const world = (object) => object.getWorldPosition(new THREE.Vector3()).toArray();
+    const origin = this.halley.tail.localToWorld(new THREE.Vector3(0, 0, 0));
+    const positiveX = this.halley.tail.localToWorld(new THREE.Vector3(1, 0, 0));
+    return {
+      frameId: this.frameId,
+      simulationTime: this.simulationTime,
+      marsWorld: world(this.marsBody.mesh),
+      halleyWorld: world(this.halley.group),
+      marsPhysical: this.ephemerisStatus.targets.mars.lastPhysicalPosition?.slice() || null,
+      halleyPhysical: this.ephemerisStatus.targets.halley.lastPhysicalPosition?.slice() || null,
+      expectedTailWorldDirection: this.ephemerisStatus.targets.halley.lastTailDirection ? Object.values(this.ephemerisStatus.targets.halley.lastTailDirection) : null,
+      tailWorldDirection: positiveX.sub(origin).normalize().toArray(),
+    };
   }
 
   // Project each tracked mesh to screen space and park its hit button there.
@@ -628,10 +817,7 @@ export class SolarSystem {
       row.y = Math.max(half0, Math.min(rect.height - half0, row.y));
     });
 
-    const sizes = new Map(entries.map(({ entry, world }) => {
-      const scale = entry.mesh.geometry.parameters.radius || 1;
-      return [entry, 24];
-    }));
+    const sizes = new Map(entries.map(({ entry }) => [entry, 24]));
     const priorityRows = [this.sun, this.earth, this.moon]
       .map((mesh) => entries.find((item) => item.entry.mesh === mesh))
       .filter(Boolean);
@@ -845,6 +1031,15 @@ export class SolarSystem {
   destroy() {
     this.pause();
     this.disposed = true;
+
+    if (this.dustTailManager) {
+      this.dustTailManager.dispose();
+      this.dustTailManager = null;
+    }
+    if (this.dustTailRenderer) {
+      this.dustTailRenderer.dispose();
+      this.dustTailRenderer = null;
+    }
 
     window.removeEventListener('resize', this._onResize);
     if (this._onVisibility) {

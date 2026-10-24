@@ -386,16 +386,60 @@ body::after {
   z-index: 8;
 }
 .starship-gltf-stage.is-loaded { opacity: 1; }
+/* Keep the canvas's original intrinsic desktop ratio independent of its resized
+   drawing buffer. Explicit container heights still take precedence. */
+[data-solar-viewport] > canvas {
+  aspect-ratio: 2 / 1;
+}
+
+@media (max-width: 720px) {
+  #solar-system-container[data-solar-viewport] {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 16 / 9;
+    overflow: visible;
+  }
+
+  [data-solar-viewport] > canvas {
+    position: absolute;
+    inset: 0;
+  }
+}
+
 .solar-system-hit {
   position: absolute;
-  width: 48px;
-  height: 48px;
+  width: 24px;
+  height: 24px;
+  box-sizing: border-box;
   padding: 0;
   border: 0;
   border-radius: 50%;
+  clip-path: circle(50%);
   background: transparent;
   cursor: pointer;
   z-index: 6;
+  outline: none;
+  box-shadow: none;
+}
+.solar-system-hit:hover,
+.solar-system-hit:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 2px #000,
+    inset 0 0 0 4px #fff,
+    inset 0 0 0 6px #000;
+  forced-color-adjust: none;
+}
+.solar-hit-description {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .starship-gltf-canvas {
   width: 100% !important;
@@ -566,35 +610,12 @@ body::after {
 }
 
 /* User cleanup 3: remove the remaining static white moon/dot in the top-right. */
-.globe-moon-root,
-#globeMoonRoot,
-#globeMoonPanel,
-#globeMoonToggle,
-.moon-solar-glow,
-.moon-solar-corona,
-.moon-solar-halo,
-.moon-solar-core {
-  display: none !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
-  pointer-events: none !important;
-}
 
 /* User cleanup 4: remove remaining yellow/orange star/accent color from the globe view. */
 .globe-only-page,
 .globe-only-page .display-globe-fullscreen,
 .globe-only-page #cesium-globe-container {
   --star-accent-yellow: transparent;
-}
-.globe-only-page .three-globe-sun-badge,
-.globe-only-page .three-globe-sun-glow,
-.globe-only-page .three-globe-sun-corona,
-.globe-only-page .three-globe-sun-halo,
-.globe-only-page .three-globe-sun-core {
-  display: none !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
-  pointer-events: none !important;
 }
 .globe-only-page .google-earth-node-html-label.is-vps-node {
   border-color: rgba(115,205,255,.36) !important;
@@ -620,33 +641,4 @@ body:has(.globe-only-page) {
   opacity: 0.9;
   transition: opacity 160ms ease;
   transform: translate(-50%, -100%);
-}
-
-/* Restore interaction contract: visible draggable sun and moon entrances. */
-.globe-only-page .three-globe-sun-badge,
-#globeMoonRoot {
-  display: flex !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
-}
-.globe-only-page .three-globe-sun-glow,
-.globe-only-page .three-globe-sun-corona,
-.globe-only-page .three-globe-sun-halo,
-.globe-only-page .three-globe-sun-core,
-#globeMoonPanel,
-.moon-solar-glow,
-.moon-solar-corona,
-.moon-solar-halo,
-.moon-solar-core {
-  display: block !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  pointer-events: none !important;
-}
-#globeMoonToggle {
-  display: inline-flex !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
 }

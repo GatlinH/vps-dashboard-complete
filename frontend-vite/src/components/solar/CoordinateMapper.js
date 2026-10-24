@@ -1,0 +1,19 @@
+const R = [0, 0.39, 1, 5.2, 30.1];
+const D = [0, 9, 19, 35, 62];
+export function mapRadial(r) {
+  if (r >= R[4]) return D[4] + 1.5 * (r - R[4]);
+  for (let i = 0; i < R.length - 1; i += 1) if (r <= R[i + 1]) {
+    const t = (r - R[i]) / (R[i + 1] - R[i]);
+    return D[i] + t * (D[i + 1] - D[i]);
+  }
+  return 0;
+}
+export function physicalToDisplay(v) {
+  const x = v.x ?? v[0];
+  const y = v.y ?? v[1];
+  const z = v.z ?? v[2];
+  const r = Math.hypot(x, y, z);
+  if (!r) return { x: 0, y: 0, z: 0 };
+  const s = mapRadial(r) / r;
+  return { x: x * s, y: z * s, z: -y * s };
+}
