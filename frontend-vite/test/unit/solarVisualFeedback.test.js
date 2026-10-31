@@ -55,15 +55,20 @@ function makeSystem() {
     scene: new THREE.Scene(),
     disposables: [],
     simulationTime: start,
-    simulationDaysPerSecond: 12,
+    realTimeClock: { sample: () => ({ jdTdb: system.simulationTime, utcMs: Date.now() }) },
     ephemerides: {
       range: [start, end],
+      isEpochReady: () => true,
       providers: createContinuousEphemerisProviders({
         halley: createEphemerisProvider(halleyData),
         mars: createEphemerisProvider(marsData),
       }),
     },
-    ephemerisStatus: { targets: { halley: {}, mars: {} } },
+    ephemerisStatus: {
+      lastAppliedJd: null,
+      lastAppliedUtcMs: null,
+      targets: { halley: {}, mars: {} },
+    },
     bodies: [],
     sun: new THREE.Object3D(),
     sunLight: new THREE.Object3D(),
@@ -85,7 +90,7 @@ function makeSystem() {
     halleyProvider: system.ephemerides.providers.halley,
     renderer: system.dustTailRenderer,
     workerFactory: () => worker,
-    range: [start, end],
+    range: [start - 1024, end + 1024],
   });
   cleanup.push(() => {
     system.dustTailManager.dispose();
@@ -152,7 +157,7 @@ describe('Solar visual feedback: shared time boundary', () => {
       [start, 0, start],
       [end - 0.001, 0, end - 0.001],
       [end, 0, end],
-      [end, 0.025, end + 0.3],
+      [end + 0.3, 0.025, end + 0.3],
     ]) {
       system.simulationTime = time;
       system.clock.getDelta = () => dt;
@@ -175,27 +180,28 @@ describe('Solar visual feedback: shared time boundary', () => {
     const generation = system.dustTailManager.currentGeneration;
     expect(requests).toHaveLength(1);
 
-    system.simulationTime = end;
+    system.simulationTime = end + 0.3;
     system.clock.getDelta = () => 0.025;
     system._tick();
     expect(system.simulationTime).toBeCloseTo(end + 0.3, 8);
-    expect(system.dustTailManager.currentGeneration).toBe(generation);
+    expect(system.dustTailManager.currentGeneration).toBeGreaterThan(generation);
     worker.finish();
-    worker.finish();
+    if (requests.length) worker.finish();
     assertValidFrame(system, end + 0.3);
     expect(system.dustTailManager.displayTObs).toBeCloseTo(end + 0.3, 8);
     expect(system.dustTailManager.getDiagnostics().backingStoreAllocations).toBe(4);
   });
 
-  it('keeps an exact-end seek unchanged while motion is paused', () => {
+  it('continues scientific sampling and dust independently of camera motion pause', () => {
     const { system, worker, requests } = makeSystem();
     system._tick();
     worker.finish();
     system.simulationTime = end;
     system.orbitState.motionState = 'paused';
     system._tick();
+    while (requests.length) worker.finish();
     assertValidFrame(system, end);
-    expect(system.dustTailManager.status).toBe('paused');
+    expect(system.dustTailManager.status).toBe('ready');
     expect(requests).toHaveLength(0);
   });
 

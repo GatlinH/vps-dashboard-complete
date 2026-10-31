@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { physicalToDisplay } from './solar/CoordinateMapper.js';
-import { loadP1Ephemerides } from './solar/EphemerisProvider.js';
-import { advanceOrbitalBodies, advanceSimulationTime, hasGenericOrbitRing, updateEphemerisTargets } from './solar/SolarEphemerisRuntime.js';
-import { createContinuousEphemerisProviders } from './solar/TwoBodyEphemeris.js';
+import { loadPrecisionEphemerides } from './solar/PrecisionEphemeris.js';
+import { RealTimeClock } from './solar/RealTimeClock.js';
+import { TimeControls } from './solar/TimeControls.js';
+import { advanceOrbitalBodies, hasGenericOrbitRing, updateEphemerisTargets } from './solar/SolarEphemerisRuntime.js';
 import { DustTailRenderer } from './solar/DustTailRenderer.js';
 import { DustTailManager } from './solar/DustTailManager.js';
 import { TEXTURE_MANIFEST_URL, fetchTextureManifest, remapRingToPolarUv, resolveTierAsset, threeColorSpace } from './solar/PlanetTextureLoader.js';
@@ -38,8 +39,11 @@ export class SolarSystem {
 
     this.options = options;
     this.running = false;
-    this.simulationTime = 2446078.5;
-    this.simulationDaysPerSecond = options.simulationDaysPerSecond || 12;
+    this.realTimeClock = new RealTimeClock();
+    this.timeSample = this.realTimeClock.sample();
+    this.simulationTime = this.timeSample.jdTdb;
+    this._epochRequestId = 0;
+    this._pendingEpoch = null;
     this.ephemerides = null;
     // Dust tail is created only after the P1 ephemeris resolves; never
     // dereferenced during construction.
@@ -48,7 +52,7 @@ export class SolarSystem {
     // Planets are registered before the Moon, so its offset uses this frame's Earth position.
     this.ephemerisTargets = {};
     this.ephemerisStatus = {
-      status: 'idle', error: null,
+      status: 'initializing', error: null, lastAppliedJd: null, lastAppliedUtcMs: null,
       targets: Object.fromEntries(
         [...PLANET_TABLE.map((spec) => spec.name.toLowerCase()), 'moon', 'halley'].map((name) => [name, {
           ok: false, error: null, lastJd: null, lastPhysicalPosition: null, lastTailDirection: null
@@ -91,7 +95,9 @@ export class SolarSystem {
     this._buildSun();
     this._buildPlanets();
     this._buildMoon();
+    for (const target of Object.values(this.ephemerisTargets)) target.visible = false;
     this._buildHitButtons();
+    this._buildTimeControls();
     this._bindEvents();
     this._loadEphemerides();
 
@@ -192,9 +198,9 @@ export class SolarSystem {
   async _loadEphemerides() {
     this.ephemerisStatus.status = 'loading';
     try {
-      const loaded = await loadP1Ephemerides();
-      this.ephemerides = { ...loaded, providers: createContinuousEphemerisProviders(loaded.providers) };
-      this.ephemerisStatus.status = 'ready';
+      const loaded = await loadPrecisionEphemerides();
+      if (this.disposed) { loaded.dispose(); return; }
+      this.ephemerides = loaded;
       this.ephemerisStatus.error = null;
       if (this.disposed) return;
       this._initializeDustTail(this.ephemerides);
@@ -209,6 +215,31 @@ export class SolarSystem {
     }
   }
 
+  _buildTimeControls() {
+    this.timeControls = new TimeControls(this.container, (rate) => {
+      this.realTimeClock.setRate(rate);
+      if (rate === 1) this.dustTailManager?.notifyTimeDiscontinuity();
+      this._advanceBodies(0);
+    });
+    this.timeControls.update(this.timeSample, this.ephemerisStatus);
+  }
+
+  _requestEphemerisEpoch(jd) {
+    const key = this.ephemerides.getEpochKey(jd);
+    if (this._pendingEpoch?.key === key) return;
+    const requestId = ++this._epochRequestId;
+    this._pendingEpoch = { key, requestId };
+    this.ephemerides.ensureEpoch(jd).then(() => {
+      if (this.disposed || requestId !== this._epochRequestId) return;
+      this._pendingEpoch = null;
+      this.ephemerisStatus.error = null;
+    }).catch((error) => {
+      if (this.disposed || requestId !== this._epochRequestId) return;
+      this.ephemerisStatus.status = 'error';
+      this.ephemerisStatus.error = error instanceof Error ? error.message : String(error);
+    });
+  }
+
   // Single wiring point for the Finson–Probstein dust tail. Only runs after a
   // successful async ephemeris load, guarded against disposal and double init.
   _initializeDustTail(loaded) {
@@ -219,7 +250,7 @@ export class SolarSystem {
         halleyProvider: loaded.providers.halley,
         renderer: this.dustTailRenderer,
         workerFactory: this.options.workerFactory || null,
-        range: loaded.range
+        range: loaded.providers.halley.range
       });
     } catch (err) {
       this.dustTailRenderer?.dispose?.();
@@ -720,8 +751,9 @@ export class SolarSystem {
     const shouldAdvance = !this.orbitState.isDragging && this.orbitState.motionState !== 'paused';
     this._advanceBodies(shouldAdvance ? dt : 0);
     this.dustTailManager?.tick(this.simulationTime, {
-      paused: !shouldAdvance,
-      bodyValid: this.ephemerisStatus.targets.halley.ok
+      paused: false,
+      epochReady: Boolean(this.ephemerides?.isEpochReady(this.simulationTime)),
+      bodyValid: this.ephemerisStatus.status === 'ready' && this.ephemerisStatus.targets.halley.ok
     });
     this.debug.solarOrbitMotionState = this.orbitState.motionState;
     this.debug.solarOrbitResumeRemainingMs = this.orbitState.motionState === 'paused' ? Math.max(0, this.orbitState.resumeDelayMs - (Date.now() - this.orbitState.pauseStartTime)) : 0;
@@ -736,12 +768,22 @@ export class SolarSystem {
 
   // All ephemeris targets share one clock; body spins advance independently.
   _advanceBodies(dt) {
-    this.simulationTime = advanceSimulationTime(this.simulationTime, dt, this.simulationDaysPerSecond, this.ephemerides?.range || [2446078.5, 2446643.5]);
+    this.timeSample = this.realTimeClock.sample();
+    this.simulationTime = this.timeSample.jdTdb;
     advanceOrbitalBodies(this.bodies, dt, this.earthCloudMesh);
 
     this.sunLight.position.copy(this.sun.position);
     if (this.asteroidBelt && this.asteroidData) { const m = new THREE.Matrix4(); this.asteroidData.forEach((a,i) => { a.angle += 0.18 * Math.pow(29.6 / a.r, 1.5) * dt; m.makeRotationY(a.spin * dt); m.setPosition(a.r * Math.cos(a.angle), a.y, -a.r * Math.sin(a.angle)); m.scale(new THREE.Vector3(a.scale, a.scale, a.scale)); this.asteroidBelt.setMatrixAt(i,m); }); this.asteroidBelt.instanceMatrix.needsUpdate = true; }
-    if (this.ephemerides) updateEphemerisTargets({
+    const ready = this.ephemerides?.isEpochReady(this.simulationTime);
+    if (this.ephemerides && !ready) {
+      this.ephemerisStatus.status = this.ephemerisStatus.error ? 'error' : 'loading';
+      this._requestEphemerisEpoch(this.simulationTime);
+    }
+    if (ready) {
+      ++this._epochRequestId;
+      this._pendingEpoch = null;
+      const previousJd = this.ephemerisStatus.lastAppliedJd;
+      updateEphemerisTargets({
       simulationTime: this.simulationTime,
       providers: this.ephemerides.providers,
       targets: this.ephemerisTargets,
@@ -760,7 +802,17 @@ export class SolarSystem {
         this.halley.tail.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), direction);
         this.halley.flame.scale.setScalar(THREE.MathUtils.clamp(2.4 * (1.2 / tail.distanceAu), 1, 4.8));
       }
-    });
+      });
+      const valid = Object.keys(this.ephemerisTargets).every((name) => this.ephemerisStatus.targets[name].ok);
+      this.ephemerisStatus.status = valid ? 'ready' : 'error';
+      this.ephemerisStatus.error = valid ? null : 'invalid precision sample';
+      if (valid) {
+        this.ephemerisStatus.lastAppliedJd = this.simulationTime;
+        this.ephemerisStatus.lastAppliedUtcMs = this.timeSample.utcMs;
+        if (previousJd !== null && Math.abs(previousJd - this.simulationTime) > 1 / 24) this.dustTailManager?.notifyTimeDiscontinuity(this.simulationTime);
+      }
+    }
+    this.timeControls?.update(this.timeSample, this.ephemerisStatus);
   }
 
   getP1RuntimeSnapshot() {
@@ -1031,6 +1083,9 @@ export class SolarSystem {
   destroy() {
     this.pause();
     this.disposed = true;
+    ++this._epochRequestId;
+    this.ephemerides?.dispose();
+    this.timeControls?.dispose();
 
     if (this.dustTailManager) {
       this.dustTailManager.dispose();

@@ -60,7 +60,9 @@ export function updateEphemerisTargets({ simulationTime, providers, targets, sta
         }
         const earthPosition = components(earthSample.position);
         if (!earthPosition.every(Number.isFinite)) throw new Error('invalid_earth_position');
-        physicalPosition = physicalPosition.map((value, axis) => value - earthPosition[axis]);
+        if (!providers.moon.geocentric && sample.metadata?.center !== 399 && sample.center !== 'geocentric') {
+          physicalPosition = physicalPosition.map((value, axis) => value - earthPosition[axis]);
+        }
       }
       applyPosition(target, physicalPosition, name, sample);
       let tailDirection = null;
@@ -78,6 +80,7 @@ export function updateEphemerisTargets({ simulationTime, providers, targets, sta
       status.lastJd = simulationTime;
       status.lastPhysicalPosition = physicalPosition;
       status.lastTailDirection = tailDirection;
+      status.metadata = sample.metadata ?? null;
     } catch (error) {
       failTarget(target, status, simulationTime, error);
     }
