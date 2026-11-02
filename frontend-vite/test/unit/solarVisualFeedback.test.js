@@ -79,7 +79,16 @@ function makeSystem() {
     camera: new THREE.PerspectiveCamera(),
     cameraTarget: new THREE.Vector3(),
     debug: {},
-    renderer: { render: vi.fn(), setSize: vi.fn() },
+    renderer: {
+      render: vi.fn(),
+      setSize: vi.fn(),
+      getDrawingBufferSize: (target) => target.set(1000, 1000),
+      getPixelRatio: () => 1,
+      getContext: () => ({
+        ALIASED_POINT_SIZE_RANGE: 0x846d,
+        getParameter: () => new Float32Array([1, 64]),
+      }),
+    },
     _stepCameraTween: vi.fn(),
     _syncHitButtons: vi.fn(),
   });

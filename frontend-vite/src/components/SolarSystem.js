@@ -495,7 +495,23 @@ export class SolarSystem {
   _buildAtmosphere(planetMesh, type) { if (this.isMobile && type !== 'Earth') return null; const g = new THREE.SphereGeometry(planetMesh.geometry.parameters.radius * 1.045, 16, 12); const m = new THREE.MeshBasicMaterial({ color: 0x5cb3ff, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, side: THREE.BackSide, depthWrite: false }); const shell = new THREE.Mesh(g,m); planetMesh.add(shell); this._track(g,m); return shell; }
 
   _buildHalleyComet() {
-    const nucleus = new THREE.Mesh(new THREE.SphereGeometry(.35, 12, 8), new THREE.MeshBasicMaterial({ color: 0xdff6ff }));
+    const nucleusGeometry = new THREE.SphereGeometry(1, 16, 12);
+    const nucleusPositions = nucleusGeometry.attributes.position;
+    const vertex = new THREE.Vector3();
+    for (let index = 0; index < nucleusPositions.count; index += 1) {
+      vertex.fromBufferAttribute(nucleusPositions, index);
+      const irregularity = .96 + .02 * Math.sin(7 * vertex.x + 3 * vertex.y) * Math.cos(5 * vertex.z - 2 * vertex.x) + .015 * Math.sin(11 * vertex.y + 4 * vertex.z);
+      vertex.multiplyScalar(irregularity);
+      nucleusPositions.setXYZ(index, vertex.x, vertex.y, vertex.z);
+    }
+    nucleusGeometry.computeBoundingBox();
+    const nucleusCenter = nucleusGeometry.boundingBox.getCenter(new THREE.Vector3());
+    const nucleusExtent = nucleusGeometry.boundingBox.getSize(new THREE.Vector3());
+    nucleusGeometry.translate(-nucleusCenter.x, -nucleusCenter.y, -nucleusCenter.z);
+    const longestSemiAxis = .34999998;
+    nucleusGeometry.scale(2 * longestSemiAxis / nucleusExtent.x, 2 * longestSemiAxis / (1.9 * nucleusExtent.y), 2 * longestSemiAxis / (1.9 * nucleusExtent.z));
+    nucleusGeometry.computeVertexNormals();
+    const nucleus = new THREE.Mesh(nucleusGeometry, new THREE.MeshStandardMaterial({ color: 0x303238, roughness: 1, metalness: 0 }));
     this._track(nucleus.geometry, nucleus.material);
 
     // Compatibility reference for getP1RuntimeSnapshot's anti-solar axis.
@@ -761,6 +777,7 @@ export class SolarSystem {
     if (!this.cameraTween) { this.camera.position.setFromSpherical(this.orbitState.spherical).add(this.cameraTarget); this.camera.lookAt(this.cameraTarget); }
     this._syncHitButtons();
 
+    this.dustTailRenderer?.prepareFrame(this.camera, this.renderer);
     this.renderer.render(this.scene, this.camera);
 
     this.frameId = requestAnimationFrame(this._tick);
