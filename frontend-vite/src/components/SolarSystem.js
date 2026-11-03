@@ -6,6 +6,7 @@ import { TimeControls } from './solar/TimeControls.js';
 import { advanceOrbitalBodies, hasGenericOrbitRing, updateEphemerisTargets } from './solar/SolarEphemerisRuntime.js';
 import { DustTailRenderer } from './solar/DustTailRenderer.js';
 import { DustTailManager } from './solar/DustTailManager.js';
+import { createSunMaterial } from './solar/SunShader.js';
 import { TEXTURE_MANIFEST_URL, fetchTextureManifest, remapRingToPolarUv, resolveTierAsset, threeColorSpace } from './solar/PlanetTextureLoader.js';
 
 // Solar system widget: real orbital revolution, keyboard-reachable bodies,
@@ -363,16 +364,20 @@ export class SolarSystem {
   }
 
   _buildSun() {
+    const illustrativeRotationPeriodSeconds = 25.4 * 86400;
+    const illustrativeSpin = (2 * Math.PI) / illustrativeRotationPeriodSeconds;
+    const illustrativeSpinAtClockRate = () =>
+      illustrativeSpin * (this.timeSample?.rate ?? this.realTimeClock?.sample().rate ?? 1);
     const geometry = new THREE.SphereGeometry(3.4, this.isMobile ? 20 : 40, this.isMobile ? 14 : 28);
-    const material = new THREE.MeshBasicMaterial({ color: 0xffcf40 });
+    const material = createSunMaterial(this.isMobile);
 
     this.sun = new THREE.Mesh(geometry, material);
     this.sun.name = 'Sun';
     this.scene.add(this.sun);
     this._track(geometry, material);
     const glowCanvas = document.createElement('canvas'); glowCanvas.width = glowCanvas.height = 64;
-    const gc = glowCanvas.getContext('2d'); const grad = gc.createRadialGradient(32, 32, 2, 32, 32, 32); grad.addColorStop(0, 'rgba(255,255,220,.9)'); grad.addColorStop(1, 'rgba(255,150,20,0)'); gc.fillStyle = grad; gc.fillRect(0,0,64,64);
-    const glowTex = new THREE.CanvasTexture(glowCanvas); const glowMat = new THREE.SpriteMaterial({ map: glowTex, color: 0xffb020, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }); const glow = new THREE.Sprite(glowMat); glow.scale.set(28,28,1); this.sun.add(glow); this._track(glowTex, glowMat);
+    const gc = glowCanvas.getContext('2d'); const grad = gc.createRadialGradient(32, 32, 0, 32, 32, 32); grad.addColorStop(0, 'rgba(255,255,220,1)'); grad.addColorStop(1, 'rgba(255,150,20,0)'); gc.fillStyle = grad; gc.fillRect(0,0,64,64);
+    const glowTex = new THREE.CanvasTexture(glowCanvas); const glowMat = new THREE.SpriteMaterial({ map: glowTex, color: 0xffb020, opacity: 0.18, blending: THREE.AdditiveBlending, transparent: true, depthTest: true, depthWrite: false }); const glow = new THREE.Sprite(glowMat); glow.scale.set(9,9,1); this.sun.add(glow); this._track(glowTex, glowMat);
 
     this.bodies.push({
       name: 'Sun',
@@ -380,7 +385,9 @@ export class SolarSystem {
       angle: 0,
       speed: 0,
       orbit: 0,
-      spin: 0.05,
+      get spin() {
+        return illustrativeSpinAtClockRate();
+      },
       parent: null
     });
   }
