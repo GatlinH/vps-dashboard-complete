@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "analyze": "vite build && echo '\u2713 Build complete. Check ../frontend-dist/ for output.'",
+    "analyze": "vite build && echo '✓ Build complete. Check ../frontend-dist/ for output.'",
     "test:account-password-ui": "node scripts/verify-account-password-ui.mjs",
     "test:admin-css-structure": "node scripts/verify-admin-css-structure.mjs",
     "test:dashboard-globals": "node scripts/verify-dashboard-globals.mjs",
@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "@deck.gl/layers": "^9.3.6",
+    "@noble/hashes": "1.4.0",
     "cesium": "1.143",
     "chart.js": "^4.4.1",
     "react": "^19.2.7",

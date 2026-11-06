@@ -1,16 +1,20 @@
 import * as THREE from 'three';
 import { physicalToDisplay } from './solar/CoordinateMapper.js';
-import { loadP1Ephemerides } from './solar/EphemerisProvider.js';
-import { advanceOrbitalBodies, advanceSimulationTime, hasGenericOrbitRing, updateEphemerisTargets } from './solar/SolarEphemerisRuntime.js';
-import { createContinuousEphemerisProviders } from './solar/TwoBodyEphemeris.js';
+import { loadPrecisionEphemerides } from './solar/PrecisionEphemeris.js';
+import { RealTimeClock } from './solar/RealTimeClock.js';
+import { TimeControls } from './solar/TimeControls.js';
+import { advanceOrbitalBodies, hasGenericOrbitRing, updateEphemerisTargets } from './solar/SolarEphemerisRuntime.js';
 import { DustTailRenderer } from './solar/DustTailRenderer.js';
 import { DustTailManager } from './solar/DustTailManager.js';
+import { createSunMaterial } from './solar/SunShader.js';
 import { TEXTURE_MANIFEST_URL, fetchTextureManifest, remapRingToPolarUv, resolveTierAsset, threeColorSpace } from './solar/PlanetTextureLoader.js';
+
+let startupMountId = 0;
 
 // Solar system widget: real orbital revolution, keyboard-reachable bodies,
 // a single rAF loop that also drives the camera approach tween.
 
-const MOBILE_QUERY = '(max-width: 720px)';
+const MOBILE_QUERY = '(max-width: 720px), (max-height: 500px) and (pointer: coarse) and (hover: none)';
 const HOME_FOV = 52;
 const TARGET_RADIUS = (19 + 2.6 + 1.25) * 1.1;
 const MOON_DISPLAY_UNITS_PER_AU = 1089.68;
@@ -38,8 +42,11 @@ export class SolarSystem {
 
     this.options = options;
     this.running = false;
-    this.simulationTime = 2446078.5;
-    this.simulationDaysPerSecond = options.simulationDaysPerSecond || 12;
+    this.realTimeClock = new RealTimeClock();
+    this.timeSample = this.realTimeClock.sample();
+    this.simulationTime = this.timeSample.jdTdb;
+    this._epochRequestId = 0;
+    this._pendingEpoch = null;
     this.ephemerides = null;
     // Dust tail is created only after the P1 ephemeris resolves; never
     // dereferenced during construction.
@@ -48,7 +55,7 @@ export class SolarSystem {
     // Planets are registered before the Moon, so its offset uses this frame's Earth position.
     this.ephemerisTargets = {};
     this.ephemerisStatus = {
-      status: 'idle', error: null,
+      status: 'initializing', error: null, lastAppliedJd: null, lastAppliedUtcMs: null,
       targets: Object.fromEntries(
         [...PLANET_TABLE.map((spec) => spec.name.toLowerCase()), 'moon', 'halley'].map((name) => [name, {
           ok: false, error: null, lastJd: null, lastPhysicalPosition: null, lastTailDirection: null
@@ -58,6 +65,7 @@ export class SolarSystem {
     this.debug = (window.__DBG__ = window.__DBG__ || {});
     this.debug.solarEphemeris = this.ephemerisStatus;
     this.disposed = false;
+    this._startupCreate();
 
     this.bodies = [];        // { name, mesh, angle, speed, orbit, spin, parent }
     this.disposables = [];   // geometries + materials to release in destroy()
@@ -78,20 +86,25 @@ export class SolarSystem {
       return;
     }
 
-    this.isMobile = this._detectMobile();
+    this._viewportInit();
 
     try {
       this._buildRenderer();
     } catch (err) {
+      this._viewportDispose();
       this._failSoft(err);
       return;
     }
 
+    this._startupMount();
     this._buildScene();
     this._buildSun();
     this._buildPlanets();
     this._buildMoon();
+    for (const target of Object.values(this.ephemerisTargets)) target.visible = false;
     this._buildHitButtons();
+    this._startupGate();
+    this._buildTimeControls();
     this._bindEvents();
     this._loadEphemerides();
 
@@ -99,15 +112,312 @@ export class SolarSystem {
     this.clock = new THREE.Clock();
     this.resume();
 
-    // First frame is already on screen with procedural canvas textures; the
-    // CC-BY package is fetched afterwards and hot-swapped in when it lands.
     this.textureLoadPromise = this._loadPlanetaryTextures();
+  }
+
+  _startupCreate() {
+    const start = performance.now();
+    const names = [...PLANET_TABLE.map((spec) => spec.name.toLowerCase()), 'moon', 'earth_clouds', 'saturn_ring'];
+    const startup = this._startup = {
+      activeMountId: ++startupMountId, start, deadline: start + 4000, phase: 'LOADING', active: true,
+      slots: Object.fromEntries(names.map((name) => [name, { state: 'PENDING', owner: null, reason: null, resource: null }])),
+      background: { state: 'PENDING', kind: null, owner: null, resource: null, reason: null },
+      manifestAbort: new AbortController(), scienceAbort: new AbortController(), released: new WeakSet(),
+      firstFrame: null, containerPosition: this.container?.style?.position
+    };
+    startup.texturePromise = new Promise((resolve) => { startup.resolveTextures = resolve; });
+  }
+
+  _startupCurrent(startup = this._startup) {
+    return Boolean(startup && startup === this._startup && startup.active && !this.disposed);
+  }
+
+  _startupMount() {
+    const startup = this._startup;
+    if (!this.canvas?.style || !this.renderer || !this.container?.appendChild) return;
+    startup.canvasStyle = { visibility: this.canvas.style.visibility, pointerEvents: this.canvas.style.pointerEvents };
+    startup.canvasAria = this.canvas.getAttribute('aria-hidden');
+    this.canvas.style.visibility = 'hidden';
+    this.canvas.style.pointerEvents = 'none';
+    this.canvas.setAttribute('aria-hidden', 'true');
+    const node = startup.node = document.createElement('div');
+    node.setAttribute('role', 'status');
+    node.setAttribute('aria-live', 'polite');
+    node.style.cssText = 'position:absolute;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;gap:12px;color:#fff;background:#05060d;';
+    startup.label = document.createElement('span');
+    startup.retry = document.createElement('button');
+    startup.retry.type = 'button';
+    startup.retry.textContent = 'RETRY · 重试';
+    startup.onRetry = () => this._startupRetry();
+    startup.retry.addEventListener('click', startup.onRetry);
+    node.append(startup.label, startup.retry);
+    this.container.appendChild(node);
+    startup.timer = setTimeout(() => this._startupExpire(startup), Math.max(0, startup.deadline - performance.now()));
+    this._startupUi();
+  }
+
+  _startupUi() {
+    const startup = this._startup;
+    if (!this._startupCurrent(startup) || startup.phase === 'FIRST_VISIBLE') return;
+    if (this.ephemerisStatus.status === 'error') startup.phase = 'DATA_ERROR';
+    else if (startup.phase !== 'RETRY' || this.ephemerides) startup.phase = 'LOADING';
+    if (startup.label) startup.label.textContent = startup.phase === 'DATA_ERROR'
+      ? `DATA_ERROR · 科学数据加载失败：${this.ephemerisStatus.error}`
+      : `${startup.phase} · 正在加载太阳系与实时科学数据`;
+    if (startup.retry) startup.retry.hidden = startup.phase !== 'DATA_ERROR';
+  }
+
+  _startupGate(reveal = false) {
+    const startup = this._startup;
+    if (!startup?.canvasStyle) return;
+    for (const { el } of this.hitButtons) {
+      startup.buttons ||= new Map();
+      if (!startup.buttons.has(el)) startup.buttons.set(el, {
+        disabled: el.disabled, inert: el.inert, tabIndex: el.tabIndex, pointerEvents: el.style.pointerEvents,
+        aria: el.getAttribute('aria-hidden')
+      });
+      const previous = startup.buttons.get(el);
+      el.disabled = reveal ? previous.disabled : true;
+      el.inert = reveal ? previous.inert : true;
+      el.tabIndex = reveal ? previous.tabIndex : -1;
+      el.style.pointerEvents = reveal ? previous.pointerEvents : 'none';
+      if (reveal && previous.aria === null) el.removeAttribute('aria-hidden');
+      else el.setAttribute('aria-hidden', reveal ? previous.aria : 'true');
+    }
+  }
+
+  _startupRelease(resource, startup = this._startup) {
+    if (!resource?.isTexture || startup.released.has(resource)) return;
+    startup.released.add(resource);
+    resource.dispose();
+    const index = this.disposables.indexOf(resource);
+    if (index !== -1) this.disposables.splice(index, 1);
+  }
+
+  _startupSettleSlot(startup, name, state, reason, resource) {
+    const slot = startup.slots[name];
+    if (!this._startupCurrent(startup) || slot?.state !== 'PENDING') return false;
+    Object.assign(slot, { state, reason, resource, owner: startup.activeMountId });
+    if (state === 'COMMITTED_FALLBACK') this._startupRelease(slot.pending, startup);
+    delete slot.pending;
+    slot.finish?.(state === 'SUCCESS');
+    delete slot.finish;
+    if (Object.values(startup.slots).every((entry) => entry.state !== 'PENDING')) startup.resolveTextures();
+    return true;
+  }
+
+  _startupFallback(startup, name, reason) {
+    const target = this._resolveTextureTarget(name);
+    const resource = target?.material?.[target.slot] ?? target?.material?.color ?? { kind: 'ABSENT_TARGET', name };
+    this._startupSettleSlot(startup, name, 'COMMITTED_FALLBACK', reason, resource);
+  }
+
+  _startupBackground(startup, resource, reason = null) {
+    if (!this._startupCurrent(startup) || startup.scene !== this.scene || startup.background.state !== 'PENDING') return false;
+    const selected = resource || startup.backgroundFallback;
+    this.scene.background = selected;
+    Object.assign(startup.background, {
+      state: 'READY', kind: resource ? 'TEXTURE' : 'FALLBACK', owner: startup.activeMountId, activeMountId: startup.activeMountId, resource: selected, reason
+    });
+    if (!resource) this._startupRelease(startup.backgroundPending, startup);
+    return true;
+  }
+
+  _startupExpire(startup = this._startup) {
+    if (!this._startupCurrent(startup) || performance.now() < startup.deadline) return false;
+    for (const name of Object.keys(startup.slots)) this._startupFallback(startup, name, 'visual deadline');
+    this._startupBackground(startup, null, 'visual deadline');
+    startup.manifestAbort.abort();
+    clearTimeout(startup.timer);
+    return true;
+  }
+
+  async _startupLoadTextures(startup) {
+    try {
+      if (!this._startupCurrent(startup) || this._startupExpire(startup)) return;
+      const manifest = await fetchTextureManifest(TEXTURE_MANIFEST_URL, this._startupFetch(startup.manifestAbort));
+      if (!this._startupCurrent(startup) || this._startupExpire(startup)) return;
+      const loader = typeof this.options.textureLoaderFactory === 'function'
+        ? this.options.textureLoaderFactory() : new THREE.TextureLoader();
+      for (const name of Object.keys(startup.slots)) {
+        if (!this._startupCurrent(startup) || this._startupExpire(startup)) break;
+        const target = this._resolveTextureTarget(name);
+        const meta = manifest.textures[name];
+        const asset = resolveTierAsset(meta, this.isMobile ? 'mobile' : 'desktop');
+        if (!meta || !asset || !target?.material) {
+          this._startupFallback(startup, name, !meta ? 'missing manifest slot' : !asset ? 'malformed tier' : 'missing target');
+          continue;
+        }
+        this._swapPlanetTexture(loader, name, asset, target);
+      }
+    } catch (error) {
+      if (!this._startupCurrent(startup)) return;
+      for (const name of Object.keys(startup.slots)) this._startupFallback(startup, name, `manifest failure: ${error.message || error}`);
+    }
+  }
+
+  _startupFetch(controller) {
+    const request = typeof this.options.fetchImpl === 'function' ? this.options.fetchImpl : globalThis.fetch;
+    return (url, options = {}) => request(url, {
+      ...options, signal: options.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal
+    });
+  }
+
+  _startupLoadBackground() {
+    const startup = this._startup;
+    const scene = startup.scene = this.scene;
+    startup.backgroundFallback = scene.background;
+    if (this._startupExpire(startup)) return;
+    try {
+      const loader = typeof this.options.textureLoaderFactory === 'function'
+        ? this.options.textureLoaderFactory() : new THREE.TextureLoader();
+      const pending = loader.load('/globe/backgrounds/heic1509a-bg.jpg', (texture) => {
+        if (!this._startupCurrent(startup) || this._startupExpire(startup) || startup.background.state !== 'PENDING' || this.scene !== scene) {
+          if (startup.background.resource !== texture) this._startupRelease(texture, startup);
+          return;
+        }
+        texture.colorSpace = THREE.SRGBColorSpace;
+        if (this._startupBackground(startup, texture)) {
+          if (!this.disposables.includes(texture)) this._track(texture);
+        } else this._startupRelease(texture, startup);
+      }, undefined, (error) => {
+        if (!this._startupCurrent(startup)) return;
+        this._startupExpire(startup);
+        this._startupBackground(startup, null, `background failure: ${error?.message || error}`);
+      });
+      startup.backgroundPending = pending;
+      if (pending?.isTexture && !startup.released.has(pending) && !this.disposables.includes(pending)) {
+        if (startup.background.state === 'PENDING' || startup.background.resource === pending) this._track(pending);
+        else this._startupRelease(pending, startup);
+      }
+    } catch (error) {
+      this._startupBackground(startup, null, `background failure: ${error.message || error}`);
+    }
+  }
+
+  _startupCaptureFrame(entryUtcMs) {
+    const startup = this._startup;
+    if (!this._startupCurrent(startup) || !startup.canvasStyle || startup.phase === 'FIRST_VISIBLE') return null;
+    this._startupExpire(startup);
+    this._startupUi();
+    if (Object.values(startup.slots).some((slot) => slot.state === 'PENDING' || slot.owner !== startup.activeMountId)
+      || startup.background.state !== 'READY' || startup.background.owner !== startup.activeMountId
+      || startup.scene !== this.scene || startup.background.resource !== this.scene.background) return null;
+    const sample = this.timeSample;
+    const status = this.ephemerisStatus;
+    const names = [...PLANET_TABLE.map((spec) => spec.name.toLowerCase()), 'moon', 'halley'];
+    if (!sample || !Number.isFinite(sample.utcMs) || !Number.isFinite(sample.jdTdb)
+      || ![1, 60, 3600, 86400].includes(sample.rate) || (sample.rate === 1 && Math.abs(sample.utcMs - entryUtcMs) > 16.7)
+      || status.status !== 'ready' || status.error || status.lastAppliedJd !== sample.jdTdb
+      || status.lastAppliedUtcMs !== sample.utcMs || !this.ephemerides?.isEpochReady(sample.jdTdb)
+      || Object.keys(this.ephemerisTargets).length !== 10) return null;
+    const targets = {};
+    for (const name of names) {
+      const target = this.ephemerisTargets[name];
+      const applied = status.targets[name];
+      const physical = applied?.lastPhysicalPosition;
+      if (!target?.visible || !applied?.ok || applied.error || applied.lastJd !== sample.jdTdb
+        || !Array.isArray(physical) || physical.length !== 3 || !physical.every(Number.isFinite) || Math.hypot(...physical) === 0) return null;
+      const expected = name === 'moon'
+        ? this.earth.position.clone().add(new THREE.Vector3(physical[0], physical[2], -physical[1]).multiplyScalar(MOON_DISPLAY_UNITS_PER_AU))
+        : physicalToDisplay(physical);
+      if (!target.position.toArray().every(Number.isFinite) || target.position.distanceTo(expected) > 1e-8) return null;
+      targets[name] = { ...applied, lastPhysicalPosition: [...physical], position: target.position.toArray(), lastAppliedUtcMs: status.lastAppliedUtcMs };
+    }
+    return { startup, sampleReference: sample, entryUtcMs, sample: { ...sample }, targets, renderBefore: this.renderer.info?.render?.frame };
+  }
+
+  _startupPublish(frame) {
+    if (!frame || !this._startupCurrent(frame.startup) || frame.sampleReference !== this.timeSample) return;
+    if (!this._startupCaptureFrame(frame.entryUtcMs) || Object.entries(frame.targets).some(([name, target]) =>
+      this.ephemerisTargets[name].position.toArray().some((value, index) => value !== target.position[index]))) return;
+    const material = this.sun?.material;
+    const program = this.renderer.properties?.get(material)?.currentProgram;
+    const uniforms = material?.uniforms;
+    const gl = this.renderer.getContext?.();
+    if (material?.name !== 'SunIllustrativeSurface' || !material.isShaderMaterial || !program?.program
+      || program.diagnostics?.runnable === false || !uniforms
+      || ['uCoreColor', 'uEdgeColor', 'uGrade', 'uNoiseAmplitude', 'uLimb', 'uSpotStrength'].some((name) => !uniforms[name])
+      || Object.values(uniforms).some(({ value }) =>
+        typeof value === 'number' ? !Number.isFinite(value) : !value?.isColor || ![value.r, value.g, value.b].every(Number.isFinite))
+      || !gl || gl.isContextLost() || gl.getError() !== gl.NO_ERROR || !gl.getProgramParameter(program.program, gl.LINK_STATUS)
+      || !(this.renderer.info.render.frame > frame.renderBefore)) return;
+    const startup = frame.startup;
+    startup.firstFrame = { activeMountId: startup.activeMountId, entryUtcMs: frame.entryUtcMs, sample: frame.sample, targets: frame.targets, renderFrame: this.renderer.info.render.frame };
+    startup.phase = 'FIRST_VISIBLE';
+    Object.assign(this.canvas.style, startup.canvasStyle);
+    if (startup.canvasAria === null) this.canvas.removeAttribute('aria-hidden');
+    else this.canvas.setAttribute('aria-hidden', startup.canvasAria);
+    this._startupGate(true);
+    startup.node?.remove();
+    clearTimeout(startup.timer);
+  }
+
+  _startupRetry() {
+    const startup = this._startup;
+    if (!this._startupCurrent(startup) || startup.phase !== 'DATA_ERROR') return;
+    startup.scienceAbort.abort();
+    startup.scienceAbort = new AbortController();
+    ++this._epochRequestId;
+    this._pendingEpoch = null;
+    this.ephemerides?.dispose();
+    this.ephemerides = null;
+    this.dustTailManager?.dispose();
+    this.dustTailRenderer?.dispose();
+    this.dustTailManager = this.dustTailRenderer = null;
+    Object.assign(this.ephemerisStatus, { status: 'loading', error: null, lastAppliedJd: null, lastAppliedUtcMs: null });
+    for (const [name, target] of Object.entries(this.ephemerisTargets)) {
+      target.visible = false;
+      Object.assign(this.ephemerisStatus.targets[name], { ok: false, error: null, lastJd: null, lastPhysicalPosition: null, lastTailDirection: null });
+    }
+    startup.phase = 'RETRY';
+    this._startupUi();
+    this._loadEphemerides();
+  }
+
+  _startupSnapshot() {
+    const startup = this._startup;
+    const describe = ({ state, kind, owner, activeMountId, reason, resource }) => ({
+      state, ...(kind !== undefined ? { kind, activeMountId } : {}), owner, reason,
+      resource: resource?.uuid ?? resource?.getHex?.() ?? resource?.kind ?? null
+    });
+    return {
+      activeMountId: startup.activeMountId, active: this._startupCurrent(startup), start: startup.start, deadline: startup.deadline,
+      phase: startup.phase, slots: Object.fromEntries(Object.entries(startup.slots).map(([name, slot]) => [name, describe(slot)])),
+      background: describe(startup.background), firstFrame: startup.firstFrame ? structuredClone(startup.firstFrame) : null
+    };
+  }
+
+  _startupDispose() {
+    const startup = this._startup;
+    if (!startup || !startup.active) return;
+    for (const name of Object.keys(startup.slots)) this._startupFallback(startup, name, 'destroyed before load');
+    this._startupBackground(startup, null, 'destroyed before load');
+    startup.active = false;
+    startup.phase = 'DISPOSED';
+    startup.manifestAbort.abort();
+    startup.scienceAbort.abort();
+    clearTimeout(startup.timer);
+    startup.resolveTextures();
+    startup.retry?.removeEventListener('click', startup.onRetry);
+    startup.node?.remove();
+    if (startup.canvasStyle) {
+      Object.assign(this.canvas.style, startup.canvasStyle);
+      if (startup.canvasAria === null) this.canvas.removeAttribute('aria-hidden');
+      else this.canvas.setAttribute('aria-hidden', startup.canvasAria);
+    }
+    if (this.container?.style && startup.containerPosition !== undefined) this.container.style.position = startup.containerPosition;
+    for (const resource of this.disposables) if (resource?.isTexture) startup.released.add(resource);
   }
 
   // Async, best-effort upgrade path. Any failure (manifest, single file,
   // disposal mid-flight) leaves the procedural textures untouched: the scene
   // must never regress to an unlit or blank body because the network blinked.
   async _loadPlanetaryTextures() {
+    if (this._startup) {
+      this._startupLoadTextures(this._startup);
+      return this._startup.texturePromise;
+    }
     const tier = this.isMobile ? 'mobile' : 'desktop';
 
     let manifest;
@@ -150,8 +460,17 @@ export class SolarSystem {
 
   // Resolves (never rejects) so one broken file cannot cancel the others.
   _swapPlanetTexture(loader, name, asset, target) {
+    const startup = this._startup;
     return new Promise((resolve) => {
-      loader.load(asset.url, (texture) => {
+      if (startup) startup.slots[name].finish = resolve;
+      const success = (texture) => {
+        if (startup && (!this._startupCurrent(startup) || this._startupExpire(startup)
+          || startup.scene !== this.scene || startup.slots[name].state !== 'PENDING' || this._resolveTextureTarget(name)?.material !== target.material)) {
+          if (startup.slots[name].resource !== texture) this._startupRelease(texture, startup);
+          this._startupFallback(startup, name, 'stale texture target');
+          resolve(false);
+          return;
+        }
         if (this.disposed) {
           texture.dispose();
           resolve(false);
@@ -176,29 +495,52 @@ export class SolarSystem {
 
         // Release the procedural texture so the two never co-reside in VRAM.
         if (previous && previous.isTexture) {
-          previous.dispose();
-          const index = this.disposables.indexOf(previous);
-          if (index !== -1) this.disposables.splice(index, 1);
+          if (startup) this._startupRelease(previous, startup);
+          else {
+            previous.dispose();
+            const index = this.disposables.indexOf(previous);
+            if (index !== -1) this.disposables.splice(index, 1);
+          }
         }
-        this._track(texture);
+        if (!startup || !this.disposables.includes(texture)) this._track(texture);
+        if (startup) this._startupSettleSlot(startup, name, 'SUCCESS', null, texture);
         resolve(true);
-      }, undefined, (error) => {
+      };
+      const failure = (error) => {
+        if (startup) {
+          this._startupExpire(startup);
+          this._startupFallback(startup, name, `texture failure: ${error?.message || error}`);
+        }
         console.warn(`[SolarTexture] ${name} texture failed, keeping procedural fallback`, error);
         resolve(false);
-      });
+      };
+      try {
+        const pending = loader.load(asset.url, success, undefined, failure);
+        if (startup && pending?.isTexture) {
+          const slot = startup.slots[name];
+          if (slot.state === 'PENDING' && this._startupCurrent(startup)) {
+            slot.pending = pending;
+            if (!this.disposables.includes(pending)) this._track(pending);
+          } else if (slot.resource !== pending) this._startupRelease(pending, startup);
+        }
+      }
+      catch (error) { failure(error); }
     });
   }
 
   async _loadEphemerides() {
+    const startup = this._startup;
+    const controller = startup?.scienceAbort;
     this.ephemerisStatus.status = 'loading';
     try {
-      const loaded = await loadP1Ephemerides();
-      this.ephemerides = { ...loaded, providers: createContinuousEphemerisProviders(loaded.providers) };
-      this.ephemerisStatus.status = 'ready';
+      const loaded = await loadPrecisionEphemerides(controller ? this._startupFetch(controller) : undefined);
+      if (this.disposed || (startup && (!this._startupCurrent(startup) || controller !== startup.scienceAbort))) { loaded.dispose(); return; }
+      this.ephemerides = loaded;
       this.ephemerisStatus.error = null;
       if (this.disposed) return;
       this._initializeDustTail(this.ephemerides);
     } catch (error) {
+      if (this.disposed || (startup && (!this._startupCurrent(startup) || controller !== startup.scienceAbort))) return;
       this.ephemerides = null;
       this.ephemerisStatus.status = 'error';
       this.ephemerisStatus.error = error instanceof Error ? error.message : String(error);
@@ -206,7 +548,33 @@ export class SolarSystem {
         target.visible = false;
         Object.assign(this.ephemerisStatus.targets[name], { ok: false, error: this.ephemerisStatus.error, lastJd: null, lastPhysicalPosition: null, lastTailDirection: null });
       }
+      this._startupUi();
     }
+  }
+
+  _buildTimeControls() {
+    this.timeControls = new TimeControls(this.container, (rate) => {
+      this.realTimeClock.setRate(rate);
+      if (rate === 1) this.dustTailManager?.notifyTimeDiscontinuity();
+      this._advanceBodies(0);
+    });
+    this.timeControls.update(this.timeSample, this.ephemerisStatus);
+  }
+
+  _requestEphemerisEpoch(jd) {
+    const key = this.ephemerides.getEpochKey(jd);
+    if (this._pendingEpoch?.key === key) return;
+    const requestId = ++this._epochRequestId;
+    this._pendingEpoch = { key, requestId };
+    this.ephemerides.ensureEpoch(jd).then(() => {
+      if (this.disposed || requestId !== this._epochRequestId) return;
+      this._pendingEpoch = null;
+      this.ephemerisStatus.error = null;
+    }).catch((error) => {
+      if (this.disposed || requestId !== this._epochRequestId) return;
+      this.ephemerisStatus.status = 'error';
+      this.ephemerisStatus.error = error instanceof Error ? error.message : String(error);
+    });
   }
 
   // Single wiring point for the Finson–Probstein dust tail. Only runs after a
@@ -219,7 +587,7 @@ export class SolarSystem {
         halleyProvider: loaded.providers.halley,
         renderer: this.dustTailRenderer,
         workerFactory: this.options.workerFactory || null,
-        range: loaded.range
+        range: loaded.providers.halley.range
       });
     } catch (err) {
       this.dustTailRenderer?.dispose?.();
@@ -233,9 +601,99 @@ export class SolarSystem {
 
   _detectMobile() {
     if (typeof window.matchMedia === 'function') {
-      return window.matchMedia(MOBILE_QUERY).matches;
+      return (this._mobileMedia || window.matchMedia(MOBILE_QUERY)).matches;
     }
     return window.innerWidth <= 720;
+  }
+
+  _viewportInit() {
+    if (typeof this.container.getAttribute !== 'function'
+      || typeof this.container.style?.getPropertyValue !== 'function') {
+      this.isMobile = this._detectMobile();
+      return;
+    }
+    const style = this.container.style;
+    this._viewportOwned = {
+      attribute: this.container.getAttribute('data-solar-mobile-landscape'),
+      properties: new Map([
+        '--solar-viewport-width', '--solar-viewport-height',
+        '--solar-viewport-left', '--solar-viewport-top'
+      ].map((name) => [name, {
+        value: style.getPropertyValue(name), priority: style.getPropertyPriority(name)
+      }]))
+    };
+    if (typeof window.matchMedia === 'function') {
+      this._mobileMedia = window.matchMedia(MOBILE_QUERY);
+      this._mobileLandscapeMedia = window.matchMedia('(orientation: landscape) and (max-height: 500px) and (pointer: coarse) and (hover: none)');
+    }
+    this._viewportVisual = window.visualViewport;
+    this._viewportOnChange = () => this.resize();
+    [this._mobileMedia, this._mobileLandscapeMedia].filter(Boolean).forEach((media) => {
+      if (typeof media.addEventListener === 'function') {
+        media.addEventListener('change', this._viewportOnChange);
+      } else {
+        media.addListener?.(this._viewportOnChange);
+      }
+    });
+    this._viewportVisual?.addEventListener('resize', this._viewportOnChange);
+    this._viewportVisual?.addEventListener('scroll', this._viewportOnChange);
+    this._viewportSync();
+  }
+
+  _viewportSync() {
+    this.isMobile = this._detectMobile();
+    const landscape = Boolean(this.isMobile && this._mobileLandscapeMedia?.matches);
+    this.container.setAttribute('data-solar-mobile-landscape', String(landscape));
+    if (!landscape) {
+      this._viewportRestore();
+      return;
+    }
+    const available = this._viewportVisual;
+    const viewport = Number.isFinite(available?.width) && available.width > 0
+      && Number.isFinite(available?.height) && available.height > 0 ? available : null;
+    const values = {
+      '--solar-viewport-width': viewport?.width ?? window.innerWidth,
+      '--solar-viewport-height': viewport?.height ?? window.innerHeight,
+      '--solar-viewport-left': Number.isFinite(viewport?.offsetLeft) ? viewport.offsetLeft : 0,
+      '--solar-viewport-top': Number.isFinite(viewport?.offsetTop) ? viewport.offsetTop : 0
+    };
+    for (const [name, value] of Object.entries(values)) {
+      this.container.style.setProperty(name, `${value}px`);
+    }
+  }
+
+  _viewportRestore() {
+    for (const [name, previous] of this._viewportOwned.properties) {
+      if (previous.value) {
+        this.container.style.setProperty(name, previous.value, previous.priority);
+      } else {
+        this.container.style.removeProperty(name);
+      }
+    }
+  }
+
+  _viewportDispose() {
+    if (!this._viewportOwned) return;
+    [this._mobileMedia, this._mobileLandscapeMedia].filter(Boolean).forEach((media) => {
+      if (typeof media.removeEventListener === 'function') {
+        media.removeEventListener('change', this._viewportOnChange);
+      } else {
+        media.removeListener?.(this._viewportOnChange);
+      }
+    });
+    this._viewportVisual?.removeEventListener('resize', this._viewportOnChange);
+    this._viewportVisual?.removeEventListener('scroll', this._viewportOnChange);
+    this._viewportRestore();
+    if (this._viewportOwned.attribute === null) {
+      this.container.removeAttribute('data-solar-mobile-landscape');
+    } else {
+      this.container.setAttribute('data-solar-mobile-landscape', this._viewportOwned.attribute);
+    }
+    this._viewportOwned = null;
+    this._mobileMedia = null;
+    this._mobileLandscapeMedia = null;
+    this._viewportVisual = null;
+    this._viewportOnChange = null;
   }
 
   _buildRenderer() {
@@ -274,11 +732,7 @@ export class SolarSystem {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x05060d);
-    const backgroundTexture = new THREE.TextureLoader().load('/globe/backgrounds/heic1509a-bg.jpg', (tex) => {
-      tex.colorSpace = THREE.SRGBColorSpace;
-      this.scene.background = tex;
-    });
-    this._track(backgroundTexture);
+    this._startupLoadBackground();
 
     this.camera = new THREE.PerspectiveCamera(HOME_FOV, width / height, 0.1, 500);
     this.camera.position.set(0, 26, 48);
@@ -332,16 +786,20 @@ export class SolarSystem {
   }
 
   _buildSun() {
+    const illustrativeRotationPeriodSeconds = 25.4 * 86400;
+    const illustrativeSpin = (2 * Math.PI) / illustrativeRotationPeriodSeconds;
+    const illustrativeSpinAtClockRate = () =>
+      illustrativeSpin * (this.timeSample?.rate ?? this.realTimeClock?.sample().rate ?? 1);
     const geometry = new THREE.SphereGeometry(3.4, this.isMobile ? 20 : 40, this.isMobile ? 14 : 28);
-    const material = new THREE.MeshBasicMaterial({ color: 0xffcf40 });
+    const material = createSunMaterial(this.isMobile);
 
     this.sun = new THREE.Mesh(geometry, material);
     this.sun.name = 'Sun';
     this.scene.add(this.sun);
     this._track(geometry, material);
     const glowCanvas = document.createElement('canvas'); glowCanvas.width = glowCanvas.height = 64;
-    const gc = glowCanvas.getContext('2d'); const grad = gc.createRadialGradient(32, 32, 2, 32, 32, 32); grad.addColorStop(0, 'rgba(255,255,220,.9)'); grad.addColorStop(1, 'rgba(255,150,20,0)'); gc.fillStyle = grad; gc.fillRect(0,0,64,64);
-    const glowTex = new THREE.CanvasTexture(glowCanvas); const glowMat = new THREE.SpriteMaterial({ map: glowTex, color: 0xffb020, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }); const glow = new THREE.Sprite(glowMat); glow.scale.set(28,28,1); this.sun.add(glow); this._track(glowTex, glowMat);
+    const gc = glowCanvas.getContext('2d'); const grad = gc.createRadialGradient(32, 32, 0, 32, 32, 32); grad.addColorStop(0, 'rgba(255,255,220,1)'); grad.addColorStop(1, 'rgba(255,150,20,0)'); gc.fillStyle = grad; gc.fillRect(0,0,64,64);
+    const glowTex = new THREE.CanvasTexture(glowCanvas); const glowMat = new THREE.SpriteMaterial({ map: glowTex, color: 0xffb020, opacity: 0.18, blending: THREE.AdditiveBlending, transparent: true, depthTest: true, depthWrite: false }); const glow = new THREE.Sprite(glowMat); glow.scale.set(9,9,1); this.sun.add(glow); this._track(glowTex, glowMat);
 
     this.bodies.push({
       name: 'Sun',
@@ -349,7 +807,9 @@ export class SolarSystem {
       angle: 0,
       speed: 0,
       orbit: 0,
-      spin: 0.05,
+      get spin() {
+        return illustrativeSpinAtClockRate();
+      },
       parent: null
     });
   }
@@ -464,7 +924,23 @@ export class SolarSystem {
   _buildAtmosphere(planetMesh, type) { if (this.isMobile && type !== 'Earth') return null; const g = new THREE.SphereGeometry(planetMesh.geometry.parameters.radius * 1.045, 16, 12); const m = new THREE.MeshBasicMaterial({ color: 0x5cb3ff, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, side: THREE.BackSide, depthWrite: false }); const shell = new THREE.Mesh(g,m); planetMesh.add(shell); this._track(g,m); return shell; }
 
   _buildHalleyComet() {
-    const nucleus = new THREE.Mesh(new THREE.SphereGeometry(.35, 12, 8), new THREE.MeshBasicMaterial({ color: 0xdff6ff }));
+    const nucleusGeometry = new THREE.SphereGeometry(1, 16, 12);
+    const nucleusPositions = nucleusGeometry.attributes.position;
+    const vertex = new THREE.Vector3();
+    for (let index = 0; index < nucleusPositions.count; index += 1) {
+      vertex.fromBufferAttribute(nucleusPositions, index);
+      const irregularity = .96 + .02 * Math.sin(7 * vertex.x + 3 * vertex.y) * Math.cos(5 * vertex.z - 2 * vertex.x) + .015 * Math.sin(11 * vertex.y + 4 * vertex.z);
+      vertex.multiplyScalar(irregularity);
+      nucleusPositions.setXYZ(index, vertex.x, vertex.y, vertex.z);
+    }
+    nucleusGeometry.computeBoundingBox();
+    const nucleusCenter = nucleusGeometry.boundingBox.getCenter(new THREE.Vector3());
+    const nucleusExtent = nucleusGeometry.boundingBox.getSize(new THREE.Vector3());
+    nucleusGeometry.translate(-nucleusCenter.x, -nucleusCenter.y, -nucleusCenter.z);
+    const longestSemiAxis = .34999998;
+    nucleusGeometry.scale(2 * longestSemiAxis / nucleusExtent.x, 2 * longestSemiAxis / (1.9 * nucleusExtent.y), 2 * longestSemiAxis / (1.9 * nucleusExtent.z));
+    nucleusGeometry.computeVertexNormals();
+    const nucleus = new THREE.Mesh(nucleusGeometry, new THREE.MeshStandardMaterial({ color: 0x303238, roughness: 1, metalness: 0 }));
     this._track(nucleus.geometry, nucleus.material);
 
     // Compatibility reference for getP1RuntimeSnapshot's anti-solar axis.
@@ -718,30 +1194,51 @@ export class SolarSystem {
     const dt = Math.min(0.05, this.clock.getDelta());
 
     const shouldAdvance = !this.orbitState.isDragging && this.orbitState.motionState !== 'paused';
+    const entryUtcMs = Date.now();
     this._advanceBodies(shouldAdvance ? dt : 0);
+    const startupFrame = this._startupCaptureFrame(entryUtcMs);
     this.dustTailManager?.tick(this.simulationTime, {
-      paused: !shouldAdvance,
-      bodyValid: this.ephemerisStatus.targets.halley.ok
+      paused: false,
+      epochReady: Boolean(this.ephemerides?.isEpochReady(this.simulationTime)),
+      bodyValid: this.ephemerisStatus.status === 'ready' && this.ephemerisStatus.targets.halley.ok
     });
     this.debug.solarOrbitMotionState = this.orbitState.motionState;
     this.debug.solarOrbitResumeRemainingMs = this.orbitState.motionState === 'paused' ? Math.max(0, this.orbitState.resumeDelayMs - (Date.now() - this.orbitState.pauseStartTime)) : 0;
     this._stepCameraTween(dt);
     if (!this.cameraTween) { this.camera.position.setFromSpherical(this.orbitState.spherical).add(this.cameraTarget); this.camera.lookAt(this.cameraTarget); }
     this._syncHitButtons();
+    if (this._startup?.phase !== 'FIRST_VISIBLE') this._startupGate();
 
-    this.renderer.render(this.scene, this.camera);
+    this.dustTailRenderer?.prepareFrame(this.camera, this.renderer);
+    try {
+      this.renderer.render(this.scene, this.camera);
+      this._startupPublish(startupFrame);
+    } catch (error) {
+      if (!this._startup?.canvasStyle || this._startup.phase === 'FIRST_VISIBLE') throw error;
+      if (this._startup.label && this._startup.phase !== 'FIRST_VISIBLE') this._startup.label.textContent = `LOADING · 渲染失败：${error.message || error}`;
+    }
 
-    this.frameId = requestAnimationFrame(this._tick);
+    if (this.running && !this.disposed) this.frameId = requestAnimationFrame(this._tick);
   }
 
   // All ephemeris targets share one clock; body spins advance independently.
   _advanceBodies(dt) {
-    this.simulationTime = advanceSimulationTime(this.simulationTime, dt, this.simulationDaysPerSecond, this.ephemerides?.range || [2446078.5, 2446643.5]);
+    this.timeSample = this.realTimeClock.sample();
+    this.simulationTime = this.timeSample.jdTdb;
     advanceOrbitalBodies(this.bodies, dt, this.earthCloudMesh);
 
     this.sunLight.position.copy(this.sun.position);
     if (this.asteroidBelt && this.asteroidData) { const m = new THREE.Matrix4(); this.asteroidData.forEach((a,i) => { a.angle += 0.18 * Math.pow(29.6 / a.r, 1.5) * dt; m.makeRotationY(a.spin * dt); m.setPosition(a.r * Math.cos(a.angle), a.y, -a.r * Math.sin(a.angle)); m.scale(new THREE.Vector3(a.scale, a.scale, a.scale)); this.asteroidBelt.setMatrixAt(i,m); }); this.asteroidBelt.instanceMatrix.needsUpdate = true; }
-    if (this.ephemerides) updateEphemerisTargets({
+    const ready = this.ephemerides?.isEpochReady(this.simulationTime);
+    if (this.ephemerides && !ready) {
+      this.ephemerisStatus.status = this.ephemerisStatus.error ? 'error' : 'loading';
+      this._requestEphemerisEpoch(this.simulationTime);
+    }
+    if (ready) {
+      ++this._epochRequestId;
+      this._pendingEpoch = null;
+      const previousJd = this.ephemerisStatus.lastAppliedJd;
+      updateEphemerisTargets({
       simulationTime: this.simulationTime,
       providers: this.ephemerides.providers,
       targets: this.ephemerisTargets,
@@ -760,7 +1257,17 @@ export class SolarSystem {
         this.halley.tail.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), direction);
         this.halley.flame.scale.setScalar(THREE.MathUtils.clamp(2.4 * (1.2 / tail.distanceAu), 1, 4.8));
       }
-    });
+      });
+      const valid = Object.keys(this.ephemerisTargets).every((name) => this.ephemerisStatus.targets[name].ok);
+      this.ephemerisStatus.status = valid ? 'ready' : 'error';
+      this.ephemerisStatus.error = valid ? null : 'invalid precision sample';
+      if (valid) {
+        this.ephemerisStatus.lastAppliedJd = this.simulationTime;
+        this.ephemerisStatus.lastAppliedUtcMs = this.timeSample.utcMs;
+        if (previousJd !== null && Math.abs(previousJd - this.simulationTime) > 1 / 24) this.dustTailManager?.notifyTimeDiscontinuity(this.simulationTime);
+      }
+    }
+    this.timeControls?.update(this.timeSample, this.ephemerisStatus);
   }
 
   getP1RuntimeSnapshot() {
@@ -997,6 +1504,10 @@ export class SolarSystem {
       return this;
     }
 
+    if (this._viewportOwned) {
+      this._viewportSync();
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.isMobile ? 1.5 : 2));
+    }
     const { width, height } = this._measure();
 
     this.camera.aspect = width / height;
@@ -1030,7 +1541,12 @@ export class SolarSystem {
 
   destroy() {
     this.pause();
+    this._startupDispose();
+    this._viewportDispose();
     this.disposed = true;
+    ++this._epochRequestId;
+    this.ephemerides?.dispose();
+    this.timeControls?.dispose();
 
     if (this.dustTailManager) {
       this.dustTailManager.dispose();

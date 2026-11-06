@@ -199,7 +199,7 @@ export class DustTailManager {
   }
 
   _containsTime(simulationTime) {
-    return Number.isFinite(simulationTime);
+    return Number.isFinite(simulationTime) && simulationTime >= this.range[0] && simulationTime <= this.range[1];
   }
 
   _sampleHalley(jd) {
@@ -228,11 +228,25 @@ export class DustTailManager {
     this.requestedTObs = null;
   }
 
-  tick(simulationTime, { paused, bodyValid = true } = {}) {
+  tick(simulationTime, { paused, bodyValid = true, epochReady = true } = {}) {
     if (this.disposed || this.status === 'disposed') return;
 
     if (this.errorLatched) {
       this.status = 'error';
+      return;
+    }
+
+    if (!this._containsTime(simulationTime)) {
+      this._invalidateJobs();
+      this.status = 'out_of_range';
+      if (this.renderer) this.renderer.clear();
+      return;
+    }
+
+    if (!epochReady) {
+      this._invalidateJobs();
+      this.status = 'loading';
+      if (this.renderer) this.renderer.clear();
       return;
     }
 
@@ -245,13 +259,6 @@ export class DustTailManager {
 
     // The caller supplies the shared continuous animation time. Never wrap or
     // tolerate/clamp an invalid raw input inside this component.
-    if (!this._containsTime(simulationTime)) {
-      this._invalidateJobs();
-      this.status = 'out_of_range';
-      if (this.renderer) this.renderer.clear();
-      return;
-    }
-
     this._isPaused = Boolean(paused);
 
     if (this._isPaused) {
@@ -260,7 +267,7 @@ export class DustTailManager {
       return;
     }
 
-    const tObs = Math.round(simulationTime / STEP_DAYS) * STEP_DAYS;
+    const tObs = Math.max(this.range[0], Math.min(this.range[1], Math.round(simulationTime / STEP_DAYS) * STEP_DAYS));
     this.requestedTObs = tObs;
 
     if (tObs === this.displayTObs && !this.latestPending) {
@@ -269,8 +276,7 @@ export class DustTailManager {
       return;
     }
 
-    // The continuous provider makes the complete 100-day release history valid.
-    const validReleaseCount = MAX_RELEASES;
+    const validReleaseCount = Math.min(MAX_RELEASES, Math.floor((tObs - this.range[0]) / RELEASE_INTERVAL_DAYS) + 1);
 
     if (validReleaseCount === 0) {
       if (this.renderer) this.renderer.clear();
