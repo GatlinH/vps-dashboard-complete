@@ -67,7 +67,16 @@ let wall;
 class Element {
   constructor(tagName) {
     this.tagName = tagName;
-    this.style = { position: '', visibility: '', pointerEvents: '' };
+    const declarations = new Map();
+    this.style = {
+      position: '',
+      visibility: '',
+      pointerEvents: '',
+      getPropertyValue: (name) => declarations.get(name)?.value || '',
+      getPropertyPriority: (name) => declarations.get(name)?.priority || '',
+      setProperty: (name, value, priority = '') => declarations.set(name, { value, priority }),
+      removeProperty: (name) => declarations.delete(name),
+    };
     this.dataset = {};
     this.attributes = new Map();
     this.listeners = new Map();

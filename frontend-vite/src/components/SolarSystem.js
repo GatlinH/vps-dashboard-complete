@@ -14,7 +14,7 @@ let startupMountId = 0;
 // Solar system widget: real orbital revolution, keyboard-reachable bodies,
 // a single rAF loop that also drives the camera approach tween.
 
-const MOBILE_QUERY = '(max-width: 720px)';
+const MOBILE_QUERY = '(max-width: 720px), (max-height: 500px) and (pointer: coarse) and (hover: none)';
 const HOME_FOV = 52;
 const TARGET_RADIUS = (19 + 2.6 + 1.25) * 1.1;
 const MOON_DISPLAY_UNITS_PER_AU = 1089.68;
@@ -86,11 +86,12 @@ export class SolarSystem {
       return;
     }
 
-    this.isMobile = this._detectMobile();
+    this._viewportInit();
 
     try {
       this._buildRenderer();
     } catch (err) {
+      this._viewportDispose();
       this._failSoft(err);
       return;
     }
@@ -600,9 +601,99 @@ export class SolarSystem {
 
   _detectMobile() {
     if (typeof window.matchMedia === 'function') {
-      return window.matchMedia(MOBILE_QUERY).matches;
+      return (this._mobileMedia || window.matchMedia(MOBILE_QUERY)).matches;
     }
     return window.innerWidth <= 720;
+  }
+
+  _viewportInit() {
+    if (typeof this.container.getAttribute !== 'function'
+      || typeof this.container.style?.getPropertyValue !== 'function') {
+      this.isMobile = this._detectMobile();
+      return;
+    }
+    const style = this.container.style;
+    this._viewportOwned = {
+      attribute: this.container.getAttribute('data-solar-mobile-landscape'),
+      properties: new Map([
+        '--solar-viewport-width', '--solar-viewport-height',
+        '--solar-viewport-left', '--solar-viewport-top'
+      ].map((name) => [name, {
+        value: style.getPropertyValue(name), priority: style.getPropertyPriority(name)
+      }]))
+    };
+    if (typeof window.matchMedia === 'function') {
+      this._mobileMedia = window.matchMedia(MOBILE_QUERY);
+      this._mobileLandscapeMedia = window.matchMedia('(orientation: landscape) and (max-height: 500px) and (pointer: coarse) and (hover: none)');
+    }
+    this._viewportVisual = window.visualViewport;
+    this._viewportOnChange = () => this.resize();
+    [this._mobileMedia, this._mobileLandscapeMedia].filter(Boolean).forEach((media) => {
+      if (typeof media.addEventListener === 'function') {
+        media.addEventListener('change', this._viewportOnChange);
+      } else {
+        media.addListener?.(this._viewportOnChange);
+      }
+    });
+    this._viewportVisual?.addEventListener('resize', this._viewportOnChange);
+    this._viewportVisual?.addEventListener('scroll', this._viewportOnChange);
+    this._viewportSync();
+  }
+
+  _viewportSync() {
+    this.isMobile = this._detectMobile();
+    const landscape = Boolean(this.isMobile && this._mobileLandscapeMedia?.matches);
+    this.container.setAttribute('data-solar-mobile-landscape', String(landscape));
+    if (!landscape) {
+      this._viewportRestore();
+      return;
+    }
+    const available = this._viewportVisual;
+    const viewport = Number.isFinite(available?.width) && available.width > 0
+      && Number.isFinite(available?.height) && available.height > 0 ? available : null;
+    const values = {
+      '--solar-viewport-width': viewport?.width ?? window.innerWidth,
+      '--solar-viewport-height': viewport?.height ?? window.innerHeight,
+      '--solar-viewport-left': Number.isFinite(viewport?.offsetLeft) ? viewport.offsetLeft : 0,
+      '--solar-viewport-top': Number.isFinite(viewport?.offsetTop) ? viewport.offsetTop : 0
+    };
+    for (const [name, value] of Object.entries(values)) {
+      this.container.style.setProperty(name, `${value}px`);
+    }
+  }
+
+  _viewportRestore() {
+    for (const [name, previous] of this._viewportOwned.properties) {
+      if (previous.value) {
+        this.container.style.setProperty(name, previous.value, previous.priority);
+      } else {
+        this.container.style.removeProperty(name);
+      }
+    }
+  }
+
+  _viewportDispose() {
+    if (!this._viewportOwned) return;
+    [this._mobileMedia, this._mobileLandscapeMedia].filter(Boolean).forEach((media) => {
+      if (typeof media.removeEventListener === 'function') {
+        media.removeEventListener('change', this._viewportOnChange);
+      } else {
+        media.removeListener?.(this._viewportOnChange);
+      }
+    });
+    this._viewportVisual?.removeEventListener('resize', this._viewportOnChange);
+    this._viewportVisual?.removeEventListener('scroll', this._viewportOnChange);
+    this._viewportRestore();
+    if (this._viewportOwned.attribute === null) {
+      this.container.removeAttribute('data-solar-mobile-landscape');
+    } else {
+      this.container.setAttribute('data-solar-mobile-landscape', this._viewportOwned.attribute);
+    }
+    this._viewportOwned = null;
+    this._mobileMedia = null;
+    this._mobileLandscapeMedia = null;
+    this._viewportVisual = null;
+    this._viewportOnChange = null;
   }
 
   _buildRenderer() {
@@ -1413,6 +1504,10 @@ export class SolarSystem {
       return this;
     }
 
+    if (this._viewportOwned) {
+      this._viewportSync();
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.isMobile ? 1.5 : 2));
+    }
     const { width, height } = this._measure();
 
     this.camera.aspect = width / height;
@@ -1447,6 +1542,7 @@ export class SolarSystem {
   destroy() {
     this.pause();
     this._startupDispose();
+    this._viewportDispose();
     this.disposed = true;
     ++this._epochRequestId;
     this.ephemerides?.dispose();
