@@ -4,6 +4,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Mapping
 
+from sqlalchemy import and_, or_
+
 from extensions import db
 from models.models import PingTargetRollup
 
@@ -50,12 +52,25 @@ def record_ping_rollup(server_id: int, target: Mapping, created_at: datetime | N
     return row
 
 
-def query_ping_rollups(server_id: int, since: datetime, limit: int):
+def query_ping_rollups(server_id: int, since: datetime, limit: int, *, target_aliases=None, source=None):
     if since.tzinfo is not None:
         since = since.astimezone(timezone.utc).replace(tzinfo=None)
+    query = PingTargetRollup.query.filter(
+        PingTargetRollup.server_id == int(server_id), PingTargetRollup.bucket_start >= since,
+    )
+    if source in ('public', 'external'):
+        query = query.filter(~PingTargetRollup.target_key.like('vps-%'))
+    if target_aliases is not None:
+        identities = [and_(PingTargetRollup.target_key == key, PingTargetRollup.protocol == protocol)
+                      for key, protocol in target_aliases]
+        if identities:
+            query = query.filter(or_(*identities))
+        elif source == 'agent':
+            query = query.filter(PingTargetRollup.target_key.like('vps-%'))
+        else:
+            return []
     return (
-        PingTargetRollup.query
-        .filter(PingTargetRollup.server_id == int(server_id), PingTargetRollup.bucket_start >= since)
+        query
         .order_by(PingTargetRollup.bucket_start.asc())
         .limit(max(1, int(limit)))
         .all()
@@ -68,13 +83,19 @@ def compact_ping_rollups(*, retention_days: int, now: datetime | None = None) ->
     return PingTargetRollup.query.filter(PingTargetRollup.bucket_start < cutoff).delete(synchronize_session=False)
 
 
-def serialize_ping_rollups(rows) -> list[dict]:
+def serialize_ping_rollups(rows, *, target_aliases=None) -> list[dict]:
     grouped: dict[str, dict] = {}
     for row in rows:
-        item = grouped.setdefault(row.target_key, {
-            "key": row.target_key, "label": row.label or row.target_key,
+        meta = (target_aliases or {}).get((row.target_key, row.protocol), {})
+        key = meta.get('key', row.target_key)
+        label = meta.get('label') or row.label or key
+        item = grouped.setdefault(key, {
+            "key": key, "label": label,
             "protocol": row.protocol or "icmp", "points": [],
         })
+        if target_aliases is not None:
+            item.update({name: meta.get(name, '' if name == 'region' else None)
+                         for name in ('host', 'port', 'type', 'region')})
         samples = max(1, int(row.sample_count or 0))
         success = int(row.success_count or 0)
         point = {
@@ -82,8 +103,8 @@ def serialize_ping_rollups(rows) -> list[dict]:
             "success": bool(success),
             "loss_pct": float(row.loss_sum or 0) / samples,
             "protocol": row.protocol or "icmp",
-            "key": row.target_key,
-            "label": row.label or row.target_key,
+            "key": key,
+            "label": label,
         }
         if success:
             point["latency_ms"] = float(row.latency_sum or 0) / success

@@ -95,6 +95,15 @@ def _agent_side_unavailable_payload(server_id, targets, hours=None):
     return payload
 
 
+def _normalize_ping_target_region(region):
+    if not isinstance(region, str) or len(region) > 32 or "\n" in region or "\r" in region:
+        return ""
+    try:
+        return region if len(region.encode("utf-8")) <= 128 else ""
+    except UnicodeEncodeError:
+        return ""
+
+
 def _resolve_ping_targets_for_server(server: Server):
     cfg = (server.agent_config or {}) if getattr(server, "agent_config", None) else {}
     targets = cfg.get("ping_targets")
@@ -112,7 +121,7 @@ def _resolve_ping_targets_for_server(server: Server):
                 port = int(item.get("port", 443))
             except Exception:
                 port = 443
-            cleaned.append({"key": str(item.get("key", f"target-{idx+1}")).strip(), "label": str(item.get("label", host or f"target-{idx+1}")).strip(), "host": host, "port": port, "protocol": normalize_probe_protocol(item.get("protocol")), "type": "external"})
+            cleaned.append({"key": str(item.get("key", f"target-{idx+1}")).strip(), "label": str(item.get("label", host or f"target-{idx+1}")).strip(), "host": host, "port": port, "protocol": normalize_probe_protocol(item.get("protocol")), "type": "external", "region": _normalize_ping_target_region(item.get("region"))})
         return cleaned
     return [{**target, "type": "external"} for target in _load_ping_targets()]
 
@@ -140,7 +149,7 @@ def _load_ping_targets():
                 port = int(item.get("port", 443))
             except Exception:
                 port = 443
-            cleaned.append({"key": str(item.get("key", f"target-{idx+1}")).strip(), "label": str(item.get("label", host or f"target-{idx+1}")).strip(), "host": host, "port": port, "protocol": normalize_probe_protocol(item.get("protocol")), "type": "external"})
+            cleaned.append({"key": str(item.get("key", f"target-{idx+1}")).strip(), "label": str(item.get("label", host or f"target-{idx+1}")).strip(), "host": host, "port": port, "protocol": normalize_probe_protocol(item.get("protocol")), "type": "external", "region": _normalize_ping_target_region(item.get("region"))})
         return cleaned
     except Exception:
         return []
