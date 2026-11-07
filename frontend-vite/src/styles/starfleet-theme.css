@@ -205,7 +205,7 @@ body::after {
 .detail-page-subline,.public-overview-title-wrap p,.public-overview-meta-bar { color:rgba(210,226,247,.78)!important; }
 
 .public-overview-stats > div,
-.public-overview-card,
+.public-overview-card:not(.is-v2-card),
 .public-overview-panel,
 .detail-panel,
 .traffic-card,
@@ -221,7 +221,7 @@ body::after {
   backdrop-filter:blur(14px);
 }
 .public-overview-stats > div::before,
-.public-overview-card::before,
+.public-overview-card:not(.is-v2-card)::before,
 .public-overview-panel::before,
 .detail-panel::before,
 .traffic-card::before,
@@ -232,8 +232,8 @@ body::after {
 }
 .public-overview-stats strong { color:#ffc66f!important; font-family:var(--mono); font-size:30px!important; }
 .public-overview-stats span,.public-overview-grid,.public-overview-meta,.public-overview-mini-list li,.detail-panel { font-family:var(--mono); }
-.public-overview-card { padding-left:28px!important; }
-.public-overview-card:hover,.public-overview-panel:hover,.detail-panel:hover { border-color:rgba(255,159,53,.48)!important; box-shadow:0 28px 78px rgba(0,0,0,.48),0 0 36px rgba(115,205,255,.10)!important; }
+.public-overview-card:not(.is-v2-card) { padding-left:28px!important; }
+.public-overview-card:not(.is-v2-card):hover,.public-overview-panel:hover,.detail-panel:hover { border-color:rgba(255,159,53,.48)!important; box-shadow:0 28px 78px rgba(0,0,0,.48),0 0 36px rgba(115,205,255,.10)!important; }
 .public-overview-status { border-radius:999px 14px 14px 999px!important; font-family:var(--mono); font-weight:800; }
 .public-overview-status.is-online,.detail-page-status.online { background:rgba(98,240,183,.14)!important; color:#62f0b7!important; }
 .public-overview-status.is-warn,.detail-page-status.warn { background:rgba(255,159,53,.16)!important; color:#ffc66f!important; }
@@ -548,7 +548,7 @@ body::after {
 }
 .public-overview-stats > div,
 .public-overview-panel,
-.public-overview-card,
+.public-overview-card:not(.is-v2-card),
 .detail-panel,
 .traffic-card,
 .stat-card,
