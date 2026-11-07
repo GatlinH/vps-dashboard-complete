@@ -336,8 +336,9 @@ function adaptiveMsYScale(values = [], baseY = {}) {
 }
 
 
-function attachPingPointTooltip(canvas, datasets = [], axisBounds = null) {
+function attachPingPointTooltip(canvas, datasets = [], axisBounds = null, { formatTooltipClock, PING_AXIS_STEPS_MS } = {}) {
   if (!canvas || !Array.isArray(datasets)) return;
+  canvas._detailPingTooltipCleanup?.();
   const card = canvas.closest('.ping-multi-card') || canvas.parentElement;
   if (!card) return;
   card.querySelector('.ping-point-tooltip')?.remove();
@@ -388,13 +389,17 @@ function attachPingPointTooltip(canvas, datasets = [], axisBounds = null) {
     const p = findNearest(ev);
     if (!p || p.score > 0.18) { tip.style.display = 'none'; return; }
     const lines = [
-      spanText('b', p.dsLabel || p.label || 'PING'),
-      spanText('span', `${t('chartTime')}: ${formatTooltipClock(p.x)}`),
-      spanText('span', `${t('chartLatency')}: ${Number(p.rawMs || 0).toFixed(1)} ms`),
-      spanText('span', `${t('chartLoss')}: ${Number(p.lossPct || 0).toFixed(0)}%`),
-      spanText('span', `${t('chartProtocol')}: ${p.protocol || 'icmp'}`),
-    ];
-    replaceChildrenSafe(tip, lines);
+      ['b', p.dsLabel || p.label || 'PING'],
+      ['span', `${t('chartTime')}: ${formatTooltipClock(p.x)}`],
+      ['span', `${t('chartLatency')}: ${Number(p.rawMs || 0).toFixed(1)} ms`],
+      ['span', `${t('chartLoss')}: ${p.lossPct == null ? '—' : `${Number(p.lossPct).toFixed(0)}%`}`],
+      ['span', `${t('chartProtocol')}: ${p.protocol || 'icmp'}`],
+    ].map(([tagName, text]) => {
+      const line = document.createElement(tagName);
+      line.textContent = text;
+      return line;
+    });
+    tip.replaceChildren(...lines);
     const cardRect = card.getBoundingClientRect();
     tip.style.display = 'block';
     tip.style.left = `${Math.max(10, Math.min(cardRect.width - 210, ev.clientX - cardRect.left + 12))}px`;
@@ -402,7 +407,14 @@ function attachPingPointTooltip(canvas, datasets = [], axisBounds = null) {
   };
   canvas.addEventListener('mousemove', show);
   canvas.addEventListener('mouseenter', show);
-  canvas.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+  const hide = () => { tip.style.display = 'none'; };
+  canvas.addEventListener('mouseleave', hide);
+  canvas._detailPingTooltipCleanup = () => {
+    canvas.removeEventListener('mousemove', show);
+    canvas.removeEventListener('mouseenter', show);
+    canvas.removeEventListener('mouseleave', hide);
+    tip.remove();
+  };
   window.__DBG__.DETAIL_PING_TOOLTIP_ATTACHED = true;
 }
 
@@ -611,7 +623,7 @@ export function appendDetailLiveMetrics(live, deps) {
   return cpu || memory || process;
 }
 
-export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [], downSeries = [], pingData = null, probeLabels = [], cpuSeries = [], ramSeries = [], probeRows = [], networkProbeRows = null, processRows = [], pingTargetsData = null, pingTargetHistoryData = null, vpsProbeTargetsData = null, vpsProbeHistoryData = null, latestServer = null, detailDays = 0 }, deps) {
+export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [], downSeries = [], pingData = null, probeLabels = [], cpuSeries = [], ramSeries = [], probeRows = [], networkProbeRows = null, processRows = [], pingTargetsData = null, pingTargetHistoryData = null, vpsProbeTargetsData = null, vpsProbeHistoryData = null, latestServer = null, detailDays = 0, isCurrent = () => true }, deps) {
   const { detailCharts, rowTimeMs, formatHourTick, formatHourTickWithDate, formatTooltipClock, telemetryTooltipTime, seriesWindowFromRows, adaptiveRollingBounds, fitSeriesToRollingAxis, buildPingDatasets, accumulatingAxisBoundsFromTimes, fmtRate, pingStepLabel, PING_AXIS_STEPS_MS, latestTimelineMs, getDetailPingSampleCache } = deps;
   const networkCanvas = document.getElementById('detailNetworkChart');
   const cpuCanvas = document.getElementById('detailCpuChart');
@@ -622,13 +634,13 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
   if (!networkCanvas && !cpuCanvas && !memoryCanvas && !processCountCanvas && !pingCanvas && !globalVpsProbeCanvas) return;
 
   const Chart = await detailCharts.ready();
+  if (!isCurrent()) return;
 
   detailCharts.destroy('detailBandwidthChart');
   detailCharts.destroy('detailNetworkChart');
   detailCharts.destroy('detailCpuChart');
   detailCharts.destroy('detailMemoryChart');
   detailCharts.destroy('detailProcessCountChart');
-  detailCharts.destroy('detailPingChart');
   detailCharts.destroy('detailGlobalVpsProbeChart');
 
   const networkCtx = networkCanvas?.getContext('2d');
@@ -924,10 +936,10 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     const pingEmptyPlugin = {
       id: 'pingEmptyState',
       afterDraw(chart) {
-        if (hasPingPoints) return;
+        if (chart.data.datasets.some((dataset) => dataset.data?.length)) return;
         const area = chart.chartArea;
         if (!area) return;
-        const targets = (pingTargetsData?.targets || []);
+        const targets = chart._detailPingTargets || [];
         const loss = targets.length ? Number(targets[0]?.stats?.loss_pct ?? NaN) : NaN;
         chart.ctx.save();
         chart.ctx.fillStyle = 'rgba(235,252,255,.92)';
@@ -941,7 +953,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
         chart.ctx.restore();
       }
     };
-    detailCharts._register('detailPingChart', new Chart(ctx, {
+    const config = {
       type: 'line',
       data: {
         datasets: ping24hDatasets.map((ds) => ({
@@ -950,19 +962,35 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
           // Use real milliseconds for adaptive Y axis (not fixed step-index mapping).
           data: (ds.data || []).map((p) => ({
             ...p,
-            y: Number.isFinite(Number(p.rawMs)) ? Number(p.rawMs) : Number(p.y) || 0,
+            y: p.rawMs != null && Number.isFinite(Number(p.rawMs)) ? Number(p.rawMs) : p.y == null ? null : Number(p.y),
           })),
         })),
       },
       plugins: [pingEmptyPlugin],
-      options: { ...makeHudChartOptions(5, 'ms'), plugins: { ...makeHudChartOptions(5, 'ms').plugins, legend: { display: false, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: hasPingPoints, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? `${t('chartSampleTime')} ${formatTooltipClock(items[0].raw.x)}` : '', label: (item) => `${item.dataset.label}: ${Number(item.raw.rawMs ?? item.raw.y ?? 0).toFixed(1)} ms`, afterLabel: (item) => `${t('chartProtocol')} ${item.raw.protocol || 'icmp'} · ${t('chartLoss')} ${Number(item.raw.lossPct ?? 0).toFixed(0)}%` } } }, scales: { x: { type: 'linear', reverse: false, min: axis24h[0], max: axis24h[4], ticks: { color: '#8ab5bd', stepSize: Math.max(60 * 1000, Math.round((axis24h[4] - axis24h[0]) / 4)), callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: isDetailMobileChart(), maxTicksLimit: isDetailMobileChart() ? 4 : undefined, font: { size: isDetailMobileChart() ? 7 : 8 } }, grid: { color: 'rgba(98,245,238,0.13)' }, border: { color: 'rgba(98,245,238,.18)' } }, y: pingYScale } }
-    }));
+      options: { ...makeHudChartOptions(5, 'ms'), plugins: { ...makeHudChartOptions(5, 'ms').plugins, legend: { display: false, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: hasPingPoints, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? `${t('chartSampleTime')} ${formatTooltipClock(items[0].raw.x)}` : '', label: (item) => `${item.dataset.label}: ${Number(item.raw.rawMs ?? item.raw.y ?? 0).toFixed(1)} ms`, afterLabel: (item) => `${t('chartProtocol')} ${item.raw.protocol || 'icmp'} · ${t('chartLoss')} ${item.raw.lossPct == null ? '—' : `${Number(item.raw.lossPct).toFixed(0)}%`}` } } }, scales: { x: { type: 'linear', reverse: false, min: axis24h[0], max: axis24h[4], ticks: { color: '#8ab5bd', stepSize: Math.max(60 * 1000, Math.round((axis24h[4] - axis24h[0]) / 4)), callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: isDetailMobileChart(), maxTicksLimit: isDetailMobileChart() ? 4 : undefined, font: { size: isDetailMobileChart() ? 7 : 8 } }, grid: { color: 'rgba(98,245,238,0.13)' }, border: { color: 'rgba(98,245,238,.18)' } }, y: pingYScale } }
+    };
+    let chart = detailCharts._instances.get('detailPingChart');
+    if (chart && chart.canvas !== pingCanvas) {
+      chart.canvas?._detailPingTooltipCleanup?.();
+      detailCharts.destroy('detailPingChart');
+      chart = null;
+    }
+    if (chart) {
+      chart.data = config.data;
+      chart.options = config.options;
+      chart._detailPingTargets = pingTargetsData?.targets || [];
+      chart.update();
+    } else {
+      chart = new Chart(ctx, config);
+      chart._detailPingTargets = pingTargetsData?.targets || [];
+      detailCharts._register('detailPingChart', chart);
+    }
     attachPingPointTooltip(pingCanvas, ping24hDatasets, {
       min: pingAxisBounds.min,
       max: pingAxisBounds.max,
       yMin: pingYScale.min,
       yMax: pingYScale.max,
-    });
+    }, { formatTooltipClock, PING_AXIS_STEPS_MS });
   }
   if (globalVpsProbeCanvas) {
     const ctx = globalVpsProbeCanvas.getContext('2d');

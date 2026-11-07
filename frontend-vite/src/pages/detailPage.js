@@ -1,6 +1,21 @@
 import { state } from '../store/state.js';
 import { LANGUAGE_PACKS, currentLanguage, t } from '../core/preferences.js';
 import { escapeHtmlAttribute, escapeHtmlText as escapeHtml } from '../utils/escapeHtml.js';
+import { ALL_REGIONS, UNGROUPED_REGION, encodeRegionSelection, listTargetRegions } from '../services/regionalPing.js';
+
+export function renderDetailPingRegionOptions(metadata, selection = ALL_REGIONS) {
+  const selected = encodeRegionSelection(selection);
+  const chinese = currentLanguage === 'zh';
+  const choices = [
+    [ALL_REGIONS, chinese ? '全部地区' : 'All regions'],
+    [UNGROUPED_REGION, chinese ? '未分组' : 'Ungrouped'],
+    ...listTargetRegions(metadata?.targets).filter((group) => !group.ungrouped).map((group) => [{ kind: 'region', region: group.region }, `${group.region} (${group.target_count})`]),
+  ];
+  return choices.map(([value, label]) => {
+    const encoded = encodeRegionSelection(value);
+    return `<option value="${escapeHtmlAttribute(encoded)}"${encoded === selected ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+  }).join('');
+}
 
 function firstText(...values) {
   for (const value of values) {
@@ -140,7 +155,7 @@ export function renderDetailConsole(ctx) {
     helpers,
   } = ctx;
   const h = helpers;
-  const displayPingTargetsData = ((pingTargetsData?.targets || []).length ? pingTargetsData : ctx.detailCachedPingTargets) || pingTargetsData || ctx.detailCachedPingTargets;
+  const displayPingTargetsData = pingTargetsData ?? ctx.detailCachedPingTargets;
   const targetCount = (displayPingTargetsData?.targets || []).length || 0;
   const historyLabel = detailDays === 0 ? t('rangeToday') : `${detailDays}${t('rangeDayUnit')}`;
   const sampleLabel = detailBucketMinutes === 0 ? t('rangeRealtime') : `${detailBucketMinutes}${t('rangeMinuteSampling')}`;
@@ -172,7 +187,7 @@ export function renderDetailConsole(ctx) {
       ${h.renderRealtimeResourcePanels(resolvedServer, trafficData, upSeries, downSeries, displayCpuSeries, displayRamSeries, renderRuntimeEnvironmentCard(resolvedServer))}
       <main class="fleet-chart-matrix">
         <div class="fleet-chart-card compact-metric-card network-throughput-card chart-loading"><div class="fleet-chart-head"><span data-i18n-chart="network">${t('chartNetworkThroughput')} · ${wideWindowLabel} · ${sampleLabel}</span><strong>↑ ${h.detailRateValue(displayUpSeries, resolvedServer.net_up)} · ↓ ${h.detailRateValue(displayDownSeries, resolvedServer.net_down)}</strong></div><div class="network-legend"><i class="up"></i><span data-i18n="chartUp">${t('chartUp')}</span> <i class="down"></i><span data-i18n="chartDown">${t('chartDown')}</span></div><div class="network-chart-surface"><canvas id="detailNetworkChart"></canvas></div></div>
-        <div class="fleet-chart-card compact-metric-card ping-multi-card chart-loading"><div class="fleet-chart-head"><span data-i18n-chart="ping">${t('chartPingLatency')} · ${wideWindowLabel} · ${t('chartDropLeavesGap')}</span><strong class="detail-ping-target-count">${targetCount} ${Number(targetCount) === 1 ? t('chartTargetOne') : t('chartTargets')}</strong></div><canvas id="detailPingChart"></canvas></div>
+        <div class="fleet-chart-card compact-metric-card ping-multi-card chart-loading"><div class="fleet-chart-head"><span data-i18n-chart="ping">${t('chartPingLatency')} · ${wideWindowLabel} · ${t('chartDropLeavesGap')}</span><select class="ping-region-select" aria-label="${escapeHtmlAttribute(currentLanguage === 'zh' ? 'External PING 地区' : 'External PING region')}">${renderDetailPingRegionOptions(ctx.pingTargetsMetadata, ctx.pingRegionSelection)}</select><strong class="detail-ping-target-count">${targetCount} ${Number(targetCount) === 1 ? t('chartTargetOne') : t('chartTargets')}</strong></div><canvas id="detailPingChart"></canvas></div>
         <div class="fleet-chart-card compact-metric-card resource-mini-card chart-loading"><div class="fleet-chart-head"><span data-i18n-chart="cpu">${t('chartCpuUsage')} · ${t('chartHours1')} · ${t('chartRealtimeSampling')}</span><strong>${h.detailMetricValue(displayCpuSeries, resolvedServer.cpu_use, '%')}</strong></div><canvas id="detailCpuChart"></canvas></div>
         <div class="fleet-chart-card compact-metric-card resource-mini-card chart-loading"><div class="fleet-chart-head"><span data-i18n-chart="memory">${t('chartMemoryUsage')} · ${t('chartHours1')} · ${t('chartRealtimeSampling')}</span><strong>${h.detailMetricValue(displayRamSeries, resolvedServer.ram_use, '%')}</strong></div><canvas id="detailMemoryChart"></canvas></div>
         <div class="fleet-chart-card pseudo process-count-card compact-metric-card resource-mini-card chart-loading"><div class="fleet-chart-head"><span data-i18n-chart="process">${t('chartProcessCount')} · ${t('chartHours1')}</span><strong>${processMeta.countText}</strong></div><div class="process-count-meta"><span>${processMeta.count == null ? t('waitingAgentProcessCount') : t('processTotalsOnly')}</span><span class="process-count-latest">${processMeta.count == null ? t('noSamplesAvailable') : t('hostLevelMonitoring')}</span></div><canvas id="detailProcessCountChart"></canvas></div>

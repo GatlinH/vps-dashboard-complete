@@ -18,6 +18,7 @@ export const detailCache = {
   healthSnapshot: null,
   healthReceiveSeq: 0,
   pingTargets: null,
+  pingTargetsMetadata: null,
   pingTargetHistory: null,
   vpsProbeTargets: null,
   vpsProbeHistory: null,
@@ -36,6 +37,7 @@ export function resetDetailCache() {
   detailCache.healthSnapshot = null;
   detailCache.healthReceiveSeq = 0;
   detailCache.pingTargets = null;
+  detailCache.pingTargetsMetadata = null;
   detailCache.pingTargetHistory = null;
   detailCache.vpsProbeTargets = null;
   detailCache.vpsProbeHistory = null;

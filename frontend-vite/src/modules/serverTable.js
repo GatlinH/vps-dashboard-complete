@@ -12,7 +12,8 @@ import { fmtGb, getTrafficPct, getTrafficUsed } from '../utils/traffic.js';
 import { fetchJson, fetchPingTargetHistory, fetchPingTargets, fetchServerHistory, fetchResourceTimeline, enrichServersWithIpGeo, normalizeServer } from '../services/displayData.js';
 import { LANGUAGE_PACKS, applyLanguage, configureLanguageSwitcher, currentLanguage, safeStorageGet, safeStorageRemove, safeStorageSet, setLanguage, setTheme, t, toggleTheme } from '../core/preferences.js';
 import { renderPublicOverviewPage as renderPublicOverviewPageModule } from '../pages/overviewPage.js';
-import { detailLoadingShell, renderDetailConsole, renderDetailNotFound } from '../pages/detailPage.js';
+import { detailLoadingShell, renderDetailConsole, renderDetailNotFound, renderDetailPingRegionOptions } from '../pages/detailPage.js';
+import { createDetailRegionalPingController } from '../detail/regionalPingController.js';
 import { getDetailHistoryBucketMinutes, getDetailHistoryPointLimit, setDetailHistoryDays as setDetailHistoryDaysModule, syncDetailHistoryStateFromStorage } from '../detail/historyRange.js';
 import { getDetailHeavyRefreshAt, setDetailHeavyRefreshAt, startDetailRefreshTimer, stopDetailRefreshTimer } from '../detail/refreshState.js';
 import { detailCache, resetDetailCache } from '../detail/detailCache.js';
@@ -220,6 +221,7 @@ function refreshDetailPresentation({ languageChanged = false, currencyChanged = 
   // Chart-head titles are JS-composed strings (not data-i18n static nodes), so
   // re-localize them in place on a language switch without remounting charts.
   if (languageChanged) {
+    syncDetailPingRegionControl();
     relocalizeDetailChartTitles(detailGrid);
     // The health-summary row and the process card are JS-composed template strings
     // without data-i18n hooks, so applyLanguage() cannot reach them. Without this
@@ -945,11 +947,11 @@ function recordLivePingSamples(pingTargetsData = null, fetchedAt = Date.now(), s
     const key = String(target?.key || target?.host || target?.label || target?.target || target?.domain || 'unknown');
     const label = target?.label || target?.name || target?.host || target?.target || target?.domain || key;
     const protocol = target?.protocol || 'icmp';
-    const lossPct = Number(target?.stats?.loss_pct ?? 0);
+    const lossPct = target?.stats?.loss_pct == null ? null : Number(target.stats.loss_pct);
     const rows = Array.isArray(target?.results) ? target.results : [];
     const samples = detailPingSamples.ensure(key);
     for (const row of rows) {
-      const rawMs = Number(row?.latency_ms);
+      const rawMs = row?.latency_ms == null ? NaN : Number(row.latency_ms);
       if (!row?.success || !Number.isFinite(rawMs)) continue;
       const seq = Number(row?.seq || 1);
       const x = fetchedAt - Math.max(0, rows.length - seq) * 2500;
@@ -958,7 +960,7 @@ function recordLivePingSamples(pingTargetsData = null, fetchedAt = Date.now(), s
     }
     // If the live payload only has aggregate stats (common on first paint), seed one point.
     if (!rows.length) {
-      const avg = Number(target?.stats?.avg_ms);
+      const avg = target?.stats?.avg_ms == null ? NaN : Number(target.stats.avg_ms);
       if (Number.isFinite(avg) && avg >= 0) {
         const exists = samples.some((p) => Math.abs(p.x - fetchedAt) < 5000);
         if (!exists) samples.push({ x: fetchedAt, y: pingStepValue(avg), rawMs: avg, success: true, label, key, protocol, lossPct });
@@ -989,7 +991,8 @@ function seedPingSamplesFromHistory(historyData = null, serverId = null) {
     if (!points.length) continue;
     const samples = detailPingSamples.ensure(key);
     for (const point of points) {
-      const rawMs = Number(point?.latency_ms ?? point?.rawMs ?? point?.y);
+      const value = point?.latency_ms ?? point?.rawMs ?? point?.y;
+      const rawMs = value == null ? NaN : Number(value);
       if (!Number.isFinite(rawMs) || rawMs < 0) continue;
       if (point?.success === false) continue;
       // History API returns x as ISO string (or epoch ms). Never Number(iso) which is NaN.
@@ -1001,6 +1004,7 @@ function seedPingSamplesFromHistory(historyData = null, serverId = null) {
       if (!Number.isFinite(x) || x < cutoff) continue;
       const exists = samples.some((p) => Math.abs(p.x - x) < 1200 && Math.abs(Number(p.rawMs) - rawMs) < 0.05);
       if (exists) continue;
+      const lossPct = point?.loss_pct ?? target?.stats?.loss_pct;
       samples.push({
         x,
         y: pingStepValue(rawMs),
@@ -1009,7 +1013,7 @@ function seedPingSamplesFromHistory(historyData = null, serverId = null) {
         label,
         key,
         protocol: point?.protocol || protocol,
-        lossPct: Number(point?.loss_pct ?? target?.stats?.loss_pct ?? 0),
+        lossPct: lossPct == null ? null : Number(lossPct),
       });
       added += 1;
     }
@@ -1062,10 +1066,11 @@ function buildPersistedPingTargetDatasets(pingTargetHistoryData = null, hours = 
     const label = target?.label || target?.host || target?.key || `目标 ${idx + 1}`;
     const points = Array.isArray(target?.points) ? target.points : [];
     const data = points.map(point => {
-      const rawMs = Number(point?.latency_ms ?? point?.rawMs);
+      const value = point?.latency_ms ?? point?.rawMs;
+      const rawMs = value == null ? NaN : Number(value);
       const x = rowTimeMs({ created_at: point?.x || point?.created_at || point?.time || point?.timestamp }, NaN);
       if (!Number.isFinite(rawMs) || !Number.isFinite(x) || x < cutoff || x > now + 60000) return null;
-      return { x, y: pingStepValue(rawMs), rawMs, label, key: point?.key || target?.key, protocol: point?.protocol || target?.protocol, success: true, lossPct: point?.loss_pct ?? point?.lossPct ?? 0 };
+      return { x, y: pingStepValue(rawMs), rawMs, label, key: point?.key || target?.key, protocol: point?.protocol || target?.protocol, success: true, lossPct: point?.loss_pct ?? point?.lossPct ?? null };
     }).filter(Boolean).sort((a, b) => a.x - b.x);
     return {
       key,
@@ -1087,7 +1092,7 @@ function buildPersistedPingTargetDatasets(pingTargetHistoryData = null, hours = 
 function buildPingDatasets(rows = [], hours = 24, pingTargetsData = null, pingTargetHistoryData = null) {
   if (pingTargetsData?.unavailable || pingTargetHistoryData?.unavailable) return [];
   const persistedTargetDatasets = buildPersistedPingTargetDatasets(pingTargetHistoryData, hours);
-  if (persistedTargetDatasets.length) return persistedTargetDatasets;
+  if (Array.isArray(pingTargetHistoryData?.targets)) return persistedTargetDatasets;
   const liveTargetDatasets = buildLivePingDatasets(pingTargetsData, hours);
   return liveTargetDatasets;
 }
@@ -2073,16 +2078,52 @@ function renderErrorLog(server, heartbeatSeries, pingData) {
 
 let detailPageGeneration = 0;
 let activeDetailServerId = null;
+let detailRegionalPingOwner = null;
+let detailRangeReqSeq = 0;
+
+function syncDetailPingRegionControl() {
+  const control = document.querySelector('.ping-region-select');
+  if (!control || !detailRegionalPingOwner) return;
+  control.innerHTML = renderDetailPingRegionOptions(detailCache.pingTargetsMetadata, detailRegionalPingOwner.state.selectedRegion);
+  control.onchange = () => detailRegionalPingOwner?.selectRegion(control.value);
+  control.setAttribute('aria-label', currentLanguage === 'zh' ? 'External PING 地区' : 'External PING region');
+  const count = document.querySelector('.detail-ping-target-count');
+  if (count) count.textContent = pingTargetCountText(detailCache.pingTargets?.targets?.length || 0);
+}
+
+function ensureDetailRegionalPingOwner(serverId) {
+  if (detailRegionalPingOwner) return detailRegionalPingOwner;
+  detailRegionalPingOwner = createDetailRegionalPingController({
+    serverId, generation: detailPageGeneration, cache: detailCache,
+    isCurrent: (id, generation) => generation === detailPageGeneration && String(id) === activeDetailServerId,
+    fetchTargets: fetchPingTargets, fetchHistory: fetchPingTargetHistory,
+    onChange: () => {
+      window.__DBG__.DETAIL_PING_TARGETS = detailCache.pingTargets;
+      window.__DBG__.DETAIL_PING_TARGET_HISTORY = detailCache.pingTargetHistory;
+      if (detailCache.pingTargets?.targets?.length) recordLivePingSamples(detailCache.pingTargets, Date.now(), serverId);
+      if (detailCache.pingTargetHistory?.targets?.length) seedPingSamplesFromHistory(detailCache.pingTargetHistory, serverId);
+      syncDetailPingRegionControl();
+      if (document.getElementById('detailPingChart')) repaintDetailChartsFromCache().catch(() => {});
+    },
+  });
+  detailRegionalPingOwner.state.timeRange = getDetailHistoryDays();
+  return detailRegionalPingOwner;
+}
+
+function disposeDetailRegionalPing() {
+  detailRegionalPingOwner?.dispose();
+  detailRegionalPingOwner = null;
+  detailRangeReqSeq += 1;
+}
 
 function beginDetailGeneration(serverId) {
   const requested = serverId == null ? null : String(serverId);
   const fallback = state.servers.length === 1 ? String(state.servers[0].id) : null;
   const id = state.servers.some((item) => String(item.id) === requested) ? requested : fallback;
-  if (id !== activeDetailServerId) {
-    activeDetailServerId = id;
-    detailPageGeneration += 1;
-    resetDetailCache();
-  }
+  disposeDetailRegionalPing();
+  activeDetailServerId = id;
+  detailPageGeneration += 1;
+  resetDetailCache();
   return detailPageGeneration;
 }
 
@@ -2156,8 +2197,11 @@ async function renderDetailPage(serverId, hydratedPayload = null, generation = b
   const pingData = null;
   const probeHistoryData = aggregate.history;
   const historyData = probeHistoryData;
-  const pingTargetsData = aggregate.pingTargets || detailCache.pingTargets;
-  const pingTargetHistoryData = aggregate.pingHistory || detailCache.pingTargetHistory;
+  const pingOwner = ensureDetailRegionalPingOwner(resolvedServer.id);
+  await pingOwner.refresh({ metadata: aggregate.pingTargets });
+  if (generation !== detailPageGeneration || String(resolvedServer.id) !== activeDetailServerId) return;
+  const pingTargetsData = detailCache.pingTargets;
+  const pingTargetHistoryData = detailCache.pingTargetHistory;
   const vpsProbeTargetsData = detailCache.vpsProbeTargets;
   const vpsProbeHistoryData = detailCache.vpsProbeHistory;
 
@@ -2169,8 +2213,6 @@ async function renderDetailPage(serverId, hydratedPayload = null, generation = b
   if (pingTargetsData?.targets?.length) {
     recordLivePingSamples(pingTargetsData, Date.now(), resolvedServer.id);
   }
-  if (aggregate.pingTargets) detailCache.pingTargets = aggregate.pingTargets;
-  if (aggregate.pingHistory) detailCache.pingTargetHistory = aggregate.pingHistory;
   detailCache.vpsProbeTargets = vpsProbeTargetsData || detailCache.vpsProbeTargets;
   detailCache.vpsProbeHistory = vpsProbeHistoryData || detailCache.vpsProbeHistory;
   window.__DBG__.DETAIL_PING_TARGETS = detailCache.pingTargets || pingTargetsData;
@@ -2250,6 +2292,8 @@ async function renderDetailPage(serverId, hydratedPayload = null, generation = b
     detailDays,
     detailBucketMinutes,
     detailCachedPingTargets: detailCache.pingTargets,
+    pingTargetsMetadata: detailCache.pingTargetsMetadata,
+    pingRegionSelection: pingOwner.state.selectedRegion,
     detailCachedVpsProbeTargets: detailCache.vpsProbeTargets,
 
     helpers: {
@@ -2287,6 +2331,7 @@ async function renderDetailPage(serverId, hydratedPayload = null, generation = b
     originServerId: resolvedServer.id,
   });
   window.__DBG__.DETAIL_STARMAP_MOUNTED = !!detailStarmapUnmount;
+  syncDetailPingRegionControl();
   window.__DBG__.DETAIL_TRACE.push('before-charts');
   try {
     await renderDetailMonitorCharts({ chartLabels, upSeries, downSeries, pingData, probeLabels, cpuSeries, ramSeries, probeRows: resourceRows, networkProbeRows: networkRows, processRows: detailCache.processRows, pingTargetsData: detailCache.pingTargets || pingTargetsData, pingTargetHistoryData: detailCache.pingTargetHistory || pingTargetHistoryData, vpsProbeTargetsData: detailCache.vpsProbeTargets || vpsProbeTargetsData, vpsProbeHistoryData: detailCache.vpsProbeHistory || vpsProbeHistoryData, detailDays });
@@ -2354,7 +2399,20 @@ async function ensureDetailCharts() {
   return runtime;
 }
 function renderDetailMonitorCharts(args) {
-  return ensureDetailCharts().then(() => initializeDetailCharts(args)).then((result) => {
+  const generation = detailPageGeneration;
+  const serverId = activeDetailServerId;
+  return ensureDetailCharts().then(() => {
+    if (generation !== detailPageGeneration || serverId !== activeDetailServerId) return;
+    const reqSeq = detailRegionalPingOwner?.state.reqSeq;
+    return initializeDetailCharts({
+      ...args,
+      pingTargetsData: detailCache.pingTargets,
+      pingTargetHistoryData: detailCache.pingTargetHistory,
+      detailDays: getDetailHistoryDays(),
+      isCurrent: () => generation === detailPageGeneration && serverId === activeDetailServerId && reqSeq === detailRegionalPingOwner?.state.reqSeq,
+    });
+  }).then((result) => {
+    if (generation !== detailPageGeneration || serverId !== activeDetailServerId) return result;
     const historyRows = Array.isArray(args?.probeRows) ? args.probeRows : [];
     const timestamps = historyRows.map((row) => rowTimeMs(row, NaN)).filter(Number.isFinite).sort((a, b) => a - b);
     detailLivePollMode = timestamps.length > 10 && timestamps[timestamps.length - 1] - timestamps[0] > 30_000
@@ -2391,12 +2449,15 @@ function loadStoredPingSamples(serverId) { detailPingSamples.loadStored(serverId
 async function refreshDetailHistoryRange(serverId) {
   const current = state.servers.find((item) => Number(item.id) === Number(serverId));
   if (!current || !document.getElementById('detailNetworkChart')) return;
-  const requestedDetailDays = Number(getDetailHistoryDays() || 1) || 1;
+  const requestedDetailDays = Number(getDetailHistoryDays() ?? 1);
   const detailDays = [0, 1, 4, 7, 30, 90].includes(requestedDetailDays) ? requestedDetailDays : 1;
   const bucketMinutes = getDetailHistoryBucketMinutes(detailDays);
   const historyDays = detailDays;
   const limit = getDetailHistoryPointLimit(detailDays);
-  const targetHours = detailDays * 24;
+  const targetHours = Math.max(1, detailDays * 24);
+  const generation = detailPageGeneration;
+  const rangeSeq = ++detailRangeReqSeq;
+  const isCurrent = () => generation === detailPageGeneration && String(current.id) === activeDetailServerId && rangeSeq === detailRangeReqSeq;
   const startedAt = performance.now();
   window.__DBG__.DETAIL_RANGE_REFRESH = { serverId: Number(serverId), detailDays, bucketMinutes, status: 'loading' };
   document.querySelector('.history-range-bar')?.setAttribute('aria-busy', 'true');
@@ -2414,12 +2475,13 @@ async function refreshDetailHistoryRange(serverId) {
     // first paint, which uses the un-bucketed telemetry, showed 121 points. Fetch the
     // coarse range for the wide charts and a separate fine slice for the 1h ones.
     const resourceRequest = resourceHistoryRequest();
-    const [probeHistory, externalPingHistory, peerPingHistory, fineHistory] = await Promise.allSettled([
+    const [probeHistory, , peerPingHistory, fineHistory] = await Promise.allSettled([
       fetchServerHistory(current.id, historyDays, limit, bucketMinutes),
-      fetchPingTargetHistory(current.id, targetHours, limit),
+      ensureDetailRegionalPingOwner(current.id).setTimeRange(detailDays),
       fetchPingTargetHistory(current.id, targetHours, limit, 'agent'),
       fetchResourceTimeline(current.id, resourceRequest.limit),
     ]);
+    if (!isCurrent()) return;
     if (probeHistory.status === 'fulfilled') {
       const probeData = probeHistory.value?.data || [];
       detailCache.probeRows = normalizePersistedRows(probeData, historyDays * 24);
@@ -2434,10 +2496,6 @@ async function refreshDetailHistoryRange(serverId) {
       const fineRows = resourceTimelineRows(fineHistory.value?.data || []);
       if (fineRows.length && shouldReplaceResourceTimeline(detailCache.resourceRows, fineRows)) detailCache.resourceRows = fineRows;
       if (detailCache.resourceRows.length) telemetryRows = detailCache.resourceRows;
-    }
-    if (externalPingHistory.status === 'fulfilled') {
-      detailCache.pingTargetHistory = externalPingHistory.value;
-      if (externalPingHistory.value?.targets?.length) seedPingSamplesFromHistory(externalPingHistory.value, current.id);
     }
     if (peerPingHistory.status === 'fulfilled') detailCache.vpsProbeHistory = peerPingHistory.value;
 
@@ -2466,6 +2524,7 @@ async function refreshDetailHistoryRange(serverId) {
       vpsProbeHistoryData: detailCache.vpsProbeHistory,
       detailDays,
     });
+    if (!isCurrent()) return;
     document.querySelectorAll('[data-detail-history-days]').forEach((button) => {
       button.classList.toggle('active', (Number(detailDays) || 0) === Number(button.dataset.detailHistoryDays));
     });
@@ -2482,11 +2541,14 @@ async function refreshDetailHistoryRange(serverId) {
       counts: { telemetry: probeRows.length, externalPingTargets: (detailCache.pingTargetHistory?.targets || []).length, peerPingTargets: (detailCache.vpsProbeHistory?.targets || []).length },
     };
   } catch (error) {
+    if (!isCurrent()) return;
     window.__DBG__.DETAIL_RANGE_REFRESH = { serverId: Number(serverId), detailDays, bucketMinutes, status: 'error', error: String(error?.message || error) };
     console.warn('[detail] history-range refresh failed', error);
   } finally {
+    if (isCurrent()) {
     document.querySelector('.history-range-bar')?.removeAttribute('aria-busy');
     document.querySelector('.fleet-chart-matrix')?.classList.remove('is-range-loading');
+    }
   }
 }
 
@@ -2635,6 +2697,7 @@ async function refreshDetailRealtime(serverId) {
   serverId = current.id;
   const requestGeneration = detailPageGeneration;
   const requestServerId = String(current.id);
+  const requestRangeSeq = detailRangeReqSeq;
   // 5s lightweight path: append only when the persisted Server snapshot changed.
   // This avoids a one-hour history scan and Chart.js teardown for an unchanged point.
   await refreshDetailLivePoint(serverId);
@@ -2644,8 +2707,11 @@ async function refreshDetailRealtime(serverId) {
   // CPU/memory/process chart data promptly without increasing PING probe cadence.
   const doHeavy = now - getDetailHeavyRefreshAt() > 20_000;
   if (doHeavy) {
-    const detail = await getServerDetail(current.id, getDetailHistoryDays()).catch(() => ({}));
-    if (requestGeneration !== detailPageGeneration || requestServerId !== activeDetailServerId) return;
+    const [detail] = await Promise.all([
+      getServerDetail(current.id, getDetailHistoryDays()).catch(() => ({})),
+      ensureDetailRegionalPingOwner(current.id).refresh(),
+    ]);
+    if (requestGeneration !== detailPageGeneration || requestServerId !== activeDetailServerId || requestRangeSeq !== detailRangeReqSeq) return;
     if (detail && Object.keys(detail).length) {
       detailCache.healthReceiveSeq += 1;
       detailCache.healthSnapshot = acceptHealthSnapshot(detailCache.healthSnapshot, buildAggregateHealthSnapshot({
@@ -2673,18 +2739,6 @@ async function refreshDetailRealtime(serverId) {
     if (processHistory.status === 'fulfilled') {
       const rows = normalizePersistedRows(processHistory.value?.data || [], 1);
       if (rows.length) detailCache.processRows = rows;
-    }
-    const pingTargets = detail.ping_targets;
-    const pingTargetHistory = detail.ping_history;
-    if (pingTargets?.targets?.length || pingTargets?.unavailable) {
-      detailCache.pingTargets = pingTargets;
-      window.__DBG__.DETAIL_PING_TARGETS = detailCache.pingTargets;
-      if (pingTargets.targets?.length) recordLivePingSamples(pingTargets, now, current.id);
-    }
-    if (pingTargetHistory?.targets?.length || pingTargetHistory?.unavailable) {
-      detailCache.pingTargetHistory = pingTargetHistory;
-      window.__DBG__.DETAIL_PING_TARGET_HISTORY = detailCache.pingTargetHistory;
-      if (pingTargetHistory.targets?.length) seedPingSamplesFromHistory(pingTargetHistory, current.id);
     }
     setDetailHeavyRefreshAt(now);
   }
@@ -2743,8 +2797,13 @@ function startDetailRealtimeRefresh(serverId) {
   return detailTab.startRealtimeRefresh(serverId);
 }
 function stopDetailRealtimeRefresh() {
+  disposeDetailRegionalPing();
+  activeDetailServerId = null;
+  detailPageGeneration += 1;
   return detailTab.stopRealtimeRefresh();
 }
+
+window.addEventListener('pagehide', stopDetailRealtimeRefresh);
 
 const dashboardTab = createDashboardTab({
   state,

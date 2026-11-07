@@ -14,7 +14,13 @@ export function createDetailTab({
   }
 
   function setHistoryDays(days) {
-    historyDays = persistHistoryDays(days, refreshHistoryRange);
+    let refreshServerId;
+    historyDays = persistHistoryDays(days, (serverId) => {
+      refreshServerId = serverId;
+    });
+    if (refreshServerId && typeof refreshHistoryRange === 'function') {
+      refreshHistoryRange(refreshServerId);
+    }
     return historyDays;
   }
 
