@@ -1,6 +1,11 @@
 import { tcpPing } from '../../api/admin.js';
 import { getIPInfo } from '../../api/public.js';
-import { updateAgentConfig } from '../../api/servers.js';
+import { getAgentOverview, updateAgentConfig } from '../../api/servers.js';
+import {
+  ALL_REGIONS, UNGROUPED_REGION, normalizeRegion, isValidRegion, isExternalPingTarget,
+  listTargetRegions, filterRegionalTargets, encodeRegionSelection, decodeRegionSelection,
+  restoreRegionSelection,
+} from '../../services/regionalPing.js';
 
 /** Komari-inspired 延迟监测：仅管理 agent_config.ping_targets（external），
  *  与详情页「全球 VPS 探针」（peer / source=agent）无关。 */
@@ -10,16 +15,27 @@ export class PingTool {
     this._servers = [];
     this._selectedServerId = null;
     this._targets = [];
+    this._agentConfig = null;
+    this._loadSeq = 0;
+    this._activeServerId = null;
+    this._configState = 'idle';
+    this._regionSelection = ALL_REGIONS;
+    this._regionSelections = new Map();
     this._lastResults = [];
     this._render();
     this._bind();
+    this._setConfigState('idle', '请先选择 VPS，再读取受保护的目标配置。');
   }
 
   setServers(servers) {
     this._servers = servers || [];
-    if (!this._selectedServerId && this._servers.length) this._selectedServerId = this._servers[0].id;
+    const serverIds = new Set(this._servers.map(server => String(server.id)));
+    for (const serverId of this._regionSelections.keys()) {
+      if (!serverIds.has(serverId)) this._regionSelections.delete(serverId);
+    }
+    if (!serverIds.has(String(this._selectedServerId))) this._selectedServerId = this._servers[0]?.id ?? null;
     this._renderServerOptions();
-    this._loadTargetsFromServer();
+    return this._loadTargetsFromServer();
   }
 
   _render() {
@@ -44,8 +60,9 @@ export class PingTool {
             <div class="komari-panel-title"><span>探测配置</span><small>agent_config.ping_targets · 仅 PING 图</small></div>
             <div class="komari-form-grid one">
               <label><span>绑定节点</span><select class="form-input" id="pt-server-select"></select></label>
+              <label class="pt-region-filter"><span>目标地区</span><select class="form-input" id="pt-region-select"></select></label>
             </div>
-            <div id="pt-source-note" class="komari-note">优先读取该 VPS 的 agent_config.ping_targets；为空则使用全局默认 TCPing 目标。</div>
+            <div id="pt-source-note" class="komari-note">从受保护接口读取当前 VPS 的 agent_config.ping_targets。</div>
             <div id="pt-target-editor" class="komari-target-editor"></div>
             <div class="komari-action-row">
               <button class="komari-secondary" id="pt-load">重新载入</button>
@@ -72,9 +89,10 @@ export class PingTool {
   }
 
   _bind() {
-    this._el.querySelector('#pt-server-select').addEventListener('change', e => { this._selectedServerId = Number(e.target.value) || null; this._loadTargetsFromServer(); });
+    this._el.querySelector('#pt-server-select').addEventListener('change', e => { this._selectedServerId = Number(e.target.value) || null; return this._loadTargetsFromServer(); });
+    this._el.querySelector('#pt-region-select').addEventListener('change', event => this._setRegionSelection(event.target.value));
     this._el.querySelector('#pt-load').addEventListener('click', () => this._loadTargetsFromServer());
-    this._el.querySelector('#pt-add-row').addEventListener('click', () => { this._targets.push({ key:`target-${this._targets.length+1}`, label:'新目标', protocol:'tcp', host:'', port:443 }); this._renderTargetEditor(); });
+    this._el.querySelector('#pt-add-row').addEventListener('click', () => this._addTarget());
     this._el.querySelector('#pt-run').addEventListener('click', () => this._runPing());
     this._el.querySelector('#pt-run-node').addEventListener('click', () => this._runCurrentNode());
     this._el.querySelector('#pt-save').addEventListener('click', () => this._saveTargets());
@@ -82,8 +100,13 @@ export class PingTool {
     this._el.querySelector('#pt-export').addEventListener('click', () => this._exportJson());
     this._el.querySelector('#pt-ip-lookup').addEventListener('click', () => this._lookupIP());
     this._el.querySelector('#pt-target-editor').addEventListener('input', () => this._collectTargets());
-    this._el.querySelector('#pt-target-editor').addEventListener('change', e => { if (e.target?.dataset?.f === 'protocol') { this._collectTargets(); this._renderTargetEditor(); } });
-    this._el.querySelector('#pt-target-editor').addEventListener('click', e => { const btn=e.target.closest('[data-remove-target]'); if(!btn)return; this._targets.splice(Number(btn.dataset.removeTarget),1); this._renderTargetEditor(); });
+    this._el.querySelector('#pt-target-editor').addEventListener('change', event => {
+      if (event.target?.dataset?.f === 'protocol' && this._collectTargets()) this._renderTargetEditor();
+    });
+    this._el.querySelector('#pt-target-editor').addEventListener('click', event => {
+      const button = event.target.closest('[data-remove-target]');
+      if (button) this._removeTarget(button.dataset.removeTarget);
+    });
   }
 
   _renderServerOptions() {
@@ -97,14 +120,61 @@ export class PingTool {
     { key:'sg', label:'新加坡', protocol:'tcp', host:'172.104.55.99', port:443 },
     { key:'us', label:'美国西岸', protocol:'tcp', host:'1.1.1.1', port:443 },
   ]; }
-  _loadTargetsFromServer() {
-    const server = this._servers.find(s => String(s.id) === String(this._selectedServerId));
-    const cfg = server?.agent_config && typeof server.agent_config === 'object' ? server.agent_config : {};
-    const hasSavedTargets = Object.prototype.hasOwnProperty.call(cfg, 'ping_targets');
-    const targets = hasSavedTargets ? (Array.isArray(cfg.ping_targets) ? cfg.ping_targets : []) : this._defaultTargets();
-    this._targets = targets.map((t,i) => this._normalizeTarget(t, i));
-    this._el.querySelector('#pt-source-note').textContent = hasSavedTargets ? (targets.length ? '当前使用该节点已保存的 agent_config.ping_targets。' : '当前节点已保存为空：详情页 PING 显示 0 目标，不再回退默认目标。') : '该节点未配置 ping_targets，当前显示全局默认多协议目标；点击保存后才写入该 VPS。';
-    this._renderTargetEditor();
+  _setConfigState(state, note) {
+    this._configState = state;
+    const locked = state !== 'ready';
+    for (const selector of ['#pt-region-select', '#pt-add-row', '#pt-save', '#pt-clear', '#pt-export', '#pt-run', '#pt-run-node']) {
+      this._el.querySelector(selector).disabled = locked;
+    }
+    for (const control of this._el.querySelectorAll('#pt-target-editor input, #pt-target-editor select, #pt-target-editor button')) {
+      control.disabled = locked || (control.dataset.f === 'port' && !!control.closest('[data-protocol="icmp"]'));
+    }
+    if (note != null) this._el.querySelector('#pt-source-note').textContent = note;
+  }
+  _isCurrentLoad(seq, serverId) {
+    return seq === this._loadSeq && String(serverId) === String(this._selectedServerId)
+      && String(serverId) === String(this._activeServerId);
+  }
+  async _loadTargetsFromServer() {
+    const seq = ++this._loadSeq;
+    const server = this._selectedServer();
+    const serverId = server?.id ?? null;
+    this._activeServerId = serverId;
+    this._agentConfig = null;
+    this._targets = [];
+    this._el.querySelector('#pt-target-editor').innerHTML = '';
+    this._el.querySelector('#pt-region-select').innerHTML = '';
+    this._el.querySelector('#pt-save').textContent = '保存到当前 VPS';
+    this._el.querySelector('#pt-clear').textContent = '清空当前 VPS';
+    this._setConfigState(server ? 'loading' : 'idle', server ? '读取中：正在读取当前 VPS 的受保护目标配置，暂不可编辑或保存。' : '请先选择 VPS，再读取受保护的目标配置。');
+    if (!server) return;
+    try {
+      const data = await getAgentOverview(serverId);
+      if (!this._isCurrentLoad(seq, serverId)) return;
+      const cfg = data?.agent_config;
+      if (!data || Array.isArray(data) || String(data.server_id) !== String(serverId)
+        || !cfg || typeof cfg !== 'object' || Array.isArray(cfg)) throw new Error('受保护配置响应无效。');
+      const hasSavedTargets = Object.prototype.hasOwnProperty.call(cfg, 'ping_targets');
+      if (hasSavedTargets && (!Array.isArray(cfg.ping_targets)
+        || cfg.ping_targets.some(target => !target || typeof target !== 'object' || Array.isArray(target)))) {
+        throw new Error('受保护 ping_targets 响应无效。');
+      }
+      this._agentConfig = structuredClone(cfg);
+      const targets = hasSavedTargets ? this._agentConfig.ping_targets : this._defaultTargets();
+      this._targets = targets.filter(isExternalPingTarget).map((target, index) => this._normalizeTarget(target, index));
+      this._regionSelection = this._regionSelections.get(String(serverId)) || ALL_REGIONS;
+      this._renderTargetEditor();
+      this._setConfigState('ready', hasSavedTargets ? (targets.length ? '当前使用该节点已保存的 agent_config.ping_targets。' : '当前节点已保存为空：详情页 PING 显示 0 目标，不再回退默认目标。') : '该节点未配置 ping_targets，当前显示全局默认多协议目标；点击保存后才写入该 VPS。');
+    } catch (error) {
+      if (!this._isCurrentLoad(seq, serverId)) return;
+      this._agentConfig = null;
+      this._targets = [];
+      this._el.querySelector('#pt-target-editor').innerHTML = '';
+      this._el.querySelector('#pt-region-select').innerHTML = '';
+      const message = `读取失败：${error.message || '无法读取受保护配置'} 请重新载入；禁止保存或清空，以免覆盖已有目标。`;
+      this._setConfigState('error', message);
+      this._appendLine(message, 'fail');
+    }
   }
   _normalizeTarget(t = {}, i = 0) {
     const protocol = String(t.protocol || 'tcp').toLowerCase();
@@ -113,6 +183,7 @@ export class PingTool {
     return {
       key: t.key || `target-${i + 1}`,
       label: t.label || t.host || `目标 ${i + 1}`,
+      region: normalizeRegion(t.region),
       protocol: safeProtocol,
       host: t.host || '',
       port: t.port === '' || t.port == null ? '' : Number(t.port || fallbackPort),
@@ -142,37 +213,102 @@ export class PingTool {
   }
   _exportTarget(t) {
     const protocol = t.protocol || 'tcp';
-    const out = { key: t.key, label: t.label, protocol, host: t.host };
+    const out = { key: t.key, label: t.label, protocol, host: t.host, region: normalizeRegion(t.region) };
     if (protocol === 'tcp') out.port = this._targetApiPort(t);
     if (protocol === 'http' && t.port !== '' && t.port != null) out.port = Number(t.port);
     return out;
   }
+  _renderRegionOptions() {
+    this._regionSelection = restoreRegionSelection(this._regionSelection, this._targets);
+    if (this._selectedServerId != null) this._regionSelections.set(String(this._selectedServerId), this._regionSelection);
+    const select = this._el.querySelector('#pt-region-select');
+    select.innerHTML = `<option value="${encodeRegionSelection(ALL_REGIONS)}">全部地区</option><option value="${encodeRegionSelection(UNGROUPED_REGION)}">未分组</option>`
+      + listTargetRegions(this._targets).filter(group => !group.ungrouped).map(group =>
+        `<option value="${this._esc(encodeRegionSelection({ kind: 'region', region: group.region }))}">${this._esc(group.region)}</option>`).join('');
+    select.value = encodeRegionSelection(this._regionSelection);
+  }
+  _setRegionSelection(encoded) {
+    if (!this._collectTargets()) {
+      this._el.querySelector('#pt-region-select').value = encodeRegionSelection(this._regionSelection);
+      return false;
+    }
+    this._regionSelection = decodeRegionSelection(encoded);
+    this._renderTargetEditor();
+    return true;
+  }
+  _addTarget() {
+    if (!this._collectTargets()) return;
+    const keys = new Set(this._targets.map(target => String(target.key)));
+    let nextIndex = this._targets.length + 1;
+    while (keys.has(`target-${nextIndex}`)) nextIndex += 1;
+    this._targets.push({
+      key: `target-${nextIndex}`, label: '新目标', protocol: 'tcp', host: '', port: 443,
+      region: this._regionSelection.kind === 'region' ? this._regionSelection.region : '',
+    });
+    this._renderTargetEditor();
+  }
+  _removeTarget(key) {
+    if (!this._collectTargets()) return;
+    const targetIndex = this._targets.findIndex(target => String(target.key) === String(key));
+    if (targetIndex < 0) return;
+    this._targets.splice(targetIndex, 1);
+    this._renderTargetEditor();
+  }
   _renderTargetEditor() {
-    const el = this._el.querySelector('#pt-target-editor');
-    el.innerHTML = this._targets.map((raw,i) => {
-      const t = this._normalizeTarget(raw, i);
-      const portDisabled = t.protocol === 'icmp' ? 'disabled' : '';
-      const portClass = t.protocol === 'icmp' ? ' is-disabled' : (t.protocol === 'http' ? ' is-optional' : ' is-required');
-      return `<div class="komari-target-row" data-protocol="${this._esc(t.protocol)}"><input class="form-input" data-f="key" data-i="${i}" value="${this._esc(t.key)}" placeholder="key"><input class="form-input" data-f="label" data-i="${i}" value="${this._esc(t.label)}" placeholder="显示名"><select class="form-input" data-f="protocol" data-i="${i}"><option value="tcp" ${t.protocol==='tcp'?'selected':''}>TCP</option><option value="icmp" ${t.protocol==='icmp'?'selected':''}>ICMP</option><option value="http" ${t.protocol==='http'?'selected':''}>HTTP</option></select><input class="form-input" data-f="host" data-i="${i}" value="${this._esc(t.host)}" placeholder="host / IP / URL"><label class="pt-port-field${portClass}"><input class="form-input" data-f="port" data-i="${i}" value="${this._esc(t.protocol==='icmp'?'':t.port)}" placeholder="${this._esc(this._portPlaceholder(t.protocol))}" ${portDisabled}><small>${this._esc(this._portHelp(t.protocol))}</small></label><button data-remove-target="${i}" class="komari-icon-danger">🗑</button></div>`;
+    this._renderRegionOptions();
+    const visibleTargets = new Set(filterRegionalTargets(this._targets, this._regionSelection));
+    const editor = this._el.querySelector('#pt-target-editor');
+    editor.innerHTML = this._targets.map((raw, index) => {
+      if (!visibleTargets.has(raw)) return '';
+      const target = this._normalizeTarget(raw, index);
+      const portDisabled = target.protocol === 'icmp' ? 'disabled' : '';
+      const portClass = target.protocol === 'icmp' ? ' is-disabled' : (target.protocol === 'http' ? ' is-optional' : ' is-required');
+      return `<div class="komari-target-row pt-target-row" data-key="${this._esc(target.key)}" data-protocol="${this._esc(target.protocol)}"><input class="form-input" data-f="key" data-i="${index}" value="${this._esc(target.key)}" placeholder="key" readonly aria-label="目标 key（固定）"><input class="form-input" data-f="label" data-i="${index}" value="${this._esc(target.label)}" placeholder="显示名"><input class="form-input pt-region-input" data-f="region" data-i="${index}" value="${this._esc(target.region)}" placeholder="地区（留空为未分组）" aria-label="目标地区"><select class="form-input" data-f="protocol" data-i="${index}"><option value="tcp" ${target.protocol==='tcp'?'selected':''}>TCP</option><option value="icmp" ${target.protocol==='icmp'?'selected':''}>ICMP</option><option value="http" ${target.protocol==='http'?'selected':''}>HTTP</option></select><input class="form-input" data-f="host" data-i="${index}" value="${this._esc(target.host)}" placeholder="host / IP / URL"><label class="pt-port-field${portClass}"><input class="form-input" data-f="port" data-i="${index}" value="${this._esc(target.protocol==='icmp'?'':target.port)}" placeholder="${this._esc(this._portPlaceholder(target.protocol))}" ${portDisabled}><small>${this._esc(this._portHelp(target.protocol))}</small></label><button data-remove-target="${this._esc(target.key)}" class="komari-icon-danger">🗑</button></div>`;
     }).join('') || '<div class="komari-empty-small">暂无目标</div>';
   }
   _collectTargets() {
-    this._el.querySelectorAll('#pt-target-editor [data-i]').forEach(input => {
-      const i=Number(input.dataset.i); const f=input.dataset.f; if(!this._targets[i]) return;
-      if (f === 'port') this._targets[i][f] = input.disabled || input.value.trim()==='' ? '' : Number(input.value || 0);
-      else this._targets[i][f] = input.value.trim();
-    });
-    this._targets = this._targets.map((t, i) => this._normalizeTarget(t, i));
+    if (this._configState !== 'ready') return false;
+    const pendingTargets = this._targets.map(target => ({ ...target }));
+    let invalidInput = null;
+    let validationMessage = '';
+    for (const input of this._el.querySelectorAll('#pt-target-editor [data-i]')) {
+      const targetIndex = Number(input.dataset.i);
+      const field = input.dataset.f;
+      if (!pendingTargets[targetIndex] || !['label', 'region', 'protocol', 'host', 'port'].includes(field)) continue;
+      input.setCustomValidity?.('');
+      let message = '';
+      if (typeof input.value !== 'string') message = '目标字段必须为文本。';
+      else if (field === 'region' && !isValidRegion(input.value)) message = '地区最多 32 个 Unicode 字符 / 128 UTF-8 字节，不能包含换行。';
+      else if (field === 'port' && !input.disabled && input.value.trim() !== ''
+        && (!Number.isInteger(Number(input.value)) || Number(input.value) < 1 || Number(input.value) > 65535)) message = '端口须为 1–65535 的整数或留空。';
+      else if (field === 'protocol' && !['tcp', 'icmp', 'http'].includes(input.value.trim())) message = '请选择 TCP / ICMP / HTTP 协议。';
+      if (message) input.setCustomValidity?.(message);
+      if (message || input.checkValidity?.() === false) {
+        if (!invalidInput) { invalidInput = input; validationMessage = message || input.validationMessage; }
+        continue;
+      }
+      pendingTargets[targetIndex][field] = field === 'port'
+        ? (input.disabled || input.value.trim() === '' ? '' : Number(input.value)) : input.value.trim();
+    }
+    if (invalidInput) {
+      invalidInput.reportValidity?.();
+      alert(validationMessage);
+      return false;
+    }
+    this._targets = pendingTargets.map((target, index) => this._normalizeTarget(target, index));
+    return true;
   }
   async _runCurrentNode() {
     const server = this._servers.find(s => String(s.id) === String(this._selectedServerId));
     if (!server?.ip) return this._appendLine('当前节点没有 IP', 'warn');
+    if (!this._collectTargets()) return;
     const old = this._targets;
-    this._targets = [{ key:'node', label:server.name || server.ip, protocol:'tcp', host:server.ip, port:80 }];
+    const oldSelection = this._regionSelection;
+    this._targets = [{ key:'node', label:server.name || server.ip, protocol:'tcp', host:server.ip, port:80, region:'' }];
+    this._regionSelection = ALL_REGIONS;
     this._renderTargetEditor();
-    await this._runPing();
-    this._targets = old;
-    this._renderTargetEditor();
+    try { await this._runPing(); }
+    finally { this._targets = old; this._regionSelection = oldSelection; this._renderTargetEditor(); }
   }
 
   _quality(avg, loss) {
@@ -185,7 +321,8 @@ export class PingTool {
   }
 
   async _runPing() {
-    this._collectTargets(); const targets = this._targets.filter(t => t.host);
+    if (!this._collectTargets()) return;
+    const targets = this._targets.filter(target => isExternalPingTarget(target) && target.host);
     if (!targets.length) { this._setEmptyState('暂无有效目标，请先配置 host。'); return; }
     const btn=this._el.querySelector('#pt-run'); btn.textContent='探测中...'; btn.disabled=true; this._clearResults(); this._lastResults=[];
     for (const t of targets) {
@@ -198,38 +335,48 @@ export class PingTool {
   _renderSummary(){ const rows=this._lastResults; const avgs=rows.map(r=>Number(r.stats?.avg_ms)).filter(Number.isFinite); const avg=avgs.length?Math.round(avgs.reduce((a,b)=>a+b,0)/avgs.length):'—'; const loss=rows.length?Math.round(rows.reduce((a,r)=>a+Number(r.stats?.loss_pct||0),0)/rows.length):'—'; const quality=this._quality(Number(avg), Number(loss)); this._el.querySelector('#pt-summary').innerHTML=`<div><b>${avg}${avg==='—'?'':'ms'}</b><span>平均延迟</span></div><div><b>${loss}${loss==='—'?'':'%'}</b><span>平均丢包</span></div><div><b>${quality}</b><span>质量等级</span></div>`; }
 
   _selectedServer(){ return this._servers.find(s => String(s.id) === String(this._selectedServerId)); }
-  _savedPayload(targets){ const server=this._selectedServer(); const cfg=server?.agent_config && typeof server.agent_config === 'object' ? { ...server.agent_config } : {}; cfg.ping_targets = targets; return cfg; }
+  _savedPayload(targets){ return { ping_targets: targets.filter(isExternalPingTarget) }; }
   async _saveTargets(){
-    this._collectTargets();
+    if (!this._collectTargets()) return;
     const server=this._selectedServer();
     if(!server?.id) return this._appendLine('请先选择 VPS', 'warn');
-    const targets=this._targets.filter(t=>t.host).map(t=>this._exportTarget(t));
+    const targets=this._targets.filter(target=>isExternalPingTarget(target) && target.host).map(target=>this._exportTarget(target));
+    const payload = this._savedPayload(targets);
+    const seq = this._loadSeq;
+    this._setConfigState('saving');
     const btn=this._el.querySelector('#pt-save'); const old=btn.textContent; btn.disabled=true; btn.textContent='保存中...';
     try{
-      const data=await updateAgentConfig(server.id, this._savedPayload(targets));
-      server.agent_config = data.agent_config || this._savedPayload(targets);
-      this._targets = (server.agent_config.ping_targets || []).map((t,i)=>this._normalizeTarget(t,i));
+      const data=await updateAgentConfig(server.id, payload);
+      if (!this._isCurrentLoad(seq, server.id)) return;
+      const savedTargets = Array.isArray(data.agent_config?.ping_targets) ? data.agent_config.ping_targets.filter(isExternalPingTarget) : targets;
+      this._agentConfig = { ...this._agentConfig, ...data.agent_config, ping_targets: savedTargets };
+      this._targets = savedTargets.map((target,index)=>this._normalizeTarget(target,index));
       this._renderTargetEditor();
       this._el.querySelector('#pt-source-note').textContent = targets.length ? '已保存：当前使用该节点的 agent_config.ping_targets。' : '已保存为空：详情页 PING 显示 0 目标。';
       this._appendLine(`已保存 ${targets.length} 个目标到 VPS #${server.id}。`, 'ok');
-    }catch(e){ this._appendLine(`保存失败：${e.message}`, 'fail'); }
-    finally{ btn.disabled=false; btn.textContent=old; }
+    }catch(e){ if (this._isCurrentLoad(seq, server.id)) this._appendLine(`保存失败：${e.message}`, 'fail'); }
+    finally{ if (this._isCurrentLoad(seq, server.id)) { this._renderTargetEditor(); this._setConfigState('ready'); btn.textContent=old; } }
   }
   async _clearSavedTargets(){
+    if (!this._collectTargets()) return;
     const server=this._selectedServer();
     if(!server?.id) return this._appendLine('请先选择 VPS', 'warn');
+    const payload = this._savedPayload([]);
+    const seq = this._loadSeq;
+    this._setConfigState('saving');
     const btn=this._el.querySelector('#pt-clear'); const old=btn.textContent; btn.disabled=true; btn.textContent='清空中...';
     try{
-      const data=await updateAgentConfig(server.id, this._savedPayload([]));
-      server.agent_config = data.agent_config || this._savedPayload([]);
+      const data=await updateAgentConfig(server.id, payload);
+      if (!this._isCurrentLoad(seq, server.id)) return;
+      this._agentConfig = { ...this._agentConfig, ...data.agent_config, ping_targets: [] };
       this._targets=[];
       this._renderTargetEditor();
       this._el.querySelector('#pt-source-note').textContent = '已清空并保存：详情页 PING 显示 0 目标，不再回退默认目标。';
       this._appendLine(`已清空 VPS #${server.id} 的 ping_targets。`, 'ok');
-    }catch(e){ this._appendLine(`清空失败：${e.message}`, 'fail'); }
-    finally{ btn.disabled=false; btn.textContent=old; }
+    }catch(e){ if (this._isCurrentLoad(seq, server.id)) this._appendLine(`清空失败：${e.message}`, 'fail'); }
+    finally{ if (this._isCurrentLoad(seq, server.id)) { this._renderTargetEditor(); this._setConfigState('ready'); btn.textContent=old; } }
   }
-  _exportJson(){ this._collectTargets(); const out=JSON.stringify({ ping_targets:this._targets.filter(t=>t.host).map(t=>this._exportTarget(t)) },null,2); navigator.clipboard?.writeText(out); this._appendLine('已复制 ping_targets JSON。', 'ok'); }
+  _exportJson(){ if (!this._collectTargets()) return; const out=JSON.stringify({ ping_targets:this._targets.filter(target=>isExternalPingTarget(target) && target.host).map(target=>this._exportTarget(target)) },null,2); navigator.clipboard?.writeText(out); this._appendLine('已复制 ping_targets JSON。', 'ok'); }
   _setEmptyState(text){ this._el.querySelector('#pt-results').innerHTML=`<div class="ping-empty-state">${this._esc(text)}</div>`; }
   _appendLine(text,type='info'){ const c=this._el.querySelector('#pt-results'); let out=c.querySelector('.ping-result'); if(!out){out=document.createElement('div');out.className='ping-result';c.replaceChildren();c.appendChild(out);} const line=document.createElement('div'); line.className=`ping-line ping-${type}`; line.textContent=text||'\u00A0'; out.appendChild(line); out.scrollTop=out.scrollHeight; }
   _clearResults(){ this._el.querySelector('#pt-results').innerHTML='<div class="ping-empty-state">正在探测中...</div>'; }

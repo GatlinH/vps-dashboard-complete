@@ -1,6 +1,7 @@
 import '../globals/dashboardGlobals.js';
 import { getIPInfo } from '../api/public.js';
 import { normalizePublicServer } from './serverGroups.js';
+import { ALL_REGIONS, regionSelectionQuery } from './regionalPing.js';
 
 export function hasOwnMetric(source, key) {
   return source && Object.prototype.hasOwnProperty.call(source, key) && source[key] != null && source[key] !== '';
@@ -48,7 +49,27 @@ export function normalizeServer(s) {
   s = normalizePublicServer(s);
   const cfg = s.agent_config && typeof s.agent_config === 'object' ? s.agent_config : {};
   const meta = cfg.inventory_meta && typeof cfg.inventory_meta === 'object' ? cfg.inventory_meta : {};
-  const liveMetricFlags = {
+  const rawField = (keys) => {
+    for (const source of [s, meta, cfg]) {
+      for (const key of keys) {
+        if (hasOwnMetric(source, key)) return source[key];
+      }
+    }
+    return undefined;
+  };
+  const rawCpu = rawField(['cpu_cores', 'cpu']);
+  const rawRam = rawField(['ram_gb', 'ram']);
+  const rawDisk = rawField(['disk_gb', 'disk']);
+  const rawHostname = rawField(['hostname']);
+  const rawPresentFlags = s.__rawPresentFlags || {
+    cpu: rawCpu !== undefined,
+    ram: rawRam !== undefined,
+    disk: rawDisk !== undefined,
+    hostname: rawHostname !== undefined,
+    ...Object.fromEntries(['net_up', 'net_down', 'price', 'traffic_limit_gb', 'traffic_up_gb',
+      'traffic_down_gb', 'traffic_used_gb', 'traffic_reset_day'].map((key) => [key, hasOwnMetric(s, key)])),
+  };
+  const liveMetricFlags = s.__liveMetricFlags || {
     cpu_use: hasOwnMetric(s, 'cpu_use'),
     ram_use: hasOwnMetric(s, 'ram_use'),
     disk_use: hasOwnMetric(s, 'disk_use'),
@@ -74,12 +95,13 @@ export function normalizeServer(s) {
   return {
     ...s,
     agent_config: cfg,
+    __rawPresentFlags: rawPresentFlags,
     __liveMetricFlags: liveMetricFlags,
     group: s.group,
     bw: s.bandwidth || s.bw || '不限',
-    cpu: s.cpu_cores || s.cpu || 1,
-    ram: s.ram_gb || s.ram || 1,
-    disk: s.disk_gb || s.disk || 20,
+    cpu: rawCpu ?? 1,
+    ram: rawRam ?? 1,
+    disk: rawDisk ?? 20,
     cpu_use: Number(s.cpu_use || 0),
     ram_use: Number(s.ram_use || 0),
     disk_use: Number(s.disk_use || 0),
@@ -96,7 +118,7 @@ export function normalizeServer(s) {
     provider_guess: s.provider_guess || meta.provider_guess || cfg.provider_guess || meta.org || meta.isp || '',
     os: s.os || meta.os || cfg.os || '',
     arch: s.arch || meta.arch || cfg.arch || '',
-    hostname: s.hostname || meta.hostname || cfg.hostname || s.name || '',
+    hostname: rawPresentFlags.hostname ? (rawHostname ?? '') : '',
     ip: s.ip || s.public_ip || s.host || meta.ip || meta.public_ip || cfg.ip || cfg.public_ip || '',
     latitude: s.latitude ?? s.lat ?? meta.lat ?? cfg.lat ?? s.geo?.latitude ?? s.geo?.lat ?? s.location_lat,
     longitude: s.longitude ?? s.lon ?? s.lng ?? meta.lon ?? meta.lng ?? cfg.lon ?? cfg.lng ?? s.geo?.longitude ?? s.geo?.lon ?? s.geo?.lng ?? s.location_lng,
@@ -177,10 +199,24 @@ export async function fetchPingTargets(serverId, count = 1, source = '') {
   return fetchJson(`${root}/api/v1/probe/public/ping-targets/${serverId}?count=${count}${sourceParam}`, { timeoutMs: 9000, cacheMs: 5000 });
 }
 
-export async function fetchPingTargetHistory(serverId, hours = 12, limit = 2000, source = '') {
+export async function fetchPingTargetHistory(serverId, hours = 12, limit = 2000, source = '', options = {}) {
   const root = window.__DBG__.API_ROOT || (location.port === 5000 ? `${location.protocol}//${location.hostname}:5000` : location.origin);
-  const sourceParam = source ? `&source=${encodeURIComponent(source)}` : '';
-  return fetchJson(`${root}/api/v1/probe/public/ping-targets/${serverId}/history?hours=${hours}&limit=${limit}${sourceParam}`, { timeoutMs: 9000, cacheMs: 5000 });
+  const { selection = ALL_REGIONS, signal } = options || {};
+  const query = new URLSearchParams({ hours, limit });
+  if (source) query.set('source', source);
+  for (const [name, value] of regionSelectionQuery(selection)) query.set(name, value);
+  return fetchJson(`${root}/api/v1/probe/public/ping-targets/${serverId}/history?${query}`, {
+    timeoutMs: 9000, cacheMs: signal ? 0 : 5000, signal,
+  });
+}
+
+export async function fetchRegionalPingOverview(serverId, hours = 1, source = 'external', selection = ALL_REGIONS, signal) {
+  const root = window.__DBG__.API_ROOT || (location.port === 5000 ? `${location.protocol}//${location.hostname}:5000` : location.origin);
+  const query = new URLSearchParams({ hours, source });
+  for (const [name, value] of regionSelectionQuery(selection)) query.set(name, value);
+  return fetchJson(`${root}/api/v1/probe/public/ping-targets/${serverId}/overview?${query}`, {
+    method: 'GET', timeoutMs: 9000, cacheMs: signal ? 0 : 5000, signal,
+  });
 }
 
 
