@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import postcss from 'postcss';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { SolarSystem } from '../../src/components/SolarSystem.js';
@@ -77,6 +78,30 @@ function rect(width, height, left = 0, top = 0) {
   return { width, height, left, top, right: left + width, bottom: top + height };
 }
 
+const layoutCss = postcss.parse(
+  readFileSync(new URL('../../src/styles/starfleet-theme.css', import.meta.url), 'utf8'),
+);
+
+function solarLayoutRect() {
+  const declarations = new Map();
+  layoutCss.walkRules('#solar-system-container[data-solar-viewport]', (rule) => {
+    const media = rule.parent;
+    if (media.type !== 'atrule' || media.name !== 'media') return;
+    const maxWidth = media.params.match(/max-width:\s*(\d+)px/);
+    if (!maxWidth || window.innerWidth > Number(maxWidth[1])) return;
+    if (media.params.includes('orientation: portrait') && window.innerWidth > window.innerHeight)
+      return;
+    rule.walkDecls((declaration) => declarations.set(declaration.prop, declaration.value));
+  });
+  const constrained = declarations.get('width') === 'min(100%, calc(100svh * (9 / 16)))';
+  const width = constrained
+    ? Math.min(window.innerWidth, window.innerHeight * (9 / 16))
+    : window.innerWidth;
+  const ratio = declarations.get('aspect-ratio') || '2 / 1';
+  const [numerator, denominator] = ratio.split('/').map(Number);
+  return rect(width, (width * denominator) / numerator, (window.innerWidth - width) / 2);
+}
+
 class Element extends EventSource {
   constructor(tagName, solarLayout = false) {
     super();
@@ -145,10 +170,7 @@ class Element extends EventSource {
       );
     }
     if (this.solarLayout) {
-      return rect(
-        window.innerWidth,
-        window.innerWidth * (window.innerWidth <= 720 ? 9 / 16 : 1 / 2),
-      );
+      return solarLayoutRect();
     }
     return rect(960, 540);
   }
@@ -334,12 +356,12 @@ describe('SolarSystem owned mobile viewport and DPR budget', () => {
     const solar = fixture.mount();
     const renderer = solar.renderer;
     const expected = Math.min(dpr, 1.5);
-    expectContentBox(solar, 390, 219.375, expected);
+    expectContentBox(solar, 390, (390 * 16) / 9, expected);
     fixture.rotate(844, 390);
     expect(solar.isMobile).toBe(true);
     expectContentBox(solar, 844, 390, expected);
     fixture.rotate(390, 844);
-    expectContentBox(solar, 390, 219.375, expected);
+    expectContentBox(solar, 390, (390 * 16) / 9, expected);
     expect(solar.container.getAttribute('data-solar-mobile-landscape')).toBe('false');
     expect(solar.container.style.getPropertyValue('--solar-viewport-height')).toBe('');
     expect(solar.renderer).toBe(renderer);
@@ -372,11 +394,33 @@ describe('SolarSystem owned mobile viewport and DPR budget', () => {
     expectContentBox(solar, 1280, 640, 1);
   });
 
-  it('preserves the old narrow non-touch portrait layout and budget', () => {
+  it('applies portrait geometry without changing the narrow non-touch mobile budget', () => {
     const solar = environment({ width: 390, height: 844, pointer: 'fine', hover: 'hover' }).mount();
     expect(solar.isMobile).toBe(true);
-    expectContentBox(solar, 390, 219.375, 1.5);
+    expectContentBox(solar, 390, (390 * 16) / 9, 1.5);
   });
+
+  it.each([
+    [390, 844],
+    [390, 600],
+    [360, 500],
+    [720, 800],
+  ])(
+    'measures the CSS-source portrait box at %sx%s without truncating logical pixels',
+    (width, height) => {
+      const fixture = environment({ width, height });
+      const solar = fixture.mount();
+      const expectedWidth = Math.min(width, height * (9 / 16));
+      const expectedHeight = (expectedWidth * 16) / 9;
+      expectContentBox(solar, expectedWidth, expectedHeight, 1.5, (width - expectedWidth) / 2);
+      expect(solar.container.getBoundingClientRect().height).toBeLessThanOrEqual(height);
+      expect(solar.renderer.setSize).toHaveBeenLastCalledWith(expectedWidth, expectedHeight, false);
+      fixture.rotate(844, 390);
+      expectContentBox(solar, 844, 390, 1.5);
+      fixture.rotate(width, height);
+      expectContentBox(solar, expectedWidth, expectedHeight, 1.5, (width - expectedWidth) / 2);
+    },
+  );
 
   it('uses the AGY 500px layout-height boundary rather than a measured overflow threshold', () => {
     const fixture = environment({ width: 844, height: 500 });
@@ -431,7 +475,7 @@ describe('SolarSystem owned mobile viewport and DPR budget', () => {
     const solar = fixture.mount();
     fixture.visualViewport.height = 300;
     fixture.visualViewport.emit('resize');
-    expectContentBox(solar, 390, 219.375, 1.5);
+    expectContentBox(solar, 390, (390 * 16) / 9, 1.5);
     expect(solar.container.getAttribute('data-solar-mobile-landscape')).toBe('false');
   });
 
@@ -444,7 +488,7 @@ describe('SolarSystem owned mobile viewport and DPR budget', () => {
     const solar = fixture.mount();
     fixture.view.devicePixelRatio = 1;
     fixture.view.emit('resize');
-    expectContentBox(solar, 390, 219.375, 1);
+    expectContentBox(solar, 390, (390 * 16) / 9, 1);
   });
 
   it('owns only its container and restores previous attributes, CSS values, priorities and listeners', () => {
@@ -495,7 +539,7 @@ describe('SolarSystem owned mobile viewport and DPR budget', () => {
       [...fixture.media.values()].every((source) => source.listenerCount('change') === 1),
     ).toBe(true);
     fixture.rotate(390, 844);
-    expectContentBox(second, 390, 219.375, 1.5);
+    expectContentBox(second, 390, (390 * 16) / 9, 1.5);
     expect(second.renderer.dispose).not.toHaveBeenCalled();
   });
 

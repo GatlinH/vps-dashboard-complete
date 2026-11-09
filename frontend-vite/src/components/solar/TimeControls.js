@@ -3,7 +3,7 @@ export class TimeControls {
     this.element = document.createElement('nav');
     this.element.className = 'time-control-panel';
     this.element.setAttribute('aria-label', '星历时间控制器');
-    this.element.style.cssText = 'position:absolute;left:12px;top:12px;z-index:20;max-width:calc(100% - 24px);padding:8px;background:rgba(5,12,25,.9);color:#fff;font:12px/1.5 sans-serif;pointer-events:auto;border-radius:6px;';
+    this.element.style.cssText = 'position:absolute;left:var(--solar-tc-left,12px);top:var(--solar-tc-top,12px);bottom:var(--solar-tc-bottom,auto);transform:var(--solar-tc-transform,none);width:var(--solar-tc-width,auto);z-index:20;max-width:calc(100% - 24px);padding:8px;background:rgba(5,12,25,.9);color:#fff;font:12px/1.5 sans-serif;pointer-events:auto;border-radius:6px;';
     this.time = document.createElement('time');
     this.mode = document.createElement('span');
     this.status = document.createElement('div');

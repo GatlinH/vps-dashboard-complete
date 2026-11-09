@@ -409,6 +409,23 @@ body::after {
   }
 }
 
+@media (max-width: 720px) and (orientation: portrait) {
+  #solar-system-container[data-solar-viewport] {
+    position: relative;
+    inset: auto;
+    width: min(100%, calc(100svh * (9 / 16)));
+    height: auto;
+    aspect-ratio: 9 / 16;
+    margin-inline: auto;
+    overflow: visible;
+    --solar-tc-top: auto;
+    --solar-tc-bottom: 12px;
+    --solar-tc-left: 50%;
+    --solar-tc-transform: translateX(-50%);
+    --solar-tc-width: max-content;
+  }
+}
+
 #solar-system-container[data-solar-viewport][data-solar-mobile-landscape="true"],
 [data-solar-mobile-landscape="true"] {
   position: fixed !important;
