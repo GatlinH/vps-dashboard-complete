@@ -1142,6 +1142,7 @@ export class CesiumGlobe {
   updateServers(servers) {
     this.clearClusterFanout();
     this.servers = servers || [];
+    if (!this.viewer) return;
     this._buildEntities();
     installVisitorBeacon(this);
     this._onCameraChanged();
