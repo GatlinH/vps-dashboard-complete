@@ -682,3 +682,86 @@ body:has(.globe-only-page) {
   transition: opacity 160ms ease;
   transform: translate(-50%, -100%);
 }
+
+.mobile-bottom-nav,
+.mobile-bottom-nav-status {
+  display: none;
+}
+
+@media (max-width: 720px) and (orientation: portrait) {
+  #solar-system-container[data-solar-viewport][data-solar-mobile-nav] {
+    --solar-tc-bottom: max(12px, calc(64px + env(safe-area-inset-bottom, 0px) - (100svh - 100%)));
+    --solar-tc-max-height: min(156px, calc(100% - var(--solar-tc-bottom) - 272px));
+    --solar-tc-overflow-y: auto;
+  }
+
+  #solar-system-container[data-solar-viewport][data-solar-mobile-nav] > .time-control-panel {
+    overscroll-behavior: contain;
+    box-sizing: border-box;
+  }
+
+  #page-globe > nav.mobile-bottom-nav {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: center;
+    gap: 0;
+    position: fixed;
+    inset: auto 0 0;
+    height: calc(52px + env(safe-area-inset-bottom, 0px));
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
+    box-sizing: border-box;
+    z-index: 30;
+    background: rgba(255,245,248,.78);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid rgba(255,182,193,.35);
+    pointer-events: auto;
+  }
+
+  @supports (backdrop-filter: blur(16px)) {
+    #page-globe > nav.mobile-bottom-nav {
+      backdrop-filter: blur(16px);
+    }
+  }
+
+  .mobile-bottom-nav > button {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: #6b7280;
+    font: 11px/1.2 sans-serif;
+    cursor: pointer;
+  }
+
+  .mobile-bottom-nav > button[aria-pressed="true"] { color: #ff3b77; }
+  .mobile-bottom-nav > button:focus-visible {
+    outline: 2px solid #ff3b77;
+    outline-offset: -2px;
+  }
+  .mobile-bottom-nav-icon { width: 22px; height: 22px; }
+  .mobile-bottom-nav-status:not([hidden]) {
+    display: block;
+    position: fixed;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: calc(100% - 24px);
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(255,245,248,.9);
+    color: #6b7280;
+    font: 12px/1.5 sans-serif;
+    box-sizing: border-box;
+    z-index: 31;
+    pointer-events: none;
+  }
+}

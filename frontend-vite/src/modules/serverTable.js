@@ -6,6 +6,7 @@ import '../styles/main.css';
 import { state } from '../store/state.js';
 import { listServersPublic, getServerDetail } from '../api/public.js';
 import { SolarSystem } from '../components/SolarSystem.js';
+import { createMobileBottomNav } from '../components/solar/MobileBottomNav.js';
 import { mountGlobeStarmap } from '../components/GlobeStarmapMount.jsx';
 import { toDisplay, calcResidualValue, getMonthlyPrice, getBillingMonths, updateRateDisplay, refreshExchangeRates } from '../utils/currency.js';
 import { fmtGb, getTrafficPct, getTrafficUsed } from '../utils/traffic.js';
@@ -34,6 +35,11 @@ import { bindDisplayEventHandlers } from '../modules/eventHandlers.js';
 let globe = null;
 let globePromise = null;
 let solarSystem = null;
+let mobileBottomNav = null;
+function disposeMobileBottomNav() {
+  mobileBottomNav?.destroy();
+  mobileBottomNav = null;
+}
 let starshipShowcase = null;
 let starshipMountToken = 0;
 let starshipMountPromise = null;
@@ -370,6 +376,7 @@ function formatTrafficResetText(server, trafficData = null, opts = {}) {
 }
 
 function mountDisplayPage() {
+  disposeMobileBottomNav();
   document.body.classList.remove('front-login-page-mode');
   const app = document.getElementById('pageRoot');
   app.innerHTML = `
@@ -387,6 +394,14 @@ function mountDisplayPage() {
         <div class="globe-tooltip" id="globeTooltip"></div>
       </div>
     </section>`;
+  mobileBottomNav = createMobileBottomNav({
+    container: document.getElementById('page-globe'),
+    solarHost: document.getElementById('solar-system-container'),
+    navigate: (url) => window.location.assign(url),
+    getSnapshot: () => ({ servers: state.servers, serversSource: state.serversSource, routeServerId: route.get('server') }),
+    isVisible: isCesiumVisible,
+    switchGlobe: showCesiumGlobe,
+  });
 }
 
 function renderPublicOverviewPage() {
@@ -587,6 +602,7 @@ function showSolarSystem() {
   if (returnBtn) returnBtn.style.display = 'none';
   if (toast) { clearTimeout(toast._hideTimer); toast.style.display = 'none'; }
   solarSystem?.resume?.();
+  mobileBottomNav?.syncView();
 }
 
 async function showCesiumGlobe() {
@@ -612,6 +628,7 @@ async function showCesiumGlobe() {
     sessionStorage.setItem('vps_seen_globe_guide', '1');
   }
   loaded.updateServers(state.servers);
+  mobileBottomNav?.syncView();
 }
 
 function isCesiumVisible() {
@@ -2804,6 +2821,7 @@ function stopDetailRealtimeRefresh() {
 }
 
 window.addEventListener('pagehide', stopDetailRealtimeRefresh);
+window.addEventListener('pagehide', disposeMobileBottomNav);
 
 const dashboardTab = createDashboardTab({
   state,

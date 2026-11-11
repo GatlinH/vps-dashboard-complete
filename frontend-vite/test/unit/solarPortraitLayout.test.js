@@ -15,6 +15,14 @@ const variables = {
   '--solar-tc-width': 'max-content',
 };
 
+const ownedSelector = `${selector}[data-solar-mobile-nav]`;
+const portraitMedia = '(max-width: 720px) and (orientation: portrait)';
+const ownedVariables = {
+  '--solar-tc-bottom': 'max(12px, calc(64px + env(safe-area-inset-bottom, 0px) - (100svh - 100%)))',
+  '--solar-tc-max-height': 'min(156px, calc(100% - var(--solar-tc-bottom) - 272px))',
+  '--solar-tc-overflow-y': 'auto',
+};
+
 describe('Solar portrait CSS-source contracts (not native/browser acceptance)', () => {
   it('uses an applicable scoped portrait media rule with joint width/height sizing', () => {
     const media = css.nodes.find(
@@ -49,7 +57,9 @@ describe('Solar portrait CSS-source contracts (not native/browser acceptance)', 
   it('declares each control variable only on the owned host inside portrait media', () => {
     for (const [name, value] of Object.entries(variables)) {
       const declarations = [];
-      css.walkDecls(name, (declaration) => declarations.push(declaration));
+      css.walkDecls(name, (declaration) => {
+        if (declaration.parent.selector === selector) declarations.push(declaration);
+      });
       expect(declarations).toHaveLength(1);
       const declaration = declarations[0];
       expect(declaration.value).toBe(value);
@@ -59,7 +69,34 @@ describe('Solar portrait CSS-source contracts (not native/browser acceptance)', 
         '(max-width: 720px) and (orientation: portrait)',
       );
     }
-    css.walkRules((rule) => expect(rule.selector).not.toContain('.time-control-panel'));
+    css.walkRules((rule) => {
+      if (rule.selector.includes('.time-control-panel')) {
+        expect(rule.selector).toBe(`${ownedSelector} > .time-control-panel`);
+        expect(rule.parent.params).toBe(portraitMedia);
+      }
+    });
+  });
+
+  it('binds dock clearance variables to the exact owning portrait host, not inherited root', () => {
+    for (const [name, value] of Object.entries(ownedVariables)) {
+      const declarations = [];
+      css.walkDecls(name, (declaration) => {
+        if (declaration.parent.selector !== selector) declarations.push(declaration);
+      });
+      expect(declarations).toHaveLength(1);
+      expect(declarations[0].value).toBe(value);
+      expect(declarations[0].parent.selector).toBe(ownedSelector);
+      expect(declarations[0].parent.parent.params).toBe(portraitMedia);
+      expect(declarations[0].important).toBeFalsy();
+    }
+    const controls = [];
+    css.walkRules(`${ownedSelector} > .time-control-panel`, (rule) => controls.push(rule));
+    expect(controls).toHaveLength(1);
+    expect(Object.fromEntries(controls[0].nodes.map((node) => [node.prop, node.value]))).toEqual({
+      'overscroll-behavior': 'contain',
+      'box-sizing': 'border-box',
+    });
+    expect(controls[0].parent.params).toBe(portraitMedia);
   });
 });
 
@@ -126,6 +163,8 @@ describe('TimeControls behavior with an external DOM boundary', () => {
       bottom: 'var(--solar-tc-bottom,auto)',
       transform: 'var(--solar-tc-transform,none)',
       width: 'var(--solar-tc-width,auto)',
+      'max-height': 'var(--solar-tc-max-height,none)',
+      'overflow-y': 'var(--solar-tc-overflow-y,visible)',
       'z-index': '20',
       'max-width': 'calc(100% - 24px)',
       padding: '8px',
