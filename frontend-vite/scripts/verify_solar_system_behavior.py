@@ -9,7 +9,10 @@ Checks:
   C - Sun click calls openFrontLogin exactly once and never navigates
   D - Cesium absent on first paint
   E - Cesium chunk requested after Earth click
-  H - mobile 16:9 viewport, one dust output and synchronized time boundaries
+  H - mobile portrait 9:16 viewport, one dust output and synchronized time boundaries
+
+--portrait-layout-only (optionally with --visual-feedback-only) runs only H's
+current-real-time layout checks, not A-G or legacy scientific boundary experiments.
 """
 
 import asyncio
@@ -626,8 +629,10 @@ async def main():
                   "window.__DBG__.solarSystem.renderer and the three hit buttons never appeared.")
             return 1
 
-        if "--visual-feedback-only" in sys.argv:
-            return 0 if await check_visual_feedback(cdp, js, wait_for) else 1
+        if "--visual-feedback-only" in sys.argv or "--portrait-layout-only" in sys.argv:
+            return 0 if await check_visual_feedback(
+                cdp, js, wait_for, portrait_layout_only="--portrait-layout-only" in sys.argv,
+            ) else 1
 
         # Order matters: A first, then the D probe (before any Earth click mounts
         # Cesium), then C (also before B), then B.

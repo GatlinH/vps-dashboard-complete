@@ -6,6 +6,11 @@ import postcss from 'postcss';
 import { describe, expect, it } from 'vitest';
 import { getTrafficPct } from '../../src/utils/traffic.js';
 import {
+  decodeRegionSelection,
+  encodeRegionSelection,
+  isExternalPingTarget,
+} from '../../src/services/regionalPing.js';
+import {
   assertLegacySunMoonRemoval,
   legacyTokensInRenderedHtml,
   parseSolarSource,
@@ -30,9 +35,8 @@ class FixtureDate extends Date {
   }
 }
 
-function renderOverview({ files: sources }) {
-  const source = sources.get(overviewFile);
-  const ast = parseSolarSource(source, overviewFile);
+function stripEsmEnvelope(source, filename) {
+  const ast = parseSolarSource(source, filename);
   const edits = ast.body.flatMap((node) => {
     if (node.type === 'ImportDeclaration') return [{ start: node.start, end: node.end }];
     if (node.type === 'ExportNamedDeclaration' && node.declaration) {
@@ -46,6 +50,11 @@ function renderOverview({ files: sources }) {
   for (const { start, end } of edits.reverse()) {
     executable = executable.slice(0, start) + executable.slice(end);
   }
+  return executable;
+}
+
+function renderOverview({ files: sources }) {
+  const executable = stripEsmEnvelope(sources.get(overviewFile), overviewFile);
   const script = new vm.Script(`${executable}\n;renderPublicOverviewPage;`, {
     filename: overviewFile,
   });
@@ -68,7 +77,7 @@ function renderOverview({ files: sources }) {
     traffic_used_gb: 10,
     traffic_limit_gb: 100,
   }));
-  const renderer = script.runInNewContext({
+  const context = vm.createContext({
     Date: FixtureDate,
     state: { servers, serversUpdatedAt: epoch, currency: 'CNY' },
     LANGUAGE_PACKS: { zh: { name: '中文' } },
@@ -82,19 +91,43 @@ function renderOverview({ files: sources }) {
     updateRateDisplay: () => {},
     normalizePublicServer: (server) => server,
     getTrafficPct,
+    decodeRegionSelection,
+    encodeRegionSelection,
+    isExternalPingTarget,
+    fetchRegionalPingOverview: () => {
+      throw new Error('Unexpected overview PING transport in empty DOM fixture');
+    },
+    setInterval: () => 0,
+    clearInterval: () => {},
     localStorage: { getItem: () => null, setItem: () => {} },
     document: {
       getElementById: (id) => (id === 'pageRoot' ? app : null),
       documentElement: { getAttribute: () => 'dark' },
     },
-    window: { location: { href: '/?overview=1' } },
+    window: {
+      location: { href: '/?overview=1' },
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    },
   });
+  const pingFile = 'src/services/overviewPing.js';
+  const pingSource = stripEsmEnvelope(sources.get(pingFile), pingFile);
+  Object.assign(
+    context,
+    new vm.Script(
+      `(() => { ${pingSource}\n;return { createOverviewPingController, renderOverviewPing }; })()`,
+      { filename: pingFile },
+    ).runInContext(context),
+  );
+  const renderer = script.runInContext(context);
   assert.equal(typeof renderer, 'function');
   // Parse/module setup errors above cannot masquerade as a successful kill.
   try {
     renderer();
   } catch (error) {
     assert.fail(`F10_OVERVIEW_STATS renderer threw: ${error.message}`);
+  } finally {
+    vm.runInContext('destroyPublicOverviewPage();', context);
   }
   return app.innerHTML;
 }

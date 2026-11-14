@@ -1,0 +1,16 @@
+{
+  "baseline_sha": "dab3b78c5d70adc103ae2b008822dffd12b5b6b1",
+  "design_owner": "agy",
+  "design_source_sha256": "b5438a45d90cf7bf3d0d12e366a516d5176d4d6a43543bf856e56cbf45191114",
+  "canonical_existing_source_paths": [
+    "frontend-vite/src/components/solar/DustTailRenderer.js",
+    "frontend-vite/src/components/SolarSystem.js"
+  ],
+  "invalid_generated_links_preserved_not_validated": [
+    "file:///root/.hermes/cache/scratch/solar-now-no-halo-20261026/src/renderers/DustTailRenderer.ts",
+    "file:///root/.hermes/cache/scratch/solar-now-no-halo-20261026/src/core/SolarSystem.ts"
+  ],
+  "link_disposition": "The original generated TS file links do not exist and are not repaired or accepted as targets. This measured source binding is authoritative for implementation paths; do not create the invented TS paths.",
+  "scope": "Halley geometry/texture/density and minimal render-before wiring; no other source behavior changes",
+  "review_status": "Claude WAIVED for this visual slice only, not APPROVED"
+}

@@ -83,6 +83,10 @@ def test_fetch_does_not_rebind_global_getaddrinfo_during_request():
 
 def test_concurrent_fetches_each_pin_their_own_validated_address():
     """Two threads resolving different hosts must not steal each other's pin."""
+    original_safe_url = pf.is_safe_outbound_url
+    original_resolve = pf.resolve_public_host_addresses
+    original_conn_classes = pf._pinned_connection_classes
+    original_builder = pf.urllib.request.build_opener
     resolutions = {
         "a.example.com": "203.0.113.10",
         "b.example.com": "198.51.100.20",
@@ -104,27 +108,35 @@ def test_concurrent_fetches_each_pin_their_own_validated_address():
     results = {}
 
     def _worker(host):
-        with patch.object(pf, "is_safe_outbound_url", return_value=True), \
-             patch.object(pf, "resolve_public_host_addresses", side_effect=_fake_resolve), \
-             patch.object(pf, "_pinned_connection_classes", side_effect=_fake_conn_classes), \
-             patch("urllib.request.build_opener") as mock_builder:
-            mock_builder.return_value.open.return_value = _body_mock(b'{"cpu_use": 2.0}')
-            results[threading.current_thread().name] = pf.fetch_and_parse_probe(
-                f"http://{host}/api", _SNAP
-            )
+        results[threading.current_thread().name] = pf.fetch_and_parse_probe(
+            f"http://{host}/api", _SNAP
+        )
 
     t1 = threading.Thread(target=_worker, args=("a.example.com",), name="t1")
     t2 = threading.Thread(target=_worker, args=("b.example.com",), name="t2")
-    t1.start()
-    t2.start()
-    t1.join(15)
-    t2.join(15)
+    with patch.object(pf, "is_safe_outbound_url", return_value=True), \
+         patch.object(pf, "resolve_public_host_addresses", side_effect=_fake_resolve), \
+         patch.object(pf, "_pinned_connection_classes", side_effect=_fake_conn_classes), \
+         patch("urllib.request.build_opener") as mock_builder:
+        mock_builder.return_value.open.return_value = _body_mock(b'{"cpu_use": 2.0}')
+        t1.start()
+        t2.start()
+        t1.join(15)
+        t2.join(15)
 
+    assert pf.is_safe_outbound_url is original_safe_url
+    assert pf.resolve_public_host_addresses is original_resolve
+    assert pf._pinned_connection_classes is original_conn_classes
+    assert pf.urllib.request.build_opener is original_builder
+    assert not t1.is_alive(), "t1 did not finish"
+    assert not t2.is_alive(), "t2 did not finish"
     assert connected == {"t1": "203.0.113.10", "t2": "198.51.100.20"}, (
         f"pinned addresses leaked between threads: {connected}"
     )
+    assert set(results) == {"t1", "t2"}, f"incomplete worker results: {results}"
     for name, (metrics, err) in results.items():
         assert err is None, f"{name} failed: {err}"
+        assert metrics is not None and metrics["cpu_use"] == 2.0, f"{name} incomplete: {metrics}"
 
 
 @pytest.mark.parametrize(

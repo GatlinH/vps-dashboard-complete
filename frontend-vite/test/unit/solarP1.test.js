@@ -731,15 +731,19 @@ describe('P3-A unified ephemeris runtime', () => {
     assertRuntimeFrame(frame, jd + 2);
   });
 
-  it('runs the real SolarSystem frame and display callbacks through pause and clock jumps', () => {
+  it('runs the real SolarSystem display callbacks with an explicitly sampled clock', () => {
     // Use real Three objects without constructing a WebGL renderer or DOM.
     const targets = Object.fromEntries(targetNames.map((name) => [name, new THREE.Object3D()]));
     const tail = new THREE.Object3D();
     tail.material = { opacity: 0 };
     const system = Object.assign(Object.create(SolarSystem.prototype), {
       simulationTime: 2446300.125,
-      simulationDaysPerSecond: 12,
-      ephemerides: { providers: publishedProviders, range: mars.jd_tdb_range },
+      realTimeClock: { sample: () => ({ jdTdb: system.simulationTime, utcMs: Date.now() }) },
+      ephemerides: {
+        providers: publishedProviders,
+        range: mars.jd_tdb_range,
+        isEpochReady: () => true,
+      },
       ephemerisTargets: targets,
       ephemerisStatus: { targets: Object.fromEntries(targetNames.map((name) => [name, {}])) },
       bodies: [],
@@ -767,7 +771,7 @@ describe('P3-A unified ephemeris runtime', () => {
       }
     };
     system._advanceBodies(0.125);
-    expect(system.simulationTime).toBe(2446301.625);
+    expect(system.simulationTime).toBe(2446300.125);
     assertDisplay();
     const before = Object.values(targets).map((target) => target.position.toArray());
     system._advanceBodies(0);

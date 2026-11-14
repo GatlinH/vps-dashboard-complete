@@ -38,13 +38,11 @@ describe('circular hit CSS contract (not native browser measurement)', () => {
       expect([el.style.width, el.style.height]).toEqual(['24px', '24px']);
   });
 
-  it('(c) gives keyboard focus and hover the internal black-white-black ring', () => {
+  it('(c) keeps keyboard focus and hover free of outlines and box shadows', () => {
     for (const selector of ['.solar-system-hit:hover', '.solar-system-hit:focus-visible']) {
       const active = declarations(selector);
       expect(active.outline).toBe('none');
-      expect(active['box-shadow']).toBe(
-        'inset 0 0 0 2px #000, inset 0 0 0 4px #fff, inset 0 0 0 6px #000',
-      );
+      expect(active['box-shadow']).toBe('none');
       expect(active['forced-color-adjust']).toBe('none');
       expect(active['outline-offset']).toBeUndefined();
     }

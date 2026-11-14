@@ -157,3 +157,16 @@ export function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
   setTheme(current === 'dark' ? 'light' : 'dark');
 }
+
+Object.assign(LANGUAGE_PACKS.zh, {
+  mobileNavAdmin: '后台', mobileNavAssets: '资产', mobileNavDetails: '详情', mobileNavEarth: '地球',
+  mobileNavLoading: '节点数据加载中，请稍后再试',
+  mobileNavEmpty: '暂无节点，请先在资产列表中添加节点',
+  mobileNavSelect: '请先在资产列表中选择目标节点',
+});
+Object.assign(LANGUAGE_PACKS.en, {
+  mobileNavAdmin: 'Admin', mobileNavAssets: 'Assets', mobileNavDetails: 'Details', mobileNavEarth: 'Earth',
+  mobileNavLoading: 'Node data is loading. Please try again shortly.',
+  mobileNavEmpty: 'No nodes yet. Add a node in Assets first.',
+  mobileNavSelect: 'Select a target node in Assets first.',
+});

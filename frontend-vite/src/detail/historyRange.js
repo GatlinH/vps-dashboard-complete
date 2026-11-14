@@ -6,7 +6,7 @@ const DETAIL_HISTORY_BUCKETS = { 0: 0, 1: 5, 4: 20, 7: 60, 30: 60, 90: 180 };
 const DEFAULT_DETAIL_HISTORY_DAYS = 1;
 
 export function getDetailHistoryDays() {
-  const raw = Number(window.__DBG__.DETAIL_HISTORY_DAYS ?? DEFAULT_DETAIL_HISTORY_DAYS) || DEFAULT_DETAIL_HISTORY_DAYS;
+  const raw = Number(window.__DBG__.DETAIL_HISTORY_DAYS ?? DEFAULT_DETAIL_HISTORY_DAYS);
   return Object.prototype.hasOwnProperty.call(DETAIL_HISTORY_BUCKETS, raw) ? raw : DEFAULT_DETAIL_HISTORY_DAYS;
 }
 
@@ -40,7 +40,7 @@ export function getDetailHistoryPointLimit(days = getDetailHistoryDays()) {
 export function syncDetailHistoryStateFromStorage(initialDays = DEFAULT_DETAIL_HISTORY_DAYS) {
   let raw = (window.__DBG__.DETAIL_HISTORY_DAYS ?? initialDays);
   try { raw = localStorage.getItem('detailHistoryDays') || raw; } catch (_) {}
-  const stored = Number(raw || initialDays) || initialDays;
+  const stored = Number(raw ?? initialDays);
   const d = Object.prototype.hasOwnProperty.call(DETAIL_HISTORY_BUCKETS, stored) ? stored : DEFAULT_DETAIL_HISTORY_DAYS;
   window.__DBG__.DETAIL_HISTORY_DAYS = d;
   return d;

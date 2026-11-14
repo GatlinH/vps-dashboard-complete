@@ -29,6 +29,7 @@ from utils.errors import ValidationError, InternalServerError
 from middleware.rbac import admin_required, viewer_or_admin_required, owner_required
 from utils.validators import validate_server_name, validate_server_ip
 from utils.request_context import audit_client_ip
+from services.peer_probe import _normalize_ping_target_region
 from services.metrics_ingest import ingest_metrics
 from api.probe import clear_ping_targets_cache
 
@@ -527,8 +528,20 @@ def update_agent_config(sid):
     data = request.get_json(silent=True) or {}
     if not isinstance(data, dict):
         raise ValidationError("agent_config 必须是 JSON 对象", field="agent_config")
+    targets = data.get("ping_targets")
+    if isinstance(targets, list):
+        for index, target in enumerate(targets):
+            if not isinstance(target, dict) or "region" not in target:
+                continue
+            region = target["region"]
+            if not isinstance(region, str) or _normalize_ping_target_region(region) != region:
+                raise ValidationError(
+                    "region 必须是不含换行的字符串，最多 32 个字符、128 个 UTF-8 字节",
+                    field=f"ping_targets[{index}].region",
+                )
     _audit_high_risk("agent_config_updated", "Agent 配置已修改", sid)
-    server.agent_config = _normalize_agent_config_readonly(data)
+    existing = server.agent_config if isinstance(server.agent_config, dict) else {}
+    server.agent_config = _normalize_agent_config_readonly({**existing, **data})
     db.session.commit()
     clear_ping_targets_cache(sid)
     return jsonify({"server_id": sid, "agent_config": server.agent_config})

@@ -3,8 +3,49 @@ import { LANGUAGE_PACKS, currentLanguage, t } from '../core/preferences.js';
 import { toDisplay, calcResidualValue, getMonthlyPrice, sourceAmountToCny, getSourceCurrency, updateRateDisplay } from '../utils/currency.js';
 import { getTrafficPct } from '../utils/traffic.js';
 import { normalizePublicServer } from '../services/serverGroups.js';
+import { createOverviewPingController, renderOverviewPing } from '../services/overviewPing.js';
 
 const OVERVIEW_GROUP_FILTER_KEY = 'vps_overview_group_filter';
+let overviewPingController = null;
+let overviewRouteObserver = null;
+let overviewPageRoot = null;
+let overviewLifecycleWindow = null;
+const overviewCardDisposers = [];
+
+function checkOverviewRoute() {
+  if (!overviewPageRoot?.isConnected || !overviewPageRoot.querySelector('.public-overview-page')) {
+    destroyPublicOverviewPage();
+  }
+}
+
+export function destroyPublicOverviewPage() {
+  overviewPingController?.destroy();
+  overviewPingController = null;
+  overviewRouteObserver?.disconnect();
+  overviewRouteObserver = null;
+  overviewCardDisposers.splice(0).forEach((dispose) => dispose());
+  overviewLifecycleWindow?.removeEventListener('pagehide', destroyPublicOverviewPage);
+  overviewLifecycleWindow?.removeEventListener('popstate', checkOverviewRoute);
+  overviewLifecycleWindow?.removeEventListener('hashchange', checkOverviewRoute);
+  overviewLifecycleWindow = null;
+  overviewPageRoot = null;
+}
+
+function mountOverviewPing(app, ids) {
+  if (!overviewPingController) {
+    overviewPingController = createOverviewPingController();
+    overviewLifecycleWindow = window;
+    window.addEventListener('pagehide', destroyPublicOverviewPage);
+    window.addEventListener('popstate', checkOverviewRoute);
+    window.addEventListener('hashchange', checkOverviewRoute);
+    if (globalThis.MutationObserver) {
+      overviewRouteObserver = new MutationObserver(checkOverviewRoute);
+      overviewRouteObserver.observe(document.body, { childList: true, subtree: true });
+    }
+  }
+  overviewPageRoot = app;
+  overviewPingController.mount(app, ids);
+}
 
 function escText(value) {
   return String(value ?? '').replace(/[&<>\"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '\"':'&quot;', "'":'&#39;' }[c]));
@@ -98,10 +139,24 @@ function overviewMetricValue(server, key) {
   return Number.isFinite(num) ? Math.max(0, Math.min(100, num)) : null;
 }
 
-function renderOverviewMetric(label, value) {
+function renderOverviewMetric(label, value, specification = '—') {
   const pct = value == null ? 0 : value;
   const text = value == null ? '—' : `${value.toFixed(0)}%`;
-  return `<span class="overview-metric ${value == null ? 'is-missing' : ''}" style="--pct:${pct.toFixed(0)}"><b>${label}</b><strong class="overview-metric-value">${text}</strong><i></i></span>`;
+  return `<span class="overview-metric ${value == null ? 'is-missing' : ''}" style="--pct:${pct.toFixed(0)}"><b>${escText(label)}</b><strong class="overview-metric-value">${text}</strong><i></i><small class="overview-resource-spec">${escText(specification)}</small></span>`;
+}
+
+function overviewRateValue(server, key) {
+  if (!server.__rawPresentFlags?.[key]) return '—';
+  const value = Number(server[key]);
+  if (!Number.isFinite(value) || value < 0) return '—';
+  if (value >= 1024) return `${(value / 1024).toFixed(2)} MB/s`;
+  return `${Number(value.toFixed(2))} KB/s`;
+}
+
+function overviewTrafficValue(server, key) {
+  if (!server.__rawPresentFlags?.[key] || server[key] == null || server[key] === '') return '—';
+  const value = Number(server[key]);
+  return Number.isFinite(value) && value >= 0 ? fmtResourceGb(value) : '—';
 }
 
 function trafficResetDay(server, trafficData = null) {
@@ -279,12 +334,24 @@ function buildBackendGroups(rows = []) {
   });
 }
 
-function renderOverviewNodeCard(s) {
+export function renderOverviewNodeCard(s) {
+  const raw = s.__rawPresentFlags || {};
+  const specification = (key) => {
+    const value = Number(s[key]);
+    if (!raw[key] || !Number.isFinite(value) || value < 0) return '—';
+    return key === 'cpu' ? `${value} 核` : fmtResourceGb(value);
+  };
   const cpuValue = overviewMetricValue(s, 'cpu_use');
   const ramValue = overviewMetricValue(s, 'ram_use');
   const diskValue = overviewMetricValue(s, 'disk_use');
-  const trafficRaw = getTrafficPct(s);
+  const hasTrafficUsed = raw.traffic_used_gb || (raw.traffic_up_gb && raw.traffic_down_gb);
+  const trafficUsed = raw.traffic_used_gb ? Number(s.traffic_used_gb) : Number(s.traffic_up_gb) + Number(s.traffic_down_gb);
+  const validTrafficUsed = hasTrafficUsed && Number.isFinite(trafficUsed) && trafficUsed >= 0;
+  const trafficLimit = Number(s.traffic_limit_gb);
+  const validTrafficLimit = raw.traffic_limit_gb && Number.isFinite(trafficLimit) && trafficLimit >= 0;
+  const trafficRaw = validTrafficUsed && validTrafficLimit ? getTrafficPct({ ...s, traffic_used_gb: trafficUsed }) : null;
   const trafficValue = trafficRaw == null || trafficRaw === '' ? null : Math.max(0, Math.min(100, Number(trafficRaw)));
+  const trafficSpec = `${validTrafficUsed ? fmtResourceGb(trafficUsed) : '—'}${validTrafficLimit ? ` / ${fmtResourceGb(trafficLimit)}` : ''}`;
   const residual = calcResidualValue(s);
   const baseValue = Number(residual.value || 0);
   const displayName = s.name || t('unknownNode');
@@ -297,20 +364,63 @@ function renderOverviewNodeCard(s) {
   const safeFlag = escText(s.flag || '🌐');
   const safeProvider = escText(s.provider_guess || s.provider || t('unknownProvider'));
   const safeLocation = escText(s.location || s.city || s.region || s.country || t('unknownRegion'));
+  const expiryDays = daysUntilExpiry(s.expiry);
+  const expiryText = expiryDays == null ? '—' : `${String(s.expiry).split('T')[0]} · ${expiryDays} 天`;
+  const priceText = raw.price && Number.isFinite(Number(s.price))
+    ? `${toDisplay(sourceAmountToCny(s.price, getSourceCurrency(s)))}${s.period ? ` / ${s.period}` : ''}` : '—';
   return `
-    <article class="public-overview-card is-dense status-${statusCls}${master ? ' is-master' : ''}" data-id="${safeId}" data-group-key="${escText(group.id || `name:${group.name}`)}" role="link" tabindex="0" aria-label="${safeDisplayName}"${groupStyle}>
+    <article class="public-overview-card is-v2-card status-${statusCls}${master ? ' is-master' : ''}" data-id="${safeId}" data-group-key="${escText(group.id || `name:${group.name}`)}" role="link" tabindex="0" aria-label="${safeDisplayName}"${groupStyle}>
       <div class="public-overview-head">
         <div><span class="public-overview-flag">${safeFlag}</span><strong>${safeDisplayName}</strong>${master ? `<em class="overview-master-badge">${t('overviewMaster')}</em>` : ''}</div>
-        <div class="public-overview-actions"><button class="public-money-btn" type="button" data-id="${safeId}" data-base="${baseValue}" data-name="${safeDisplayName}" aria-label="${safeDisplayName}">¥</button><span class="public-overview-status is-${statusCls}">${t(statusCls)}</span></div>
+        <div class="public-overview-actions"><button class="public-money-btn" type="button" data-overview-interactive data-id="${safeId}" data-base="${baseValue}" data-name="${safeDisplayName}" aria-label="${safeDisplayName} 计算器">计算器</button><span class="public-overview-status is-${statusCls}">${s.status ? escText(t(statusCls)) : '—'}</span></div>
       </div>
       <div class="public-overview-meta"><span class="overview-group-chip">${escText(group.name)}</span> · ${safeProvider} · ${safeLocation}</div>
-      <div class="public-overview-grid">
-        ${renderOverviewMetric('CPU', cpuValue)}
-        ${renderOverviewMetric('RAM', ramValue)}
-        ${renderOverviewMetric('DISK', diskValue)}
-        ${renderOverviewMetric('TRAF', Number.isFinite(trafficValue) ? trafficValue : null)}
+      <div class="overview-hostname">主机名 <span data-overview-field="hostname">${escText(raw.hostname ? s.hostname : '—')}</span></div>
+      <div class="overview-card-facts">
+        <span>系统 <b>${escText(s.os || '—')}</b></span>
+        <span>到期 <b>${escText(expiryText)}</b></span>
+        <span>在线时长 <b>${escText(s.uptime ?? '—')}</b></span>
+        <span>资费 <b>${escText(priceText)}</b></span>
       </div>
+      <div class="overview-resource-grid">
+        ${renderOverviewMetric('CPU', cpuValue, specification('cpu'))}
+        ${renderOverviewMetric('RAM', ramValue, specification('ram'))}
+        ${renderOverviewMetric('DISK', diskValue, specification('disk'))}
+        ${renderOverviewMetric('流量', Number.isFinite(trafficValue) ? trafficValue : null, trafficSpec)}
+      </div>
+      <div class="overview-card-stats">
+        <div><span>即时网速</span><strong>↑ ${escText(overviewRateValue(s, 'net_up'))}</strong><strong>↓ ${escText(overviewRateValue(s, 'net_down'))}</strong></div>
+        <div><span>本月 / 本周期流量</span><strong>↑ ${escText(overviewTrafficValue(s, 'traffic_up_gb'))}</strong><strong>↓ ${escText(overviewTrafficValue(s, 'traffic_down_gb'))}</strong></div>
+        <div><span>剩余价值</span><button class="public-money-btn overview-residual-btn" type="button" data-overview-interactive data-id="${safeId}" data-base="${baseValue}" data-name="${safeDisplayName}" aria-label="${safeDisplayName} 剩余价值计算器">${escText(raw.price ? toDisplay(baseValue) : '—')}</button></div>
+      </div>
+      <div class="overview-ping" data-server-id="${safeId}">${renderOverviewPing({ id: safeId, ...overviewPingController?.getState(safeId) })}</div>
     </article>`;
+}
+
+export function bindOverviewCardEvents(card, { navigate, openCalculator }) {
+  const interactiveSelector = 'button, select, input, textarea, a, .public-money-btn, [data-overview-interactive], [data-ping-region], [data-ping-hours], [data-ping-slot]';
+  const handleEvent = (event) => {
+    const control = event.target.closest?.(interactiveSelector);
+    if (control && card.contains(control)) {
+      event.stopPropagation();
+      const calculator = event.target.closest?.('.public-money-btn');
+      if (event.type === 'click' && calculator && card.contains(calculator)) {
+        event.preventDefault();
+        openCalculator({ id: calculator.dataset.id, name: calculator.dataset.name, base: Number(calculator.dataset.base || 0) });
+      }
+      return;
+    }
+    if (event.type === 'click' || (event.type === 'keydown' && (event.key === 'Enter' || event.key === ' '))) {
+      const id = card.getAttribute('data-id');
+      if (!id) return;
+      event.preventDefault();
+      navigate(`/?server=${encodeURIComponent(id)}`);
+    }
+  };
+  for (const type of ['click', 'pointerover', 'keydown']) card.addEventListener(type, handleEvent);
+  return () => {
+    for (const type of ['click', 'pointerover', 'keydown']) card.removeEventListener(type, handleEvent);
+  };
 }
 
 function collectFilteredNodes(groups = [], activeKey = 'all') {
@@ -327,11 +437,13 @@ function renderFlatNodeList(nodes = [], activeMeta = null) {
   const hint = activeMeta && activeMeta.key !== 'all'
     ? `<div class="overview-filter-hint">${t('overviewFilter')}：<b>${escText(activeMeta.name)}</b>${activeMeta.purpose ? ` · ${escText(activeMeta.purpose)}` : ''} · ${nodes.length} ${t('overviewNodes')}</div>`
     : '';
-  return `${hint}<div class="public-overview-list" id="overviewNodeGrid">${nodes.map(renderOverviewNodeCard).join('')}</div>`;
+  return `${hint}<div class="public-overview-list overview-v2-list" id="overviewNodeGrid">${nodes.map(renderOverviewNodeCard).join('')}</div>`;
 }
 
 export function renderPublicOverviewPage() {
   const app = document.getElementById('pageRoot');
+  if (!app) { destroyPublicOverviewPage(); return; }
+  overviewCardDisposers.splice(0).forEach((dispose) => dispose());
   const rows = Array.isArray(state.servers) ? state.servers : [];
   const summary = summarizeMoonPanel(rows);
   const updatedAtText = state.serversUpdatedAt ? new Date(state.serversUpdatedAt).toLocaleString(currentLanguage === 'zh' ? 'zh-CN' : undefined, { hour12: false }) : t('overviewUpdatedMissing');
@@ -492,31 +604,13 @@ export function renderPublicOverviewPage() {
     if (chevron) chevron.textContent = open ? '▾' : '▸';
   });
 
-  app.querySelectorAll('.public-money-btn').forEach((btn) => {
-    btn.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      openPremiumCalculator({
-        id: btn.dataset.id,
-        name: btn.dataset.name,
-        base: Number(btn.dataset.base || 0),
-      });
-    });
-  });
-
   app.querySelectorAll('.public-overview-card').forEach((card) => {
-    const openDetail = () => {
-      const id = card.getAttribute('data-id');
-      if (id) window.location.href = `/?server=${id}`;
-    };
-    card.addEventListener('click', openDetail);
-    card.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        openDetail();
-      }
-    });
+    overviewCardDisposers.push(bindOverviewCardEvents(card, {
+      navigate: (href) => { destroyPublicOverviewPage(); window.location.href = href; },
+      openCalculator: openPremiumCalculator,
+    }));
   });
+  mountOverviewPing(app, filteredNodes.map((server) => server.id));
 }
 
 

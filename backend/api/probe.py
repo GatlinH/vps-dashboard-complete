@@ -169,6 +169,40 @@ _persist_ping_target_results = _probe_history._persist_ping_target_results
 _fetch_ping_target_history = _probe_history._fetch_ping_target_history
 
 
+def _ping_read_response(payload, status=200):
+    response = jsonify(payload)
+    response.status_code = status
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
+def _public_history_targets(server, source):
+    if not server:
+        return []
+    if source == 'agent':
+        return [{**target, 'region': target.get('region', '')} for target in _server_peer_ping_targets(server)[0]]
+    return [target for target in _resolve_ping_targets_for_server(server)
+            if target.get('type') != 'peer' and not str(target.get('key', '')).startswith('vps-')]
+
+
+@probe_bp.get('/public/ping-targets/<int:sid>/overview')
+def public_ping_targets_overview(sid):
+    from services.regional_ping import build_overview, parse_selection
+
+    requested = datetime.now(timezone.utc)
+    try:
+        source, selection = parse_selection(request.args, overview=True)
+        hours = int(request.args.get('hours', '1'))
+        if hours not in (1, 6, 24):
+            raise ValueError('hours must be 1, 6 or 24')
+    except ValueError as exc:
+        return _ping_read_response({'error': str(exc)}, 400)
+    with db.session.no_autoflush:
+        server = Server.query.get(sid)
+    configured = _public_history_targets(server, source)
+    return _ping_read_response(build_overview(sid, configured, selection, hours, source, requested))
+
+
 def build_public_ping_history_payload(sid, hours=12, limit=2000, source="public"):
     result = _public_ping_history_response(sid, hours, limit, source)
     response = result[0] if isinstance(result, tuple) else result
@@ -179,31 +213,46 @@ def public_ping_targets_history(sid):
     return _public_ping_history_response(sid)
 
 def _public_ping_history_response(sid, hours=None, limit=None, source=None):
+    from services.regional_ping import parse_selection, select_targets, target_aliases
+
+    try:
+        source, selection = parse_selection(request.args, source=source)
+        hours = max(1, min(int(hours if hours is not None else request.args.get("hours", 12)), 2160))
+        limit = max(1, min(int(limit if limit is not None else request.args.get("limit", 2000)), 10000))
+    except ValueError as exc:
+        return _ping_read_response({'error': str(exc)}, 400)
     server = Server.query.get(sid)
     # Long views are served from hourly aggregates and may span 90 days. Raw
     # target samples remain capped at one week for bounded storage/query cost.
-    hours = max(1, min(int(hours if hours is not None else request.args.get("hours", 12)), 2160))
-    limit = max(1, min(int(limit if limit is not None else request.args.get("limit", 2000)), 10000))
-    source = str(source if source is not None else request.args.get("source") or "public").strip().lower()
     if not server:
         resp = jsonify({"server_id": sid, "hours": hours, "targets": [], "derived_from": "server not found", "configured": False, "not_configured": True})
         resp.headers["Cache-Control"] = "no-store"
         return resp
 
-    configured = _server_peer_ping_targets(server)[0] if source == "agent" else _resolve_ping_targets_for_server(server)
+    all_configured = _public_history_targets(server, source)
+    configured = select_targets(all_configured, selection)
     if hours > 168:
         try:
             from services.ping_rollups import query_ping_rollups, serialize_ping_rollups
             since = datetime.now(timezone.utc) - timedelta(hours=hours)
-            targets = serialize_ping_rollups(query_ping_rollups(sid, since, limit))
-            return jsonify({
+            aliases = {identity: target for identity, target in target_aliases(all_configured, with_port=False).items()
+                       if target in configured}
+            if not configured and (source != 'agent' or all_configured or selection['region'] is not None):
+                targets = []
+            else:
+                targets = serialize_ping_rollups(
+                    query_ping_rollups(sid, since, limit, target_aliases=aliases, source=source),
+                    target_aliases=aliases,
+                )
+            return _ping_read_response({
                 "server_id": sid, "hours": hours, "targets": targets,
                 "derived_from": "hourly ping target rollups", "probe_source": source,
                 "history_source": "rollup", "bucket_minutes": 60,
+                "configured": bool(all_configured), "not_configured": not all_configured,
             })
         except Exception as exc:
             current_app.logger.error("ping rollup history failed: %s", exc)
-            return jsonify({"server_id": sid, "hours": hours, "targets": [], "derived_from": "rollup unavailable", "probe_source": source, "history_source": "rollup"}), 503
+            return _ping_read_response({"server_id": sid, "hours": hours, "targets": [], "derived_from": "rollup unavailable", "probe_source": source, "history_source": "rollup"}, 503)
 
     target_keys = set()
     for index, target in enumerate(configured):
@@ -250,6 +299,7 @@ def _public_ping_history_response(sid, hours=None, limit=None, source=None):
             "label": r.get("label") or meta.get("label") or key,
             "port": r.get("port") or meta.get("port"),
             "protocol": r.get("protocol") or meta.get("protocol") or "icmp",
+            "region": meta.get("region", ""),
             "points": [],
         })
         if r.get("success") and r.get("latency_ms") is not None:
@@ -267,7 +317,7 @@ def _public_ping_history_response(sid, hours=None, limit=None, source=None):
             })
     for i, meta in enumerate(configured):
         key = str(meta.get("key") or meta.get("host") or meta.get("label") or f"target-{i}")
-        grouped.setdefault(key, {"key": key, "label": meta.get("label") or key, "port": meta.get("port"), "protocol": meta.get("protocol") or "icmp", "points": []})
+        grouped.setdefault(key, {"key": key, "label": meta.get("label") or key, "port": meta.get("port"), "protocol": meta.get("protocol") or "icmp", "region": meta.get("region", ""), "points": []})
     payload = {"server_id": sid, "hours": hours, "targets": list(grouped.values()), "derived_from": "persisted agent peer results" if source == "agent" else "persisted ping_target_results", "probe_source": "agent" if source == "agent" else "public"}
     resp = jsonify(payload)
     resp.headers["Cache-Control"] = "no-store"
@@ -317,6 +367,7 @@ def _public_ping_targets_response(sid, count=None, source=None):
             "port": item.get("port", 443),
             "protocol": item.get("protocol", "tcp"),
             "type": "external",
+            "region": item.get("region", ""),
         } for item in resolved_targets]
         payload = {
             "server_id": sid,
@@ -426,6 +477,7 @@ def _public_ping_targets_response(sid, count=None, source=None):
             "port": item.get("port", 443),
             "protocol": item.get("protocol", "tcp"),
             "type": "external",
+            "region": item.get("region", ""),
         }
         if sample:
             latency = sample.get("latency_ms")
