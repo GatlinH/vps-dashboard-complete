@@ -172,7 +172,7 @@ function overviewPanels(html) {
   // Match the actual summary section class, so names in node cards cannot pass.
   return [...html.matchAll(/<section\b[^>]*>/g)].flatMap((match) => {
     const classes = match[0].match(/\bclass="([^"]*)"/)?.[1].split(/\s+/) ?? [];
-    if (!classes.includes('public-overview-panel')) return [];
+    if (!classes.includes('overview-summary-panel')) return [];
     const end = html.indexOf('</section>', match.index);
     return end < 0 ? [] : [html.slice(match.index, end + '</section>'.length)];
   });
@@ -181,7 +181,7 @@ function overviewPanels(html) {
 function panelByTitle(html, title) {
   return (
     overviewPanels(html).find((panel) =>
-      panel.includes(`<div class="public-overview-panel-title">${title}</div>`),
+      panel.includes(`<div class="overview-summary-panel-title">${title}</div>`),
     ) ?? ''
   );
 }
@@ -247,13 +247,13 @@ function changeSharedLayer(sources, change) {
 
 function removeOverviewSection(marker) {
   return (sources) => {
-    const source = sources.get(overviewFile);
+    const source = sources.get(templatesFile);
     assert.equal(source.split(marker).length, 2, `unique overview section anchor: ${marker}`);
     const at = source.indexOf(marker);
     const start = source.lastIndexOf('<section', at);
     const end = source.indexOf('</section>', at) + '</section>'.length;
     assert.ok(start >= 0 && end > at);
-    sources.set(overviewFile, source.slice(0, start) + source.slice(end));
+    sources.set(templatesFile, source.slice(0, start) + source.slice(end));
     // The fixture still renders node cards containing these names after the
     // summary section disappears; a whole-page search would give false passes.
     const html = renderOverview({ files: sources });
@@ -746,7 +746,7 @@ const overviewMutations = [
         `    \${card('cost', 'overviewSummaryCost', money(summary.cost.monthlyActual), [
       \`\${t('overviewSummaryKnown')} · \${coverage(summary.cost.coverage)}\`,
       \`\${t('overviewSummaryAnnual')} \${money(summary.cost.yearlyActual)}\`,
-    ])}`,
+    ], costSlices)}`,
         '',
       ),
   },

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { parse } from 'acorn';
+import postcss from 'postcss';
 import {
   overviewSortValue,
   loadOverviewChoice,
@@ -455,4 +456,165 @@ it('persists a real group click before requesting the production owner rerender'
   button('data-group-key', '2').click();
   expect(request).toHaveBeenCalledTimes(1);
   expect(button('data-group-key', '2').getAttribute('aria-selected')).toBe('true');
+});
+
+it('renders the compact v2 sequence without hero, aside or duplicate section headings', () => {
+  rerender();
+  expect(root.innerHTML).toContain('overview-layout-v2');
+  expect(root.innerHTML).not.toMatch(
+    /overview-layout-p1|public-overview-hero|public-overview-visual|<aside|public-overview-section-head/,
+  );
+  const sequence = [
+    'public-overview-floating-topbar',
+    'overview-group-filter',
+    'overview-summary-grid',
+    'overview-filter-sort',
+    'public-overview-main-grid',
+    'overview-network-table',
+  ];
+  expect(sequence.map((marker) => root.innerHTML.indexOf(marker))).toEqual(
+    sequence
+      .map((marker) => root.innerHTML.indexOf(marker))
+      .sort((first, second) => first - second),
+  );
+  expect(root.innerHTML).toContain('id="themeToggle"');
+  expect(root.innerHTML).toContain('id="languageSelect"');
+  expect(root.innerHTML).toContain('overview-network-table is-collapsed');
+});
+
+it('keeps all thirty expiry rows reachable behind closed summary details', () => {
+  state.servers = Array.from({ length: 30 }, (_, index) =>
+    normalizeServer({
+      id: index + 1,
+      name: `expiry-long-${index}`,
+      expiry: '2027-01-01',
+      status: 'offline',
+      price: 10,
+      period: 'monthly',
+      location: `region-${index}`,
+      provider: `provider-${index}`,
+    }),
+  );
+  rerender();
+  const summary = root.innerHTML.slice(
+    root.innerHTML.indexOf('overview-summary-grid'),
+    root.innerHTML.indexOf('overview-filter-sort'),
+  );
+  expect(summary).toMatch(/<details class="overview-summary-details"[^>]*>/);
+  expect(summary).not.toMatch(/<details[^>]*\bopen\b/);
+  expect(summary).toContain('expiry-long-29');
+  expect(summary).toContain('data-panel="abnormal"');
+  expect(summary).toContain('data-overview-cost-panel="region"');
+  expect(summary).toContain('data-overview-cost-panel="provider"');
+});
+
+it('preserves cost slices through owner rerenders and currency/language changes', () => {
+  rerender();
+  expect(button('data-overview-cost-view', 'region')).toBeDefined();
+  button('data-overview-cost-view', 'region').click();
+  state.currency = 'USD';
+  preferences.setLanguage('en');
+  rerender();
+  expect(button('data-overview-cost-view', 'region').getAttribute('aria-pressed')).toBe('true');
+  expect(root.innerHTML).toMatch(/data-overview-cost-panel="region"(?! hidden)/);
+  expect(button('data-overview-status', 'all').getAttribute('aria-pressed')).toBe('true');
+});
+
+it('labels traffic as the usage/positive-limit set without changing RAM semantics', () => {
+  rerender();
+  const traffic = root.innerHTML.split('data-overview-summary="traffic"')[1].split('</section>')[0];
+  expect(traffic).toContain(preferences.t('overviewSummaryTrafficMatched'));
+  expect(traffic).not.toContain(preferences.t('overviewSummaryMatched'));
+});
+
+it('renders expiry and abnormal panels exactly once, only in the expiry card', () => {
+  rerender();
+  for (const key of ['expiry', 'abnormal']) {
+    expect([...root.innerHTML.matchAll(new RegExp(`data-panel="${key}"`, 'g'))]).toHaveLength(1);
+    expect(root.innerHTML.indexOf(`data-panel="${key}"`)).toBeGreaterThan(
+      root.innerHTML.indexOf('data-overview-summary="expiry"'),
+    );
+  }
+});
+
+it('keeps primary captions visible outside closed details', () => {
+  state.servers = [
+    normalizeServer({
+      id: 1,
+      name: 'peak-real-node',
+      status: 'online',
+      arch: 'x86_64',
+      os: 'Debian',
+      cpu: 4,
+      cpu_use: 50,
+      ram: 16,
+      ram_use: 50,
+      disk: 100,
+      disk_use: 25,
+      net_up: 8,
+      net_down: 16,
+      traffic_used_gb: 10,
+      traffic_limit_gb: 100,
+      price: 12,
+      period: 'monthly',
+    }),
+  ];
+  rerender();
+  const visible = (key) =>
+    root.innerHTML.split(`data-overview-summary="${key}"`)[1].split('<details')[0];
+  expect(visible('nodes')).toContain(preferences.t('online'));
+  expect(visible('platforms')).toContain('x86_64');
+  expect(visible('platforms')).toContain('Debian');
+  expect(visible('cpu')).toContain(preferences.t('overviewSummaryAverage'));
+  expect(visible('cpu')).toContain('1/1');
+  expect(visible('load')).toContain('peak-real-node');
+  for (const key of ['ram', 'disk']) {
+    expect(visible(key)).toContain(preferences.t('overviewSummaryUsed'));
+    expect(visible(key)).toContain('%');
+  }
+  expect(visible('rates')).toContain('↓');
+  expect(visible('traffic')).toContain(preferences.t('overviewSummaryLimit'));
+  expect(visible('cost')).toContain(preferences.t('overviewSummaryKnown'));
+  expect(visible('cost')).toContain(preferences.t('overviewSummaryAnnual'));
+});
+
+it('isolates legacy control geometry and gives tablet summaries two columns', () => {
+  const main = postcss.parse(
+    readFileSync(new URL('../../src/styles/main.css', import.meta.url), 'utf8'),
+  );
+  main.walkRules((rule) => {
+    if (
+      !rule.selector.includes('.public-overview-page') ||
+      !/\.(theme-toggle|language-select|currency-btn|detail-currency-switch|public-overview-tools)/.test(
+        rule.selector,
+      )
+    )
+      return;
+    rule.walkDecls((declaration) => {
+      if (
+        declaration.important &&
+        /^(width|min-width|max-width|min-height|padding|gap|flex)$/.test(declaration.prop)
+      ) {
+        expect(
+          rule.selector
+            .split(',')
+            .every((selector) => selector.includes(':not(.overview-layout-v2)')),
+        ).toBe(true);
+      }
+    });
+  });
+  const themeCss = postcss.parse(
+    readFileSync(new URL('../../src/styles/starfleet-theme.css', import.meta.url), 'utf8'),
+  );
+  let tablet = false;
+  themeCss.walkAtRules('media', (media) => {
+    if (!media.params.includes('1280px')) return;
+    media.walkRules((rule) => {
+      if (!rule.selector.includes('.overview-layout-v2 .overview-summary-grid')) return;
+      rule.walkDecls('grid-template-columns', (declaration) => {
+        tablet ||= declaration.value === 'repeat(2, minmax(0, 1fr))';
+      });
+    });
+  });
+  expect(tablet).toBe(true);
 });

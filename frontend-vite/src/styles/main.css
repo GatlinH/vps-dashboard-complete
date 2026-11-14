@@ -807,14 +807,16 @@
 .public-overview-page.starship-console-page{
   position: relative;
   min-height: 100vh;
-  padding: clamp(34px, 5vw, 62px) clamp(22px, 4vw, 58px) 58px !important;
   color: #eaf8ff;
-  overflow-x: hidden;
   background:
     radial-gradient(circle at 18% 8%, rgba(93,245,238,.14), transparent 27%),
     radial-gradient(circle at 86% 12%, rgba(255,176,82,.13), transparent 26%),
     radial-gradient(circle at 50% 120%, rgba(61,119,255,.14), transparent 45%),
     linear-gradient(180deg, #03070d 0%, #06101a 44%, #080b12 100%) !important;
+}
+.public-overview-page:not(.overview-layout-v2).starship-console-page{
+  overflow-x: hidden;
+  padding: clamp(34px, 5vw, 62px) clamp(22px, 4vw, 58px) 58px !important;
 }
 .public-overview-page.starship-console-page::before{
   content:"" !important;
@@ -2421,7 +2423,7 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
   .public-overview-visual img{max-height:210px;}
 }
 @media(max-width:640px){
-  .public-overview-page{padding:18px 12px 32px!important;}
+  .public-overview-page:not(.overview-layout-v2){padding:18px 12px 32px!important;}
   .public-overview-hero{padding:10px;min-height:0;}
   .public-overview-hero h1{font-size:38px;}
 }
@@ -2431,32 +2433,31 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
 .public-overview-actions{display:flex;align-items:center;gap:8px;position:relative;z-index:2}.public-money-btn{width:30px;height:30px;border-radius:999px;border:1px solid rgba(255,177,93,.55);background:rgba(255,177,93,.12);color:#ffd08a;font-weight:900;cursor:pointer;box-shadow:0 0 14px rgba(255,177,93,.12)}.public-money-btn:hover{background:#ffb15d;color:#061016;box-shadow:0 0 22px rgba(255,177,93,.34)}.premium-calc-modal[hidden]{display:none}.premium-calc-modal{position:fixed;inset:0;z-index:9999;display:grid;place-items:center}.premium-calc-backdrop{position:absolute;inset:0;background:rgba(0,8,16,.68);backdrop-filter:blur(10px)}.premium-calc-card{position:relative;width:min(520px,calc(100vw - 32px));padding:24px;border:1px solid rgba(98,245,238,.38);background:linear-gradient(180deg,rgba(5,27,42,.96),rgba(2,11,21,.96));color:#eaffff;box-shadow:0 28px 90px rgba(0,0,0,.55),0 0 34px rgba(98,245,238,.13);clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,18px 100%,0 calc(100% - 18px))}.premium-calc-close{position:absolute;right:14px;top:12px;border:0;background:rgba(255,255,255,.08);color:#eaffff;border-radius:9px;width:32px;height:32px;font-size:22px;cursor:pointer}.premium-calc-kicker{color:#ffb15d;font:800 11px/1 var(--mono,"JetBrains Mono",monospace);letter-spacing:.18em}.premium-calc-card h2{margin:8px 0 4px;font-size:26px}.premium-calc-node{margin:0 0 16px;color:#8fb7c1}.premium-calc-base,.premium-calc-result>div{display:flex;justify-content:space-between;gap:16px;align-items:center;border:1px solid rgba(98,245,238,.16);background:rgba(98,245,238,.055);padding:12px;margin-bottom:12px}.premium-calc-base span,.premium-calc-result span{color:#8fb7c1;font-size:12px}.premium-calc-base strong,.premium-calc-result strong{color:#fff7e8;font-size:20px}.premium-calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.premium-calc-grid label{display:grid;gap:7px;color:#8fb7c1;font-size:12px}.premium-calc-grid input{background:rgba(1,9,15,.82);border:1px solid rgba(98,245,238,.22);border-radius:10px;color:#eaffff;padding:12px;font-size:16px}.premium-calc-result{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}.premium-calc-note{color:#789ca5;font-size:12px;line-height:1.6;margin-top:10px}@media(max-width:640px){.premium-calc-grid,.premium-calc-result{grid-template-columns:1fr}}
 
 /* overview-topbar-detail-parity */
-.public-overview-page.starship-console-page{
+.public-overview-page:not(.overview-layout-v2).starship-console-page{
   padding-top:76px!important;
 }
 .public-overview-page .public-overview-floating-topbar{
+  z-index:80!important;
+  display:flex!important;
+}
+.public-overview-page:not(.overview-layout-v2) .public-overview-floating-topbar{
   position:fixed!important;
   top:18px!important;
   left:18px!important;
   right:18px!important;
-  z-index:80!important;
-  display:flex!important;
   align-items:flex-start!important;
   justify-content:space-between!important;
   gap:16px!important;
   pointer-events:none!important;
 }
-.public-overview-page .public-overview-back,
-.public-overview-page .public-overview-tools{
+.public-overview-page:not(.overview-layout-v2) .public-overview-back,
+.public-overview-page:not(.overview-layout-v2) .public-overview-tools{
   pointer-events:auto!important;
 }
 .public-overview-page .public-overview-back{
   display:inline-flex!important;
   align-items:center!important;
   justify-content:center!important;
-  min-width:118px!important;
-  min-height:38px!important;
-  padding:9px 14px!important;
   border-radius:10px!important;
   color:#cfffff!important;
   font-size:12px!important;
@@ -2469,8 +2470,15 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
   background:rgba(4,25,38,.78)!important;
   box-shadow:0 0 18px rgba(98,245,238,.08), inset 0 0 12px rgba(98,245,238,.04)!important;
 }
+.public-overview-page:not(.overview-layout-v2) .public-overview-back{
+  min-width:118px!important;
+  min-height:38px!important;
+  padding:9px 14px!important;
+}
 .public-overview-page .public-overview-tools{
   display:flex!important;
+}
+.public-overview-page:not(.overview-layout-v2) .public-overview-tools{
   align-items:center!important;
   justify-content:flex-end!important;
   flex-wrap:wrap!important;
@@ -2480,8 +2488,6 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
 .public-overview-page .theme-toggle,
 .public-overview-page .currency-btn,
 .public-overview-page .language-select{
-  min-height:38px!important;
-  padding:9px 14px!important;
   font-size:12px!important;
   line-height:1!important;
   border-radius:10px!important;
@@ -2491,11 +2497,21 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
   color:#cfffff!important;
   box-shadow:0 0 18px rgba(98,245,238,.08), inset 0 0 12px rgba(98,245,238,.04)!important;
 }
+.public-overview-page:not(.overview-layout-v2) .theme-toggle,
+.public-overview-page:not(.overview-layout-v2) .currency-btn,
+.public-overview-page:not(.overview-layout-v2) .language-select{
+  min-height:38px!important;
+  padding:9px 14px!important;
+}
 /* See the detail-page rule above: a fixed 96px width wrapped the label. */
-.public-overview-page .theme-toggle{width:auto!important;min-width:96px!important;white-space:nowrap!important;flex-shrink:0!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:7px!important;}
-.public-overview-page .language-select{width:128px!important;min-width:128px!important;max-width:128px!important;cursor:pointer!important;}
-.public-overview-page .detail-currency-switch{min-height:38px!important;display:flex!important;align-items:center!important;gap:5px!important;}
-.public-overview-page .detail-currency-switch .currency-btn{width:52px!important;min-width:52px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;}
+.public-overview-page .theme-toggle{white-space:nowrap!important;flex-shrink:0!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;}
+.public-overview-page:not(.overview-layout-v2) .theme-toggle{width:auto!important;min-width:96px!important;gap:7px!important;}
+.public-overview-page .language-select{cursor:pointer!important;}
+.public-overview-page:not(.overview-layout-v2) .language-select{width:128px!important;min-width:128px!important;max-width:128px!important;}
+.public-overview-page .detail-currency-switch{display:flex!important;align-items:center!important;}
+.public-overview-page:not(.overview-layout-v2) .detail-currency-switch{min-height:38px!important;gap:5px!important;}
+.public-overview-page .detail-currency-switch .currency-btn{display:inline-flex!important;align-items:center!important;justify-content:center!important;}
+.public-overview-page:not(.overview-layout-v2) .detail-currency-switch .currency-btn{width:52px!important;min-width:52px!important;}
 .public-overview-page .detail-currency-switch .currency-btn.active{background:linear-gradient(135deg,rgba(255,177,93,.95),rgba(240,111,54,.92))!important;color:#071018!important;border-color:rgba(255,218,150,.9)!important;}
 .public-overview-page .rate-display{min-height:38px!important;display:flex!important;align-items:center!important;font-size:12px!important;color:#aeefff!important;white-space:nowrap!important;}
 [data-theme="light"] .public-overview-page .public-overview-back,
@@ -2504,27 +2520,29 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
 [data-theme="light"] .public-overview-page .language-select{background:#f7edda!important;color:#243235!important;border-color:rgba(92,103,91,.42)!important;box-shadow:0 8px 20px rgba(93,75,43,.10)!important;}
 [data-theme="light"] .public-overview-page .rate-display{color:#405b60!important;}
 @media(max-width:760px){
-  .public-overview-page.starship-console-page{padding-top:132px!important;}
-  .public-overview-page .public-overview-floating-topbar{align-items:flex-start!important;gap:10px!important;}
-  .public-overview-page .public-overview-tools{max-width:calc(100% - 124px)!important;gap:6px!important;}
+  .public-overview-page:not(.overview-layout-v2).starship-console-page{padding-top:132px!important;}
+  .public-overview-page:not(.overview-layout-v2) .public-overview-floating-topbar{align-items:flex-start!important;gap:10px!important;}
+  .public-overview-page:not(.overview-layout-v2) .public-overview-tools{max-width:calc(100% - 124px)!important;gap:6px!important;}
   .public-overview-page .rate-display{display:none!important;}
 }
 
 
 /* overview-currency-stability-and-live-rate */
-.public-overview-page .public-overview-tools{
+.public-overview-page:not(.overview-layout-v2) .public-overview-tools{
   width:590px!important;
   min-width:590px!important;
+}
+.public-overview-page:not(.overview-layout-v2) .public-overview-tools{
   max-width:590px!important;
 }
-.public-overview-page .detail-currency-switch{
+.public-overview-page:not(.overview-layout-v2) .detail-currency-switch{
   width:166px!important;
   min-width:166px!important;
   max-width:166px!important;
   justify-content:center!important;
   flex:0 0 166px!important;
 }
-.public-overview-page .detail-currency-switch .currency-btn{
+.public-overview-page:not(.overview-layout-v2) .detail-currency-switch .currency-btn{
   box-sizing:border-box!important;
   flex:0 0 52px!important;
   width:52px!important;
@@ -2536,7 +2554,7 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
 .public-overview-page .detail-currency-switch .currency-btn.active{
   transform:none!important;
 }
-.public-overview-page .rate-display{
+.public-overview-page:not(.overview-layout-v2) .rate-display{
   width:136px!important;
   min-width:136px!important;
   max-width:136px!important;
@@ -2545,7 +2563,8 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
   text-overflow:ellipsis!important;
 }
 @media(max-width:760px){
-  .public-overview-page .public-overview-tools{width:auto!important;min-width:0!important;max-width:calc(100% - 124px)!important;}
+  .public-overview-page:not(.overview-layout-v2) .public-overview-tools{width:auto!important;min-width:0!important;}
+  .public-overview-page:not(.overview-layout-v2) .public-overview-tools{max-width:calc(100% - 124px)!important;}
 }
 
 
@@ -2725,7 +2744,7 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
 
 
 /* hotfix-overview-cost-i18n-theme-gemini2 */
-.public-overview-page .public-overview-list{
+.public-overview-page:not(.overview-layout-v2) .public-overview-list{
   display:grid !important;
   grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
 }
@@ -2792,10 +2811,10 @@ html[data-theme="light"] .public-overview-page .public-overview-mini-list li{
   color:#edf7fb !important;
 }
 @media (max-width: 900px){
-  .public-overview-page .public-overview-list{ grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .public-overview-page:not(.overview-layout-v2) .public-overview-list{ grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 }
 @media (max-width: 760px){
-  .public-overview-page .public-overview-list{ grid-template-columns: 1fr !important; }
+  .public-overview-page:not(.overview-layout-v2) .public-overview-list{ grid-template-columns: 1fr !important; }
 }
 
 
@@ -3081,7 +3100,8 @@ html[data-theme="light"]:has(.public-overview-page) .public-overview-hero,
 html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-card,
 html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-panel,
 html[data-theme="light"]:has(.public-overview-page) .public-overview-page .overview-network-table,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-list .public-overview-card{
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-list .public-overview-card,
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page .overview-summary-card{
   background:var(--overview-day-panel) !important;
   color:var(--overview-day-text) !important;
   border-color:rgba(42,51,64,.24) !important;
@@ -3099,9 +3119,11 @@ html[data-theme="light"]:has(.public-overview-page) .public-overview-page .detai
   background:rgba(198,205,215,.96) !important;
   border:1px solid rgba(42,51,64,.22) !important;
   border-radius:14px !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.45) !important;
+}
+html[data-theme="light"]:has(.public-overview-page) .public-overview-page:not(.overview-layout-v2) .detail-currency-switch{
   padding:3px !important;
   gap:3px !important;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.45) !important;
 }
 html[data-theme="light"]:has(.public-overview-page) .public-overview-page .detail-currency-switch .currency-btn,
 html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar .public-overview-back,
@@ -3136,6 +3158,8 @@ html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .detail
   background:rgba(15,18,24,.96) !important;
   border:1px solid rgba(255,255,255,.12) !important;
   border-radius:14px !important;
+}
+html[data-theme="dark"]:has(.public-overview-page) .public-overview-page:not(.overview-layout-v2) .detail-currency-switch{
   padding:3px !important;
   gap:3px !important;
 }
@@ -3433,9 +3457,9 @@ canvas, svg, img, video{ max-width:100%; }
 }
 
 @media (max-width: 900px){
-  .public-overview-page,
-  .starship-console-page,
-  .display-page{
+  .public-overview-page:not(.overview-layout-v2),
+.starship-console-page:not(.overview-layout-v2),
+.display-page{
     padding-left:12px!important;
     padding-right:12px!important;
   }
@@ -3445,13 +3469,19 @@ canvas, svg, img, video{ max-width:100%; }
   .public-overview-panel,
   .overview-network-table{
     width:100%!important;
+  }
+  .public-overview-floating-topbar:not(.overview-compact-topbar),
+.public-overview-hero,
+.public-overview-card,
+.public-overview-panel,
+.overview-network-table{
     max-width:100%!important;
   }
   .public-overview-stats,
   .public-overview-expiry,
   .public-overview-costs,
   .public-overview-metrics,
-  .public-overview-list,
+  .public-overview-list:where(:not(.overview-layout-v2 .public-overview-list)),
   .overview-card-grid{
     grid-template-columns:1fr!important;
   }
@@ -3469,9 +3499,9 @@ canvas, svg, img, video{ max-width:100%; }
 }
 
 @media (max-width: 560px){
-  .public-overview-page,
-  .starship-console-page,
-  .display-page{
+  .public-overview-page:not(.overview-layout-v2),
+.starship-console-page:not(.overview-layout-v2),
+.display-page{
     padding-left:8px!important;
     padding-right:8px!important;
   }
@@ -3480,12 +3510,18 @@ canvas, svg, img, video{ max-width:100%; }
   .display-topbar,
   .topbar,
   .toolbar{
+    transform:none!important;
+    width:100%!important;
+  }
+  .public-overview-floating-topbar:not(.overview-compact-topbar),
+.detail-topbar,
+.display-topbar,
+.topbar,
+.toolbar{
     position:relative!important;
     left:auto!important;
     right:auto!important;
     top:auto!important;
-    transform:none!important;
-    width:100%!important;
     max-width:100%!important;
     justify-content:flex-start!important;
     gap:6px!important;
@@ -3618,7 +3654,7 @@ img, canvas, svg, video { max-width: 100%; }
 
 @media (max-width: 720px) {
   body { min-width: 0 !important; }
-  .public-overview-page.starship-console-page {
+  .public-overview-page:not(.overview-layout-v2).starship-console-page {
     padding: 18px 12px 34px !important;
   }
   .public-overview-page .public-overview-topbar {
@@ -3627,7 +3663,7 @@ img, canvas, svg, video { max-width: 100%; }
     padding: 12px !important;
     border-radius: 16px !important;
   }
-  .public-overview-page .public-overview-back {
+  .public-overview-page:not(.overview-layout-v2) .public-overview-back {
     min-height: 44px !important;
   }
   .public-overview-page .public-overview-title-wrap h1 {

@@ -1967,7 +1967,7 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-st
   }
 
   /* Overview page mobile */
-  .public-overview-page.starship-console-page {
+  .public-overview-page.starship-console-page:not(.overview-layout-v2) {
     padding: 8px !important;
   }
   .public-overview-summary-grid {

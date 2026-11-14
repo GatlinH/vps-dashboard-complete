@@ -16,6 +16,8 @@ let overviewPingController = null;
 let overviewRouteObserver = null;
 let overviewPageRoot = null;
 let overviewLifecycleWindow = null;
+let overviewCostView = 'total';
+const overviewExpandedDetails = new Set();
 const overviewCardDisposers = [];
 
 function checkOverviewRoute() {
@@ -103,7 +105,7 @@ function summarizeMoonPanel(servers = [], cost) {
     status,
     expiry,
     cost,
-    badNodes: badNodes.slice(0, 6),
+    badNodes,
   };
 }
 
@@ -232,10 +234,6 @@ function renderOverviewNetworkTable(rows = [], { collapsed = true } = {}) {
         </table>
       </div>
     </section>`;
-}
-
-function renderCompactEmpty(text) {
-  return `<div class="overview-empty-inline">${escText(text)}</div>`;
 }
 
 function isMasterNode(server = {}) {
@@ -430,6 +428,11 @@ export function renderPublicOverviewPage(onRequestRerender) {
   const app = document.getElementById('pageRoot');
   if (!app) { destroyPublicOverviewPage(); return; }
   overviewCardDisposers.splice(0).forEach((dispose) => dispose());
+  app.querySelectorAll('[data-overview-detail]').forEach((detail) => {
+    const key = detail.getAttribute('data-overview-detail');
+    if (detail.open) overviewExpandedDetails.add(key);
+    else overviewExpandedDetails.delete(key);
+  });
   const rows = Array.isArray(state.servers) ? state.servers : [];
   const assetSummary = summarizeOverview(rows);
   const summary = summarizeMoonPanel(rows, assetSummary.cost);
@@ -449,22 +452,17 @@ export function renderPublicOverviewPage(onRequestRerender) {
   const statusCounts = countOverviewStatuses(groupedNodes);
   const filteredNodes = filterSortOverviewNodes(groupedNodes, activeStatus, activeSort, compareOverviewNodes);
   const requestRerender = typeof onRequestRerender === 'function' ? onRequestRerender : () => renderPublicOverviewPage();
-  const filteredCount = filteredNodes.length;
   const groupTabs = [
     { key: 'all', name: t('overviewAll'), count: rows.length, color: '' },
     ...backendGroups.map((g) => ({ key: g.key, name: g.name, count: g.count, color: g.color, purpose: g.purpose })),
   ];
-  const expSoonItems = summary.expiry.d7.slice(0, 12).map((s) => `<li><b>${escText(s.name)}</b><span>${daysUntilExpiry(s.expiry)} ${t('overviewExpiryIn')}</span></li>`).join('');
-  const badNodeItems = summary.badNodes.slice(0, 12).map(({ server, pct, cls }) => `<li><b>${escText(server.name)}</b><span>${cls === 'offline' ? t('offline') : `${t('overviewTraffic')} ${pct.toFixed(0)}%`}</span></li>`).join('');
-  const byRegion = summary.cost.byRegion.map(([k, v]) => `<li><b>${escText(k)}</b><span>¥${Math.round(v)}</span></li>`).join('');
-  const byProvider = summary.cost.byProvider.map(([k, v]) => `<li><b>${escText(k)}</b><span>¥${Math.round(v)}</span></li>`).join('');
-  const hasExpiry = summary.expiry.d7.length > 0;
-  const hasAbnormal = summary.badNodes.length > 0;
-  const hasCostSplit = summary.cost.byRegion.length > 0 || summary.cost.byProvider.length > 0;
-
   app.innerHTML = `
-    <section class="public-overview-page starship-console-page overview-layout-p1">
-      <div class="public-overview-floating-topbar" aria-label="资产总览导航与显示设置">
+    <section class="public-overview-page starship-console-page overview-layout-v2">
+      <div class="public-overview-floating-topbar overview-compact-topbar" aria-label="资产总览导航与显示设置">
+        <div class="overview-compact-heading">
+          <h1>${t('overviewTitle')}</h1>
+          <span>${t('dataUpdated')}：${updatedAtText} · ${summary.status.total} ${t('overviewNodes')} · ${backendGroups.length} ${t('overviewGroups')}</span>
+        </div>
         <a class="public-overview-back" href="/">${t('back')}</a>
         <div class="detail-page-tools public-overview-tools">
           <button class="theme-toggle" id="themeToggle" type="button" aria-label="${t('themeAria')}">
@@ -482,20 +480,6 @@ export function renderPublicOverviewPage(onRequestRerender) {
         </div>
       </div>
 
-      <div class="public-overview-hero is-compact">
-        <div class="public-overview-hero-copy">
-          <div class="public-overview-kicker">${t('overviewKicker')}</div>
-          <h1>${t('overviewTitle')}</h1>
-          <div class="public-overview-meta-bar">
-            <span>${t('dataUpdated')}：${updatedAtText}</span>
-            <span class="overview-hero-count">${summary.status.total} ${t('overviewNodes')} · ${backendGroups.length} ${t('overviewGroups')}</span>
-          </div>
-        </div>
-        <figure class="public-overview-visual is-compact" aria-label="资产网络主视觉">
-          <img src="/assets/custom/overview-visual-transparent.png" alt="${t('overviewKicker')}" loading="eager" decoding="async" />
-        </figure>
-      </div>
-
       <div class="overview-group-filter" role="tablist" aria-label="按后台分组筛选节点资产">
         ${groupTabs.map((tab) => {
           const active = tab.key === activeGroup;
@@ -505,62 +489,33 @@ export function renderPublicOverviewPage(onRequestRerender) {
         }).join('')}
       </div>
 
-      ${renderOverviewSummary(assetSummary)}
+      ${renderOverviewSummary(assetSummary, { panel: summary, costView: overviewCostView, expandedDetails: overviewExpandedDetails })}
 
       ${renderOverviewControls(activeStatus, activeSort, statusCounts)}
 
-      <div class="public-overview-main-grid ${filteredCount >= 4 || rows.length >= 4 ? 'is-many-nodes' : 'is-few-nodes'}">
+      <div class="public-overview-main-grid">
         <section class="public-overview-primary" aria-label="节点列表">
-          <div class="public-overview-section-head">
-            <h2>${t('overviewNodeAssets')}</h2>
-            <span>${filteredCount} ${t('overviewNodes')} · ${activeGroup === 'all' ? t('overviewFlatLayout') : `${t('overviewFilter')}：${escText(activeMeta.name)}`} · ${t(activeSort === 'default' ? 'overviewMasterTop' : `overviewSort_${activeSort}`)}</span>
-          </div>
           <div class="public-overview-flat-list" id="overviewGroupedList">
             ${renderFlatNodeList(filteredNodes, activeMeta)}
           </div>
         </section>
 
-        <aside class="public-overview-side" aria-label="运营摘要">
-          <section class="public-overview-panel public-overview-panel-fold ${hasExpiry ? 'open is-alert' : 'is-empty'}" data-panel="expiry">
-            <button class="public-overview-panel-toggle" type="button" aria-expanded="${hasExpiry ? 'true' : 'false'}">
-              <span class="public-overview-panel-title">${t('expiringNodes')} · ${summary.expiry.d7.length}</span>
-              <span class="public-overview-panel-chevron">${hasExpiry ? '▾' : '▸'}</span>
-            </button>
-            <div class="public-overview-panel-body">
-              ${expSoonItems ? `<ul class="public-overview-mini-list">${expSoonItems}</ul>` : renderCompactEmpty(t('noExpiring'))}
-            </div>
-          </section>
 
-          <section class="public-overview-panel public-overview-panel-fold ${hasAbnormal ? 'open is-alert' : 'is-empty'}" data-panel="abnormal">
-            <button class="public-overview-panel-toggle" type="button" aria-expanded="${hasAbnormal ? 'true' : 'false'}">
-              <span class="public-overview-panel-title">${t('abnormalNodes')} · ${summary.badNodes.length}</span>
-              <span class="public-overview-panel-chevron">${hasAbnormal ? '▾' : '▸'}</span>
-            </button>
-            <div class="public-overview-panel-body">
-              ${badNodeItems ? `<ul class="public-overview-mini-list">${badNodeItems}</ul>` : renderCompactEmpty(t('noAbnormal'))}
-            </div>
-          </section>
-
-          <section class="public-overview-panel ${hasCostSplit ? '' : 'is-empty'}">
-            <div class="public-overview-panel-title">${t('monthlyByRegion')}</div>
-            <div class="public-overview-panel-body always-open">
-              ${byRegion ? `<ul class="public-overview-mini-list">${byRegion}</ul>` : renderCompactEmpty(t('noData'))}
-            </div>
-          </section>
-
-          <section class="public-overview-panel ${hasCostSplit ? '' : 'is-empty'}">
-            <div class="public-overview-panel-title">${t('monthlyByProvider')}</div>
-            <div class="public-overview-panel-body always-open">
-              ${byProvider ? `<ul class="public-overview-mini-list">${byProvider}</ul>` : renderCompactEmpty(t('noData'))}
-            </div>
-          </section>
-        </aside>
       </div>
 
       ${renderOverviewNetworkTable(rows, { collapsed: true })}
     </section>`;
 
   updateRateDisplay();
+
+  app.querySelectorAll('[data-overview-cost-view]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const view = button.getAttribute('data-overview-cost-view');
+      if (!['total', 'region', 'provider'].includes(view)) return;
+      overviewCostView = view;
+      requestRerender();
+    });
+  });
 
   app.querySelectorAll('.overview-group-tab').forEach((btn) => {
     btn.addEventListener('click', () => {
