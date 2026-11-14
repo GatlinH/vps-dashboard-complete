@@ -1,9 +1,12 @@
 import { state } from '../store/state.js';
 import { LANGUAGE_PACKS, currentLanguage, t } from '../core/preferences.js';
-import { toDisplay, calcResidualValue, getMonthlyPrice, sourceAmountToCny, getSourceCurrency, updateRateDisplay } from '../utils/currency.js';
+import { toDisplay, calcResidualValue, sourceAmountToCny, getSourceCurrency, updateRateDisplay } from '../utils/currency.js';
 import { getTrafficPct } from '../utils/traffic.js';
 import { normalizePublicServer } from '../services/serverGroups.js';
 import { createOverviewPingController, renderOverviewPing } from '../services/overviewPing.js';
+import { summarizeOverview } from './overviewSummary.js';
+import { renderOverviewSummary } from './overviewTemplates.js';
+export { summarizeOverview };
 
 const OVERVIEW_GROUP_FILTER_KEY = 'vps_overview_group_filter';
 let overviewPingController = null;
@@ -70,29 +73,15 @@ function daysUntilExpiry(expiry) {
   return Math.ceil((t.getTime() - Date.now()) / 86400000);
 }
 
-function summarizeMoonPanel(servers = []) {
+function summarizeMoonPanel(servers = [], cost) {
   const rows = Array.isArray(servers) ? servers : [];
   const status = { total: rows.length, online: 0, warn: 0, offline: 0 };
   const expiry = { today: [], d3: [], d7: [] };
   const badNodes = [];
-  const byRegion = new Map();
-  const byProvider = new Map();
-  let monthlyActual = 0;
-  let yearlyActual = 0;
 
   for (const s of rows) {
     const cls = classifyStatus(s.status);
     status[cls] += 1;
-
-    const monthlyEq = Number(getMonthlyPrice(s) || 0);
-    const sourcePriceCny = sourceAmountToCny(s.price, getSourceCurrency(s));
-    monthlyActual += monthlyEq;
-    yearlyActual += monthlyEq * 12;
-
-    const regionKey = s.location || s.city || s.region || s.country || t('unknownRegion');
-    byRegion.set(regionKey, (byRegion.get(regionKey) || 0) + monthlyEq);
-    const providerKey = s.provider || s.provider_guess || t('unknownProvider');
-    byProvider.set(providerKey, (byProvider.get(providerKey) || 0) + monthlyEq);
 
     const d = daysUntilExpiry(s.expiry);
     if (d != null) {
@@ -105,18 +94,12 @@ function summarizeMoonPanel(servers = []) {
     if (cls !== 'online' || pct >= 85) badNodes.push({ server: s, pct, cls });
   }
 
-  const sortCost = (map) => Array.from(map.entries()).sort((a, b) => b[1] - a[1]).slice(0, 4);
   badNodes.sort((a, b) => (a.cls === 'offline' ? -1 : 0) - (b.cls === 'offline' ? -1 : 0) || b.pct - a.pct);
 
   return {
     status,
     expiry,
-    cost: {
-      monthlyActual,
-      yearlyActual,
-      byRegion: sortCost(byRegion),
-      byProvider: sortCost(byProvider),
-    },
+    cost,
     badNodes: badNodes.slice(0, 6),
   };
 }
@@ -445,7 +428,8 @@ export function renderPublicOverviewPage() {
   if (!app) { destroyPublicOverviewPage(); return; }
   overviewCardDisposers.splice(0).forEach((dispose) => dispose());
   const rows = Array.isArray(state.servers) ? state.servers : [];
-  const summary = summarizeMoonPanel(rows);
+  const assetSummary = summarizeOverview(rows);
+  const summary = summarizeMoonPanel(rows, assetSummary.cost);
   const updatedAtText = state.serversUpdatedAt ? new Date(state.serversUpdatedAt).toLocaleString(currentLanguage === 'zh' ? 'zh-CN' : undefined, { hour12: false }) : t('overviewUpdatedMissing');
   const backendGroups = buildBackendGroups(rows);
   let activeGroup = loadOverviewGroupFilter();
@@ -504,15 +488,6 @@ export function renderPublicOverviewPage() {
         </figure>
       </div>
 
-      <div class="public-overview-kpi-strip" role="group" aria-label="资产关键指标">
-        <div class="kpi-item"><span>${t('totalNodes')}</span><strong>${summary.status.total}</strong></div>
-        <div class="kpi-item is-online"><span>${t('online')}</span><strong>${summary.status.online}</strong></div>
-        <div class="kpi-item is-warn"><span>${t('warn')}</span><strong>${summary.status.warn}</strong></div>
-        <div class="kpi-item is-offline"><span>${t('offline')}</span><strong>${summary.status.offline}</strong></div>
-        <div class="kpi-item"><span>${t('monthlyTotalCost')}</span><strong>${toDisplay(summary.cost.monthlyActual)}</strong></div>
-        <div class="kpi-item ${hasExpiry ? 'is-alert' : ''}"><span>${t('within7Days')}</span><strong>${summary.expiry.d7.length}</strong></div>
-      </div>
-
       <div class="overview-group-filter" role="tablist" aria-label="按后台分组筛选节点资产">
         ${groupTabs.map((tab) => {
           const active = tab.key === activeGroup;
@@ -521,6 +496,8 @@ export function renderPublicOverviewPage() {
           return `<button type="button" class="overview-group-tab ${active ? 'is-active' : ''}" role="tab" aria-selected="${active ? 'true' : 'false'}" data-group-key="${escText(tab.key)}"${colorStyle}${title}><span>${escText(tab.name)}</span><b>${tab.count}</b></button>`;
         }).join('')}
       </div>
+
+      ${renderOverviewSummary(assetSummary)}
 
       <div class="public-overview-main-grid ${filteredCount >= 4 || rows.length >= 4 ? 'is-many-nodes' : 'is-few-nodes'}">
         <section class="public-overview-primary" aria-label="节点列表">

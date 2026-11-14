@@ -19,6 +19,8 @@ import {
 
 const files = readLegacySolarSources(new URL('../../', import.meta.url));
 const overviewFile = 'src/pages/overviewPage.js';
+const summaryFile = 'src/pages/overviewSummary.js';
+const templatesFile = 'src/pages/overviewTemplates.js';
 const liveMountFile = 'src/modules/serverTable.js';
 const siblingFile = 'src/pages/display.js';
 const globeStyleFile = 'src/styles/globe.css';
@@ -39,8 +41,8 @@ function stripEsmEnvelope(source, filename) {
   const ast = parseSolarSource(source, filename);
   const edits = ast.body.flatMap((node) => {
     if (node.type === 'ImportDeclaration') return [{ start: node.start, end: node.end }];
-    if (node.type === 'ExportNamedDeclaration' && node.declaration) {
-      return [{ start: node.start, end: node.declaration.start }];
+    if (node.type === 'ExportNamedDeclaration') {
+      return [{ start: node.start, end: node.declaration?.start ?? node.end }];
     }
     return [];
   });
@@ -76,6 +78,8 @@ function renderOverview({ files: sources }) {
     group: 'fixture-group',
     traffic_used_gb: 10,
     traffic_limit_gb: 100,
+    period: 'monthly',
+    __rawPresentFlags: { price: true, traffic_used_gb: true, traffic_limit_gb: true },
   }));
   const context = vm.createContext({
     Date: FixtureDate,
@@ -110,15 +114,19 @@ function renderOverview({ files: sources }) {
       removeEventListener: () => {},
     },
   });
-  const pingFile = 'src/services/overviewPing.js';
-  const pingSource = stripEsmEnvelope(sources.get(pingFile), pingFile);
-  Object.assign(
-    context,
-    new vm.Script(
-      `(() => { ${pingSource}\n;return { createOverviewPingController, renderOverviewPing }; })()`,
-      { filename: pingFile },
-    ).runInContext(context),
-  );
+  for (const [filename, exports] of [
+    ['src/services/overviewPing.js', 'createOverviewPingController, renderOverviewPing'],
+    [summaryFile, 'summarizeOverview'],
+    [templatesFile, 'renderOverviewSummary'],
+  ]) {
+    const moduleSource = stripEsmEnvelope(sources.get(filename), filename);
+    Object.assign(
+      context,
+      new vm.Script(`(() => { ${moduleSource}\n;return { ${exports} }; })()`, {
+        filename,
+      }).runInContext(context),
+    );
+  }
   const renderer = script.runInContext(context);
   assert.equal(typeof renderer, 'function');
   // Parse/module setup errors above cannot masquerade as a successful kill.
@@ -132,11 +140,28 @@ function renderOverview({ files: sources }) {
   return app.innerHTML;
 }
 
-function monthlyKpi(html) {
-  const items = html.matchAll(
-    /<div class="kpi-item(?:\s[^"]*)?">\s*<span>([^<]*)<\/span>\s*<strong>([^<]*)<\/strong>\s*<\/div>/g,
+function summaryCard(html, name) {
+  return (
+    [...html.matchAll(/<section\b[^>]*>/g)].flatMap((match) => {
+      const opening = match[0];
+      const classes = opening.match(/\bclass="([^"]*)"/)?.[1].split(/\s+/) ?? [];
+      if (
+        !classes.includes('overview-summary-card') ||
+        !opening.includes(`data-overview-summary="${name}"`)
+      )
+        return [];
+      const end = html.indexOf('</section>', match.index);
+      return end < 0 ? [] : [html.slice(match.index, end + '</section>'.length)];
+    })[0] ?? ''
   );
-  return [...items].find(([, key]) => key === 'monthlyTotalCost')?.[2] ?? '';
+}
+
+function monthlyKpi(html) {
+  return (
+    summaryCard(html, 'cost').match(
+      /<strong class="overview-summary-value">([^<]*)<\/strong>/,
+    )?.[1] ?? ''
+  );
 }
 
 function overviewPanels(html) {
@@ -167,10 +192,12 @@ function panelByData(html, name) {
 
 function assertOverviewPreserved(input) {
   const html = renderOverview(input);
-  assert.match(html, /<span>totalNodes<\/span><strong>3<\/strong>/, 'F10_OVERVIEW_STATS');
+  const nodes = summaryCard(html, 'nodes');
+  assert.match(nodes, /<strong class="overview-summary-value">3<\/strong>/, 'F10_OVERVIEW_STATS');
   for (const status of ['online', 'warn', 'offline']) {
-    assert.ok(
-      html.includes(`<span>${status}</span><strong>1</strong>`),
+    assert.match(
+      nodes,
+      new RegExp(`(?:<p>| · )${status} 1(?: · |</p>)`),
       `F10_OVERVIEW_STATS ${status}`,
     );
   }
@@ -692,7 +719,7 @@ const overviewMutations = [
     name: 'summary call removed',
     prefix: 'F10_OVERVIEW_STATS',
     mutate: (copy) =>
-      replaceOnce(copy, overviewFile, 'const summary = summarizeMoonPanel(rows);', ''),
+      replaceOnce(copy, overviewFile, 'const assetSummary = summarizeOverview(rows);', ''),
   },
   {
     name: 'summary given empty rows',
@@ -701,8 +728,8 @@ const overviewMutations = [
       replaceOnce(
         copy,
         overviewFile,
-        'const summary = summarizeMoonPanel(rows);',
-        'const summary = summarizeMoonPanel([]);',
+        'const assetSummary = summarizeOverview(rows);',
+        'const assetSummary = summarizeOverview([]);',
       ),
   },
   {
@@ -711,8 +738,11 @@ const overviewMutations = [
     mutate: (copy) =>
       replaceOnce(
         copy,
-        overviewFile,
-        '<div class="kpi-item"><span>${t(\'monthlyTotalCost\')}</span><strong>${toDisplay(summary.cost.monthlyActual)}</strong></div>',
+        templatesFile,
+        `    \${card('cost', 'overviewSummaryCost', money(summary.cost.monthlyActual), [
+      \`\${t('overviewSummaryKnown')} · \${coverage(summary.cost.coverage)}\`,
+      \`\${t('overviewSummaryAnnual')} \${money(summary.cost.yearlyActual)}\`,
+    ])}`,
         '',
       ),
   },
@@ -779,6 +809,39 @@ describe('F-10 legacy sun/moon DOM removal', () => {
     const html = assertOverviewPreserved({ files });
     assert.match(panelByData(html, 'expiry'), /<span>2 overviewExpiryIn<\/span>/);
   });
+
+  it('VM compatibility: strips the real overview specifier-only export', () => {
+    const source = files.get(overviewFile);
+    assert.ok(
+      parseSolarSource(source, overviewFile).body.some(
+        (node) => node.type === 'ExportNamedDeclaration' && !node.declaration,
+      ),
+    );
+    const executable = stripEsmEnvelope(source, overviewFile);
+    assert.ok(
+      parseSolarSource(executable, overviewFile).body.every(
+        (node) => !['ImportDeclaration', 'ExportNamedDeclaration'].includes(node.type),
+      ),
+    );
+    assert.doesNotThrow(() => new vm.Script(executable, { filename: overviewFile }));
+  });
+
+  it.each([
+    {
+      name: 'real imported summary status changed',
+      prefix: 'F10_OVERVIEW_STATS',
+      mutate: (copy) =>
+        replaceOnce(copy, summaryFile, 'total: rows.length', 'total: rows.length + 1'),
+    },
+    {
+      name: 'real imported template node value removed',
+      prefix: 'F10_OVERVIEW_STATS',
+      mutate: (copy) =>
+        replaceOnce(copy, templatesFile, 'String(total), [statuses]', "'', [statuses]"),
+    },
+  ])('VM compatibility: $name: PASS -> $prefix -> PASS', (mutation) =>
+    verifyMutation({ ...mutation, check: assertOverviewPreserved }),
+  );
 
   it('n1 positive control: the unchanged live serverTable mount must PASS', () => {
     const copy = new Map(files);
