@@ -1,0 +1,458 @@
+import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+import { parse } from 'acorn';
+import {
+  overviewSortValue,
+  loadOverviewChoice,
+  saveOverviewChoice,
+} from '../../src/pages/overviewFilterSort.js';
+
+let render;
+let destroy;
+let normalizeServer;
+let state;
+let preferences;
+let createMobileBottomNav;
+let theme = 'dark';
+const storage = new Map();
+const controls = [];
+const pingHosts = [];
+const container = {
+  children: [],
+  append(...children) {
+    this.children.push(...children);
+  },
+};
+function element(attributes = {}) {
+  const listeners = new Map();
+  return {
+    attributes,
+    children: [],
+    dataset: {},
+    isConnected: true,
+    setAttribute(name, value) {
+      this.attributes[name] = value;
+    },
+    getAttribute: (name) => attributes[name] ?? null,
+    append(...children) {
+      this.children.push(...children);
+    },
+    appendChild(child) {
+      this.children.push(child);
+    },
+    remove() {
+      this.isConnected = false;
+    },
+    addEventListener(type, listener) {
+      const handlers = listeners.get(type) || [];
+      handlers.push(listener);
+      listeners.set(type, handlers);
+    },
+    removeEventListener(type, listener) {
+      listeners.set(
+        type,
+        (listeners.get(type) || []).filter((handler) => handler !== listener),
+      );
+    },
+    dispatch(type, target = this, key) {
+      for (const listener of listeners.get(type) || [])
+        listener({ type, target, key, preventDefault() {}, stopPropagation() {} });
+    },
+    click() {
+      this.dispatch('click');
+    },
+    listenerCount(type) {
+      return (listeners.get(type) || []).length;
+    },
+    classList: { toggle: vi.fn() },
+  };
+}
+const root = {
+  isConnected: true,
+  get innerHTML() {
+    return this.html || '';
+  },
+  set innerHTML(html) {
+    this.html = html;
+    for (const host of pingHosts) host.isConnected = false;
+    pingHosts.length = 0;
+    for (const match of html.matchAll(/class="overview-ping" data-server-id="([^"]+)"/g)) {
+      const host = element();
+      host.dataset.serverId = match[1];
+      host.contains = () => true;
+      pingHosts.push(host);
+    }
+    controls.length = 0;
+    for (const match of html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)) {
+      const attributes = Object.fromEntries(
+        [...match[1].matchAll(/([\w-]+)="([^"]*)"/g)].map((attribute) => [
+          attribute[1],
+          attribute[2],
+        ]),
+      );
+      controls.push({
+        ...element(attributes),
+        dataset: { currency: attributes['data-currency'] },
+        textContent: match[2].replace(/<[^>]*>/g, ''),
+      });
+    }
+    if (html.includes('id="languageSelect"')) controls.push(element({ id: 'languageSelect' }));
+  },
+  querySelector(selector) {
+    return selector.startsWith('#')
+      ? controls.find((control) => control.attributes.id === selector.slice(1))
+      : null;
+  },
+  querySelectorAll(selector) {
+    if (selector === '.overview-ping[data-server-id]') return pingHosts;
+    if (selector.startsWith('.currency-btn'))
+      return controls.filter((control) => control.attributes['data-currency']);
+    if (selector === '.overview-group-tab')
+      return controls.filter((control) => control.attributes['data-group-key']);
+    const attribute = selector.match(/^\[([^\]]+)\]$/)?.[1];
+    return attribute ? controls.filter((control) => attribute in control.attributes) : [];
+  },
+};
+const button = (attribute, value) =>
+  controls.find((control) => control.attributes[attribute] === value);
+
+beforeAll(async () => {
+  const localStorage = {
+    getItem: (key) => storage.get(key) ?? null,
+    setItem: (key, value) => storage.set(key, value),
+  };
+  vi.stubGlobal('localStorage', localStorage);
+  vi.stubGlobal('window', {
+    localStorage,
+    location: { origin: 'http://local.test' },
+    __DBG__: { API_ROOT: '' },
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  });
+  vi.stubGlobal('location', window.location);
+  vi.stubGlobal(
+    'CustomEvent',
+    class {
+      constructor(type) {
+        this.type = type;
+      }
+    },
+  );
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ regions: [{ region: 'Asia' }], targets: [] }),
+    })),
+  );
+  vi.stubGlobal('document', {
+    createElement: () => element(),
+    documentElement: {
+      getAttribute: () => theme,
+      setAttribute: (name, value) => {
+        if (name === 'data-theme') theme = value;
+      },
+    },
+    getElementById: (id) =>
+      id === 'pageRoot' ? root : id === 'app' ? container : root.querySelector(`#${id}`),
+    querySelector: (selector) => root.querySelector(selector),
+    querySelectorAll: (selector) => root.querySelectorAll(selector),
+  });
+  ({ renderPublicOverviewPage: render, destroyPublicOverviewPage: destroy } =
+    await import('../../src/pages/overviewPage.js'));
+  ({ normalizeServer } = await import('../../src/services/displayData.js'));
+  ({ state } = await import('../../src/store/state.js'));
+  preferences = await import('../../src/core/preferences.js');
+  ({ createMobileBottomNav } = await import('../../src/components/solar/MobileBottomNav.js'));
+});
+beforeEach(() => {
+  destroy();
+  storage.clear();
+  state.currency = 'CNY';
+  preferences.configureLanguageSwitcher({ isOverviewMode: () => false });
+  preferences.setLanguage('zh');
+  state.servers = [
+    normalizeServer({ id: 1, name: 'A', status: 'online', group_id: 1 }),
+    normalizeServer({ id: 2, name: 'B', status: 'warn', group_id: 2 }),
+  ];
+});
+
+const cardIds = () =>
+  [
+    ...root.innerHTML.matchAll(/<article class="public-overview-card[^\"]*" data-id="([^\"]+)"/g),
+  ].map((match) => Number(match[1]));
+const rerender = () => render(rerender);
+
+it('has four group-scoped status slices and keeps ten global summaries through real clicks', () => {
+  state.servers.push(normalizeServer({ id: 3, name: 'C', group_id: 2, status: 'offline' }));
+  rerender();
+  expect(controls.filter((control) => control.attributes['data-overview-status'])).toHaveLength(4);
+  button('data-group-key', '2').click();
+  for (const [key, ids, count] of [
+    ['all', [3, 2], 2],
+    ['online', [], 0],
+    ['warn', [2], 1],
+    ['offline', [3], 1],
+  ]) {
+    button('data-overview-status', key).click();
+    expect(storage.get('vps_overview_status_filter')).toBe(key);
+    expect(cardIds()).toEqual(ids);
+    expect(button('data-overview-status', key).textContent).toContain(String(count));
+    expect(button('data-overview-status', key).getAttribute('aria-pressed')).toBe('true');
+    expect([...root.innerHTML.matchAll(/data-overview-summary=/g)]).toHaveLength(10);
+    expect(root.innerHTML).toMatch(
+      /data-overview-summary="nodes"[\s\S]*?overview-summary-value">3</,
+    );
+    if (!ids.length) expect(root.innerHTML).toContain(preferences.t('overviewNoNodes'));
+  }
+});
+
+it.each(['default', 'cpu', 'ram', 'speed', 'expiry', 'traffic'])(
+  'sorts actual cards by %s without letting controller priority override metrics',
+  (key) => {
+    state.servers = [
+      normalizeServer({
+        id: 1,
+        name: 'master',
+        status: 'online',
+        cpu_use: 0,
+        ram_use: 0,
+        net_up: 0,
+        net_down: 0,
+        traffic_used_gb: 0,
+        expiry: '2027-02-01',
+      }),
+      normalizeServer({
+        id: 2,
+        name: 'high',
+        status: 'online',
+        cpu_use: 90,
+        ram_use: 90,
+        net_up: 100,
+        net_down: 20,
+        traffic_up_gb: 5,
+        traffic_down_gb: 5,
+        expiry: '2027-01-01',
+      }),
+      normalizeServer({ id: 3, name: 'unknown', status: 'offline' }),
+    ];
+    rerender();
+    expect(controls.filter((control) => control.attributes['data-overview-sort'])).toHaveLength(6);
+    button('data-overview-sort', key).click();
+    expect(storage.get('vps_overview_sort')).toBe(key);
+    expect(cardIds()).toEqual(key === 'default' ? [1, 3, 2] : [2, 1, 3]);
+    expect(root.innerHTML).toContain('is-master');
+    expect(button('data-overview-sort', key).getAttribute('aria-pressed')).toBe('true');
+    expect(root.innerHTML.indexOf('overview-filter-sort')).toBeGreaterThan(
+      root.innerHTML.indexOf('overview-summary-grid'),
+    );
+    expect(root.innerHTML.indexOf('overview-filter-sort')).toBeLessThan(
+      root.innerHTML.indexOf('public-overview-main-grid'),
+    );
+  },
+);
+
+it('uses the real default comparator for equal metrics', () => {
+  state.servers = [
+    normalizeServer({ id: 1, name: 'master', cpu_use: 50 }),
+    normalizeServer({ id: 2, name: 'A', cpu_use: 50 }),
+  ];
+  rerender();
+  button('data-overview-sort', 'cpu').click();
+  expect(cardIds()).toEqual([1, 2]);
+});
+
+it('rejects invalid storage and tampered buttons and reads current storage, not old closures', () => {
+  for (const key of [
+    'vps_overview_group_filter',
+    'vps_overview_status_filter',
+    'vps_overview_sort',
+  ])
+    storage.set(key, 'illegal');
+  rerender();
+  expect(button('data-group-key', 'all').getAttribute('aria-selected')).toBe('true');
+  expect(button('data-overview-status', 'all').getAttribute('aria-pressed')).toBe('true');
+  expect(button('data-overview-sort', 'default').getAttribute('aria-pressed')).toBe('true');
+  for (const [attribute, value, key, fallback] of [
+    ['data-group-key', '2', 'vps_overview_group_filter', 'all'],
+    ['data-overview-status', 'warn', 'vps_overview_status_filter', 'all'],
+    ['data-overview-sort', 'cpu', 'vps_overview_sort', 'default'],
+  ]) {
+    const control = button(attribute, value);
+    control.attributes[attribute] = 'illegal';
+    control.click();
+    expect(storage.get(key)).toBe(fallback);
+  }
+  storage.set('vps_overview_status_filter', 'warn');
+  storage.set('vps_overview_sort', 'ram');
+  button('data-group-key', '2').click();
+  expect(cardIds()).toEqual([2]);
+  expect(button('data-overview-sort', 'ram').getAttribute('aria-pressed')).toBe('true');
+  render();
+  button('data-overview-status', 'all').click();
+  expect(button('data-overview-status', 'all').getAttribute('aria-pressed')).toBe('true');
+});
+
+it.each([0, 1, 4, 30])(
+  'renders %i genuine nodes without placeholders after control clicks',
+  (count) => {
+    state.servers = Array.from({ length: count }, (_, index) =>
+      normalizeServer({ id: index + 1, name: `node-${index}`, status: 'online' }),
+    );
+    rerender();
+    button('data-overview-status', 'online').click();
+    button('data-overview-sort', 'cpu').click();
+    expect(cardIds()).toHaveLength(count);
+    button('data-overview-status', 'offline').click();
+    expect(cardIds()).toEqual([]);
+  },
+);
+
+it.each(['cpu', 'ram', 'speed', 'traffic'])(
+  'keeps real zero distinct from missing, invalid and partial %s values',
+  (key) => {
+    const metric = key === 'cpu' || key === 'ram' ? `${key}_use` : null;
+    const zero = normalizeServer({
+      cpu_use: 0,
+      ram_use: 0,
+      net_up: 0,
+      net_down: 0,
+      traffic_used_gb: 0,
+    });
+    expect(overviewSortValue(zero, key)).toBe(0);
+    expect(overviewSortValue(normalizeServer({}), key)).toBeNull();
+    if (metric) {
+      for (const value of [-1, 101, Infinity, NaN, '', null, true])
+        expect(
+          overviewSortValue({ [metric]: value, __liveMetricFlags: { [metric]: true } }, key),
+        ).toBeNull();
+    } else {
+      expect(
+        overviewSortValue(
+          normalizeServer(key === 'speed' ? { net_up: 9 } : { traffic_up_gb: 9 }),
+          key,
+        ),
+      ).toBeNull();
+      expect(
+        overviewSortValue(
+          normalizeServer(key === 'speed' ? { net_up: -1, net_down: 9 } : { traffic_used_gb: -1 }),
+          key,
+        ),
+      ).toBeNull();
+    }
+  },
+);
+
+it('rejects invalid expiry and tolerates unavailable persistence', () => {
+  for (const expiry of [null, '', 'not-a-date', Infinity, '2027-02-30'])
+    expect(overviewSortValue({ expiry }, 'expiry')).toBeNull();
+  const unavailable = {
+    getItem() {
+      throw new Error('blocked');
+    },
+    setItem() {
+      throw new Error('blocked');
+    },
+  };
+  expect(loadOverviewChoice(unavailable, 'key', ['all'], 'all')).toBe('all');
+  expect(saveOverviewChoice(unavailable, 'key', 'bad', ['all'], 'all')).toBe('all');
+});
+
+it('runs original wrapper, topbar setters and footer after group/status/sort replacement', async () => {
+  const source = readFileSync(new URL('../../src/modules/serverTable.js', import.meta.url), 'utf8');
+  const names = [
+    'renderPublicOverviewPage',
+    'bindTopbarEvents',
+    'setCurrency',
+    'mountMobileBottomNav',
+    'isCesiumVisible',
+  ];
+  const bodies = parse(source, { ecmaVersion: 'latest', sourceType: 'module' })
+    .body.filter((node) => node.type === 'FunctionDeclaration' && names.includes(node.id.name))
+    .map((node) => source.slice(node.start, node.end))
+    .join('\n');
+  const { updateRateDisplay } = await import('../../src/utils/currency.js');
+  const context = vm.createContext({
+    renderPublicOverviewPageModule: render,
+    document,
+    window,
+    state,
+    setLanguage: preferences.setLanguage,
+    toggleTheme: preferences.toggleTheme,
+    updateRateDisplay,
+    selectedServerId: null,
+    overviewMode: true,
+    createMobileBottomNav,
+    route: new URLSearchParams('overview=1'),
+  });
+  const wrapper = vm.runInContext(
+    `let mobileBottomNav = null; ${bodies}; renderPublicOverviewPage`,
+    context,
+  );
+  preferences.configureLanguageSwitcher({ isOverviewMode: () => true, renderOverview: wrapper });
+  const intervals = vi.spyOn(globalThis, 'setInterval');
+  wrapper();
+  await vi.waitFor(() =>
+    expect(pingHosts.find((host) => host.dataset.serverId === '2').innerHTML).toContain('Asia'),
+  );
+  const initialPing = pingHosts.find((host) => host.dataset.serverId === '2');
+  const regionValue = initialPing.innerHTML.match(/<option value="([^"]+)"[^>]*>Asia<\/option>/)[1];
+  const regionControl = { tagName: 'SELECT', value: regionValue, dataset: { pingRegion: 'all' } };
+  regionControl.closest = () => regionControl;
+  initialPing.dispatch('change', regionControl);
+  const hoursValue = initialPing.innerHTML.match(/data-ping-hours="(6)"/)[1];
+  const hoursControl = { tagName: 'BUTTON', dataset: { pingHours: hoursValue } };
+  hoursControl.closest = () => hoursControl;
+  for (const type of ['click', 'change', 'keydown'])
+    expect(initialPing.listenerCount(type)).toBe(1);
+  initialPing.dispatch('keydown', hoursControl, 'Enter');
+  const nav = container.children.at(-2);
+  expect(nav.children[1].getAttribute('aria-pressed')).toBe('true');
+  for (const [attribute, value] of [
+    ['data-group-key', '2'],
+    ['data-overview-status', 'warn'],
+    ['data-overview-sort', 'cpu'],
+  ]) {
+    button(attribute, value).click();
+    const themeButton = root.querySelector('#themeToggle');
+    expect(themeButton.listenerCount('click')).toBe(1);
+    themeButton.click();
+    expect(storage.get('display_theme')).toBe(theme);
+    const language = root.querySelector('#languageSelect');
+    expect(language.listenerCount('change')).toBe(1);
+    language.value = 'en';
+    language.dispatch('change');
+    expect(storage.get('display_language')).toBe('en');
+    button('data-currency', 'USD').click();
+    expect(state.currency).toBe('USD');
+    expect(nav.children[1].getAttribute('aria-pressed')).toBe('true');
+    expect(container.children.at(-2)).toBe(nav);
+    expect(root.querySelector('#themeToggle').listenerCount('click')).toBe(1);
+    expect(pingHosts.map((host) => Number(host.dataset.serverId))).toEqual(cardIds());
+    const currentPing = pingHosts[0];
+    expect(currentPing.innerHTML).toContain(`data-ping-region="${regionValue}"`);
+    expect(currentPing.innerHTML).toMatch(/data-ping-hours="6"[^>]*aria-pressed="true"/);
+    expect(initialPing.listenerCount('click')).toBe(0);
+    expect(currentPing.listenerCount('click')).toBe(1);
+  }
+  expect(intervals).toHaveBeenCalledTimes(1);
+  intervals.mockRestore();
+  vm.runInContext('mobileBottomNav.destroy()', context);
+});
+afterAll(() => {
+  destroy();
+  vi.unstubAllGlobals();
+});
+
+it('persists a real group click before requesting the production owner rerender', () => {
+  const request = vi.fn(() => {
+    expect(storage.get('vps_overview_group_filter')).toBe('2');
+    render(request);
+  });
+  render(request);
+  button('data-group-key', '2').click();
+  expect(request).toHaveBeenCalledTimes(1);
+  expect(button('data-group-key', '2').getAttribute('aria-selected')).toBe('true');
+});

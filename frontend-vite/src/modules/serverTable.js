@@ -414,7 +414,7 @@ function mountDisplayPage() {
 }
 
 function renderPublicOverviewPage() {
-  const result = renderPublicOverviewPageModule();
+  const result = renderPublicOverviewPageModule(renderPublicOverviewPage);
   bindTopbarEvents(document);
   mountMobileBottomNav('overview');
   return result;

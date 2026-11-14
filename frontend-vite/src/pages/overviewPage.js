@@ -5,10 +5,13 @@ import { getTrafficPct } from '../utils/traffic.js';
 import { normalizePublicServer } from '../services/serverGroups.js';
 import { createOverviewPingController, renderOverviewPing } from '../services/overviewPing.js';
 import { summarizeOverview } from './overviewSummary.js';
-import { renderOverviewSummary } from './overviewTemplates.js';
+import { renderOverviewSummary, renderOverviewControls } from './overviewTemplates.js';
+import { OVERVIEW_STATUS_KEYS, OVERVIEW_SORT_KEYS, loadOverviewChoice, saveOverviewChoice, countOverviewStatuses, filterSortOverviewNodes } from './overviewFilterSort.js';
 export { summarizeOverview };
 
 const OVERVIEW_GROUP_FILTER_KEY = 'vps_overview_group_filter';
+const OVERVIEW_STATUS_FILTER_KEY = 'vps_overview_status_filter';
+const OVERVIEW_SORT_KEY = 'vps_overview_sort';
 let overviewPingController = null;
 let overviewRouteObserver = null;
 let overviewPageRoot = null;
@@ -423,7 +426,7 @@ function renderFlatNodeList(nodes = [], activeMeta = null) {
   return `${hint}<div class="public-overview-list overview-v2-list" id="overviewNodeGrid">${nodes.map(renderOverviewNodeCard).join('')}</div>`;
 }
 
-export function renderPublicOverviewPage() {
+export function renderPublicOverviewPage(onRequestRerender) {
   const app = document.getElementById('pageRoot');
   if (!app) { destroyPublicOverviewPage(); return; }
   overviewCardDisposers.splice(0).forEach((dispose) => dispose());
@@ -440,7 +443,12 @@ export function renderPublicOverviewPage() {
   const activeMeta = activeGroup === 'all'
     ? { key: 'all', name: t('overviewAllNodes'), purpose: '', count: rows.length }
     : (backendGroups.find((g) => g.key === activeGroup) || { key: activeGroup, name: t('overviewCurrentGroup'), purpose: '', count: 0 });
-  const filteredNodes = collectFilteredNodes(backendGroups, activeGroup);
+  const groupedNodes = collectFilteredNodes(backendGroups, activeGroup);
+  const activeStatus = loadOverviewChoice(localStorage, OVERVIEW_STATUS_FILTER_KEY, OVERVIEW_STATUS_KEYS, 'all');
+  const activeSort = loadOverviewChoice(localStorage, OVERVIEW_SORT_KEY, OVERVIEW_SORT_KEYS, 'default');
+  const statusCounts = countOverviewStatuses(groupedNodes);
+  const filteredNodes = filterSortOverviewNodes(groupedNodes, activeStatus, activeSort, compareOverviewNodes);
+  const requestRerender = typeof onRequestRerender === 'function' ? onRequestRerender : () => renderPublicOverviewPage();
   const filteredCount = filteredNodes.length;
   const groupTabs = [
     { key: 'all', name: t('overviewAll'), count: rows.length, color: '' },
@@ -499,11 +507,13 @@ export function renderPublicOverviewPage() {
 
       ${renderOverviewSummary(assetSummary)}
 
+      ${renderOverviewControls(activeStatus, activeSort, statusCounts)}
+
       <div class="public-overview-main-grid ${filteredCount >= 4 || rows.length >= 4 ? 'is-many-nodes' : 'is-few-nodes'}">
         <section class="public-overview-primary" aria-label="节点列表">
           <div class="public-overview-section-head">
             <h2>${t('overviewNodeAssets')}</h2>
-            <span>${filteredCount} ${t('overviewNodes')} · ${activeGroup === 'all' ? t('overviewFlatLayout') : `${t('overviewFilter')}：${escText(activeMeta.name)}`} · ${t('overviewMasterTop')}</span>
+            <span>${filteredCount} ${t('overviewNodes')} · ${activeGroup === 'all' ? t('overviewFlatLayout') : `${t('overviewFilter')}：${escText(activeMeta.name)}`} · ${t(activeSort === 'default' ? 'overviewMasterTop' : `overviewSort_${activeSort}`)}</span>
           </div>
           <div class="public-overview-flat-list" id="overviewGroupedList">
             ${renderFlatNodeList(filteredNodes, activeMeta)}
@@ -554,12 +564,24 @@ export function renderPublicOverviewPage() {
 
   app.querySelectorAll('.overview-group-tab').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const key = btn.getAttribute('data-group-key') || 'all';
+      const value = btn.getAttribute('data-group-key');
+      const key = value === 'all' || buildBackendGroups(Array.isArray(state.servers) ? state.servers : []).some((group) => group.key === value) ? value : 'all';
       saveOverviewGroupFilter(key);
-      // re-render keeps page state simple and consistent with 10s refresh
-      renderPublicOverviewPage();
+      requestRerender();
     });
   });
+
+  for (const [attribute, storageKey, keys, fallback] of [
+    ['data-overview-status', OVERVIEW_STATUS_FILTER_KEY, OVERVIEW_STATUS_KEYS, 'all'],
+    ['data-overview-sort', OVERVIEW_SORT_KEY, OVERVIEW_SORT_KEYS, 'default'],
+  ]) {
+    app.querySelectorAll(`[${attribute}]`).forEach((button) => {
+      button.addEventListener('click', () => {
+        saveOverviewChoice(localStorage, storageKey, button.getAttribute(attribute), keys, fallback);
+        requestRerender();
+      });
+    });
+  }
 
   app.querySelectorAll('.public-overview-panel-fold').forEach((panel) => {
     const btn = panel.querySelector('.public-overview-panel-toggle');

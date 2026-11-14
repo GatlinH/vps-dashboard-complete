@@ -1,5 +1,6 @@
 import { t } from '../core/preferences.js';
 import { toDisplay } from '../utils/currency.js';
+import { OVERVIEW_STATUS_KEYS, OVERVIEW_SORT_KEYS } from './overviewFilterSort.js';
 
 function escapeText(value) {
   return String(value ?? '').replace(
@@ -99,4 +100,9 @@ export function renderOverviewSummary(summary) {
       ],
     )}
   </div>`;
+}
+export function renderOverviewControls(status, sort, counts) {
+  const statuses = OVERVIEW_STATUS_KEYS.map((key) => `<button type="button" data-overview-status="${key}" aria-pressed="${key === status}"><span>${escapeText(t(key === 'all' ? 'overviewAll' : key))}</span><b>${counts[key]}</b></button>`).join('');
+  const sorts = OVERVIEW_SORT_KEYS.map((key) => `<button type="button" data-overview-sort="${key}" aria-pressed="${key === sort}">${escapeText(t(`overviewSort_${key}`))}</button>`).join('');
+  return `<section class="overview-filter-sort" aria-label="${escapeText(t('overviewFilter'))}"><div role="group" aria-label="${escapeText(t('overviewStatusFilter'))}">${statuses}</div><div role="group" aria-label="${escapeText(t('overviewSortLabel'))}">${sorts}</div></section>`;
 }

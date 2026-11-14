@@ -116,8 +116,12 @@ function renderOverview({ files: sources }) {
   });
   for (const [filename, exports] of [
     ['src/services/overviewPing.js', 'createOverviewPingController, renderOverviewPing'],
+    [
+      'src/pages/overviewFilterSort.js',
+      'OVERVIEW_STATUS_KEYS, OVERVIEW_SORT_KEYS, loadOverviewChoice, saveOverviewChoice, countOverviewStatuses, filterSortOverviewNodes',
+    ],
     [summaryFile, 'summarizeOverview'],
-    [templatesFile, 'renderOverviewSummary'],
+    [templatesFile, 'renderOverviewSummary, renderOverviewControls'],
   ]) {
     const moduleSource = stripEsmEnvelope(sources.get(filename), filename);
     Object.assign(
