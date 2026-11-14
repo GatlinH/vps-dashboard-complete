@@ -8,11 +8,11 @@ function validServerId(value) {
   return Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
-export function createMobileBottomNav({ container, solarHost, navigate, getSnapshot, isVisible, switchGlobe }) {
+export function createMobileBottomNav({ container, solarHost = null, activeTab = 'root', navigate, getSnapshot, isVisible, switchGlobe }) {
   let alive = true;
   let inFlight = false;
   let hintKey = null;
-  const previousAttribute = solarHost.getAttribute('data-solar-mobile-nav');
+  const previousAttribute = solarHost?.getAttribute('data-solar-mobile-nav') ?? null;
   const disposers = [];
   const nav = document.createElement('nav');
   nav.setAttribute('class', 'mobile-bottom-nav');
@@ -111,13 +111,14 @@ export function createMobileBottomNav({ container, solarHost, navigate, getSnaps
   }
   function syncView() {
     if (!alive) return;
-    buttons[3].setAttribute('aria-pressed', String(Boolean(isVisible())));
+    const pressed = [false, activeTab === 'overview', activeTab === 'detail', activeTab === 'root' && Boolean(isVisible())];
+    buttons.forEach((button, index) => button.setAttribute('aria-pressed', String(pressed[index])));
   }
   for (const name of ['pointerdown', 'pointerup', 'click', 'dblclick']) {
     listen(nav, name, (event) => event.stopPropagation());
   }
   listen(window, 'vps-language-changed', updateLanguage);
-  solarHost.setAttribute('data-solar-mobile-nav', 'true');
+  solarHost?.setAttribute('data-solar-mobile-nav', 'true');
   container.append(nav, status);
   updateLanguage();
   syncView();
@@ -129,8 +130,8 @@ export function createMobileBottomNav({ container, solarHost, navigate, getSnaps
       disposers.forEach((dispose) => dispose());
       nav.remove();
       status.remove();
-      if (previousAttribute === null) solarHost.removeAttribute('data-solar-mobile-nav');
-      else solarHost.setAttribute('data-solar-mobile-nav', previousAttribute);
+      if (previousAttribute === null) solarHost?.removeAttribute('data-solar-mobile-nav');
+      else solarHost?.setAttribute('data-solar-mobile-nav', previousAttribute);
     },
   };
 }

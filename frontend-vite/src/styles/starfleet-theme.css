@@ -700,7 +700,7 @@ body:has(.globe-only-page) {
     box-sizing: border-box;
   }
 
-  #page-globe > nav.mobile-bottom-nav {
+  #app > nav.mobile-bottom-nav {
     display: flex;
     flex-direction: row;
     align-items: stretch;
@@ -720,9 +720,15 @@ body:has(.globe-only-page) {
   }
 
   @supports (backdrop-filter: blur(16px)) {
-    #page-globe > nav.mobile-bottom-nav {
+    #app > nav.mobile-bottom-nav {
       backdrop-filter: blur(16px);
     }
+  }
+
+  #pageRoot:has(> .public-overview-page),
+  #pageRoot:has(> .detail-page-shell) {
+    padding-bottom: calc(52px + env(safe-area-inset-bottom, 0px) + 16px);
+    box-sizing: border-box;
   }
 
   .mobile-bottom-nav > button {

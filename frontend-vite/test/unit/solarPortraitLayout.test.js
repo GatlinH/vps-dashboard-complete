@@ -16,6 +16,26 @@ const variables = {
 };
 
 const ownedSelector = `${selector}[data-solar-mobile-nav]`;
+const publicClearanceSelector =
+  '#pageRoot:has(> .public-overview-page),\n  #pageRoot:has(> .detail-page-shell)';
+
+describe('Public content clearance source contract (native scrolling is a separate gate)', () => {
+  it('adds the exact portrait-only clearance to the repeatedly replaced public slot, never the root host', () => {
+    const rules = [];
+    css.walkRules((rule) => {
+      if (rule.selector.includes('#pageRoot:has(')) rules.push(rule);
+    });
+    expect(rules).toHaveLength(1);
+    expect(rules[0].selector).toBe(publicClearanceSelector);
+    expect(rules[0].parent.name).toBe('media');
+    expect(rules[0].parent.params).toBe('(max-width: 720px) and (orientation: portrait)');
+    expect(Object.fromEntries(rules[0].nodes.map((node) => [node.prop, node.value]))).toEqual({
+      'padding-bottom': 'calc(52px + env(safe-area-inset-bottom, 0px) + 16px)',
+      'box-sizing': 'border-box',
+    });
+    rules[0].walkDecls((declaration) => expect(declaration.important).toBeFalsy());
+  });
+});
 const portraitMedia = '(max-width: 720px) and (orientation: portrait)';
 const ownedVariables = {
   '--solar-tc-bottom': 'max(12px, calc(64px + env(safe-area-inset-bottom, 0px) - (100svh - 100%)))',

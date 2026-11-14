@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import postcss from 'postcss';
+import { transform } from 'lightningcss';
 import { describe, expect, it } from 'vitest';
 
 const dashboard = postcss.parse(
@@ -58,6 +59,20 @@ function specificity(selector) {
 }
 
 describe('Mobile dock CSS-source/cascade contracts (not native/browser acceptance)', () => {
+  it('retains both compiled blur declarations at the shared app boundary', () => {
+    const compiled = transform({
+      filename: 'starfleet-theme.css',
+      code: Buffer.from(owned.toString()),
+      minify: true,
+    }).code.toString();
+    expect(compiled).toMatch(
+      /#app>nav\.mobile-bottom-nav\{[^}]*-webkit-backdrop-filter:blur\(16px\)/,
+    );
+    expect(compiled).toMatch(
+      /@supports\s*\(backdrop-filter:blur\(16px\)\)\{#app>nav\.mobile-bottom-nav\{backdrop-filter:blur\(16px\)/,
+    );
+  });
+
   it('includes the real generic nav and dark/mobile declarations that caused the cascade failure', () => {
     const base = [];
     const mobile = [];
@@ -115,7 +130,7 @@ describe('Mobile dock CSS-source/cascade contracts (not native/browser acceptanc
 
   it('owns the native nav with higher specificity than every real generic nav selector, including dark', () => {
     const dock = dockRule();
-    expect(dock.selector).toBe('#page-globe > nav.mobile-bottom-nav');
+    expect(dock.selector).toBe('#app > nav.mobile-bottom-nav');
     const generic = [];
     dashboard.walkRules((rule) => {
       for (const selector of rule.selectors) {
@@ -173,7 +188,7 @@ describe('Mobile dock CSS-source/cascade contracts (not native/browser acceptanc
     expect(branches[0].nodes).toHaveLength(1);
     const rule = branches[0].nodes[0];
     expect(rule.type).toBe('rule');
-    expect(rule.selector).toBe('#page-globe > nav.mobile-bottom-nav');
+    expect(rule.selector).toBe('#app > nav.mobile-bottom-nav');
     expect(rule.nodes).toHaveLength(1);
     const declaration = rule.nodes[0];
     expect(declaration.type).toBe('decl');

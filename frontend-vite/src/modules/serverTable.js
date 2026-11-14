@@ -375,6 +375,22 @@ function formatTrafficResetText(server, trafficData = null, opts = {}) {
     : `${prefix} · ${t('trafficResetNext')} ${nextTrafficResetDateLabel(day)}`;
 }
 
+function mountMobileBottomNav(activeTab = 'root') {
+  if (mobileBottomNav) {
+    mobileBottomNav.syncView();
+    return;
+  }
+  mobileBottomNav = createMobileBottomNav({
+    container: document.getElementById('app'),
+    solarHost: activeTab === 'root' ? document.getElementById('solar-system-container') : null,
+    activeTab,
+    navigate: (url) => window.location.assign(url),
+    getSnapshot: () => ({ servers: state.servers, serversSource: state.serversSource, routeServerId: route.get('server') }),
+    isVisible: isCesiumVisible,
+    switchGlobe: activeTab === 'root' ? showCesiumGlobe : () => window.location.assign('/?globe=1'),
+  });
+}
+
 function mountDisplayPage() {
   disposeMobileBottomNav();
   document.body.classList.remove('front-login-page-mode');
@@ -394,19 +410,13 @@ function mountDisplayPage() {
         <div class="globe-tooltip" id="globeTooltip"></div>
       </div>
     </section>`;
-  mobileBottomNav = createMobileBottomNav({
-    container: document.getElementById('page-globe'),
-    solarHost: document.getElementById('solar-system-container'),
-    navigate: (url) => window.location.assign(url),
-    getSnapshot: () => ({ servers: state.servers, serversSource: state.serversSource, routeServerId: route.get('server') }),
-    isVisible: isCesiumVisible,
-    switchGlobe: showCesiumGlobe,
-  });
+  mountMobileBottomNav();
 }
 
 function renderPublicOverviewPage() {
   const result = renderPublicOverviewPageModule();
   bindTopbarEvents(document);
+  mountMobileBottomNav('overview');
   return result;
 }
 let clusterPicker = null;
@@ -602,6 +612,7 @@ function showSolarSystem() {
   if (returnBtn) returnBtn.style.display = 'none';
   if (toast) { clearTimeout(toast._hideTimer); toast.style.display = 'none'; }
   solarSystem?.resume?.();
+  if (route.get('globe') === '1') window.history.replaceState(null, '', '/');
   mobileBottomNav?.syncView();
 }
 
@@ -2858,6 +2869,7 @@ export async function mountServerTableApp() {
     return;
   } else if (selectedServerId) {
     window.__DBG__.BOOT_TRACE.push('branch:selectedServerId:' + selectedServerId);
+    mountMobileBottomNav('detail');
     await renderDetailPage(selectedServerId);
     window.__DBG__.BOOT_TRACE.push('after-renderDetailPage');
   } else if (loginMode) {
@@ -2869,6 +2881,7 @@ export async function mountServerTableApp() {
     mountDisplayPage();
     initGlobe();
     startSoftRefresh();
+    if (route.get('globe') === '1') await showCesiumGlobe();
   }
 }
 

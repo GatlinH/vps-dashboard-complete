@@ -56,6 +56,8 @@ function descendants(element) {
 function mountHarness(createMobileBottomNav = vi.fn()) {
   const elements = new Map();
   const app = new Element();
+  const outerApp = new Element();
+  outerApp.appendChild(app);
   Object.defineProperty(app, 'innerHTML', {
     set(markup) {
       app.children = [];
@@ -67,6 +69,7 @@ function mountHarness(createMobileBottomNav = vi.fn()) {
     },
   });
   elements.set('pageRoot', app);
+  elements.set('app', outerApp);
   const document = {
     body: new Element(),
     getElementById: (id) => elements.get(id),
@@ -89,11 +92,14 @@ function mountHarness(createMobileBottomNav = vi.fn()) {
   const mount = program.body.find(
     (node) => node.type === 'FunctionDeclaration' && node.id.name === 'mountDisplayPage',
   );
+  const sharedMount = program.body.find(
+    (node) => node.type === 'FunctionDeclaration' && node.id.name === 'mountMobileBottomNav',
+  );
   vm.runInContext(
-    `let mobileBottomNav = null; function disposeMobileBottomNav() { mobileBottomNav?.destroy(); mobileBottomNav = null; } ${tableSource.slice(mount.start, mount.end)}`,
+    `let mobileBottomNav = null; function disposeMobileBottomNav() { mobileBottomNav?.destroy(); mobileBottomNav = null; } ${sharedMount ? tableSource.slice(sharedMount.start, sharedMount.end) : ''} ${tableSource.slice(mount.start, mount.end)}`,
     context,
   );
-  return { mount: () => context.mountDisplayPage(), app, elements, window, context };
+  return { mount: () => context.mountDisplayPage(), app, outerApp, elements, window, context };
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -103,6 +109,7 @@ const trustedSource = '后台接口 /api/v1/servers + IP 坐标定位';
 function controllerHarness(
   snapshot = { serversSource: trustedSource, servers: [{ id: 104 }] },
   visible = false,
+  overrides = {},
 ) {
   const container = new Element();
   const solarHost = new Element();
@@ -129,6 +136,7 @@ function controllerHarness(
     getSnapshot,
     isVisible: () => visible,
     switchGlobe,
+    ...overrides,
   };
   const controller = createMobileBottomNav(options);
   const buttons = () => descendants(container).filter((element) => element.tagName === 'button');
@@ -178,6 +186,40 @@ function pending() {
 }
 
 describe('Mobile controller production behavior with controlled external boundaries', () => {
+  it.each(['overview', 'detail'])(
+    'accepts a nullable solar host on %s and disposes normally',
+    (activeTab) => {
+      const harness = controllerHarness(undefined, false, { solarHost: null, activeTab });
+      expect(harness.buttons()).toHaveLength(4);
+      expect(harness.solarHost.hasAttribute('data-solar-mobile-nav')).toBe(false);
+      const oldButtons = harness.buttons();
+      harness.controller.destroy();
+      harness.controller.destroy();
+      expect(harness.buttons()).toHaveLength(0);
+      expect(harness.status()).toBeUndefined();
+      oldButtons[0].dispatchEvent(new Event('click'));
+      expect(harness.navigate).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['root', false, [false, false, false, false]],
+    ['root', true, [false, false, false, true]],
+    ['overview', false, [false, true, false, false]],
+    ['detail', false, [false, false, true, false]],
+  ])(
+    'syncs the complete %s vector with actual Earth visibility %s',
+    (activeTab, visible, vector) => {
+      const harness = controllerHarness(undefined, visible, { activeTab });
+      const pressed = () =>
+        harness.buttons().map((button) => button.getAttribute('aria-pressed') === 'true');
+      expect(pressed()).toEqual(vector);
+      harness.setVisible(!visible);
+      harness.controller.syncView();
+      expect(pressed()).toEqual(activeTab === 'root' ? [false, false, false, !visible] : vector);
+    },
+  );
+
   it('owns exactly four ordered native buttons, keeps focus/input native and all inactive by default', () => {
     const harness = controllerHarness();
     expect(harness.buttons()).toHaveLength(4);
@@ -429,7 +471,7 @@ describe('Production root mount behavior (external DOM boundary, not native acce
   it('disposes the old root before replacement and cleans the current root on pagehide', () => {
     const destroys = [];
     const controller = vi.fn(({ container }) => {
-      const destroy = vi.fn(() => expect(harness.app.children).toContain(container));
+      const destroy = vi.fn(() => expect(container).toBe(harness.outerApp));
       destroys.push(destroy);
       return { destroy, syncView: vi.fn() };
     });
@@ -499,10 +541,9 @@ describe('Production root mount behavior (external DOM boundary, not native acce
     });
     const harness = mountHarness(controller);
     harness.mount();
-    const buttons = descendants(harness.elements.get('page-globe')).filter(
-      (element) => element.tagName === 'button',
-    );
+    const buttons = descendants(harness.outerApp).filter((element) => element.tagName === 'button');
     expect(buttons).toHaveLength(4);
+    expect(controller.mock.calls[0][0].container).toBe(harness.outerApp);
     expect(controller).toHaveBeenCalledTimes(1);
     expect(controller.mock.calls[0][0].solarHost).toBe(
       harness.elements.get('solar-system-container'),
