@@ -172,8 +172,8 @@ body::after {
 .google-earth-node-html-label .node-place,.google-earth-node-html-label .node-name{ padding-left:8px; font-family:var(--mono); }
 
 /* LCARS / starship operation console pages: overview and detail. */
-.starship-console-page,
-.public-overview-page,
+.starship-console-page:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+.public-overview-page:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
 .detail-page-shell {
   position:relative;
   min-height:100vh;
@@ -198,15 +198,15 @@ body::after {
 .starship-console-page > *, .public-overview-page > *, .detail-page-shell > * { position:relative; z-index:1; }
 
 .public-overview-topbar,.detail-page-topbar { padding-left:24px; }
-.public-overview-back,.detail-back-link { color:#111 !important; background:linear-gradient(135deg,#ff9f35,#ffc66f)!important; border:0!important; border-radius:999px 18px 18px 999px!important; font-family:var(--mono); font-weight:800; letter-spacing:.06em; box-shadow:0 0 28px rgba(255,159,53,.20)!important; }
-.public-overview-title-wrap h1,.detail-page-title { color:#fff3d7!important; font-family:var(--sans); letter-spacing:.02em; text-shadow:0 0 26px rgba(255,159,53,.20); }
+.public-overview-back:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),.detail-back-link { color:#111 !important; background:linear-gradient(135deg,#ff9f35,#ffc66f)!important; border:0!important; border-radius:999px 18px 18px 999px!important; font-family:var(--mono); font-weight:800; letter-spacing:.06em; box-shadow:0 0 28px rgba(255,159,53,.20)!important; }
+.public-overview-title-wrap h1:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),.detail-page-title { color:#fff3d7!important; font-family:var(--sans); letter-spacing:.02em; text-shadow:0 0 26px rgba(255,159,53,.20); }
 .public-overview-title-wrap h1::before { content:'LCARS / USS VPS · '; color:#ff9f35; font-family:var(--mono); font-size:.42em; letter-spacing:.16em; vertical-align:middle; }
 .detail-panel-kicker { color:#73cdff!important; font-family:var(--mono); letter-spacing:.18em!important; }
-.detail-page-subline,.public-overview-title-wrap p,.public-overview-meta-bar { color:rgba(210,226,247,.78)!important; }
+.detail-page-subline,.public-overview-title-wrap p:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),.public-overview-meta-bar:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])) { color:rgba(210,226,247,.78)!important; }
 
-.public-overview-stats > div,
-.public-overview-card:not(.is-v2-card),
-.public-overview-panel,
+.public-overview-stats > div:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+.public-overview-card:not(.is-v2-card):where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+.public-overview-panel:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
 .detail-panel,
 .traffic-card,
 .stat-card,
@@ -230,18 +230,18 @@ body::after {
 .probe-item::before {
   content:''; position:absolute; left:0; top:0; bottom:0; width:12px; border-radius:28px 0 0 8px; background:linear-gradient(#ff9f35 0 42%,#ffc66f 42% 62%,#73cdff 62% 100%); opacity:.95;
 }
-.public-overview-stats strong { color:#ffc66f!important; font-family:var(--mono); font-size:30px!important; }
+.public-overview-stats strong:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])) { color:#ffc66f!important; font-family:var(--mono); font-size:30px!important; }
 .public-overview-stats span,.public-overview-grid,.public-overview-meta,.public-overview-mini-list li,.detail-panel { font-family:var(--mono); }
 .public-overview-card:not(.is-v2-card) { padding-left:28px!important; }
-.public-overview-card:not(.is-v2-card):hover,.public-overview-panel:hover,.detail-panel:hover { border-color:rgba(255,159,53,.48)!important; box-shadow:0 28px 78px rgba(0,0,0,.48),0 0 36px rgba(115,205,255,.10)!important; }
-.public-overview-status { border-radius:999px 14px 14px 999px!important; font-family:var(--mono); font-weight:800; }
-.public-overview-status.is-online,.detail-page-status.online { background:rgba(98,240,183,.14)!important; color:#62f0b7!important; }
-.public-overview-status.is-warn,.detail-page-status.warn { background:rgba(255,159,53,.16)!important; color:#ffc66f!important; }
-.public-overview-status.is-offline,.detail-page-status.offline { background:rgba(255,93,121,.16)!important; color:#ff8ea1!important; }
+.public-overview-card:not(.is-v2-card):hover:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),.public-overview-panel:hover:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),.detail-panel:hover { border-color:rgba(255,159,53,.48)!important; box-shadow:0 28px 78px rgba(0,0,0,.48),0 0 36px rgba(115,205,255,.10)!important; }
+.public-overview-status:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])) { border-radius:999px 14px 14px 999px!important; font-family:var(--mono); font-weight:800; }
+.public-overview-status.is-online:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),.detail-page-status.online { background:rgba(98,240,183,.14)!important; color:#62f0b7!important; }
+.public-overview-status.is-warn:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),.detail-page-status.warn { background:rgba(255,159,53,.16)!important; color:#ffc66f!important; }
+.public-overview-status.is-offline:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),.detail-page-status.offline { background:rgba(255,93,121,.16)!important; color:#ff8ea1!important; }
 .detail-page-status { border:1px solid rgba(255,159,53,.28)!important; border-radius:999px 22px 22px 999px!important; font-family:var(--mono); letter-spacing:.12em; }
 
-.theme-toggle,.currency-switch,.currency-btn,.search-box,.front-login-input,input,select,textarea { background:rgba(3,9,18,.78)!important; border-color:rgba(115,205,255,.22)!important; color:#f4f8ff!important; }
-.currency-btn.active,.add-btn,.aff-buy-btn,.btn-primary,button.primary { background:linear-gradient(135deg,#ff9f35,#ffc66f)!important; color:#120803!important; box-shadow:0 12px 30px rgba(255,159,53,.22)!important; }
+.theme-toggle:where(:not(#pageRoot[data-theme-style="lcars"] *)),.currency-switch:where(:not(#pageRoot[data-theme-style="lcars"] *)),.currency-btn:where(:not(#pageRoot[data-theme-style="lcars"] *)),.search-box,.front-login-input,input,select:where(:not(#pageRoot[data-theme-style="lcars"] *)),textarea { background:rgba(3,9,18,.78)!important; border-color:rgba(115,205,255,.22)!important; color:#f4f8ff!important; }
+.currency-btn.active:where(:not(#pageRoot[data-theme-style="lcars"] *)),.add-btn,.aff-buy-btn,.btn-primary,button.primary { background:linear-gradient(135deg,#ff9f35,#ffc66f)!important; color:#120803!important; box-shadow:0 12px 30px rgba(255,159,53,.22)!important; }
 
 @media (max-width: 760px) {
   .starship-departure-scene { height:34vh; opacity:.78; }
@@ -563,9 +563,9 @@ body::after {
   content: '▰ ';
   color: #ff9f35;
 }
-.public-overview-stats > div,
-.public-overview-panel,
-.public-overview-card:not(.is-v2-card),
+.public-overview-stats > div:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+.public-overview-panel:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+.public-overview-card:not(.is-v2-card):where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
 .detail-panel,
 .traffic-card,
 .stat-card,

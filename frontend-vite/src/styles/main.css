@@ -7,6 +7,7 @@
 @import './pages.css';
 @import './dom-fixes.css';
 @import './starfleet-theme.css';
+@import './overview-lcars.css';
 
 
 .public-overview-summary-grid {
@@ -235,7 +236,7 @@
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
 }
 
-.overview-layout-p1 .public-overview-card.is-dense {
+.overview-layout-p1 .public-overview-card.is-dense:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])) {
   padding: 10px 12px 10px 16px !important;
   border-radius: 14px !important;
   min-height: 0;
@@ -294,15 +295,15 @@
   padding: 3px 8px !important;
 }
 
-.overview-layout-p1 .public-overview-card.status-offline {
+.overview-layout-p1 .public-overview-card.status-offline:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])) {
   border-color: rgba(255,93,121,.34) !important;
 }
 
-.overview-layout-p1 .public-overview-card.status-warn {
+.overview-layout-p1 .public-overview-card.status-warn:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])) {
   border-color: rgba(255,159,53,.34) !important;
 }
 
-.overview-layout-p1 .public-overview-card.is-master {
+.overview-layout-p1 .public-overview-card.is-master:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])) {
   border-color: rgba(115,205,255,.48) !important;
   box-shadow: 0 0 22px rgba(115,205,255,.12), inset 0 0 0 1px rgba(115,205,255,.12);
   order: -1;
@@ -804,7 +805,7 @@
 }
 
 /* Asset overview: same Starfleet/HUD language as the detail console, not generic glass cards. */
-.public-overview-page.starship-console-page{
+.public-overview-page.starship-console-page:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   position: relative;
   min-height: 100vh;
   color: #eaf8ff;
@@ -847,7 +848,7 @@
   background: linear-gradient(135deg, rgba(9,20,32,.92), rgba(4,8,14,.86));
   box-shadow: 0 22px 55px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.04);
 }
-.public-overview-page .public-overview-back{
+.public-overview-page .public-overview-back:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   display:grid;
   place-items:center;
   min-height:76px;
@@ -875,7 +876,7 @@
   color:#f7fbff;
   text-shadow:0 0 22px rgba(98,245,238,.22);
 }
-.public-overview-page .public-overview-title-wrap p{
+.public-overview-page .public-overview-title-wrap p:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   margin:8px 0 0 !important;
   color:rgba(220,238,255,.72) !important;
   letter-spacing:.12em;
@@ -903,7 +904,7 @@
   margin-right:auto !important;
 }
 .public-overview-page .public-overview-stats{ gap:12px !important; margin-bottom:14px !important; }
-.public-overview-page .public-overview-stats > div{
+.public-overview-page .public-overview-stats > div:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   position:relative;
   min-height:82px;
   padding:14px 16px 12px 18px !important;
@@ -917,7 +918,7 @@
   content:""; position:absolute; left:0; top:0; bottom:0; width:6px;
   background:linear-gradient(180deg,#62f5ee,#f0a84a); opacity:.86;
 }
-.public-overview-page .public-overview-stats span{
+.public-overview-page .public-overview-stats span:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   color:rgba(174,210,223,.78) !important; font-size:11px !important; letter-spacing:.14em; text-transform:uppercase;
 }
 .public-overview-page .public-overview-stats strong{
@@ -927,8 +928,8 @@
   grid-template-columns: repeat(4, minmax(0,1fr)) !important;
   gap:12px !important; margin-top:18px !important; margin-bottom:18px !important;
 }
-.public-overview-page .public-overview-panel,
-.public-overview-page .public-overview-card:not(.is-v2-card){
+.public-overview-page .public-overview-panel:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+.public-overview-page .public-overview-card:not(.is-v2-card):where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   position:relative; overflow:hidden; border-radius:18px !important;
   border:1px solid rgba(98,245,238,.17) !important;
   background:
@@ -945,32 +946,32 @@
   content:""; position:absolute; right:12px; top:12px; width:42px; height:5px; border-radius:99px;
   background:linear-gradient(90deg,#62f5ee 0 38%, transparent 38% 48%, #f0a84a 48% 100%); opacity:.70;
 }
-.public-overview-page .public-overview-panel-title{
+.public-overview-page .public-overview-panel-title:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   color:#f6fbff !important; letter-spacing:.10em; text-transform:uppercase; font-size:12px !important;
 }
-.public-overview-page .public-overview-mini-list li{
+.public-overview-page .public-overview-mini-list li:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   background:rgba(98,245,238,.055) !important; border:1px solid rgba(98,245,238,.08); border-radius:12px !important;
 }
 .public-overview-page .public-overview-list:not(.overview-v2-list){ grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important; gap:14px !important; }
 .public-overview-page .public-overview-card:not(.is-v2-card){
   min-height:152px; padding:17px 17px 15px !important; cursor:pointer; transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
 }
-.public-overview-page .public-overview-card:not(.is-v2-card):hover{
+.public-overview-page .public-overview-card:not(.is-v2-card):hover:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   transform: translateY(-3px); border-color: rgba(98,245,238,.34) !important; box-shadow:0 24px 54px rgba(0,0,0,.40), 0 0 26px rgba(98,245,238,.09) !important;
 }
 .public-overview-page .public-overview-head strong{ color:#f7fbff; font-size:15px; letter-spacing:.02em; }
 .public-overview-page .public-overview-card:not(.is-v2-card) .public-overview-flag{
   display:inline-grid; place-items:center; width:28px;height:28px; margin-right:9px !important; border-radius:50%; background:rgba(98,245,238,.09); box-shadow:inset 0 0 0 1px rgba(98,245,238,.13);
 }
-.public-overview-page .public-overview-card:not(.is-v2-card) .public-overview-meta{ margin-top:10px !important; color:rgba(197,222,235,.72) !important; }
+.public-overview-page .public-overview-card:not(.is-v2-card) .public-overview-meta:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){ margin-top:10px !important; color:rgba(197,222,235,.72) !important; }
 .public-overview-page .public-overview-grid{ margin-top:14px !important; gap:9px !important; }
 .public-overview-page .public-overview-grid span{
   padding:8px 9px; border-radius:11px; color:#dffcff; background:rgba(98,245,238,.055); border:1px solid rgba(98,245,238,.08); font-family:"JetBrains Mono","SFMono-Regular",monospace; font-size:11px !important;
 }
-.public-overview-page .public-overview-status{ border:1px solid currentColor; background:rgba(0,0,0,.18) !important; font-weight:800; letter-spacing:.08em; }
-.public-overview-page .public-overview-status.is-online{ color:#62f5a8 !important; }
-.public-overview-page .public-overview-status.is-warn{ color:#f0c36a !important; }
-.public-overview-page .public-overview-status.is-offline{ color:#ff8b8b !important; }
+.public-overview-page .public-overview-status:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){ border:1px solid currentColor; background:rgba(0,0,0,.18) !important; font-weight:800; letter-spacing:.08em; }
+.public-overview-page .public-overview-status.is-online:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){ color:#62f5a8 !important; }
+.public-overview-page .public-overview-status.is-warn:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){ color:#f0c36a !important; }
+.public-overview-page .public-overview-status.is-offline:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){ color:#ff8b8b !important; }
 @media (max-width: 1180px){ .public-overview-page .public-overview-summary-grid{ grid-template-columns:repeat(2,minmax(0,1fr)) !important; } }
 @media (max-width: 760px){
   .public-overview-page .public-overview-topbar{ grid-template-columns:1fr !important; }
@@ -1901,7 +1902,7 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
   vector-effect:non-scaling-stroke;
   filter:drop-shadow(0 0 5px rgba(98,245,238,.35));
 }
-.public-overview-page .public-overview-topbar{
+.public-overview-page .public-overview-topbar:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   border-left-color:#62f5ee!important;
   background:
     linear-gradient(90deg, rgba(98,245,238,.06) 1px, transparent 1px),
@@ -1909,7 +1910,7 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
     linear-gradient(135deg, rgba(8,22,34,.96), rgba(3,8,15,.91))!important;
   background-size:42px 42px,42px 42px,auto!important;
 }
-.public-overview-page .public-overview-back{
+.public-overview-page .public-overview-back:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   color:#061016!important;
   background:linear-gradient(135deg,#62f5ee,#6db7ff 62%,#f0a84a)!important;
 }
@@ -1945,7 +1946,7 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
   grid-template-columns:repeat(2,minmax(0,1fr))!important;
   gap:9px!important;
 }
-.public-overview-page .public-overview-grid .overview-metric{
+.public-overview-page .public-overview-grid .overview-metric:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   display:grid!important;
   grid-template-columns:1fr auto!important;
   grid-template-rows:auto 5px!important;
@@ -2280,7 +2281,7 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
 
 
 /* asset-overview-gemini-hud-pass */
-.public-overview-page{
+.public-overview-page:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   --fleet-cyan:#62f5ee;
   --fleet-blue:#5fb2ff;
   --fleet-amber:#ffb15d;
@@ -2376,10 +2377,10 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
   object-fit:contain;
   filter:saturate(1.18) contrast(1.06) drop-shadow(0 0 18px rgba(98,245,238,.20));
 }
-.public-overview-status-bank > div,
-.public-overview-page .public-overview-stats > div,
-.public-overview-page .public-overview-panel,
-.public-overview-page .public-overview-card:not(.is-v2-card){
+.public-overview-status-bank > div:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+.public-overview-page .public-overview-stats > div:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+.public-overview-page .public-overview-panel:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+.public-overview-page .public-overview-card:not(.is-v2-card):where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   border:1px solid var(--fleet-line)!important;
   border-radius:0!important;
   clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));
@@ -2400,19 +2401,19 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
 .public-overview-page .public-overview-stats-cost strong,
 .public-overview-page .public-overview-stats-expiry strong{color:var(--fleet-amber);}
 .public-overview-page .public-overview-card:not(.is-v2-card){position:relative;overflow:hidden;min-height:188px!important;}
-.public-overview-page .public-overview-card:not(.is-v2-card):hover,
-.public-overview-page .public-overview-card:not(.is-v2-card):focus-visible{
+.public-overview-page .public-overview-card:not(.is-v2-card):hover:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+.public-overview-page .public-overview-card:not(.is-v2-card):focus-visible:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   transform:translateY(-3px);
   border-color:rgba(255,177,93,.58)!important;
   box-shadow:0 16px 38px rgba(0,0,0,.32),0 0 22px rgba(98,245,238,.16)!important;
 }
-.public-overview-page .public-overview-status{
+.public-overview-page .public-overview-status:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   border-radius:0!important;
   border:1px solid rgba(255,255,255,.13);
   font:800 10px/1 "JetBrains Mono",monospace;
   letter-spacing:.12em;
 }
-.public-overview-page .public-overview-mini-list li{
+.public-overview-page .public-overview-mini-list li:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   border-radius:0!important;
   border-left:2px solid rgba(98,245,238,.42);
   background:rgba(98,245,238,.045)!important;
@@ -2454,7 +2455,7 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
 .public-overview-page:not(.overview-layout-v2) .public-overview-tools{
   pointer-events:auto!important;
 }
-.public-overview-page .public-overview-back{
+.public-overview-page .public-overview-back:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   display:inline-flex!important;
   align-items:center!important;
   justify-content:center!important;
@@ -2485,9 +2486,9 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
   gap:9px!important;
   max-width:calc(100% - 154px)!important;
 }
-.public-overview-page .theme-toggle,
-.public-overview-page .currency-btn,
-.public-overview-page .language-select{
+.public-overview-page .theme-toggle:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+.public-overview-page .currency-btn:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+.public-overview-page .language-select:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   font-size:12px!important;
   line-height:1!important;
   border-radius:10px!important;
@@ -2512,13 +2513,13 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
 .public-overview-page:not(.overview-layout-v2) .detail-currency-switch{min-height:38px!important;gap:5px!important;}
 .public-overview-page .detail-currency-switch .currency-btn{display:inline-flex!important;align-items:center!important;justify-content:center!important;}
 .public-overview-page:not(.overview-layout-v2) .detail-currency-switch .currency-btn{width:52px!important;min-width:52px!important;}
-.public-overview-page .detail-currency-switch .currency-btn.active{background:linear-gradient(135deg,rgba(255,177,93,.95),rgba(240,111,54,.92))!important;color:#071018!important;border-color:rgba(255,218,150,.9)!important;}
-.public-overview-page .rate-display{min-height:38px!important;display:flex!important;align-items:center!important;font-size:12px!important;color:#aeefff!important;white-space:nowrap!important;}
-[data-theme="light"] .public-overview-page .public-overview-back,
-[data-theme="light"] .public-overview-page .theme-toggle,
-[data-theme="light"] .public-overview-page .currency-btn,
-[data-theme="light"] .public-overview-page .language-select{background:#f7edda!important;color:#243235!important;border-color:rgba(92,103,91,.42)!important;box-shadow:0 8px 20px rgba(93,75,43,.10)!important;}
-[data-theme="light"] .public-overview-page .rate-display{color:#405b60!important;}
+.public-overview-page .detail-currency-switch .currency-btn.active:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){background:linear-gradient(135deg,rgba(255,177,93,.95),rgba(240,111,54,.92))!important;color:#071018!important;border-color:rgba(255,218,150,.9)!important;}
+.public-overview-page .rate-display:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){min-height:38px!important;display:flex!important;align-items:center!important;font-size:12px!important;color:#aeefff!important;white-space:nowrap!important;}
+[data-theme="light"] .public-overview-page .public-overview-back:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+[data-theme="light"] .public-overview-page .theme-toggle:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+[data-theme="light"] .public-overview-page .currency-btn:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+[data-theme="light"] .public-overview-page .language-select:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){background:#f7edda!important;color:#243235!important;border-color:rgba(92,103,91,.42)!important;box-shadow:0 8px 20px rgba(93,75,43,.10)!important;}
+[data-theme="light"] .public-overview-page .rate-display:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){color:#405b60!important;}
 @media(max-width:760px){
   .public-overview-page:not(.overview-layout-v2).starship-console-page{padding-top:132px!important;}
   .public-overview-page:not(.overview-layout-v2) .public-overview-floating-topbar{align-items:flex-start!important;gap:10px!important;}
@@ -2542,7 +2543,7 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
   justify-content:center!important;
   flex:0 0 166px!important;
 }
-.public-overview-page:not(.overview-layout-v2) .detail-currency-switch .currency-btn{
+.public-overview-page:not(.overview-layout-v2) .detail-currency-switch .currency-btn:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   box-sizing:border-box!important;
   flex:0 0 52px!important;
   width:52px!important;
@@ -2551,7 +2552,7 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
   border-width:1px!important;
   transform:none!important;
 }
-.public-overview-page .detail-currency-switch .currency-btn.active{
+.public-overview-page .detail-currency-switch .currency-btn.active:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   transform:none!important;
 }
 .public-overview-page:not(.overview-layout-v2) .rate-display{
@@ -2569,7 +2570,7 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
 
 
 /* gemin-transparent-visual-cleanup */
-.public-overview-page .public-overview-visual{
+.public-overview-page .public-overview-visual:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   background:transparent!important;
   border:0!important;
   box-shadow:none!important;
@@ -2578,18 +2579,18 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
 .public-overview-page .public-overview-visual::after{
   display:none!important;
 }
-.public-overview-page .public-overview-visual img{
+.public-overview-page .public-overview-visual img:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   background:transparent!important;
 }
 
 
 /* overview-remove-decorative-color-strips-only */
-.public-overview-page .public-overview-stats > div::before,
-.public-overview-page .public-overview-stats > div::after,
-.public-overview-page .public-overview-card::before,
-.public-overview-page .public-overview-card::after,
-.public-overview-page .public-overview-panel::before,
-.public-overview-page .public-overview-panel::after{
+.public-overview-page .public-overview-stats > div:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"]))::before,
+.public-overview-page .public-overview-stats > div:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"]))::after,
+.public-overview-page .public-overview-card:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"]))::before,
+.public-overview-page .public-overview-card:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"]))::after,
+.public-overview-page .public-overview-panel:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"]))::before,
+.public-overview-page .public-overview-panel:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"]))::after{
   content:none!important;
   display:none!important;
   background:none!important;
@@ -2598,9 +2599,9 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
 .public-overview-page .public-overview-card{ overflow:visible!important; }
 
 /* overview-remove-panel-title-glyphs */
-.public-overview-page .public-overview-panel-title::before,
-.public-overview-page .public-overview-panel-toggle::before,
-.public-overview-page .public-overview-mini-list li::before{
+.public-overview-page .public-overview-panel-title:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"]))::before,
+.public-overview-page .public-overview-panel-toggle:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"]))::before,
+.public-overview-page .public-overview-mini-list li:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"]))::before{
   content:none!important;
   display:none!important;
   background:none!important;
@@ -2708,7 +2709,7 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
 }
 
 /* overview-ip-mask-metric-visible-v1 */
-.public-overview-page .public-overview-grid .overview-metric .overview-metric-value{
+.public-overview-page .public-overview-grid .overview-metric .overview-metric-value:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   font-style:normal!important;
   font-size:13px!important;
   font-weight:900!important;
@@ -2716,7 +2717,7 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
   color:#fff7e8!important;
   text-align:right!important;
 }
-.public-overview-page .public-overview-grid .overview-metric.is-missing .overview-metric-value{
+.public-overview-page .public-overview-grid .overview-metric.is-missing .overview-metric-value:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   color:rgba(183,220,234,.58)!important;
 }
 
@@ -2748,7 +2749,7 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
   display:grid !important;
   grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
 }
-.public-overview-page .public-overview-visual{
+.public-overview-page .public-overview-visual:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   background: transparent !important;
   box-shadow: none !important;
   border: 0 !important;
@@ -2758,54 +2759,54 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .f
 .public-overview-page .public-overview-visual::after{
   display:none !important;
 }
-.public-overview-page .public-overview-visual img{
+.public-overview-page .public-overview-visual img:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   object-fit: contain !important;
   mix-blend-mode: normal !important;
   background: transparent !important;
 }
-html[data-theme="light"] body:has(.public-overview-page),
-html[data-theme="light"] .public-overview-page.starship-console-page{
+html[data-theme="light"] body:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))),
+html[data-theme="light"] .public-overview-page.starship-console-page:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   color:#e8edf3 !important;
   background:
     radial-gradient(circle at 16% 8%, rgba(120,132,148,.24), transparent 28%),
     radial-gradient(circle at 88% 10%, rgba(240,168,74,.10), transparent 28%),
     linear-gradient(135deg, #24272d 0%, #30343b 44%, #1f2228 100%) !important;
 }
-html[data-theme="light"] .public-overview-page.starship-console-page::before{
+html[data-theme="light"] .public-overview-page.starship-console-page:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"]))::before{
   opacity:.28 !important;
   background:
     linear-gradient(90deg, rgba(180,190,202,.045) 1px, transparent 1px),
     linear-gradient(rgba(180,190,202,.04) 1px, transparent 1px) !important;
   background-size:56px 56px,56px 56px !important;
 }
-html[data-theme="light"] .public-overview-page .public-overview-hero,
-html[data-theme="light"] .public-overview-page .public-overview-floating-topbar,
-html[data-theme="light"] .public-overview-page .public-overview-network,
-html[data-theme="light"] .public-overview-page .public-overview-stats > div,
-html[data-theme="light"] .public-overview-page .public-overview-panel,
-html[data-theme="light"] .public-overview-page .public-overview-card{
+html[data-theme="light"] .public-overview-page .public-overview-hero:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+html[data-theme="light"] .public-overview-page .public-overview-floating-topbar:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+html[data-theme="light"] .public-overview-page .public-overview-network:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+html[data-theme="light"] .public-overview-page .public-overview-stats > div:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+html[data-theme="light"] .public-overview-page .public-overview-panel:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+html[data-theme="light"] .public-overview-page .public-overview-card:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   background: linear-gradient(180deg, rgba(39,43,51,.94), rgba(24,27,33,.92)) !important;
   border-color: rgba(188,198,211,.18) !important;
   color:#e8edf3 !important;
   box-shadow:0 18px 42px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.04) !important;
 }
-html[data-theme="light"] .public-overview-page .public-overview-title-wrap h1,
-html[data-theme="light"] .public-overview-page .public-overview-hero h1,
-html[data-theme="light"] .public-overview-page .public-overview-head strong,
-html[data-theme="light"] .public-overview-page .public-overview-panel-title,
-html[data-theme="light"] .public-overview-page .public-overview-stats strong{
+html[data-theme="light"] .public-overview-page .public-overview-title-wrap h1:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+html[data-theme="light"] .public-overview-page .public-overview-hero h1:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+html[data-theme="light"] .public-overview-page .public-overview-head strong:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+html[data-theme="light"] .public-overview-page .public-overview-panel-title:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+html[data-theme="light"] .public-overview-page .public-overview-stats strong:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   color:#f4f7fb !important;
 }
-html[data-theme="light"] .public-overview-page .public-overview-meta,
-html[data-theme="light"] .public-overview-page .public-overview-meta-bar span,
-html[data-theme="light"] .public-overview-page .public-overview-stats span,
-html[data-theme="light"] .public-overview-page .public-overview-mini-list,
-html[data-theme="light"] .public-overview-page .public-overview-network-table td,
-html[data-theme="light"] .public-overview-page .public-overview-network-table th{
+html[data-theme="light"] .public-overview-page .public-overview-meta:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+html[data-theme="light"] .public-overview-page .public-overview-meta-bar span:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+html[data-theme="light"] .public-overview-page .public-overview-stats span:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+html[data-theme="light"] .public-overview-page .public-overview-mini-list:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+html[data-theme="light"] .public-overview-page .public-overview-network-table td:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+html[data-theme="light"] .public-overview-page .public-overview-network-table th:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   color:rgba(222,229,238,.76) !important;
 }
-html[data-theme="light"] .public-overview-page .public-overview-grid span,
-html[data-theme="light"] .public-overview-page .public-overview-mini-list li{
+html[data-theme="light"] .public-overview-page .public-overview-grid span:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
+html[data-theme="light"] .public-overview-page .public-overview-mini-list li:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   background: rgba(214,224,238,.07) !important;
   border-color: rgba(214,224,238,.12) !important;
   color:#edf7fb !important;
@@ -2819,10 +2820,10 @@ html[data-theme="light"] .public-overview-page .public-overview-mini-list li{
 
 
 /* hotfix-overview-full-bg-transparent-modal */
-html:has(.public-overview-page),
-html:has(.public-overview-page) body,
-html:has(.public-overview-page) #app,
-html:has(.public-overview-page) #pageRoot{
+html:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))),
+html:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) body,
+html:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #app,
+html:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #pageRoot{
   min-height:100% !important;
   background:
     radial-gradient(circle at 18% 8%, rgba(93,245,238,.14), transparent 27%),
@@ -2830,18 +2831,18 @@ html:has(.public-overview-page) #pageRoot{
     radial-gradient(circle at 50% 120%, rgba(61,119,255,.14), transparent 45%),
     linear-gradient(180deg, #03070d 0%, #06101a 44%, #080b12 100%) !important;
 }
-html[data-theme="light"]:has(.public-overview-page),
-html[data-theme="light"]:has(.public-overview-page) body,
-html[data-theme="light"]:has(.public-overview-page) #app,
-html[data-theme="light"]:has(.public-overview-page) #pageRoot,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page.starship-console-page{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))),
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) body,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #app,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #pageRoot,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page.starship-console-page{
   background:
     radial-gradient(circle at 16% 8%, rgba(120,132,148,.24), transparent 28%),
     radial-gradient(circle at 88% 10%, rgba(240,168,74,.10), transparent 28%),
     linear-gradient(135deg, #24272d 0%, #30343b 44%, #1f2228 100%) !important;
   color:#e8edf3 !important;
 }
-.public-overview-page .public-overview-visual{
+.public-overview-page .public-overview-visual:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   background:transparent !important;
   border:0 !important;
   box-shadow:none !important;
@@ -2854,7 +2855,7 @@ html[data-theme="light"]:has(.public-overview-page) .public-overview-page.starsh
   content:none !important;
   display:none !important;
 }
-.public-overview-page .public-overview-visual img{
+.public-overview-page .public-overview-visual img:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){
   background:transparent !important;
   object-fit:contain !important;
 }
@@ -2885,194 +2886,194 @@ html[data-theme="light"]:has(.public-overview-page) .public-overview-page.starsh
 
 
 /* hotfix-overview-day-full-surface */
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-hero,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-card,
-html[data-theme="light"]:has(.public-overview-page) .overview-collapse-card,
-html[data-theme="light"]:has(.public-overview-page) .overview-network-table,
-html[data-theme="light"]:has(.public-overview-page) .public-node-card,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-node-card{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-hero,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-card,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .overview-collapse-card,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .overview-network-table,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-node-card,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-node-card{
   background:linear-gradient(180deg, rgba(248,251,255,.92), rgba(229,236,246,.86)) !important;
   color:#182330 !important;
   border-color:rgba(82,104,130,.22) !important;
   box-shadow:0 22px 60px rgba(27,39,56,.14), inset 0 1px 0 rgba(255,255,255,.72) !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-shell,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-main,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-section{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-shell,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-main,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-section{
   background:transparent !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page h1,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page h2,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page strong,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page td,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page th,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page button{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page h1,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page h2,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page strong,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page td,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page th,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page button{
   color:#162232 !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .overview-kicker,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .overview-network-kicker,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page [class*="kicker"]{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .overview-kicker,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .overview-network-kicker,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page [class*="kicker"]{
   color:#006f86 !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page table,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page thead,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page tr{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page table,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page thead,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page tr{
   background:rgba(255,255,255,.36) !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page tbody tr:hover{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page tbody tr:hover{
   background:rgba(198,222,246,.58) !important;
 }
 
 
 /* hotfix-overview-day-remaining-panels */
-html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-stats > div,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-costs > div,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-expiry > div,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-metrics > div,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-panel{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-stats > div,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-costs > div,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-expiry > div,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-metrics > div,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-panel{
   background:linear-gradient(180deg, rgba(248,251,255,.94), rgba(226,235,246,.90)) !important;
   color:#162232 !important;
   border-color:rgba(82,104,130,.24) !important;
   box-shadow:0 16px 42px rgba(27,39,56,.12), inset 0 1px 0 rgba(255,255,255,.74) !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-panel *,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar *,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-stats > div *,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-costs > div *,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-expiry > div *,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-metrics > div *{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-panel *,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar *,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-stats > div *,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-costs > div *,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-expiry > div *,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-metrics > div *{
   color:#162232 !important;
 }
 
 
 /* hotfix-overview-day-outer-final */
-html[data-theme="light"]:has(.public-overview-page),
-html[data-theme="light"]:has(.public-overview-page) body,
-html[data-theme="light"]:has(.public-overview-page) #app,
-html[data-theme="light"]:has(.public-overview-page) #pageRoot,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page.starship-console-page{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))),
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) body,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #app,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #pageRoot,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page.starship-console-page{
   background:
     radial-gradient(circle at 14% 6%, rgba(126,188,232,.30), transparent 30%),
     radial-gradient(circle at 86% 10%, rgba(255,203,128,.20), transparent 28%),
     linear-gradient(135deg, #eaf1f8 0%, #dce7f2 46%, #cfdbe8 100%) !important;
   color:#162232 !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-node-card,
-html[data-theme="light"]:has(.public-overview-page) .public-node-card *,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-node-card,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-node-card *{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-node-card,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-node-card *,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-node-card,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-node-card *{
   color:#172333 !important;
   text-shadow:none !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-node-card .muted,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-node-card .muted,
-html[data-theme="light"]:has(.public-overview-page) .public-node-card [class*="meta"],
-html[data-theme="light"]:has(.public-overview-page) .public-overview-node-card [class*="meta"]{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-node-card .muted,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-node-card .muted,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-node-card [class*="meta"],
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-node-card [class*="meta"]{
   color:#4b5f73 !important;
 }
 
 
 /* hotfix-overview-theme-modal-v7 */
-html[data-theme="light"]:has(.public-overview-page),
-html[data-theme="light"]:has(.public-overview-page) body,
-html[data-theme="light"]:has(.public-overview-page) #app,
-html[data-theme="light"]:has(.public-overview-page) #pageRoot,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page.starship-console-page{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))),
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) body,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #app,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #pageRoot,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page.starship-console-page{
   background:
     radial-gradient(circle at 14% 8%, rgba(145,154,166,.22), transparent 30%),
     radial-gradient(circle at 86% 12%, rgba(210,174,120,.12), transparent 30%),
     linear-gradient(135deg, #3b3f46 0%, #4a4f57 48%, #343840 100%) !important;
   color:#172333 !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar{
   background:linear-gradient(180deg, rgba(235,239,244,.96), rgba(212,219,228,.92)) !important;
   border-color:rgba(65,76,91,.22) !important;
   box-shadow:0 16px 48px rgba(18,24,32,.22), inset 0 1px 0 rgba(255,255,255,.72) !important;
   color:#172333 !important;
 }
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-floating-topbar{
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar{
   background:linear-gradient(180deg, rgba(39,43,51,.94), rgba(24,27,33,.92)) !important;
   border-color:rgba(255,255,255,.10) !important;
   color:#e8edf3 !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar .public-overview-back,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar .theme-toggle,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar select,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar .currency-btn{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar .public-overview-back,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar .theme-toggle,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar select,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar .currency-btn{
   background:rgba(246,248,251,.92) !important;
   color:#172333 !important;
   border-color:rgba(65,76,91,.24) !important;
   box-shadow:none !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar .currency-btn.active{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar .currency-btn.active{
   background:#d99035 !important;
   color:#111820 !important;
   border-color:#d99035 !important;
 }
-html[data-theme="light"]:has(.public-overview-page) #rateDisplay{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #rateDisplay{
   color:#4a5d70 !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .premium-calc-backdrop{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .premium-calc-backdrop{
   background:rgba(55,60,68,.54) !important;
   backdrop-filter:blur(12px) saturate(1.1) !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .premium-calc-card{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .premium-calc-card{
   background:linear-gradient(180deg, rgba(248,251,255,.98), rgba(224,232,242,.97)) !important;
   color:#172333 !important;
   border-color:rgba(66,92,124,.28) !important;
   box-shadow:0 28px 90px rgba(18,24,32,.34), inset 0 1px 0 rgba(255,255,255,.78) !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .premium-calc-card *,
-html[data-theme="light"]:has(.public-overview-page) .premium-calc-base strong,
-html[data-theme="light"]:has(.public-overview-page) .premium-calc-result strong{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .premium-calc-card *,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .premium-calc-base strong,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .premium-calc-result strong{
   color:#172333 !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .premium-calc-kicker{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .premium-calc-kicker{
   color:#b96d19 !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .premium-calc-node,
-html[data-theme="light"]:has(.public-overview-page) .premium-calc-base span,
-html[data-theme="light"]:has(.public-overview-page) .premium-calc-result span,
-html[data-theme="light"]:has(.public-overview-page) .premium-calc-note{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .premium-calc-node,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .premium-calc-base span,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .premium-calc-result span,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .premium-calc-note{
   color:#52677d !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .premium-calc-base,
-html[data-theme="light"]:has(.public-overview-page) .premium-calc-result > div{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .premium-calc-base,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .premium-calc-result > div{
   background:rgba(255,255,255,.52) !important;
   border-color:rgba(66,92,124,.16) !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .premium-calc-grid input{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .premium-calc-grid input{
   background:rgba(255,255,255,.84) !important;
   color:#172333 !important;
   border-color:rgba(66,92,124,.22) !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .premium-calc-close{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .premium-calc-close{
   background:rgba(43,53,66,.10) !important;
   color:#172333 !important;
 }
 
 
 /* hotfix-overview-dark-topbar-final-v8 */
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-floating-topbar,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-floating-topbar *{
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar *{
   color:#e8edf3 !important;
 }
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-floating-topbar .public-overview-back,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-floating-topbar .theme-toggle,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-floating-topbar select,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-floating-topbar .currency-btn{
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar .public-overview-back,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar .theme-toggle,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar select,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar .currency-btn{
   background:rgba(24,27,33,.86) !important;
   color:#e8edf3 !important;
   border-color:rgba(255,255,255,.14) !important;
 }
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-floating-topbar .currency-btn.active{
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar .currency-btn.active{
   background:#ffb15d !important;
   color:#061016 !important;
   border-color:#ffb15d !important;
 }
-html[data-theme="dark"]:has(.public-overview-page) #rateDisplay{
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #rateDisplay{
   color:#b8c4d2 !important;
 }
 
@@ -3087,35 +3088,35 @@ html[data-theme="dark"]:has(.public-overview-page) #rateDisplay{
   --overview-night-panel-2: linear-gradient(180deg, rgba(31,36,45,.96), rgba(15,18,24,.94));
   --overview-night-text: #e8edf3;
 }
-html[data-theme="light"]:has(.public-overview-page),
-html[data-theme="light"]:has(.public-overview-page) body,
-html[data-theme="light"]:has(.public-overview-page) #app,
-html[data-theme="light"]:has(.public-overview-page) #pageRoot,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page.starship-console-page{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))),
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) body,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #app,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #pageRoot,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page.starship-console-page{
   background:var(--overview-day-bg) !important;
   color:var(--overview-day-text) !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-hero,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-card,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-panel,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .overview-network-table,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-list .public-overview-card,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .overview-summary-card{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-hero,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-card,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-panel,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .overview-network-table,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-list .public-overview-card,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .overview-summary-card{
   background:var(--overview-day-panel) !important;
   color:var(--overview-day-text) !important;
   border-color:rgba(42,51,64,.24) !important;
   box-shadow:0 18px 52px rgba(10,14,20,.18), inset 0 1px 0 rgba(255,255,255,.55) !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-metrics > div,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-costs > div,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-expiry > div,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-stats > div{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-metrics > div,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-costs > div,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-expiry > div,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-stats > div{
   background:var(--overview-day-panel) !important;
   color:var(--overview-day-text) !important;
   border-color:rgba(42,51,64,.24) !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .detail-currency-switch{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .detail-currency-switch{
   background:rgba(198,205,215,.96) !important;
   border:1px solid rgba(42,51,64,.22) !important;
   border-radius:14px !important;
@@ -3125,36 +3126,36 @@ html[data-theme="light"]:has(.public-overview-page) .public-overview-page:not(.o
   padding:3px !important;
   gap:3px !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .detail-currency-switch .currency-btn,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar .public-overview-back,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar .theme-toggle,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar select{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .detail-currency-switch .currency-btn,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar .public-overview-back,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar .theme-toggle,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar select{
   background:rgba(226,231,238,.96) !important;
   color:var(--overview-day-text) !important;
   border-color:rgba(42,51,64,.20) !important;
 }
-html[data-theme="dark"]:has(.public-overview-page),
-html[data-theme="dark"]:has(.public-overview-page) body,
-html[data-theme="dark"]:has(.public-overview-page) #app,
-html[data-theme="dark"]:has(.public-overview-page) #pageRoot,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page.starship-console-page{
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))),
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) body,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #app,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #pageRoot,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page.starship-console-page{
   background:linear-gradient(180deg, #03070d 0%, #06101a 44%, #080b12 100%) !important;
   color:var(--overview-night-text) !important;
 }
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-floating-topbar,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-hero,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-card,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-panel,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .overview-network-table,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-metrics > div,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-costs > div,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-expiry > div,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-stats > div{
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-hero,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-card,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-panel,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .overview-network-table,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-metrics > div,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-costs > div,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-expiry > div,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-stats > div{
   background:var(--overview-night-panel) !important;
   color:var(--overview-night-text) !important;
   border-color:rgba(255,255,255,.12) !important;
 }
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .detail-currency-switch{
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .detail-currency-switch{
   background:rgba(15,18,24,.96) !important;
   border:1px solid rgba(255,255,255,.12) !important;
   border-radius:14px !important;
@@ -3163,12 +3164,12 @@ html[data-theme="dark"]:has(.public-overview-page) .public-overview-page:not(.ov
   padding:3px !important;
   gap:3px !important;
 }
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .detail-currency-switch .currency-btn{
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .detail-currency-switch .currency-btn{
   background:rgba(31,36,45,.96) !important;
   color:var(--overview-night-text) !important;
   border-color:rgba(255,255,255,.12) !important;
 }
-html:has(.public-overview-page) .public-overview-page .detail-currency-switch .currency-btn.active{
+html:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .detail-currency-switch .currency-btn.active{
   background:linear-gradient(135deg,#ffb15d,#f06f36) !important;
   color:#071018 !important;
   border-color:rgba(255,218,150,.9) !important;
@@ -3188,149 +3189,149 @@ html:has(.public-overview-page){
   --ov-night-border:rgba(232,237,243,.13);
   --ov-night-text:#e8edf3;
 }
-html[data-theme="light"]:has(.public-overview-page),
-html[data-theme="light"]:has(.public-overview-page) body,
-html[data-theme="light"]:has(.public-overview-page) #app,
-html[data-theme="light"]:has(.public-overview-page) #pageRoot,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page.starship-console-page{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))),
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) body,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #app,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #pageRoot,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page.starship-console-page{
   background:var(--ov-day-page) !important;
   color:var(--ov-day-text) !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-floating-topbar,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-hero,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-card,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-panel,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .overview-network-table,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-stats > *,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-expiry > *,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-costs > *,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-metrics > *,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page section,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page article{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-hero,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-card,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-panel,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .overview-network-table,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-stats > *,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-expiry > *,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-costs > *,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-metrics > *,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page section,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page article{
   background:var(--ov-day-surface) !important;
   color:var(--ov-day-text) !important;
   border-color:var(--ov-day-border) !important;
   box-shadow:0 16px 42px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.32) !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page table,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page thead,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page tbody,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page tr,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page th,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page td{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page table,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page thead,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page tbody,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page tr,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page th,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page td{
   background:var(--ov-day-surface-flat) !important;
   color:var(--ov-day-text) !important;
   border-color:var(--ov-day-border) !important;
 }
-html[data-theme="dark"]:has(.public-overview-page),
-html[data-theme="dark"]:has(.public-overview-page) body,
-html[data-theme="dark"]:has(.public-overview-page) #app,
-html[data-theme="dark"]:has(.public-overview-page) #pageRoot,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page.starship-console-page{
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))),
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) body,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #app,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #pageRoot,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page.starship-console-page{
   background:var(--ov-night-page) !important;
   color:var(--ov-night-text) !important;
 }
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-floating-topbar,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-hero,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-card,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-panel,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .overview-network-table,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-stats > *,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-expiry > *,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-costs > *,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-metrics > *,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page section,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page article{
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-floating-topbar,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-hero,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-card,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-panel,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .overview-network-table,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-stats > *,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-expiry > *,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-costs > *,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-metrics > *,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page section,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page article{
   background:var(--ov-night-surface) !important;
   color:var(--ov-night-text) !important;
   border-color:var(--ov-night-border) !important;
 }
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page table,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page thead,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page tbody,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page tr,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page th,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page td{
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page table,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page thead,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page tbody,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page tr,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page th,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page td{
   background:var(--ov-night-surface-flat) !important;
   color:var(--ov-night-text) !important;
   border-color:var(--ov-night-border) !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-visual,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-visual{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-visual,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-visual{
   background:transparent !important;
   box-shadow:none !important;
   border:0 !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .detail-currency-switch{background:#b9c1cb!important;}
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .detail-currency-switch{background:#151a22!important;}
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .detail-currency-switch{background:#b9c1cb!important;}
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .detail-currency-switch{background:#151a22!important;}
 
 
 /* hotfix-overview-unified-specific-v12 */
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-card,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-list > .public-overview-card,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-panel,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .overview-network-table,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-hero,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-floating-topbar{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-card,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-list > .public-overview-card,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-panel,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .overview-network-table,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-hero,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-floating-topbar{
   background:linear-gradient(180deg, #cfd5dd 0%, #bcc4cf 100%) !important;
   color:#152232 !important;
   border-color:rgba(31,40,52,.24) !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-card *,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-panel *,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .overview-network-table *,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .public-overview-hero *{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-card *,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-panel *,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .overview-network-table *,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-hero *{
   color:#152232 !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .overview-kicker,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .overview-network-kicker,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page [class*="kicker"]{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .overview-kicker,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .overview-network-kicker,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page [class*="kicker"]{
   color:#00758a !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .detail-currency-switch{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .detail-currency-switch{
   background:#b9c1cb !important;
   background-image:none !important;
 }
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page .detail-currency-switch .currency-btn:not(.active){
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .detail-currency-switch .currency-btn:not(.active){
   background:#cfd5dd !important;
   background-image:none !important;
   color:#152232 !important;
 }
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-card,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-list > .public-overview-card,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-panel,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .overview-network-table,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-hero,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-floating-topbar{
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-card,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-list > .public-overview-card,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-panel,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .overview-network-table,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-hero,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-floating-topbar{
   background:linear-gradient(180deg, #252b35 0%, #171c24 100%) !important;
   color:#e8edf3 !important;
   border-color:rgba(232,237,243,.13) !important;
 }
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-card *,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-panel *,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .overview-network-table *,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .public-overview-hero *{
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-card *,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-panel *,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .overview-network-table *,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .public-overview-hero *{
   color:#e8edf3 !important;
 }
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .detail-currency-switch{
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .detail-currency-switch{
   background:#151a22 !important;
   background-image:none !important;
 }
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page .detail-currency-switch .currency-btn:not(.active){
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .detail-currency-switch .currency-btn:not(.active){
   background:#252b35 !important;
   background-image:none !important;
   color:#e8edf3 !important;
 }
-html:has(.public-overview-page) .public-overview-page .detail-currency-switch .currency-btn.active{
+html:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page .detail-currency-switch .currency-btn.active{
   background:linear-gradient(135deg,#ffb15d,#f06f36) !important;
   color:#071018 !important;
 }
 
 
 /* hotfix-overview-outer-scrollbar-unified-v13 */
-html:has(.public-overview-page){
+html:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))){
   scrollbar-color:#aeb7c3 #c6ced8 !important;
   scrollbar-width:thin !important;
   background:#c6ced8 !important;
@@ -3341,48 +3342,48 @@ html:has(.public-overview-page) .public-overview-page::-webkit-scrollbar{
   width:12px !important;
   height:12px !important;
 }
-html:has(.public-overview-page)::-webkit-scrollbar-track,
-html:has(.public-overview-page) body::-webkit-scrollbar-track,
-html:has(.public-overview-page) .public-overview-page::-webkit-scrollbar-track{
+html:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"])))::-webkit-scrollbar-track,
+html:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) body::-webkit-scrollbar-track,
+html:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page::-webkit-scrollbar-track{
   background:#c6ced8 !important;
 }
-html:has(.public-overview-page)::-webkit-scrollbar-thumb,
-html:has(.public-overview-page) body::-webkit-scrollbar-thumb,
-html:has(.public-overview-page) .public-overview-page::-webkit-scrollbar-thumb{
+html:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"])))::-webkit-scrollbar-thumb,
+html:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) body::-webkit-scrollbar-thumb,
+html:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page::-webkit-scrollbar-thumb{
   background:#aeb7c3 !important;
   border:2px solid #c6ced8 !important;
   border-radius:999px !important;
 }
-html[data-theme="light"]:has(.public-overview-page),
-html[data-theme="light"]:has(.public-overview-page) body,
-html[data-theme="light"]:has(.public-overview-page) #app,
-html[data-theme="light"]:has(.public-overview-page) #pageRoot,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page,
-html[data-theme="light"]:has(.public-overview-page) .public-overview-page.starship-console-page{
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))),
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) body,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #app,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #pageRoot,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page,
+html[data-theme="light"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page.starship-console-page{
   background:#c6ced8 !important;
   background-image:none !important;
 }
-html[data-theme="dark"]:has(.public-overview-page){
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))){
   scrollbar-color:#2f3744 #1d232c !important;
   background:#1d232c !important;
 }
-html[data-theme="dark"]:has(.public-overview-page)::-webkit-scrollbar-track,
-html[data-theme="dark"]:has(.public-overview-page) body::-webkit-scrollbar-track,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page::-webkit-scrollbar-track{
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"])))::-webkit-scrollbar-track,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) body::-webkit-scrollbar-track,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page::-webkit-scrollbar-track{
   background:#1d232c !important;
 }
-html[data-theme="dark"]:has(.public-overview-page)::-webkit-scrollbar-thumb,
-html[data-theme="dark"]:has(.public-overview-page) body::-webkit-scrollbar-thumb,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page::-webkit-scrollbar-thumb{
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"])))::-webkit-scrollbar-thumb,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) body::-webkit-scrollbar-thumb,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page::-webkit-scrollbar-thumb{
   background:#2f3744 !important;
   border:2px solid #1d232c !important;
 }
-html[data-theme="dark"]:has(.public-overview-page),
-html[data-theme="dark"]:has(.public-overview-page) body,
-html[data-theme="dark"]:has(.public-overview-page) #app,
-html[data-theme="dark"]:has(.public-overview-page) #pageRoot,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page,
-html[data-theme="dark"]:has(.public-overview-page) .public-overview-page.starship-console-page{
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))),
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) body,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #app,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) #pageRoot,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"]))) .public-overview-page.starship-console-page{
   background:#1d232c !important;
   background-image:none !important;
 }
@@ -3403,22 +3404,22 @@ html[data-theme="dark"]:has(.public-overview-page) #pageRoot,
 html[data-theme="dark"]:has(.public-overview-page) .public-overview-page{
   scrollbar-color:#2f3744 #1d232c !important;
 }
-body:has(.public-overview-page)::-webkit-scrollbar-track,
-html:has(.public-overview-page)::-webkit-scrollbar-track{
+body:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"])))::-webkit-scrollbar-track,
+html:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"])))::-webkit-scrollbar-track{
   background:#c6ced8 !important;
 }
-body:has(.public-overview-page)::-webkit-scrollbar-thumb,
-html:has(.public-overview-page)::-webkit-scrollbar-thumb{
+body:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"])))::-webkit-scrollbar-thumb,
+html:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"])))::-webkit-scrollbar-thumb{
   background:#aeb7c3 !important;
   border:2px solid #c6ced8 !important;
   border-radius:999px !important;
 }
-html[data-theme="dark"] body:has(.public-overview-page)::-webkit-scrollbar-track,
-html[data-theme="dark"]:has(.public-overview-page)::-webkit-scrollbar-track{
+html[data-theme="dark"] body:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"])))::-webkit-scrollbar-track,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"])))::-webkit-scrollbar-track{
   background:#1d232c !important;
 }
-html[data-theme="dark"] body:has(.public-overview-page)::-webkit-scrollbar-thumb,
-html[data-theme="dark"]:has(.public-overview-page)::-webkit-scrollbar-thumb{
+html[data-theme="dark"] body:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"])))::-webkit-scrollbar-thumb,
+html[data-theme="dark"]:has(.public-overview-page):where(:not(:has(#pageRoot[data-theme-style="lcars"])))::-webkit-scrollbar-thumb{
   background:#2f3744 !important;
   border-color:#1d232c !important;
 }
@@ -3505,7 +3506,7 @@ canvas, svg, img, video{ max-width:100%; }
     padding-left:8px!important;
     padding-right:8px!important;
   }
-  .public-overview-floating-topbar,
+  .public-overview-floating-topbar:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),
   .detail-topbar,
   .display-topbar,
   .topbar,
@@ -3526,8 +3527,8 @@ canvas, svg, img, video{ max-width:100%; }
     justify-content:flex-start!important;
     gap:6px!important;
   }
-  .public-overview-floating-topbar button,
-  .public-overview-floating-topbar select,
+  .public-overview-floating-topbar button:where(:not(#pageRoot[data-theme-style="lcars"] *)),
+  .public-overview-floating-topbar select:where(:not(#pageRoot[data-theme-style="lcars"] *)),
   .detail-topbar button,
   .detail-topbar select,
   .display-topbar button,
@@ -3657,7 +3658,7 @@ img, canvas, svg, video { max-width: 100%; }
   .public-overview-page:not(.overview-layout-v2).starship-console-page {
     padding: 18px 12px 34px !important;
   }
-  .public-overview-page .public-overview-topbar {
+  .public-overview-page .public-overview-topbar:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])) {
     grid-template-columns: 1fr !important;
     gap: 10px !important;
     padding: 12px !important;
@@ -4327,17 +4328,17 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .d
 
 
 /* HERMES-PUBLIC-OVERVIEW-POLISH-20260701 */
-.public-overview-page.starship-console-page{background:radial-gradient(circle at 20% 0%,rgba(98,245,238,.12),transparent 28%),linear-gradient(180deg,#01060e 0%,#03101d 46%,#01060e 100%)!important}
-.public-overview-hero,.public-overview-panel,.public-overview-card,.overview-network-table{backdrop-filter:blur(16px) saturate(150%);border-color:rgba(98,245,238,.20)!important;box-shadow:0 18px 48px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.04)!important}
-.public-overview-hero{border-radius:28px;padding:28px!important;background:radial-gradient(circle at 74% 10%,rgba(127,255,248,.16),transparent 32%),linear-gradient(135deg,rgba(8,20,38,.92),rgba(3,10,22,.78))!important}
-.public-overview-kicker,.public-overview-panel-title{color:#7ffff8!important;text-shadow:0 0 18px rgba(127,255,248,.28)}
+.public-overview-page.starship-console-page:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){background:radial-gradient(circle at 20% 0%,rgba(98,245,238,.12),transparent 28%),linear-gradient(180deg,#01060e 0%,#03101d 46%,#01060e 100%)!important}
+.public-overview-hero:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),.public-overview-panel:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),.public-overview-card:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),.overview-network-table:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){backdrop-filter:blur(16px) saturate(150%);border-color:rgba(98,245,238,.20)!important;box-shadow:0 18px 48px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.04)!important}
+.public-overview-hero:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){border-radius:28px;padding:28px!important;background:radial-gradient(circle at 74% 10%,rgba(127,255,248,.16),transparent 32%),linear-gradient(135deg,rgba(8,20,38,.92),rgba(3,10,22,.78))!important}
+.public-overview-kicker:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),.public-overview-panel-title:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){color:#7ffff8!important;text-shadow:0 0 18px rgba(127,255,248,.28)}
 .public-overview-hero h1{letter-spacing:.08em;text-shadow:0 0 26px rgba(98,245,238,.22)}
-.public-overview-card{border-radius:20px!important;background:linear-gradient(180deg,rgba(7,18,34,.88),rgba(4,10,22,.78))!important;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
-.public-overview-card:hover{transform:translateY(-2px);border-color:rgba(127,255,248,.42)!important;box-shadow:0 22px 56px rgba(0,0,0,.42),0 0 24px rgba(98,245,238,.12)!important}
-.public-overview-status-bank .public-overview-stat strong{color:#7ffff8!important;text-shadow:0 0 18px rgba(98,245,238,.24)}
-body.light-theme .public-overview-page.starship-console-page{background:#eef4fb!important;color:#0a1622!important}
-body.light-theme .public-overview-hero,body.light-theme .public-overview-panel,body.light-theme .public-overview-card,body.light-theme .overview-network-table{backdrop-filter:none!important;text-shadow:none!important;box-shadow:0 10px 28px rgba(20,45,75,.10)!important;border-color:#cfe0ec!important;background:#ffffff!important;color:#0a1622!important}
-body.light-theme .public-overview-kicker,body.light-theme .public-overview-panel-title,body.light-theme .public-overview-hero h1{text-shadow:none!important;color:#0f766e!important}
+.public-overview-card:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){border-radius:20px!important;background:linear-gradient(180deg,rgba(7,18,34,.88),rgba(4,10,22,.78))!important;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.public-overview-card:hover:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){transform:translateY(-2px);border-color:rgba(127,255,248,.42)!important;box-shadow:0 22px 56px rgba(0,0,0,.42),0 0 24px rgba(98,245,238,.12)!important}
+.public-overview-status-bank .public-overview-stat strong:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){color:#7ffff8!important;text-shadow:0 0 18px rgba(98,245,238,.24)}
+body.light-theme .public-overview-page.starship-console-page:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){background:#eef4fb!important;color:#0a1622!important}
+body.light-theme .public-overview-hero:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),body.light-theme .public-overview-panel:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),body.light-theme .public-overview-card:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),body.light-theme .overview-network-table:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){backdrop-filter:none!important;text-shadow:none!important;box-shadow:0 10px 28px rgba(20,45,75,.10)!important;border-color:#cfe0ec!important;background:#ffffff!important;color:#0a1622!important}
+body.light-theme .public-overview-kicker:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),body.light-theme .public-overview-panel-title:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])),body.light-theme .public-overview-hero h1:where(:not(#pageRoot[data-theme-style="lcars"] *)):where(:not(#pageRoot[data-theme-style="lcars"])){text-shadow:none!important;color:#0f766e!important}
 
 
 /* HERMES-MOBILE-DETAIL-ADMIN-FIX-20260701

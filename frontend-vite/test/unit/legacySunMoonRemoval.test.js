@@ -60,7 +60,19 @@ function renderOverview({ files: sources }) {
   const script = new vm.Script(`${executable}\n;renderPublicOverviewPage;`, {
     filename: overviewFile,
   });
-  const app = { innerHTML: '', querySelectorAll: () => [], querySelector: () => null };
+  const attributes = new Map();
+  const app = {
+    innerHTML: '',
+    querySelectorAll: () => [],
+    querySelector: () => null,
+    setAttribute(name, value) {
+      attributes.set(name, String(value));
+    },
+    getAttribute: (name) => attributes.get(name) ?? null,
+    removeAttribute(name) {
+      attributes.delete(name);
+    },
+  };
   const servers = [
     {
       id: 101,

@@ -70,6 +70,16 @@ function element(attributes = {}) {
   };
 }
 const root = {
+  attributes: {},
+  setAttribute(name, value) {
+    this.attributes[name] = value;
+  },
+  getAttribute(name) {
+    return this.attributes[name] ?? null;
+  },
+  removeAttribute(name) {
+    delete this.attributes[name];
+  },
   isConnected: true,
   get innerHTML() {
     return this.html || '';
@@ -101,6 +111,8 @@ const root = {
     if (html.includes('id="languageSelect"')) controls.push(element({ id: 'languageSelect' }));
   },
   querySelector(selector) {
+    if (selector === '.public-overview-page')
+      return this.innerHTML.includes('lcars-theme-applied') ? this : null;
     return selector.startsWith('#')
       ? controls.find((control) => control.attributes.id === selector.slice(1))
       : null;
@@ -185,6 +197,27 @@ const cardIds = () =>
     ...root.innerHTML.matchAll(/<article class="public-overview-card[^\"]*" data-id="([^\"]+)"/g),
   ].map((match) => Number(match[1]));
 const rerender = () => render(rerender);
+
+it.each([0, 1, 4, 30])(
+  'renders the real LCARS frame and ten end-capped summaries for %i nodes',
+  (count) => {
+    state.servers = Array.from({ length: count }, (_, index) =>
+      normalizeServer({ id: index + 1, name: `Node ${index + 1}`, status: 'online' }),
+    );
+    rerender();
+    expect(root.getAttribute('data-theme-style')).toBe('lcars');
+    expect(root.innerHTML).toContain('lcars-theme-applied');
+    expect(root.innerHTML).toContain('class="lcars-frame" aria-hidden="true"');
+    expect([...root.innerHTML.matchAll(/class="lcars-endcap" aria-hidden="true"/g)]).toHaveLength(
+      10,
+    );
+    expect(cardIds()).toHaveLength(count);
+    expect([...root.innerHTML.matchAll(/data-overview-summary=/g)]).toHaveLength(10);
+    expect(root.innerHTML).not.toMatch(/<table\b|overview-network-table/);
+    destroy();
+    expect(root.getAttribute('data-theme-style')).toBeNull();
+  },
+);
 
 it('has four group-scoped status slices and keeps ten global summaries through real clicks', () => {
   state.servers.push(normalizeServer({ id: 3, name: 'C', group_id: 2, status: 'offline' }));
@@ -631,4 +664,12 @@ it('isolates legacy control geometry and gives tablet summaries two columns', ()
     });
   });
   expect(tablet).toBe(true);
+});
+
+it('removes the LCARS root marker when the overview route exits', () => {
+  rerender();
+  const checkRoute = window.addEventListener.mock.calls.find(([type]) => type === 'popstate')[1];
+  root.innerHTML = '<section class="detail-page-shell"></section>';
+  checkRoute();
+  expect(root.getAttribute('data-theme-style')).toBeNull();
 });

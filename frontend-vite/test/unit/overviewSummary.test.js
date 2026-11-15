@@ -9,6 +9,13 @@ let summarizeOverview;
 let setLanguage;
 let LANGUAGE_PACKS;
 const root = {
+  attributes: {},
+  setAttribute(name, value) {
+    this.attributes[name] = value;
+  },
+  removeAttribute(name) {
+    delete this.attributes[name];
+  },
   innerHTML: '',
   isConnected: true,
   querySelector: () => null,

@@ -36,6 +36,7 @@ export function destroyPublicOverviewPage() {
   overviewLifecycleWindow?.removeEventListener('popstate', checkOverviewRoute);
   overviewLifecycleWindow?.removeEventListener('hashchange', checkOverviewRoute);
   overviewLifecycleWindow = null;
+  overviewPageRoot?.removeAttribute('data-theme-style');
   overviewPageRoot = null;
 }
 
@@ -357,8 +358,10 @@ export function renderPublicOverviewPage(onRequestRerender) {
     { key: 'all', name: t('overviewAll'), count: rows.length, color: '' },
     ...backendGroups.map((g) => ({ key: g.key, name: g.name, count: g.count, color: g.color, purpose: g.purpose })),
   ];
+  app.setAttribute('data-theme-style', 'lcars');
   app.innerHTML = `
-    <section class="public-overview-page starship-console-page overview-layout-v2">
+    <section class="public-overview-page starship-console-page overview-layout-v2 lcars-theme-applied">
+      <div class="lcars-frame" aria-hidden="true"><span class="lcars-elbow"></span><span class="lcars-beam"></span><span class="lcars-rail"></span></div>
       <div class="public-overview-floating-topbar overview-compact-topbar" aria-label="资产总览导航与显示设置">
         <div class="overview-compact-heading">
           <h1>${t('overviewTitle')}</h1>
