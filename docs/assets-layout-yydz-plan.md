@@ -17,7 +17,10 @@
 ## 布局与断点
 
 原生根为 `.public-overview-page.overview-layout-v2`，顺序固定为：紧凑 topbar →
-分组 tabs → 10 卡 summary → 状态/排序 → 节点网格 → 网络表及既有页脚。
+分组 tabs → 10 卡 summary → 状态/排序 → 节点网格 → 原有 4 个 Dock。
+按用户本次“删除节点网络详情表”要求，移除网络表 renderer、插值、折叠绑定及其独占私有 helper；
+不新增替代 UI、占位节点、CSS 高度或人工留白，节点网格自然连接原 Dock。
+节点卡内网速、周期流量（含真实 0）、区域 PING、10 卡 summary、分组状态排序、计算器及语言/币种/主题保持。
 不保留旧 hero、aside 或重复分区标题；汇总卡不复用 `.public-overview-card`。
 节点与汇总均沿用既有亮暗 v2 材质、20px 圆角及模糊，不更改真实节点材质声明。
 

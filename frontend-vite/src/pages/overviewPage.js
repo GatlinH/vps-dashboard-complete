@@ -109,16 +109,6 @@ function summarizeMoonPanel(servers = [], cost) {
   };
 }
 
-function maskIpForOverview(value) {
-  const raw = String(value || '').trim();
-  if (!raw || raw === '—') return '—';
-  const ipv4 = raw.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?::(\d+))?$/);
-  if (ipv4) return `${ipv4[1]}.*.*.***`;
-  if (raw.includes(':')) return `${raw.split(':').filter(Boolean)[0] || '***'}:*:*:***`;
-  if (raw.length > 3) return `${raw.slice(0, 3)}***`;
-  return raw || '***';
-}
-
 function overviewMetricValue(server, key) {
   if (!server?.__liveMetricFlags?.[key]) return null;
   const value = server?.[key];
@@ -145,95 +135,6 @@ function overviewTrafficValue(server, key) {
   if (!server.__rawPresentFlags?.[key] || server[key] == null || server[key] === '') return '—';
   const value = Number(server[key]);
   return Number.isFinite(value) && value >= 0 ? fmtResourceGb(value) : '—';
-}
-
-function trafficResetDay(server, trafficData = null) {
-  const raw = Number(trafficData?.reset_day ?? trafficData?.traffic_reset_day ?? server?.traffic_reset_day ?? 1);
-  if (!Number.isFinite(raw)) return 1;
-  return Math.max(1, Math.min(31, Math.trunc(raw)));
-}
-
-function nextTrafficResetDateLabel(resetDay, now = new Date()) {
-  const day = Math.max(1, Math.min(31, Math.trunc(Number(resetDay) || 1)));
-  const y = now.getFullYear();
-  const m = now.getMonth();
-  const effectiveDay = (year, month) => Math.min(day, new Date(year, month + 1, 0).getDate());
-  let target = new Date(y, m, effectiveDay(y, m), 0, 0, 0, 0);
-  if (target <= now) {
-    const ny = m === 11 ? y + 1 : y;
-    const nm = (m + 1) % 12;
-    target = new Date(ny, nm, effectiveDay(ny, nm), 0, 0, 0, 0);
-  }
-  const mm = String(target.getMonth() + 1).padStart(2, '0');
-  const dd = String(target.getDate()).padStart(2, '0');
-  return `${mm}/${dd}`;
-}
-
-function formatTrafficResetText(server, trafficData = null, opts = {}) {
-  const day = trafficResetDay(server, trafficData);
-  // Same locale-ordering contract as the detail page: the day sits between a
-  // translated prefix and suffix rather than inside a hardcoded Chinese template.
-  const suffix = t('trafficResetMonthlySuffix');
-  const prefix = opts.short
-    ? `${day}${suffix}`
-    : `${t('trafficResetMonthlyPrefix')} ${day} ${suffix}`.replace(/\s+/g, ' ').trim();
-  return opts.next === false
-    ? prefix
-    : `${prefix} · ${t('trafficResetNext')} ${nextTrafficResetDateLabel(day)}`;
-}
-
-function formatOverviewTraffic(server) {
-  const used = Number(server.traffic_used_gb ?? 0);
-  const up = Number(server.traffic_up_gb ?? 0);
-  const down = Number(server.traffic_down_gb ?? 0);
-  const limit = Number(server.traffic_limit_gb ?? 0);
-  const realUsed = used || (up + down);
-  if (!realUsed && !limit) return '—';
-  const usedText = fmtResourceGb(realUsed);
-  const mainText = limit > 0 ? `${usedText} / ${fmtResourceGb(limit)}` : usedText;
-  return `${mainText} · ${formatTrafficResetText(server, null, { short: true, next: false })}`;
-}
-
-function formatOverviewLoss(server) {
-  const loss = server.packet_loss ?? server.loss_rate ?? server.ping_loss;
-  if (loss == null || loss === '') return '—';
-  const num = Number(loss);
-  return Number.isFinite(num) ? `${num.toFixed(1)}%` : '—';
-}
-
-function renderOverviewNetworkTable(rows = [], { collapsed = true } = {}) {
-  const tableRows = rows.map((server) => {
-    const lossText = formatOverviewLoss(server);
-    const lossValue = Number.parseFloat(lossText);
-    const location = server.location || server.city || server.region || server.country || '—';
-    const provider = server.provider_guess || server.provider || server.agent_config?.inventory_meta?.org || server.agent_config?.inventory_meta?.isp || '—';
-    const ip = maskIpForOverview(server.ip || server.public_ip || server.agent_config?.inventory_meta?.ip || server.hostname || '—');
-    return `
-      <tr data-id="${server.id || ''}">
-        <td><strong>${escText(server.name || '未命名节点')}</strong></td>
-        <td>${escText(ip)}</td>
-        <td>${escText(location)}</td>
-        <td>${escText(provider)}</td>
-        <td><span class="network-table-rate">${escText(formatOverviewTraffic(server))}</span></td>
-        <td><span class="network-table-loss ${Number.isFinite(lossValue) && lossValue > 0.5 ? 'is-warn' : ''}">${escText(lossText)}</span></td>
-      </tr>`;
-  }).join('');
-  return `
-    <section class="overview-network-table ${collapsed ? 'is-collapsed' : ''}" aria-label="${t('nodeNetworkDetails')}">
-      <button class="overview-network-table-toggle" type="button" aria-expanded="${collapsed ? 'false' : 'true'}">
-        <div>
-          <span class="overview-network-table-kicker">${t('networkDetails')}</span>
-          <h2>${t('nodeNetworkDetails')}</h2>
-        </div>
-        <span class="public-overview-panel-chevron">${collapsed ? '▸' : '▾'}</span>
-      </button>
-      <div class="overview-network-table-scroll">
-        <table>
-          <thead><tr><th>${t('tableNodeId')}</th><th>IP</th><th>${t('geoLocation')}</th><th>${t('operator')}</th><th>${t('monthlyTraffic')}</th><th>${t('packetLoss')}</th></tr></thead>
-          <tbody>${tableRows || `<tr><td colspan="6">${t('noNetworkData')}</td></tr>`}</tbody>
-        </table>
-      </div>
-    </section>`;
 }
 
 function isMasterNode(server = {}) {
@@ -503,7 +404,6 @@ export function renderPublicOverviewPage(onRequestRerender) {
 
       </div>
 
-      ${renderOverviewNetworkTable(rows, { collapsed: true })}
     </section>`;
 
   updateRateDisplay();
@@ -546,16 +446,6 @@ export function renderPublicOverviewPage(onRequestRerender) {
       const chevron = btn.querySelector('.public-overview-panel-chevron');
       if (chevron) chevron.textContent = open ? '▾' : '▸';
     });
-  });
-
-  const networkToggle = app.querySelector('.overview-network-table-toggle');
-  networkToggle?.addEventListener('click', () => {
-    const table = app.querySelector('.overview-network-table');
-    if (!table) return;
-    const open = table.classList.toggle('is-collapsed') === false;
-    networkToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    const chevron = networkToggle.querySelector('.public-overview-panel-chevron');
-    if (chevron) chevron.textContent = open ? '▾' : '▸';
   });
 
   app.querySelectorAll('.public-overview-card').forEach((card) => {

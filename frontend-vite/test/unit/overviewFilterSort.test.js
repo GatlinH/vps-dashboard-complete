@@ -362,6 +362,14 @@ it('rejects invalid expiry and tolerates unavailable persistence', () => {
 });
 
 it('runs original wrapper, topbar setters and footer after group/status/sort replacement', async () => {
+  const expectNoNetworkTable = () => {
+    expect(root.innerHTML).not.toContain('overview-network-table');
+    expect(root.innerHTML).not.toContain('overview-network-table-toggle');
+    expect(root.innerHTML).not.toContain(preferences.t('nodeNetworkDetails'));
+    expect(root.innerHTML).not.toContain(preferences.t('networkDetails'));
+    expect(root.innerHTML).not.toMatch(/<table\b/);
+    expect(root.innerHTML.match(/data-overview-summary=/g)).toHaveLength(10);
+  };
   const source = readFileSync(new URL('../../src/modules/serverTable.js', import.meta.url), 'utf8');
   const names = [
     'renderPublicOverviewPage',
@@ -395,6 +403,7 @@ it('runs original wrapper, topbar setters and footer after group/status/sort rep
   preferences.configureLanguageSwitcher({ isOverviewMode: () => true, renderOverview: wrapper });
   const intervals = vi.spyOn(globalThis, 'setInterval');
   wrapper();
+  expectNoNetworkTable();
   await vi.waitFor(() =>
     expect(pingHosts.find((host) => host.dataset.serverId === '2').innerHTML).toContain('Asia'),
   );
@@ -417,16 +426,20 @@ it('runs original wrapper, topbar setters and footer after group/status/sort rep
     ['data-overview-sort', 'cpu'],
   ]) {
     button(attribute, value).click();
+    expectNoNetworkTable();
     const themeButton = root.querySelector('#themeToggle');
     expect(themeButton.listenerCount('click')).toBe(1);
     themeButton.click();
+    expectNoNetworkTable();
     expect(storage.get('display_theme')).toBe(theme);
     const language = root.querySelector('#languageSelect');
     expect(language.listenerCount('change')).toBe(1);
     language.value = 'en';
     language.dispatch('change');
+    expectNoNetworkTable();
     expect(storage.get('display_language')).toBe('en');
     button('data-currency', 'USD').click();
+    expectNoNetworkTable();
     expect(state.currency).toBe('USD');
     expect(nav.children[1].getAttribute('aria-pressed')).toBe('true');
     expect(container.children.at(-2)).toBe(nav);
@@ -470,7 +483,6 @@ it('renders the compact v2 sequence without hero, aside or duplicate section hea
     'overview-summary-grid',
     'overview-filter-sort',
     'public-overview-main-grid',
-    'overview-network-table',
   ];
   expect(sequence.map((marker) => root.innerHTML.indexOf(marker))).toEqual(
     sequence
@@ -479,7 +491,9 @@ it('renders the compact v2 sequence without hero, aside or duplicate section hea
   );
   expect(root.innerHTML).toContain('id="themeToggle"');
   expect(root.innerHTML).toContain('id="languageSelect"');
-  expect(root.innerHTML).toContain('overview-network-table is-collapsed');
+  expect(root.innerHTML).not.toContain('overview-network-table');
+  expect(root.innerHTML).not.toContain('overview-network-table-toggle');
+  expect(root.innerHTML).not.toContain(preferences.t('nodeNetworkDetails'));
 });
 
 it('keeps all thirty expiry rows reachable behind closed summary details', () => {

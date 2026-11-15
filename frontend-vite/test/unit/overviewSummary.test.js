@@ -104,7 +104,7 @@ describe('public overview real summary entry', () => {
     expect(root.innerHTML).toContain('1/3');
     expect(root.innerHTML.match(/class="public-overview-card /g)).toHaveLength(3);
     expect(root.innerHTML).toContain('overview-ping');
-    expect(root.innerHTML).toContain('overview-network-table');
+    expect(root.innerHTML).not.toContain('overview-network-table');
     storage.set('vps_overview_group_filter', '1');
     renderPublicOverviewPage();
     expect(root.innerHTML).toContain('48 GB');
@@ -122,6 +122,42 @@ describe('public overview real summary entry', () => {
     expect(result.cpu.total).toBe(count || null);
     expect(root.innerHTML.match(/data-overview-summary=/g)).toHaveLength(10);
     expect(root.innerHTML.match(/class="public-overview-card /g) || []).toHaveLength(count);
+  });
+
+  it.each([0, 1, 4, 30])('removes network details for %i nodes across rerenders', (count) => {
+    state.servers = Array.from({ length: count }, (_, index) =>
+      normalizeServer({
+        id: index + 1,
+        name: `Network node ${index + 1}`,
+        status: 'online',
+        group_id: 1,
+        net_up: 0,
+        net_down: 1024,
+        traffic_used_gb: 0,
+        traffic_up_gb: 0,
+        traffic_down_gb: 0,
+        traffic_limit_gb: 100,
+      }),
+    );
+    for (const language of ['zh', 'en']) {
+      setLanguage(language);
+      renderPublicOverviewPage();
+      expect(root.innerHTML).not.toContain('overview-network-table');
+      expect(root.innerHTML).not.toContain('overview-network-table-toggle');
+      expect(root.innerHTML).not.toContain(LANGUAGE_PACKS[language].nodeNetworkDetails);
+      expect(root.innerHTML).not.toContain(LANGUAGE_PACKS[language].networkDetails);
+      expect(root.innerHTML).not.toMatch(/<table\b/);
+      expect(root.innerHTML.match(/data-overview-summary=/g)).toHaveLength(10);
+      const cards = [...root.innerHTML.matchAll(/<article\b[\s\S]*?<\/article>/g)];
+      expect(cards).toHaveLength(count);
+      for (const [card] of cards) {
+        expect(card).toContain('overview-ping');
+        expect(card).toContain('0 KB/s');
+        expect(card).toContain('1.00 MB/s');
+        expect(card).toContain('0 B / 100.0 GB');
+        expect(card).toContain('public-money-btn overview-residual-btn');
+      }
+    }
   });
 
   it('renders the escaped highest-load identity inside the actual load summary card', () => {
