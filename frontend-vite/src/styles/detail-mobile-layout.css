@@ -1,0 +1,268 @@
+@media (max-width: 768px) {
+  .detail-page-shell:has(.fleet-detail-console) {
+    padding: 8px;
+    overflow-x: visible;
+  }
+  .detail-page-shell .detail-page-grid {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+  .detail-page-shell .fleet-detail-console {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: repeat(6, auto);
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    padding: 8px;
+    margin: 0;
+    box-sizing: border-box;
+  }
+  .fleet-detail-console > * {
+    grid-column: 1;
+    min-width: 0;
+  }
+  .fleet-detail-console .fleet-console-header {
+    grid-row: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    height: auto;
+  }
+  .fleet-detail-console .fleet-node-identity {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 10px;
+  }
+  .fleet-detail-console .fleet-node-caption {
+    min-width: 0;
+  }
+  .fleet-detail-console .fleet-reference-ship.fleet-ufo-node {
+    width: 48px;
+    height: 28px;
+    flex: 0 0 48px;
+    margin: 0;
+  }
+  .fleet-detail-console .fleet-status-bank,
+  .fleet-detail-console .detail-health-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: auto;
+    gap: 8px;
+    height: auto;
+    min-width: 0;
+  }
+  .fleet-detail-console .fleet-status-bank > div {
+    padding: 10px;
+    min-width: 0;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+  .fleet-detail-console .detail-health-summary {
+    grid-row: 2;
+  }
+  .fleet-detail-console .probe-observability-grid {
+    grid-row: 3;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    min-width: 0;
+  }
+  .fleet-detail-console .probe-card,
+  .fleet-detail-console .fleet-chart-card,
+  .fleet-detail-console .fleet-probe-table-panel {
+    display: block;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    min-width: 0;
+    width: 100%;
+    overflow: visible;
+    clip-path: none;
+    contain: none;
+    padding: 12px;
+    box-sizing: border-box;
+  }
+  .fleet-detail-console .probe-card-head,
+  .fleet-detail-console .fleet-chart-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 10px;
+    height: auto;
+    margin-bottom: 8px;
+  }
+  .fleet-detail-console .probe-resource-list {
+    display: grid;
+    gap: 10px;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+  .fleet-detail-console .probe-resource-line {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    grid-template-areas: "pill value" "pill track" "pill extra";
+    gap: 5px 10px;
+    padding: 8px 0;
+  }
+  .fleet-detail-console .probe-resource-pill { grid-area: pill; }
+  .fleet-detail-console .probe-resource-line strong { grid-area: value; }
+  .fleet-detail-console .probe-resource-track { grid-area: track; width: 100%; }
+  .fleet-detail-console .probe-resource-line em { grid-area: extra; }
+  .fleet-detail-console .runtime-env-grid,
+  .fleet-detail-console .probe-bandwidth-now {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .fleet-detail-console .fleet-right-zone,
+  .fleet-detail-console .fleet-probe-grid {
+    display: contents;
+  }
+  .fleet-detail-console .fleet-starmap-panel { display: none; }
+  .fleet-detail-console .history-range-bar {
+    grid-row: 4;
+    grid-column: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    overflow: visible;
+  }
+  .fleet-detail-console .detail-history-range {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    padding: 4px;
+    box-sizing: border-box;
+  }
+  .fleet-detail-console .detail-history-btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .fleet-detail-console .detail-history-btn,
+  .fleet-detail-console .ping-region-select {
+    min-height: 36px;
+    font-size: 12px;
+    padding: 6px 8px;
+    max-width: 100%;
+  }
+  .fleet-detail-console .fleet-chart-matrix {
+    grid-row: 5;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-auto-rows: auto;
+    gap: 12px;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+    margin: 0;
+  }
+  .fleet-detail-console .fleet-chart-card {
+    grid-area: auto;
+    position: relative;
+  }
+  .fleet-detail-console .network-chart-surface {
+    position: relative;
+    height: 130px;
+    min-height: 130px;
+    max-height: 130px;
+  }
+  .fleet-detail-console .fleet-chart-card canvas {
+    display: block;
+    width: 100%;
+    height: 130px;
+    min-height: 130px;
+    max-height: 130px;
+    box-sizing: border-box;
+    aspect-ratio: auto;
+  }
+  .fleet-detail-console .fleet-probe-table-panel {
+    grid-row: 6;
+    grid-column: 1;
+  }
+  .fleet-detail-console .fleet-table {
+    width: 100%;
+    table-layout: fixed;
+  }
+  .fleet-detail-console .fleet-console-footer { grid-row: 7; }
+  .detail-page-shell .detail-page-topbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+    height: auto;
+    margin: 0 0 12px;
+  }
+  .detail-page-shell .detail-page-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+    padding: 4px;
+    box-sizing: border-box;
+  }
+  .detail-page-shell .detail-currency-switch.currency-switch {
+    overflow: visible;
+    padding: 4px;
+  }
+  .detail-page-shell .detail-back-link:focus-visible,
+  .detail-page-shell .theme-toggle:focus-visible,
+  .detail-page-shell .currency-btn:focus-visible,
+  .detail-page-shell .language-select:focus-visible,
+  .fleet-detail-console .detail-history-btn:focus-visible,
+  .fleet-detail-console .ping-region-select:focus-visible {
+    outline: 2px solid #94a3b8;
+    outline-offset: 2px;
+  }
+  [data-theme="light"] .detail-page-shell .detail-back-link:focus-visible,
+  [data-theme="light"] .detail-page-shell .theme-toggle:focus-visible,
+  [data-theme="light"] .detail-page-shell .currency-btn:focus-visible,
+  [data-theme="light"] .detail-page-shell .language-select:focus-visible,
+  [data-theme="light"] .fleet-detail-console .detail-history-btn:focus-visible,
+  [data-theme="light"] .fleet-detail-console .ping-region-select:focus-visible {
+    outline-color: #334155;
+  }
+  .detail-page-shell .detail-back-link,
+  .detail-page-shell .theme-toggle,
+  .detail-page-shell .currency-btn,
+  .detail-page-shell .language-select {
+    min-height: 36px;
+    box-sizing: border-box;
+  }
+  .fleet-detail-console h1,
+  .fleet-detail-console h2,
+  .fleet-detail-console strong,
+  .fleet-detail-console span,
+  .fleet-detail-console em,
+  .fleet-detail-console td,
+  .fleet-detail-console th {
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+  }
+}
+@media (max-width: 430px) {
+  .fleet-detail-console .probe-observability-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .detail-page-shell .detail-page-tools { flex-basis: 100%; }
+}

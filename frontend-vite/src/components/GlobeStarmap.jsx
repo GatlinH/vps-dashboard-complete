@@ -662,7 +662,7 @@ export default function GlobeStarmap({
   const toolbarBg = isLight ? "rgba(255,249,236,0.86)" : "#111d33";
   const toolbarBorder = isLight ? "rgba(38,99,108,.28)" : "rgba(99,179,237,0.15)";
   const toolbarAccent = isLight ? "#0b6670" : "#63b3ed";
-  const toolbarMuted = isLight ? "#5f7064" : "#8ea7c7";
+  const toolbarMuted = isLight ? "#334155" : "#8ea7c7";
   const btnStyle = {
     padding: "5px 14px", borderRadius: 7,
     background: toolbarBg,

@@ -48,6 +48,13 @@ const serversChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastCh
 window.__DBG__.STATE = state;
 let detailChartRuntimePromise = null;
 let detailChartRuntime = null;
+let detailChartThemeCleanup = null;
+function bindDetailChartTheme(runtime) {
+  detailChartThemeCleanup?.();
+  const repaint = () => runtime.refreshChartsTheme(runtime.detailCharts);
+  window.addEventListener('vps-theme-changed', repaint);
+  detailChartThemeCleanup = () => window.removeEventListener('vps-theme-changed', repaint);
+}
 async function getDetailChartRuntime() {
   if (detailChartRuntime) return detailChartRuntime;
   if (!detailChartRuntimePromise) detailChartRuntimePromise = Promise.all([
@@ -55,6 +62,7 @@ async function getDetailChartRuntime() {
     import('../pages/detailCharts.js'),
   ]).then(([chartModule, detailModule]) => {
     detailChartRuntime = { detailCharts: new chartModule.TrafficChart(), ...detailModule };
+    bindDetailChartTheme(detailChartRuntime);
     return detailChartRuntime;
   });
   return detailChartRuntimePromise;
@@ -2342,6 +2350,9 @@ async function renderDetailPage(serverId, hydratedPayload = null, generation = b
       renderGlobalVpsProbeRows,
     },
   });
+
+  detailGrid.closest('.detail-page-shell')?.classList.remove('detail-loading-page');
+  detailGrid.closest('.detail-page-shell')?.classList.add('detail-loaded-page');
 
   detailGrid.querySelector('.detail-history-range')?.addEventListener('click', (event) => {
     const button = event.target?.closest?.('[data-detail-history-days]');

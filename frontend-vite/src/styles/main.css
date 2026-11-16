@@ -792,16 +792,22 @@
 
 /* hotfix-overview-starfleet-ufo-clear */
 /* Detail: lower the whole console stack so the resource/probe cards no longer cover the UFO focal asset. */
+@media (min-width: 769px) {
 .detail-page-shell .fleet-detail-console,
 .starship-console-page .fleet-detail-console{
   margin-top: clamp(46px, 5.6vh, 76px) !important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell{
   padding-top: clamp(28px, 4.5vh, 54px) !important;
 }
+}
 @media (max-width: 900px){
+  @media (min-width: 769px) {
   .detail-page-shell .fleet-detail-console,
   .starship-console-page .fleet-detail-console{ margin-top: 28px !important; }
+}
 }
 
 /* Asset overview: same Starfleet/HUD language as the detail console, not generic glass cards. */
@@ -1011,10 +1017,15 @@
 }
 .detail-page-shell:has(.fleet-detail-console) .fleet-reference-ship,
 .fleet-reference-ship.fleet-ufo-node{
+}
+@media (min-width: 769px) {
+.detail-page-shell:has(.fleet-detail-console) .fleet-reference-ship,
+.fleet-reference-ship.fleet-ufo-node{
   width:168px !important;
   height:104px !important;
   flex:0 0 168px !important;
   margin-left:-8px !important;
+}
 }
 .detail-page-shell:has(.fleet-detail-console) .fleet-reference-badge,
 .fleet-reference-badge.fleet-delta-badge{
@@ -1023,17 +1034,21 @@
   justify-self:center !important;
   align-self:center !important;
 }
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-node-identity{
   grid-template-columns:164px minmax(0,1fr) !important;
   align-items:center !important;
+}
 }
 .detail-page-shell:has(.fleet-detail-console) .fleet-node-caption h1{font-size:19px!important;}
 
 
 /* hotfix-badge-visible-placement */
 /* Keep the real Starfleet PNG in the original badge slot, but pin it inside the visible left rail instead of letting the long info panel push it below the fold. */
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail{
   position:relative !important;
+}
 }
 .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-reference-badge{
   position:absolute !important;
@@ -1052,14 +1067,18 @@
 
 /* hotfix-detail-clear-starship-and-badge-text */
 /* Keep the telemetry/resource cards below the Enterprise hologram, but reduce the excessive gap. */
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail,
 .detail-page-shell:has(.fleet-detail-console) .probe-observability-grid{
   margin-top: 56px !important;
 }
+}
 /* Keep downstream sections aligned with the lowered top row. */
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix,
 .detail-page-shell:has(.fleet-detail-console) .fleet-right-zone{
   margin-top: 56px !important;
+}
 }
 /* Center the replacement badge in the empty area below telemetry text, not over the labels. */
 .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-reference-badge{
@@ -1069,12 +1088,14 @@
   pointer-events:none !important;
 }
 @media (max-width:1200px){
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail,
   .detail-page-shell:has(.fleet-detail-console) .probe-observability-grid,
   .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix,
   .detail-page-shell:has(.fleet-detail-console) .fleet-right-zone{
     margin-top: 28px !important;
   }
+}
   .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-reference-badge{
     transform:none !important;
   }
@@ -1082,6 +1103,7 @@
 
 
 /* hotfix-detail-controls-language-errorlog */
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .detail-page-topbar{
   width: min(100%, 1248px) !important;
   margin: 0 auto 12px !important;
@@ -1092,6 +1114,8 @@
   gap:16px !important;
   box-sizing:border-box !important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .detail-page-tools{
   display:flex !important;
   align-items:center !important;
@@ -1100,12 +1124,11 @@
   gap:9px !important;
   max-width: calc(100% - 180px) !important;
 }
+}
 .detail-page-shell:has(.fleet-detail-console) .detail-back-link,
 .detail-page-shell:has(.fleet-detail-console) .theme-toggle,
 .detail-page-shell:has(.fleet-detail-console) .currency-btn,
 .detail-page-shell:has(.fleet-detail-console) .language-select{
-  min-height:38px !important;
-  padding:9px 14px !important;
   font-size:12px !important;
   line-height:1 !important;
   border-radius:10px !important;
@@ -1115,36 +1138,62 @@
   color:#cfffff !important;
   box-shadow:0 0 18px rgba(98,245,238,.08), inset 0 0 12px rgba(98,245,238,.04) !important;
 }
+@media (min-width: 769px) {
+.detail-page-shell:has(.fleet-detail-console) .detail-back-link,
+.detail-page-shell:has(.fleet-detail-console) .theme-toggle,
+.detail-page-shell:has(.fleet-detail-console) .currency-btn,
+.detail-page-shell:has(.fleet-detail-console) .language-select{
+  min-height:38px !important;
+  padding:9px 14px !important;
+}
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-back-link{
+  white-space:nowrap !important;
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .detail-back-link{
   display:inline-flex !important;
   align-items:center !important;
-  white-space:nowrap !important;
   min-width:118px !important;
   justify-content:center !important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .theme-toggle{
   min-width:92px !important;
   justify-content:center !important;
   gap:7px !important;
 }
+}
 .detail-page-shell:has(.fleet-detail-console) .language-select{
-  min-width:112px !important;
   cursor:pointer !important;
 }
+@media (min-width: 769px) {
+.detail-page-shell:has(.fleet-detail-console) .language-select{
+  min-width:112px !important;
+}
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .detail-currency-switch{
   min-height:38px !important;
   display:flex !important;
   align-items:center !important;
   gap:5px !important;
 }
+}
 .detail-page-shell:has(.fleet-detail-console) .rate-display{
-  min-height:38px !important;
-  display:flex !important;
-  align-items:center !important;
   font-size:12px !important;
   color:#aeefff !important;
   white-space:nowrap !important;
 }
+@media (min-width: 769px) {
+.detail-page-shell:has(.fleet-detail-console) .rate-display{
+  min-height:38px !important;
+  display:flex !important;
+  align-items:center !important;
+}
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-right-zone,
 .detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid,
 .detail-page-shell:has(.fleet-detail-console) .fleet-panel{
@@ -1152,45 +1201,70 @@
   max-width:100% !important;
   box-sizing:border-box !important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid{
   grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(190px,220px) !important;
   overflow:hidden !important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-error-panel{
   overflow:hidden !important;
 }
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-error-panel h3{
+  white-space:nowrap !important;
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-error-panel h3{
   display:flex !important;
   align-items:center !important;
   justify-content:space-between !important;
   gap:8px !important;
   margin:4px 0 8px !important;
-  white-space:nowrap !important;
+}
 }
 .detail-page-shell:has(.fleet-detail-console) .fleet-error-panel h3 span{
   float:none !important;
 }
 .detail-page-shell:has(.fleet-detail-console) .fleet-error-panel div:not(.fleet-title){
-  overflow:hidden !important;
   text-overflow:ellipsis !important;
   white-space:nowrap !important;
+}
+@media (min-width: 769px) {
+.detail-page-shell:has(.fleet-detail-console) .fleet-error-panel div:not(.fleet-title){
+  overflow:hidden !important;
   max-width:100% !important;
 }
+}
 @media (max-width:900px){
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .detail-page-topbar{align-items:flex-start!important;}
+}
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .detail-page-tools{max-width:100%!important;}
+}
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid{grid-template-columns:1fr!important;}
+}
 }
 
 
 
 /* hotfix-detail-realtime-units-i18n-theme-v2 */
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .detail-page-topbar{
   width:100%!important;max-width:none!important;margin:0 0 12px!important;padding:0 0 14px!important;
   display:flex!important;align-items:center!important;justify-content:space-between!important;gap:16px!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .detail-back-link{margin-right:auto!important;margin-left:0!important;justify-self:flex-start!important;}
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .detail-page-tools{margin-left:auto!important;justify-content:flex-end!important;max-width:calc(100% - 150px)!important;}
+}
 [data-theme="light"] body{background:#ede4d1!important;color:#263238!important;}
 [data-theme="light"] .detail-page-shell:has(.fleet-detail-console){
   background:radial-gradient(circle at 70% 12%,rgba(255,247,218,.75),transparent 34%),linear-gradient(135deg,#efe5d0 0%,#ded0b6 52%,#cdbd9f 100%)!important;
@@ -1229,6 +1303,7 @@
 
 
 /* hotfix-detail-currency-light-stable-v3 */
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .detail-page-tools{
   display:grid!important;
   grid-template-columns:96px 128px 176px 156px!important;
@@ -1239,12 +1314,19 @@
   width:auto!important;
   min-width:586px!important;
 }
+}
 /* A hard 96px box leaves only ~47.6px of inner width after padding+gap, which is
    narrower than the label itself ("舰桥模式" needs 48px), so the text wrapped onto a
    second line and the button grew taller than its neighbours. Keep 96px as a floor
    but let the box grow for longer translations ("Passerelle", "Мостик"). */
-.detail-page-shell:has(.fleet-detail-console) .theme-toggle{width:auto!important;min-width:96px!important;white-space:nowrap!important;flex-shrink:0!important;}
+.detail-page-shell:has(.fleet-detail-console) .theme-toggle{white-space:nowrap!important;}
+@media (min-width: 769px) {
+.detail-page-shell:has(.fleet-detail-console) .theme-toggle{width:auto!important;min-width:96px!important;flex-shrink:0!important;}
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .language-select{width:128px!important;min-width:128px!important;max-width:128px!important;}
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .detail-currency-switch{
   width:176px!important;
   min-width:176px!important;
@@ -1257,21 +1339,30 @@
   padding:0 4px!important;
   box-sizing:border-box!important;
 }
+}
+.detail-page-shell:has(.fleet-detail-console) .detail-currency-switch .currency-btn{
+  text-align:center!important;
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .detail-currency-switch .currency-btn{
   width:54px!important;
   min-width:54px!important;
   max-width:54px!important;
-  text-align:center!important;
   padding-left:0!important;
   padding-right:0!important;
 }
+}
+.detail-page-shell:has(.fleet-detail-console) .rate-display{
+  text-overflow:ellipsis!important;
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .rate-display{
   width:156px!important;
   min-width:156px!important;
   max-width:156px!important;
   justify-content:flex-start!important;
   overflow:hidden!important;
-  text-overflow:ellipsis!important;
+}
 }
 [data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .detail-currency-switch{
   background:#f7edda!important;
@@ -1290,7 +1381,9 @@
   border-color:rgba(148,92,20,.55)!important;
 }
 @media(max-width:760px){
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .detail-page-tools{display:flex!important;min-width:0!important;max-width:100%!important;flex-wrap:wrap!important;}
+}
 }
 
 
@@ -1311,10 +1404,14 @@ html,body{scrollbar-width:thin!important;}
 [data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-table-wrap,
 [data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-panel{scrollbar-color:#b99055 #efe4cd!important;}
 
+@media (min-width: 769px) {
+
 .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console{
   grid-template-columns:minmax(300px,360px) minmax(620px,1fr)!important;
   grid-template-rows:auto auto auto auto auto!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{
   grid-column:1/-1!important;
   grid-row:3!important;
@@ -1323,39 +1420,60 @@ html,body{scrollbar-width:thin!important;}
   gap:18px!important;
   width:100%!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card{
   min-height:330px!important;
   padding:18px!important;
 }
+}
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-head{
   font-size:14px!important;
+}
+@media (min-width: 769px) {
+.detail-page-shell:has(.fleet-detail-console) .fleet-chart-head{
   margin-bottom:12px!important;
+}
 }
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-head strong{
   font-size:16px!important;
 }
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card canvas,
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-sparkline{
   height:250px!important;
   min-height:250px!important;
   max-height:none!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-linechart{
   height:250px!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-right-zone{
   grid-column:1/-1!important;
   grid-row:4!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-console-footer{
   grid-column:1/-1!important;
   grid-row:5!important;
 }
+}
 @media(max-width:980px){
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{grid-template-columns:1fr!important;}
+}
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card{min-height:300px!important;}
+}
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card canvas,
   .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-sparkline{height:220px!important;min-height:220px!important;}
+}
 }
 
 
@@ -1384,6 +1502,7 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-de
   background:radial-gradient(circle at 72% 38%,rgba(213,164,82,.13),transparent 30%)!important;
   mix-blend-mode:multiply!important;
 }
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-right-zone{
   grid-column:1/-1!important;
   grid-row:4!important;
@@ -1395,6 +1514,11 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-de
   min-width:0!important;
   overflow:visible!important;
 }
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid{
+  z-index:2!important;
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid{
   display:grid!important;
   grid-template-columns:minmax(520px,1fr) minmax(300px,380px)!important;
@@ -1402,17 +1526,22 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-de
   min-height:440px!important;
   overflow:visible!important;
   position:relative!important;
-  z-index:2!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-globe-panel,
 .detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel{
   min-width:0!important;
   overflow:hidden!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel .fleet-table-wrap{
   max-height:380px!important;
   overflow:auto!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-right-zone .fleet-bottom-grid,
 .detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid{
   width:100%!important;
@@ -1424,6 +1553,8 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-de
   gap:18px!important;
   overflow:visible!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-right-zone .fleet-bottom-grid > .fleet-panel,
 .detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid > .fleet-panel{
   width:100%!important;
@@ -1432,29 +1563,39 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .fleet-de
   min-height:260px!important;
   overflow:hidden!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-inventory-panel .fleet-table-wrap,
 .detail-page-shell:has(.fleet-detail-console) .fleet-rules-panel,
 .detail-page-shell:has(.fleet-detail-console) .fleet-error-panel{
   max-height:320px!important;
 }
+}
+.detail-page-shell:has(.fleet-detail-console) .data-freshness-card .freshness-meta{
+  color:#8fb7c1!important;
+  font-size:12px!important;
+  text-transform:uppercase!important;
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .data-freshness-card .freshness-meta{
   display:flex!important;
   justify-content:space-between!important;
   gap:12px!important;
   margin:0 0 8px!important;
-  color:#8fb7c1!important;
-  font-size:12px!important;
-  text-transform:uppercase!important;
+}
 }
 html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .data-freshness-card .freshness-meta{color:#6d6252!important;}
 @media(max-width:980px){
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid,
   .detail-page-shell:has(.fleet-detail-console) .fleet-right-zone .fleet-bottom-grid,
   .detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid{grid-template-columns:1fr!important;}
 }
+}
 
 
 /* hotfix-detail-telemetry-frame-tight-badge-v7 */
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail{
   align-self:start!important;
   grid-template-rows:auto auto!important;
@@ -1462,6 +1603,8 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .data-fre
   min-height:0!important;
   height:auto!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .node-card{
   align-self:start!important;
   height:auto!important;
@@ -1470,8 +1613,11 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .data-fre
   padding-bottom:14px!important;
   overflow:visible!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-info-list{
   margin-bottom:0!important;
+}
 }
 .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-reference-badge,
 .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail .fleet-html-badge,
@@ -1491,10 +1637,13 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .data-fre
   display:block!important;
 }
 @media(max-width:1200px){
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail{grid-template-rows:auto auto!important;}
+}
 }
 
 /* hotfix-detail-relayout-starmap-first-v1 */
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console{
   display:grid!important;
   grid-template-columns:300px minmax(0,1fr)!important;
@@ -1504,16 +1653,22 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .data-fre
   margin:28px auto 0!important;
   padding:22px!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-console-header{
   grid-column:1/-1!important;
   grid-row:1!important;
   margin-bottom:0!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail{
   grid-column:1!important;
   grid-row:2!important;
   min-width:0!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .probe-observability-grid{
   grid-column:2!important;
   grid-row:2!important;
@@ -1522,10 +1677,14 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .data-fre
   gap:14px!important;
   align-self:stretch!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .probe-card{
   min-height:0!important;
   height:auto!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-right-zone{
   grid-column:1/-1!important;
   grid-row:3!important;
@@ -1533,39 +1692,59 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .data-fre
   grid-template-columns:1fr!important;
   gap:18px!important;
 }
+}
 .detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid{
   order:1!important;
+}
+@media (min-width: 769px) {
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid{
   display:grid!important;
   grid-template-columns:minmax(640px,1fr) minmax(280px,340px)!important;
   gap:18px!important;
   min-height:0!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-starmap-panel{
   min-height:560px!important;
   max-width:none!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount{
   min-height:500px!important;
   display:flex!important;
   align-items:center!important;
   justify-content:center!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel{
   min-height:560px!important;
+}
 }
 .detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel .fleet-table{
   font-size:12px!important;
 }
 .detail-page-shell:has(.fleet-detail-console) .fleet-database-panel{
   order:2!important;
+}
+@media (min-width: 769px) {
+.detail-page-shell:has(.fleet-detail-console) .fleet-database-panel{
   min-height:0!important;
+}
 }
 .detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid{
   order:3!important;
+}
+@media (min-width: 769px) {
+.detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid{
   display:grid!important;
   grid-template-columns:minmax(260px,.9fr) minmax(420px,1.25fr) minmax(260px,.9fr)!important;
   gap:18px!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{
   grid-column:1/-1!important;
   grid-row:4!important;
@@ -1573,39 +1752,55 @@ html[data-theme="light"] .detail-page-shell:has(.fleet-detail-console) .data-fre
   grid-template-columns:repeat(3,minmax(280px,1fr))!important;
   gap:16px!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card{
   min-height:250px!important;
   padding:14px!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card canvas,
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-sparkline,
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-linechart{
   height:175px!important;
   min-height:175px!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-console-footer{
   grid-column:1/-1!important;
   grid-row:5!important;
 }
+}
 @media(max-width:1100px){
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console{grid-template-columns:1fr!important;}
+}
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail,
   .detail-page-shell:has(.fleet-detail-console) .probe-observability-grid,
   .detail-page-shell:has(.fleet-detail-console) .fleet-right-zone,
   .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{grid-column:1!important;}
+}
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .probe-observability-grid,
   .detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid,
   .detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid,
   .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{grid-template-columns:1fr!important;}
 }
+}
 
 /* hotfix-detail-full-bleed-command-deck-v2 */
+@media (min-width: 769px) {
 html:has(.fleet-detail-console),
 html:has(.fleet-detail-console) body{
   width:100%!important;
   max-width:none!important;
   overflow-x:hidden!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console){
   width:100vw!important;
   max-width:none!important;
@@ -1613,12 +1808,16 @@ html:has(.fleet-detail-console) body{
   padding:10px 12px 18px!important;
   box-sizing:border-box!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) #detailPageGrid,
 .detail-page-shell:has(.fleet-detail-console) .detail-page-grid{
   width:100%!important;
   max-width:none!important;
   margin:0!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .detail-page-topbar{
   width:100%!important;
   max-width:none!important;
@@ -1626,6 +1825,8 @@ html:has(.fleet-detail-console) body{
   padding:0 4px!important;
   box-sizing:border-box!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console{
   width:100%!important;
   max-width:none!important;
@@ -1638,18 +1839,24 @@ html:has(.fleet-detail-console) body{
   grid-template-rows:auto auto auto auto!important;
   gap:14px!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-console-header{
   grid-column:1/-1!important;
   grid-row:1!important;
   width:100%!important;
   min-width:0!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail{
   grid-column:1!important;
   grid-row:2!important;
   min-width:0!important;
   align-self:stretch!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .probe-observability-grid{
   grid-column:2!important;
   grid-row:2!important;
@@ -1660,11 +1867,15 @@ html:has(.fleet-detail-console) body{
   min-width:0!important;
   align-self:stretch!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .probe-card{
   min-height:0!important;
   height:auto!important;
   padding:14px!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-right-zone{
   grid-column:3!important;
   grid-row:2 / span 2!important;
@@ -1675,14 +1886,20 @@ html:has(.fleet-detail-console) body{
   min-width:0!important;
   overflow:visible!important;
 }
+}
 .detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid{
   order:1!important;
+}
+@media (min-width: 769px) {
+.detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid{
   display:grid!important;
   grid-template-columns:minmax(0,1fr) minmax(230px,300px)!important;
   gap:14px!important;
   min-height:470px!important;
   min-width:0!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-starmap-panel{
   width:100%!important;
   min-width:0!important;
@@ -1690,6 +1907,8 @@ html:has(.fleet-detail-console) body{
   max-width:none!important;
   overflow:hidden!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount{
   width:100%!important;
   min-width:0!important;
@@ -1700,19 +1919,29 @@ html:has(.fleet-detail-console) body{
   justify-content:center!important;
   overflow:hidden!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
   max-width:100%!important;
   height:auto!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel{
   min-width:0!important;
   min-height:470px!important;
   overflow:hidden!important;
 }
+}
 .detail-page-shell:has(.fleet-detail-console) .fleet-database-panel{
   order:2!important;
+}
+@media (min-width: 769px) {
+.detail-page-shell:has(.fleet-detail-console) .fleet-database-panel{
   min-width:0!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{
   grid-column:1 / span 2!important;
   grid-row:3!important;
@@ -1723,40 +1952,56 @@ html:has(.fleet-detail-console) body{
   min-width:0!important;
   align-self:start!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card{
   min-width:0!important;
   min-height:225px!important;
   padding:13px!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card canvas,
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-sparkline,
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-linechart{
   height:150px!important;
   min-height:150px!important;
 }
+}
+.detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid{
+  order:3!important;
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-bottom-grid{
   grid-column:1/-1!important;
   grid-row:4!important;
-  order:3!important;
   display:grid!important;
   grid-template-columns:minmax(260px,.85fr) minmax(520px,1.35fr) minmax(260px,.85fr)!important;
   gap:14px!important;
   width:100%!important;
   min-width:0!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-console-footer{
   display:none!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-panel,
 .detail-page-shell:has(.fleet-detail-console) .fleet-table-wrap{
   min-width:0!important;
   box-sizing:border-box!important;
 }
+}
 @media(max-width:1180px){
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console{
     grid-template-columns:1fr!important;
     grid-template-rows:auto!important;
   }
+}
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .fleet-console-header,
   .detail-page-shell:has(.fleet-detail-console) .fleet-left-rail,
   .detail-page-shell:has(.fleet-detail-console) .probe-observability-grid,
@@ -1766,6 +2011,8 @@ html:has(.fleet-detail-console) body{
     grid-column:1!important;
     grid-row:auto!important;
   }
+}
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .probe-observability-grid,
   .detail-page-shell:has(.fleet-detail-console) .fleet-probe-grid,
   .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix,
@@ -1773,43 +2020,81 @@ html:has(.fleet-detail-console) body{
     grid-template-columns:1fr!important;
   }
 }
+}
 
 /* hotfix-detail-full-bleed-specificity-v3 */
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console){
   width:100vw!important;max-width:none!important;margin:0!important;padding:10px 12px 18px!important;box-sizing:border-box!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console{
   width:100%!important;max-width:none!important;margin:0!important;padding:16px!important;box-sizing:border-box!important;
   display:grid!important;grid-template-columns:18.5% minmax(520px,45%) minmax(430px,36.5%)!important;grid-template-rows:auto auto auto auto!important;gap:14px!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-console-header{grid-column:1/-1!important;grid-row:1!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail{grid-column:1!important;grid-row:3!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid{grid-column:2!important;grid-row:3!important;display:grid!important;grid-template-columns:1fr!important;gap:12px!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone{grid-column:3!important;grid-row:3!important;display:grid!important;grid-template-columns:1fr!important;grid-template-rows:minmax(470px,auto) auto!important;gap:14px!important;min-width:0!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(230px,300px)!important;gap:14px!important;min-height:470px!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{min-height:470px!important;width:100%!important;max-width:none!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{height:410px!important;min-height:410px!important;width:100%!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel{min-height:470px!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{grid-column:2!important;grid-row:3!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:14px!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card{min-height:225px!important;padding:13px!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card canvas,
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-sparkline,
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-linechart{height:150px!important;min-height:150px!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-bottom-grid{grid-column:3!important;grid-row:4!important;display:grid!important;grid-template-columns:minmax(260px,.85fr) minmax(520px,1.35fr) minmax(260px,.85fr)!important;gap:14px!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-console-footer{grid-column:1/-1!important;grid-row:4!important;display:block!important;}
+}
 @media(max-width:1180px){
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console{grid-template-columns:1fr!important;}
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-bottom-grid{grid-column:1!important;grid-row:auto!important;}
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-bottom-grid{grid-template-columns:1fr!important;}
 }
+}
 
 /* hotfix-detail-balanced-wide-layout-v4 */
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console{
   grid-template-columns:minmax(300px,340px) minmax(0,1fr)!important;
   grid-template-rows:auto auto auto auto!important;
@@ -1817,55 +2102,92 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
   width:100%!important;
   max-width:none!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-console-header{grid-column:1/-1!important;grid-row:1!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail{grid-column:1!important;grid-row:3!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid{
   grid-column:2!important;grid-row:2!important;
   display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:14px!important;align-self:stretch!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone{
   grid-column:1/-1!important;grid-row:3!important;
   display:grid!important;grid-template-columns:1fr!important;gap:14px!important;width:100%!important;min-width:0!important;
 }
+}
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{
-  order:1!important;display:grid!important;
+  order:1!important;
+}
+@media (min-width: 769px) {
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{display:grid!important;
   grid-template-columns:minmax(760px,1fr) minmax(260px,320px)!important;
   gap:14px!important;min-height:520px!important;width:100%!important;min-width:0!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{min-height:520px!important;min-width:0!important;width:100%!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{height:460px!important;min-height:460px!important;width:100%!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel{min-height:520px!important;min-width:0!important;}
+}
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-database-panel{order:2!important;}
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-bottom-grid{
-  order:3!important;grid-column:auto!important;grid-row:auto!important;
+  order:3!important;
+}
+@media (min-width: 769px) {
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-bottom-grid{grid-column:auto!important;grid-row:auto!important;
   display:grid!important;grid-template-columns:minmax(260px,.9fr) minmax(460px,1.25fr) minmax(260px,.9fr)!important;gap:14px!important;width:100%!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{
   grid-column:1/-1!important;grid-row:4!important;
   display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:14px!important;width:100%!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card{min-height:225px!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card canvas,
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-sparkline,
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-linechart{height:150px!important;min-height:150px!important;}
+}
 @media(max-width:1180px){
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console{grid-template-columns:1fr!important;}
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{grid-column:1!important;grid-row:auto!important;}
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-bottom-grid,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{grid-template-columns:1fr!important;}
 }
+}
 
 /* hotfix-chart-axes-and-overview-hud-v5 */
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .mini-linechart-axis{
   width:100%!important;
   height:150px!important;
   min-height:150px!important;
   overflow:visible!important;
+}
 }
 .detail-page-shell:has(.fleet-detail-console) .mini-linechart-axis .grid-line{
   stroke:rgba(98,245,238,.13);
@@ -1997,22 +2319,28 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
 
 
 /* hotfix-detail-rate-chart-and-probe-link-bars-v1 */
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix,
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{
   grid-template-columns:repeat(2,minmax(430px,1fr))!important;
   gap:18px!important;
   align-items:stretch!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.rate-chart-card,
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.rate-chart-card{
   min-height:360px!important;
   padding:16px 18px 18px!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.rate-chart-card .mini-linechart,
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.rate-chart-card .mini-linechart{
   height:285px!important;
   min-height:285px!important;
   max-height:none!important;
+}
 }
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.rate-chart-card .axis-label{
   font-size:10px!important;
@@ -2020,13 +2348,17 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.rate-chart-card .axis-unit{
   fill:rgba(255,194,115,.86)!important;
 }
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card:not(.rate-chart-card){
   min-height:230px!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel .fleet-table th:nth-child(4),
 .detail-page-shell:has(.fleet-detail-console) .fleet-probe-table-panel .fleet-table td:nth-child(4){
   min-width:118px!important;
   width:42%!important;
+}
 }
 .probe-link-bar{
   position:relative;
@@ -2055,12 +2387,15 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
   opacity:.55;
 }
 @media(max-width:1180px){
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix,
   .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{grid-template-columns:1fr!important;}
+}
 }
 
 
 /* hotfix-detail-network-redesign-v1 */
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix,
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{
   grid-template-columns:repeat(3,minmax(260px,1fr))!important;
@@ -2068,13 +2403,18 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
   gap:18px!important;
   align-items:stretch!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .network-throughput-card{
   grid-column:1/-1!important;
   min-height:420px!important;
   padding:18px 20px 20px!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .network-throughput-card .fleet-chart-head{
   margin-bottom:8px!important;
+}
 }
 .detail-page-shell:has(.fleet-detail-console) .network-throughput-card .fleet-chart-head span{
   font-size:14px!important;
@@ -2085,14 +2425,23 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
   text-transform:none!important;
 }
 .detail-page-shell:has(.fleet-detail-console) .network-legend{
-  display:flex;gap:18px;align-items:center;margin:0 0 8px 78px;
   color:rgba(223,247,250,.76);font:700 11px "JetBrains Mono",monospace;
 }
-.detail-page-shell:has(.fleet-detail-console) .network-legend i{width:22px;height:3px;border-radius:99px;display:inline-block;margin-right:-12px;box-shadow:0 0 8px currentColor;}
+@media (min-width: 769px) {
+.detail-page-shell:has(.fleet-detail-console) .network-legend{
+  display:flex;gap:18px;align-items:center;margin:0 0 8px 78px;
+}
+}
+.detail-page-shell:has(.fleet-detail-console) .network-legend i{border-radius:99px;box-shadow:0 0 8px currentColor;}
+@media (min-width: 769px) {
+.detail-page-shell:has(.fleet-detail-console) .network-legend i{width:22px;height:3px;display:inline-block;margin-right:-12px;}
+}
 .detail-page-shell:has(.fleet-detail-console) .network-legend .up{background:#62f5ee;color:#62f5ee;}
 .detail-page-shell:has(.fleet-detail-console) .network-legend .down{background:#ffb15d;color:#ffb15d;}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .network-dual-chart{
   width:100%!important;height:330px!important;min-height:330px!important;display:block!important;overflow:visible!important;
+}
 }
 .detail-page-shell:has(.fleet-detail-console) .network-dual-chart .up-area{fill:rgba(98,245,238,.10)!important;}
 .detail-page-shell:has(.fleet-detail-console) .network-dual-chart .down-area{fill:rgba(255,177,93,.075)!important;}
@@ -2100,16 +2449,22 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
 .detail-page-shell:has(.fleet-detail-console) .network-dual-chart .down-line{fill:none!important;stroke:#ffb15d!important;stroke-width:2.4!important;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 5px rgba(255,177,93,.42));}
 .detail-page-shell:has(.fleet-detail-console) .network-dual-chart .axis-label{font-size:10px!important;letter-spacing:0!important;}
 .detail-page-shell:has(.fleet-detail-console) .network-dual-chart .axis-unit{fill:rgba(255,194,115,.86)!important;}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .compact-metric-card,
 .detail-page-shell:has(.fleet-detail-console) .probe-status-card{
   min-height:240px!important;
   padding:14px!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .compact-metric-card canvas,
 .detail-page-shell:has(.fleet-detail-console) .compact-metric-card .mini-linechart{
   height:165px!important;min-height:165px!important;max-height:165px!important;
 }
+}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .probe-status-card{position:relative;overflow:hidden;}
+}
 .detail-page-shell:has(.fleet-detail-console) .probe-status-card.danger{border-color:rgba(255,93,93,.55)!important;background:linear-gradient(180deg,rgba(62,18,18,.84),rgba(10,14,24,.86))!important;}
 .detail-page-shell:has(.fleet-detail-console) .probe-status-card.warn{border-color:rgba(255,177,93,.55)!important;}
 .probe-status-hero{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;align-items:end;margin:10px 0 14px;padding:12px;border:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.18);}
@@ -2121,16 +2476,25 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
 .probe-status-bars>div{display:grid;grid-template-columns:70px minmax(90px,1fr) auto;gap:8px;align-items:center;color:#cfeff2;font-size:10px;}
 .probe-status-bars span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#eaffff;}
 .probe-status-bars em{font-style:normal;color:#9fc4ca;white-space:nowrap;}
+@media (min-width: 769px) {
 .detail-page-shell:has(.fleet-detail-console) .fleet-chart-card.rate-chart-card{display:none!important;}
+}
 @media(max-width:1180px){
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix,
   .detail-page-shell:has(.fleet-detail-console) .fleet-chart-matrix{grid-template-columns:1fr!important;}
+}
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .network-throughput-card{min-height:360px!important;}
+}
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .network-dual-chart{height:270px!important;min-height:270px!important;}
+}
 }
 
 
 /* hotfix-detail-network-redesign-height-v2 */
+@media (min-width: 769px) {
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card,
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card{
   grid-column:1 / -1!important;
@@ -2140,6 +2504,8 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
   padding:20px 22px 22px!important;
   align-self:stretch!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card svg.network-dual-chart,
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card svg.network-dual-chart{
   display:block!important;
@@ -2148,45 +2514,58 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
   min-height:332px!important;
   max-height:none!important;
 }
+}
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card .fleet-chart-head strong{
   font-size:18px!important;
   text-transform:none!important;
 }
+@media (min-width: 769px) {
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .compact-metric-card,
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .probe-status-card{
   height:260px!important;
   min-height:260px!important;
   max-height:none!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .compact-metric-card canvas,
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .compact-metric-card svg.mini-linechart{
   height:193.75px!important;
   min-height:193.75px!important;
   max-height:193.75px!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console canvas#detailCpuChart,
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console canvas#detailMemoryChart{
   height:210.5px!important;
   min-height:210.5px!important;
   max-height:210.5px!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console canvas#detailFreshnessChart{
   height:190.75px!important;
   min-height:190.75px!important;
   max-height:190.75px!important;
 }
+}
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .network-dual-chart .axis-label.axis-y{
   font-size:9.5px!important;
 }
 @media(max-width:1180px){
+  @media (min-width: 769px) {
   html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card{
     height:380px!important;
     min-height:380px!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card svg.network-dual-chart{
     height:278px!important;
     min-height:278px!important;
   }
+}
 }
 
 
@@ -2215,6 +2594,7 @@ html body .network-throughput-card svg.network-dual-chart { cursor: crosshair; }
 
 
 /* hotfix-detail-ping-network-size-axis-v1 */
+@media (min-width: 769px) {
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card,
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card{
   grid-column:1 / -1!important;
@@ -2223,6 +2603,8 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
   max-height:none!important;
   padding:20px 22px 22px!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card canvas,
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card canvas{
   display:block!important;
@@ -2231,52 +2613,73 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
   min-height:332px!important;
   max-height:none!important;
 }
+}
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .network-dual-chart .axis-label.axis-x.end{
   fill:rgba(223,247,250,.78)!important;
 }
 @media(max-width:1180px){
+  @media (min-width: 769px) {
   html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card{
     height:380px!important;
     min-height:380px!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card canvas{
     height:278px!important;
     min-height:278px!important;
   }
 }
+}
 
 
 /* hotfix-detail-final-ping-step-layout-v1 */
+@media (min-width: 769px) {
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix,
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix{
   grid-template-columns:repeat(3,minmax(260px,1fr))!important;
   gap:18px!important;
   align-items:stretch!important;
 }
+}
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card{
   order:1!important;
 }
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card{
   order:2!important;
+}
+@media (min-width: 769px) {
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card{
   grid-column:1 / -1!important;
   height:440px!important;
   min-height:440px!important;
   max-height:none!important;
 }
+}
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .resource-mini-card{
   order:3!important;
+}
+@media (min-width: 769px) {
+html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .resource-mini-card{
   grid-column:auto!important;
   height:260px!important;
   min-height:260px!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card canvas{
   height:332px!important;
   min-height:332px!important;
   max-height:none!important;
 }
+}
 @media(max-width:1180px){
+  @media (min-width: 769px) {
   html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix{grid-template-columns:1fr!important;}
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .resource-mini-card{grid-column:1!important;}
+}
 }
 
 
@@ -3682,11 +4085,15 @@ img, canvas, svg, video { max-width: 100%; }
     overflow-wrap: anywhere;
   }
 
+  @media (min-width: 769px) {
+
   .detail-page-shell,
   .detail-page-shell:has(.fleet-detail-console) {
     width: 100% !important;
     padding: 10px 10px 28px !important;
   }
+}
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .detail-page-topbar {
     width: 100% !important;
     padding: 0 0 10px !important;
@@ -3695,6 +4102,8 @@ img, canvas, svg, video { max-width: 100%; }
     grid-template-columns: 1fr !important;
     gap: 8px !important;
   }
+}
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .detail-page-tools {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -3702,6 +4111,16 @@ img, canvas, svg, video { max-width: 100%; }
     width: 100% !important;
     max-width: 100% !important;
   }
+}
+  .detail-page-shell:has(.fleet-detail-console) .detail-back-link,
+  .detail-page-shell:has(.fleet-detail-console) .theme-toggle,
+  .detail-page-shell:has(.fleet-detail-console) .currency-btn,
+  .detail-page-shell:has(.fleet-detail-console) .language-select,
+  .detail-page-shell:has(.fleet-detail-console) .detail-currency-switch,
+  .detail-page-shell:has(.fleet-detail-console) .rate-display {
+    white-space: nowrap !important;
+  }
+@media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .detail-back-link,
   .detail-page-shell:has(.fleet-detail-console) .theme-toggle,
   .detail-page-shell:has(.fleet-detail-console) .currency-btn,
@@ -3712,12 +4131,15 @@ img, canvas, svg, video { max-width: 100%; }
     min-width: 0 !important;
     max-width: none !important;
     justify-content: center !important;
-    white-space: nowrap !important;
   }
+}
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .detail-currency-switch,
   .detail-page-shell:has(.fleet-detail-console) .rate-display {
     grid-column: 1 / -1 !important;
   }
+}
+  @media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console {
     display: block !important;
     width: 100% !important;
@@ -3727,6 +4149,8 @@ img, canvas, svg, video { max-width: 100%; }
     margin-top: 8px !important;
     overflow: visible !important;
   }
+}
+  @media (min-width: 769px) {
   .fleet-console-header,
   .fleet-left-rail,
   .probe-observability-grid,
@@ -3741,13 +4165,32 @@ img, canvas, svg, video { max-width: 100%; }
     min-width: 0 !important;
     margin: 0 0 10px !important;
   }
+  }
+.fleet-status-bank { }
+@media (min-width: 769px) {
   .fleet-status-bank { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-  .fleet-node-identity { align-items: flex-start !important; min-width: 0 !important; }
+}
+.fleet-node-identity { align-items: flex-start !important; }
+@media (min-width: 769px) {
+  .fleet-node-identity { min-width: 0 !important; }
+}
+.fleet-node-caption h1,
+  .fleet-node-caption p,
+  .fleet-info-list strong,
+  .fleet-table td,
+  .fleet-table th { }
+@media (min-width: 769px) {
   .fleet-node-caption h1,
   .fleet-node-caption p,
   .fleet-info-list strong,
   .fleet-table td,
   .fleet-table th { overflow-wrap: anywhere !important; }
+}
+.fleet-panel,
+  .fleet-chart-card,
+  .probe-card {
+  }
+@media (min-width: 769px) {
   .fleet-panel,
   .fleet-chart-card,
   .probe-card {
@@ -3756,15 +4199,33 @@ img, canvas, svg, video { max-width: 100%; }
     max-width: 100% !important;
     padding: 10px !important;
   }
-  .fleet-table-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+}
+.fleet-table-wrap { -webkit-overflow-scrolling: touch; }
+@media (min-width: 769px) {
+  .fleet-table-wrap { overflow-x: auto !important; }
+}
+.fleet-table { }
+@media (min-width: 769px) {
   .fleet-table { min-width: 520px; }
+}
+.fleet-chart-card canvas,
+  .fleet-chart-card.pseudo .mini-linechart {
+  }
+@media (min-width: 769px) {
   .fleet-chart-card canvas,
   .fleet-chart-card.pseudo .mini-linechart {
     height: 160px !important;
     min-height: 140px !important;
   }
+}
+.probe-resource-line { }
+@media (min-width: 769px) {
   .probe-resource-line { grid-template-columns: 36px minmax(48px, 64px) minmax(0, 1fr) !important; }
-  .probe-resource-line em { grid-column: 2 / -1 !important; white-space: normal !important; }
+}
+.probe-resource-line em { white-space: normal !important; }
+@media (min-width: 769px) {
+  .probe-resource-line em { grid-column: 2 / -1 !important; }
+}
 }
 
 @media (max-width: 768px) {
@@ -3791,110 +4252,219 @@ img, canvas, svg, video { max-width: 100%; }
     max-width: 132px !important;
   }
 
+  @media (min-width: 769px) {
+
   .detail-page-shell:has(.fleet-detail-console) .detail-back-link { grid-column: 1 / -1 !important; }
+}
+  .detail-page-shell:has(.fleet-detail-console) .theme-toggle,
+  .detail-page-shell:has(.fleet-detail-console) .language-select,
+  .detail-page-shell:has(.fleet-detail-console) .currency-btn {
+    font-size: 11px !important;
+  }
+@media (min-width: 769px) {
   .detail-page-shell:has(.fleet-detail-console) .theme-toggle,
   .detail-page-shell:has(.fleet-detail-console) .language-select,
   .detail-page-shell:has(.fleet-detail-console) .currency-btn {
     min-height: 34px !important;
     height: 34px !important;
     padding: 7px 10px !important;
-    font-size: 11px !important;
   }
+}
   .detail-page-shell:has(.fleet-detail-console) .rate-display {
-    min-height: 28px !important;
-    height: auto !important;
     font-size: 11px !important;
     opacity: .82;
   }
+@media (min-width: 769px) {
+  .detail-page-shell:has(.fleet-detail-console) .rate-display {
+    min-height: 28px !important;
+    height: auto !important;
+  }
+}
+.fleet-console-header {
+  }
+@media (min-width: 769px) {
   .fleet-console-header {
     gap: 8px !important;
     margin-bottom: 8px !important;
   }
+}
+.fleet-node-identity {
+  }
+@media (min-width: 769px) {
   .fleet-node-identity {
     padding: 9px 10px !important;
     gap: 8px !important;
   }
+}
+.fleet-html-ship,
+  .fleet-ship-holo {
+    transform: none !important;
+  }
+@media (min-width: 769px) {
   .fleet-html-ship,
   .fleet-ship-holo {
     width: 88px !important;
     height: 54px !important;
     flex-basis: 88px !important;
-    transform: none !important;
   }
+}
   .fleet-node-caption h1 {
     font-size: 17px !important;
     line-height: 1.12 !important;
   }
-  .fleet-node-caption p {
+.fleet-node-caption p {
     font-size: 10px !important;
+  }
+@media (min-width: 769px) {
+  .fleet-node-caption p {
     margin-top: 3px !important;
   }
+}
+.fleet-status-bank {
+  }
+@media (min-width: 769px) {
   .fleet-status-bank {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     gap: 7px !important;
   }
+}
+.fleet-status-bank > div {
+  }
+@media (min-width: 769px) {
   .fleet-status-bank > div {
     min-height: 58px !important;
     padding: 8px 9px !important;
   }
+}
   .fleet-status-bank span { font-size: 8px !important; }
   .fleet-status-bank strong { font-size: 12px !important; }
+.fleet-panel,
+  .probe-card,
+  .fleet-chart-card {
+  }
+@media (min-width: 769px) {
   .fleet-panel,
   .probe-card,
   .fleet-chart-card {
     padding: 9px !important;
     margin-bottom: 8px !important;
   }
+}
+.fleet-title,
+  .probe-card-head {
+  }
+@media (min-width: 769px) {
   .fleet-title,
   .probe-card-head {
     margin-bottom: 7px !important;
     padding-bottom: 5px !important;
   }
+}
+.fleet-info-list { }
+@media (min-width: 769px) {
   .fleet-info-list { gap: 5px !important; }
+}
+.fleet-info-list div { }
+@media (min-width: 769px) {
   .fleet-info-list div { padding: 6px 7px !important; }
+}
+.probe-card {
+  }
+@media (min-width: 769px) {
   .probe-card {
     min-height: 0 !important;
   }
+}
+.probe-meter-list,
+  .probe-resource-list { }
+@media (min-width: 769px) {
   .probe-meter-list,
   .probe-resource-list { gap: 7px !important; }
+}
+.probe-meter-row,
+  .probe-resource-line { }
+@media (min-width: 769px) {
   .probe-meter-row,
   .probe-resource-line { padding-bottom: 6px !important; }
+}
+.probe-bandwidth-now { }
+@media (min-width: 769px) {
   .probe-bandwidth-now { gap: 7px !important; margin-bottom: 8px !important; }
+}
+.probe-bandwidth-now > div { }
+@media (min-width: 769px) {
   .probe-bandwidth-now > div { padding: 7px !important; }
+}
+.probe-resource-pill { }
+@media (min-width: 769px) {
   .probe-resource-pill { width: 30px !important; height: 30px !important; }
+}
+.fleet-chart-card {
+  }
+@media (min-width: 769px) {
   .fleet-chart-card {
     min-height: 210px !important;
   }
+}
+.fleet-chart-card.resource-mini-card,
+  .fleet-chart-card.data-freshness-card {
+  }
+@media (min-width: 769px) {
   .fleet-chart-card.resource-mini-card,
   .fleet-chart-card.data-freshness-card {
     min-height: 180px !important;
   }
+}
+.fleet-chart-card canvas,
+  .fleet-chart-card.pseudo .mini-linechart {
+  }
+@media (min-width: 769px) {
   .fleet-chart-card canvas,
   .fleet-chart-card.pseudo .mini-linechart {
     height: 132px !important;
     min-height: 118px !important;
     max-height: 150px !important;
   }
+}
+.fleet-chart-card.resource-mini-card canvas,
+  .fleet-chart-card.data-freshness-card .mini-linechart {
+  }
+@media (min-width: 769px) {
   .fleet-chart-card.resource-mini-card canvas,
   .fleet-chart-card.data-freshness-card .mini-linechart {
     height: 108px !important;
     min-height: 96px !important;
   }
+}
+.fleet-starmap-panel,
+  .fleet-probe-table-panel {
+  }
+@media (min-width: 769px) {
   .fleet-starmap-panel,
   .fleet-probe-table-panel {
     max-height: 360px !important;
     overflow: hidden !important;
   }
+}
+.fleet-starmap-panel .globe-starmap-root,
+  .fleet-starmap-panel canvas,
+  .fleet-starmap-panel svg {
+  }
+@media (min-width: 769px) {
   .fleet-starmap-panel .globe-starmap-root,
   .fleet-starmap-panel canvas,
   .fleet-starmap-panel svg {
     max-height: 260px !important;
   }
+}
+.fleet-database-panel {
+  }
+@media (min-width: 769px) {
   .fleet-database-panel {
     max-height: 260px !important;
     overflow: auto !important;
   }
-
+}
   .login-box,
   .admin-login-card,
   .login-card {
@@ -3907,6 +4477,7 @@ img, canvas, svg, video { max-width: 100%; }
 }
 
 /* FINAL-DETAIL-LAYOUT-REPAIR-20260629 */
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console{
   display:grid!important;
   grid-template-columns:minmax(260px,340px) minmax(0,1fr)!important;
@@ -3916,39 +4487,79 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
   overflow:visible!important;
   height:auto!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-console-header{grid-column:1/-1!important;grid-row:1!important;margin:0!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-health-summary{grid-column:1/-1!important;grid-row:2!important;margin:0!important;padding:8px 10px!important;height:auto!important;min-height:0!important;align-self:start!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail{grid-column:1!important;grid-row:3!important;margin:0!important;align-self:start!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid{grid-column:2!important;grid-row:3!important;margin:0!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:12px!important;align-self:start!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone{grid-column:1/-1!important;grid-row:4!important;margin:0!important;display:block!important;width:100%!important;min-width:0!important;height:auto!important;min-height:0!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{display:grid!important;grid-template-columns:minmax(760px,1fr) minmax(260px,320px)!important;grid-template-areas:"star probe" "range probe"!important;gap:14px!important;min-height:520px!important;align-items:start!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{grid-area:star!important;min-height:520px!important;margin:0!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{height:460px!important;min-height:460px!important;width:100%!important;max-width:none!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar{grid-area:range!important;width:fit-content!important;max-width:100%!important;margin:0!important;padding:4px 8px!important;justify-self:start!important;align-self:start!important;display:flex!important;align-items:center!important;gap:6px!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel{grid-area:probe!important;min-height:520px!important;margin:0!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{grid-column:1/-1!important;grid-row:5!important;margin:0!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;grid-auto-rows:auto!important;gap:14px!important;width:100%!important;height:auto!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card{min-height:220px!important;height:auto!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .network-throughput-card,
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .ping-multi-card{min-height:245px!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card canvas,
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-sparkline,
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-linechart{height:150px!important;min-height:150px!important;max-height:170px!important;}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-console-footer{grid-column:1/-1!important;grid-row:6!important;display:block!important;height:auto!important;min-height:0!important;margin:0!important;padding-top:4px!important;}
+}
 @media(max-width:1100px){
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console{grid-template-columns:1fr!important;}
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{grid-column:1!important;grid-row:auto!important;}
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{grid-template-columns:1fr!important;grid-template-areas:none!important;}
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel{grid-area:auto!important;}
 }
+}
 
 /* FINAL-VPS-STARMAP-ONLY-LAYOUT-20260629 */
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{
   display:grid!important;
   grid-template-columns:minmax(0,72fr) minmax(260px,28fr)!important;
@@ -3957,6 +4568,8 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
   min-height:0!important;
   align-items:start!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
   grid-area:star!important;
   height:445px!important;
@@ -3965,6 +4578,8 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
   margin:0!important;
   overflow:hidden!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
   height:390px!important;
   min-height:390px!important;
@@ -3973,6 +4588,8 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .d
   max-width:none!important;
   overflow:hidden!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel{
   grid-area:probe!important;
   height:445px!important;
@@ -3981,19 +4598,25 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
   margin:0!important;
   overflow:hidden!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar{
   grid-area:range!important;
   margin:0!important;
   align-self:start!important;
 }
+}
 
 /* FINAL-VPS-STARMAP-INTERNAL-UNCLIP-20260629 */
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
   height:auto!important;
   min-height:0!important;
   max-height:none!important;
   overflow:visible!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
   display:block!important;
   align-items:initial!important;
@@ -4003,25 +4626,35 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .d
   max-height:none!important;
   overflow:visible!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
   width:100%!important;
   box-sizing:border-box!important;
   overflow:visible!important;
 }
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
+  aspect-ratio:860/440!important;
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
   display:block!important;
   width:100%!important;
   max-width:860px!important;
   height:auto!important;
-  aspect-ratio:860/440!important;
   margin:0 auto!important;
+}
 }
 
 /* FINAL-VPS-STARMAP-CARD-SIZE-20260629 */
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{
   grid-template-columns:minmax(0,74fr) minmax(320px,26fr)!important;
   align-items:stretch!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel,
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel{
   min-height:620px!important;
@@ -4029,32 +4662,46 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .f
   max-height:none!important;
   align-self:stretch!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel{
   overflow:hidden!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
   height:auto!important;
   min-height:0!important;
   overflow:visible!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
   width:100%!important;
   min-height:560px!important;
   padding:10px!important;
   box-sizing:border-box!important;
 }
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
+  aspect-ratio:860/440!important;
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
   width:100%!important;
   max-width:none!important;
   height:auto!important;
-  aspect-ratio:860/440!important;
+}
 }
 
 /* FINAL-VPS-STARMAP-CONTAIN-20260629 */
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
   box-sizing:border-box!important;
   overflow:hidden!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
   box-sizing:border-box!important;
   height:calc(100% - 43px)!important;
@@ -4062,6 +4709,8 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .d
   max-height:calc(100% - 43px)!important;
   overflow:hidden!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
   box-sizing:border-box!important;
   height:100%!important;
@@ -4070,32 +4719,48 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .d
   overflow:hidden!important;
   padding:10px!important;
 }
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
+  object-fit:contain!important;
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
   max-height:calc(100% - 92px)!important;
   width:100%!important;
   height:auto!important;
-  object-fit:contain!important;
+}
 }
 
 /* FINAL-VPS-STARMAP-REMOVE-INTERNAL-TITLE-20260629 */
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone{
   margin-top:-18px!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
   height:calc(100% - 43px)!important;
   max-height:calc(100% - 43px)!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
   padding:10px!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
   max-height:calc(100% - 50px)!important;
 }
+}
 
 /* FINAL-DETAIL-TOP-CARD-HEIGHT-20260629 */
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid{
   align-items:stretch!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card,
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.resources-card,
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.bandwidth-card{
@@ -4103,168 +4768,269 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .p
   min-height:373px!important;
   box-sizing:border-box!important;
 }
+}
 
 /* FINAL-VPS-STARMAP-BOTTOM-CORNERS-20260629 */
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
   border-radius:16px!important;
+}
+@media (min-width: 769px) {
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
   overflow:hidden!important;
   padding-bottom:16px!important;
 }
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
+  border-radius:14px!important;
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
   height:calc(100% - 59px)!important;
   max-height:calc(100% - 59px)!important;
-  border-radius:14px!important;
   overflow:hidden!important;
 }
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
+  border-radius:14px!important;
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
   height:100%!important;
   max-height:100%!important;
-  border-radius:14px!important;
   overflow:hidden!important;
 }
+}
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
-  max-height:calc(100% - 50px)!important;
   border-radius:14px!important;
 }
+@media (min-width: 769px) {
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
+  max-height:calc(100% - 50px)!important;
+}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar{
   margin-top:4px!important;
+}
 }
 
 /* FINAL-VPS-STARMAP-REAL-ROUND-CORNERS-20260629 */
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
-  clip-path:none!important;
   border-radius:18px!important;
+}
+@media (min-width: 769px) {
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
+  clip-path:none!important;
   overflow:hidden!important;
   padding-bottom:18px!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel:after{
   display:none!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel .fleet-title{
   margin-bottom:9px!important;
 }
+}
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
   border-radius:15px!important;
+}
+@media (min-width: 769px) {
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
   overflow:hidden!important;
+}
 }
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
   border-radius:15px!important;
+}
+@media (min-width: 769px) {
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
   overflow:hidden!important;
+}
 }
 
 /* FINAL-VPS-STARMAP-ROUND-FORCE-20260629 */
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
-  position:relative!important;
   isolation:isolate!important;
-  clip-path:none!important;
   border-radius:20px!important;
+  box-shadow:0 0 20px rgba(38,221,220,.10), inset 0 0 18px rgba(38,221,220,.045)!important;
+}
+@media (min-width: 769px) {
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
+  position:relative!important;
+  clip-path:none!important;
   overflow:hidden!important;
   padding-bottom:22px!important;
-  box-shadow:0 0 20px rgba(38,221,220,.10), inset 0 0 18px rgba(38,221,220,.045)!important;
+}
 }
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel::before{
   content:""!important;
-  position:absolute!important;
-  inset:0!important;
   border-radius:20px!important;
   pointer-events:none!important;
   z-index:20!important;
+}
+@media (min-width: 769px) {
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel::before{
+  position:absolute!important;
+  inset:0!important;
   box-sizing:border-box!important;
 }
+}
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel::after{
-  display:none!important;
   content:none!important;
 }
+@media (min-width: 769px) {
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel::after{
+  display:none!important;
+}
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel > *{
+  z-index:1!important;
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel > *{
   position:relative!important;
-  z-index:1!important;
+}
 }
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
   border-radius:16px!important;
+}
+@media (min-width: 769px) {
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
   overflow:hidden!important;
   margin-bottom:0!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar{
   margin-top:10px!important;
+}
 }
 
 /* FINAL-VPS-STARMAP-VISUAL-BALANCE-20260629 */
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
-  clip-path:none!important;
   border-radius:20px!important;
+}
+@media (min-width: 769px) {
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
+  clip-path:none!important;
   overflow:hidden!important;
   padding-bottom:20px!important;
 }
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
+  border-radius:18px!important;
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
   height:calc(100% - 62px)!important;
   max-height:calc(100% - 62px)!important;
-  border-radius:18px!important;
   overflow:hidden!important;
 }
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
+  border-radius:18px!important;
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
   display:flex!important;
   flex-direction:column!important;
   height:100%!important;
   max-height:100%!important;
   padding:10px!important;
-  border-radius:18px!important;
   overflow:hidden!important;
   box-sizing:border-box!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div > div:first-child{
   flex:0 0 auto!important;
   margin-bottom:10px!important;
 }
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div > div:nth-child(2){
+  border-radius:18px!important;
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div > div:nth-child(2){
   flex:1 1 auto!important;
   min-height:0!important;
   display:flex!important;
   align-items:center!important;
   justify-content:center!important;
-  border-radius:18px!important;
   overflow:hidden!important;
   box-sizing:border-box!important;
 }
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
+  aspect-ratio:860/440!important;
+  border-radius:18px!important;
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
   display:block!important;
   width:100%!important;
   max-width:none!important;
   height:auto!important;
   max-height:100%!important;
-  aspect-ratio:860/440!important;
-  border-radius:18px!important;
+}
 }
 
 /* FINAL-VPS-STARMAP-BOTTOM-GAP-20260629 */
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
   padding-bottom:8px!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
   height:calc(100% - 36px)!important;
   max-height:calc(100% - 36px)!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div{
   padding-bottom:8px!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar{
   margin-top:8px!important;
+}
 }
 
 
 
 /* FINAL-VPS-ALLOCATION-BADGE-20260629 */
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail{
   grid-template-rows:auto!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card{
   position:relative!important;
   overflow:hidden!important;
   padding-right:118px!important;
 }
+}
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card .allocation-meter-list{
-  position:relative!important;
   z-index:2!important;
 }
+@media (min-width: 769px) {
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card .allocation-meter-list{
+  position:relative!important;
+}
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot{
+  opacity:.82!important;
+  pointer-events:none!important;
+  z-index:1!important;
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot{
   position:absolute!important;
   right:10px!important;
@@ -4273,9 +5039,7 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
   height:104px!important;
   display:grid!important;
   place-items:center!important;
-  opacity:.82!important;
-  pointer-events:none!important;
-  z-index:1!important;
+}
 }
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot .fleet-reference-badge,
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot .fleet-delta-badge{
@@ -4287,43 +5051,71 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
   filter:drop-shadow(0 0 14px rgba(98,245,238,.22))!important;
 }
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot img{
-  width:100%!important;
-  height:100%!important;
   object-fit:contain!important;
 }
+@media (min-width: 769px) {
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot img{
+  width:100%!important;
+  height:100%!important;
+}
+}
 @media(max-width:960px){
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card{padding-right:14px!important;}
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot{display:none!important;}
+}
 }
 
 
 /* FINAL-VPS-COMPACT-HISTORY-GAP-20260629 */
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{
   row-gap:6px!important;
   column-gap:12px!important;
 }
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar{
+  line-height:1!important;
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar{
   min-height:0!important;
   height:auto!important;
   margin:0!important;
   padding:2px 6px!important;
   gap:5px!important;
-  line-height:1!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-label{
-  font-size:10px!important;
   line-height:1!important;
 }
+html:where(:not([data-theme="light"])) body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-label{
+  font-size:10px!important;
+}
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-history-range{
   gap:4px!important;
   padding-top:0!important;
   align-items:center!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-history-btn{
   padding:3px 7px!important;
   min-height:0!important;
   line-height:1.05!important;
+}
+html:where(:not([data-theme="light"])) body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-history-btn{
   font-size:10px!important;
+}
+html:where([data-theme="light"]) body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-label,
+html:where([data-theme="light"]) body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-history-btn{
+  font-size:12px;
+}
 }
 
 
@@ -4344,19 +5136,25 @@ body.light-theme .public-overview-kicker:where(:not(#pageRoot[data-theme-style="
 /* HERMES-MOBILE-DETAIL-ADMIN-FIX-20260701
    Fix detail mobile stacking/clipping, allocation badge placement, chart label density,
    admin mobile content visibility, and symmetric home sun/moon controls. */
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card{
   position:relative!important;
   overflow:hidden!important;
   padding-right:136px!important;
 }
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot{
+  transform:translateY(-50%)!important;
+  opacity:.78!important;
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot{
   right:14px!important;
   top:50%!important;
   bottom:auto!important;
-  transform:translateY(-50%)!important;
   width:112px!important;
   height:112px!important;
-  opacity:.78!important;
+}
 }
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot .fleet-reference-badge,
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot .fleet-delta-badge{
@@ -4365,22 +5163,29 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
 }
 @media(max-width:960px){
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot{
+    transform:translateY(-50%)!important;
+    opacity:.42!important;
+  }
+@media (min-width: 769px) {
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot{
     display:grid!important;
     width:84px!important;
     height:84px!important;
     right:12px!important;
     top:50%!important;
-    transform:translateY(-50%)!important;
-    opacity:.42!important;
   }
+}
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot .fleet-reference-badge,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .allocation-badge-slot .fleet-delta-badge{width:84px!important;height:84px!important;}
 }
 @media(max-width:720px){
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console){
     padding:10px!important;
     overflow-x:hidden!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console{
     display:flex!important;
     flex-direction:column!important;
@@ -4389,6 +5194,8 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
     height:auto!important;
     overflow:visible!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-console-header,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-health-summary,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-left-rail,
@@ -4401,6 +5208,8 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
     grid-column:auto!important;
     grid-row:auto!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-observability-grid,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{
@@ -4412,6 +5221,8 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
     min-height:0!important;
     overflow:visible!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.resources-card,
@@ -4423,7 +5234,11 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
     padding:12px!important;
     box-sizing:border-box!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card{padding-right:104px!important;}
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel{
     width:100%!important;
@@ -4433,37 +5248,56 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
     overflow:visible!important;
     box-sizing:border-box!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
     height:300px!important;
     min-height:300px!important;
     max-height:none!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount > div,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount canvas{
     height:100%!important;
     max-height:100%!important;
   }
+}
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar{
+    white-space:nowrap!important;
+  }
+@media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar{
     width:100%!important;
     overflow-x:auto!important;
-    white-space:nowrap!important;
     padding:6px!important;
     box-sizing:border-box!important;
   }
+}
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-table{
+    white-space:nowrap!important;
+    table-layout:auto!important;
+  }
+@media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-table{
     display:block!important;
     width:100%!important;
     min-width:0!important;
     overflow-x:auto!important;
-    white-space:nowrap!important;
-    table-layout:auto!important;
   }
+}
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-table th,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-table td{
     white-space:nowrap!important;
-    font-size:10px!important;
+    font-size:12px!important;
+  }
+@media (min-width: 769px) {
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-table th,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-table td{
     padding:7px 8px!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .network-throughput-card,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .ping-multi-card,
@@ -4476,6 +5310,8 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
     overflow:visible!important;
     box-sizing:border-box!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card canvas,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-sparkline,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.pseudo .mini-linechart{
@@ -4483,17 +5319,23 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
     min-height:190px!important;
     max-height:none!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .network-legend{display:none!important;}
+}
 }
 
 
 /* HERMES-MOBILE-DETAIL-CHART-SUNMOON-SECOND-PASS-20260701 */
 @media(max-width:900px){
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console),
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) *{
     max-width:100vw!important;
     box-sizing:border-box!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{
     display:flex!important;
     flex-direction:column!important;
@@ -4501,6 +5343,8 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
     min-height:0!important;
     overflow:visible!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .network-throughput-card,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .ping-multi-card{
@@ -4509,6 +5353,8 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
     max-height:none!important;
     overflow:visible!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.resource-mini-card,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card.data-freshness-card{
     height:auto!important;
@@ -4516,25 +5362,33 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
     max-height:none!important;
     overflow:visible!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-card canvas{
     width:100%!important;
     max-width:100%!important;
     height:220px!important;
     max-height:220px!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .network-throughput-card canvas,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .ping-multi-card canvas{
     height:260px!important;
     max-height:260px!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-table{
     max-width:100%!important;
   }
+}
 }
 
 
 /* HERMES-MOBILE-BROAD-OVERRIDES-20260701 */
 @media(max-width:900px){
+  @media (min-width: 769px) {
   html body .detail-page-shell .fleet-detail-console .fleet-chart-matrix{
     display:flex!important;
     flex-direction:column!important;
@@ -4543,6 +5397,8 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
     max-height:none!important;
     overflow:visible!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell .fleet-detail-console .fleet-chart-card,
   html body .detail-page-shell .fleet-detail-console .network-throughput-card,
   html body .detail-page-shell .fleet-detail-console .ping-multi-card{
@@ -4551,22 +5407,30 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
     max-height:none!important;
     overflow:visible!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell .fleet-detail-console .fleet-chart-card.resource-mini-card,
   html body .detail-page-shell .fleet-detail-console .fleet-chart-card.data-freshness-card{
     min-height:285px!important;
     max-height:none!important;
     overflow:visible!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell .fleet-detail-console .network-throughput-card canvas,
   html body .detail-page-shell .fleet-detail-console .ping-multi-card canvas{
     height:260px!important;
     max-height:260px!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell .fleet-detail-console .fleet-chart-card.resource-mini-card canvas,
   html body .detail-page-shell .fleet-detail-console .fleet-chart-card.data-freshness-card canvas{
     height:220px!important;
     max-height:220px!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell .fleet-detail-console .detail-view-shell,
   html body .detail-page-shell .fleet-detail-console .fleet-right-zone{
     overflow:visible!important;
@@ -4574,10 +5438,12 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
     max-height:none!important;
   }
 }
+}
 
 
 /* HERMES-FINAL-MOBILE-VISUAL-VERIFY-FIX-20260701 */
 @media(max-width:900px){
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .fleet-chart-card,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card{
@@ -4586,6 +5452,8 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
     max-height:none!important;
     overflow:visible!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .resource-mini-card,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .data-freshness-card{
     height:auto!important;
@@ -4593,12 +5461,16 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
     max-height:none!important;
     overflow:visible!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .network-throughput-card canvas,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .ping-multi-card canvas{
     height:260px!important;
     min-height:260px!important;
     max-height:260px!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .resource-mini-card canvas,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console .fleet-chart-matrix > .data-freshness-card canvas{
     height:220px!important;
@@ -4606,10 +5478,12 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
     max-height:220px!important;
   }
 }
+}
 
 
 /* HERMES-MOBILE-CHART-HEIGHT-SPECIFICITY-FIX-20260702 */
 @media(max-width:900px){
+  @media (min-width: 769px) {
   html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.network-throughput-card,
   html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.ping-multi-card{
     height:auto!important;
@@ -4617,36 +5491,54 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .a
     max-height:none!important;
     overflow:visible!important;
   }
+}
+  @media (min-width: 769px) {
   html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.resource-mini-card{
     height:auto!important;
     min-height:285px!important;
     max-height:none!important;
     overflow:visible!important;
   }
+}
+  @media (min-width: 769px) {
   html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.network-throughput-card canvas,
   html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.ping-multi-card canvas{
     height:260px!important;
     min-height:260px!important;
     max-height:260px!important;
   }
+}
+  @media (min-width: 769px) {
   html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.resource-mini-card canvas{
     height:220px!important;
     min-height:220px!important;
     max-height:220px!important;
   }
 }
+}
 
 
 /* HERMES-DETAIL-BADGE-NETWORK-MOBILE-FINAL-20260703 */
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card{
   padding-right:16px!important;
   overflow:visible!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card .allocation-meter-list{
   width:100%!important;
   max-width:none!important;
   padding-right:0!important;
 }
+}
+html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card .allocation-badge-slot{
+  transform:translateX(-50%)!important;
+  opacity:.78!important;
+  pointer-events:none!important;
+  z-index:1!important;
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .probe-card.allocation-card .allocation-badge-slot{
   left:50%!important;
   right:auto!important;
@@ -4654,14 +5546,12 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .p
   top:auto!important;
   width:104px!important;
   height:104px!important;
-  transform:translateX(-50%)!important;
   display:grid!important;
   place-items:center!important;
-  opacity:.78!important;
-  pointer-events:none!important;
-  z-index:1!important;
+}
 }
 @media(max-width:900px){
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console),
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-page-grid,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-detail-console,
@@ -4672,6 +5562,8 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .p
     max-height:none!important;
     overflow:visible!important;
   }
+}
+  @media (min-width: 769px) {
   html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.network-throughput-card,
   html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.ping-multi-card{
     height:390px!important;
@@ -4679,34 +5571,44 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .p
     max-height:none!important;
     overflow:visible!important;
   }
+}
+  @media (min-width: 769px) {
   html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.resource-mini-card{
     height:315px!important;
     min-height:315px!important;
     max-height:none!important;
     overflow:visible!important;
   }
+}
+  @media (min-width: 769px) {
   html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.network-throughput-card canvas,
   html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.ping-multi-card canvas{
     height:280px!important;
     min-height:280px!important;
     max-height:280px!important;
   }
+}
+  @media (min-width: 769px) {
   html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.resource-mini-card canvas{
     height:230px!important;
     min-height:230px!important;
     max-height:230px!important;
   }
 }
+}
 
 
 /* HERMES-MOBILE-STARMAP-PROBE-NO-OVERLAP-20260703 */
 @media(max-width:900px){
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-chart-matrix{
     overflow:visible!important;
     height:auto!important;
     max-height:none!important;
     margin-bottom:22px!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{
     display:grid!important;
@@ -4720,6 +5622,8 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .p
     row-gap:18px!important;
     margin-top:0!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-starmap-panel{
     height:auto!important;
     min-height:380px!important;
@@ -4729,6 +5633,8 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .p
     padding-bottom:18px!important;
     box-sizing:border-box!important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .detail-globe-starmap-mount{
     height:300px!important;
     min-height:300px!important;
@@ -4737,24 +5643,35 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .p
     overflow:hidden!important;
     box-sizing:border-box!important;
   }
+}
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel,
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar{
+    z-index:1!important;
+    clear:both!important;
+  }
+@media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-table-panel,
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .history-range-bar{
     position:relative!important;
-    z-index:1!important;
     margin-top:0!important;
-    clear:both!important;
   }
+}
+  html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .ping-multi-card{
+    z-index:1!important;
+  }
+@media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .ping-multi-card{
     position:relative!important;
-    z-index:1!important;
     margin-bottom:18px!important;
     overflow:visible!important;
   }
+}
 }
 
 
 /* HERMES-MOBILE-STARMAP-PROBE-STACK-FIX-20260703 */
 @media(max-width:900px){
+  @media (min-width: 769px) {
   html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-right-zone,
   html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-probe-grid{
     display:flex!important;
@@ -4766,6 +5683,12 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .p
     max-height:none!important;
     overflow:visible!important;
   }
+}
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-probe-grid > *,
+  html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-right-zone > *{
+    transform:none!important;
+  }
+@media (min-width: 769px) {
   html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-probe-grid > *,
   html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-right-zone > *{
     grid-area:auto!important;
@@ -4774,8 +5697,9 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .p
     position:relative!important;
     width:100%!important;
     max-width:100%!important;
-    transform:none!important;
   }
+}
+  @media (min-width: 769px) {
   html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-starmap-panel{
     flex:0 0 auto!important;
     height:390px!important;
@@ -4786,6 +5710,8 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .p
     margin:0!important;
     box-sizing:border-box!important;
   }
+}
+  @media (min-width: 769px) {
   html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .detail-globe-starmap-mount{
     height:318px!important;
     min-height:318px!important;
@@ -4794,29 +5720,40 @@ html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .p
     margin:0!important;
     box-sizing:border-box!important;
   }
+}
+  @media (min-width: 769px) {
   html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .history-range-bar,
   html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-probe-table-panel{
     flex:0 0 auto!important;
     margin:0!important;
   }
 }
+}
 
 
 /* HERMES-DETAIL-STARMAP-PROBE-GAP-20260704
    Give the VPS starmap + global probe latency block real breathing room from the cards above. */
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone{
   margin-top: clamp(22px, 3vh, 38px) !important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{
   margin-top: 10px !important;
 }
+}
 @media (max-width: 900px){
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-right-zone{
     margin-top: 28px !important;
   }
+}
+  @media (min-width: 769px) {
   html body .detail-page-shell.starship-console-page:has(.fleet-detail-console) .fleet-probe-grid{
     margin-top: 12px !important;
   }
+}
 }
 
 .cluster-member-picker { position: fixed; z-index: 10020; top: 16px; right: 16px; width: min(390px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; padding: 18px; border: 1px solid rgba(174,246,255,.45); border-radius: 14px; background: rgba(3,20,25,.74); backdrop-filter: blur(14px) saturate(1.12); -webkit-backdrop-filter: blur(14px) saturate(1.12); color: #e8ffff; box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 8px 22px rgba(0,0,0,.52), 0 0 26px rgba(103,232,249,.32); }
@@ -4846,15 +5783,20 @@ html body .google-earth-node-html-label.is-vps-node.is-vps-beacon-node::after {
 }
 
 /* Network throughput uses Chart.js canvas; keep one responsive rendering surface. */
+@media (min-width: 769px) {
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .network-throughput-card{
   display:flex!important;
   flex-direction:column!important;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .network-throughput-card .network-chart-surface{
   position:relative;
   flex:1 1 auto;
   min-height:0;
 }
+}
+@media (min-width: 769px) {
 html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .network-throughput-card .network-chart-surface canvas{
   display:block!important;
   width:100%!important;
@@ -4862,9 +5804,12 @@ html body .detail-page-shell:has(.fleet-detail-console) .fleet-detail-console .n
   min-height:0!important;
   max-height:none!important;
 }
+}
+@media (min-width: 769px) {
 html body .display-shell main.display-main #pageRoot .detail-page-shell.starship-console-page #detailPageGrid.detail-page-grid .fleet-detail-console > main.fleet-chart-matrix > div.fleet-chart-card.compact-metric-card.network-throughput-card .network-chart-surface > canvas#detailNetworkChart{
   width:100%!important;
   height:100%!important;
   min-height:0!important;
   max-height:none!important;
+}
 }
