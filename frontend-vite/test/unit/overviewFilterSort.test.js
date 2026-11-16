@@ -199,7 +199,7 @@ const cardIds = () =>
 const rerender = () => render(rerender);
 
 it.each([0, 1, 4, 30])(
-  'renders the real LCARS frame and ten end-capped summaries for %i nodes',
+  'renders the cold HUD frame without rails or endcaps and ten summaries for %i nodes',
   (count) => {
     state.servers = Array.from({ length: count }, (_, index) =>
       normalizeServer({ id: index + 1, name: `Node ${index + 1}`, status: 'online' }),
@@ -207,9 +207,9 @@ it.each([0, 1, 4, 30])(
     rerender();
     expect(root.getAttribute('data-theme-style')).toBe('lcars');
     expect(root.innerHTML).toContain('lcars-theme-applied');
-    expect(root.innerHTML).toContain('class="lcars-frame" aria-hidden="true"');
+    expect(root.innerHTML).not.toMatch(/class="lcars-(?:frame|elbow|beam|rail)"/);
     expect([...root.innerHTML.matchAll(/class="lcars-endcap" aria-hidden="true"/g)]).toHaveLength(
-      10,
+      0,
     );
     expect(cardIds()).toHaveLength(count);
     expect([...root.innerHTML.matchAll(/data-overview-summary=/g)]).toHaveLength(10);
