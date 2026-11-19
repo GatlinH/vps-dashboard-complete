@@ -92,6 +92,43 @@ Object.assign(LANGUAGE_PACKS.de, { rangeToday:'Heute', rangeDayUnit:'T', rangeMi
 Object.assign(LANGUAGE_PACKS.ru, { rangeToday:'Сегодня', rangeDayUnit:'д', rangeMinuteSampling:'мин выборка', rangeRealtime:'в реальном времени', chartTime:'Время', chartLatency:'Задержка', chartUp:'Исходящий', chartDown:'Входящий', chartPeak:'пик', chartSampleTime:'Время выборки', chartProtocol:'Протокол', chartLoss:'потери', chartNoPersistedSamples:'Сохранённых исторических выборок пока нет', chartRunningProcesses:'Процессы', chartSamplesAggregated:'выборок объединено', chartAccumulatingIcmp:'Накопление реальных выборок ICMP', chartNoLatencyTargets:'Цели мониторинга задержки не настроены', chartWaitingProbeSample:'Ожидание выборок зонда', chartConfigurePingTargets:'Настройте ping_targets в разделе «Мониторинг задержки» панели администратора', chartProbeFailLoss:'Сбой зонда / потери', chartNoVpsProbeSamples:'Выборок VPS-зонда пока нет', chartWaitingVpsProbe:'Ожидание отчёта этого VPS-агента о результатах глобального зондирования', chartWaitingAgentProcessCount:'Ожидание числа процессов от агента' });
 
 export let currentLanguage = safeStorageGet('display_language', 'zh') || 'zh';
+Object.assign(LANGUAGE_PACKS.zh, { overviewStatusFilter:'节点状态', overviewSortLabel:'节点排序', overviewSort_default:'默认顺序', overviewSort_cpu:'CPU负荷', overviewSort_ram:'内存占用', overviewSort_speed:'实时网速', overviewSort_expiry:'到期紧迫', overviewSort_traffic:'周期用量' });
+Object.assign(LANGUAGE_PACKS.en, { overviewStatusFilter:'Node status', overviewSortLabel:'Node order', overviewSort_default:'Default order', overviewSort_cpu:'CPU load', overviewSort_ram:'Memory usage', overviewSort_speed:'Live network speed', overviewSort_expiry:'Expiry urgency', overviewSort_traffic:'Period traffic' });
+Object.assign(LANGUAGE_PACKS.zh, {
+  overviewSummaryLabel: '全网资产汇总', overviewSummaryNodes: '节点总览',
+  overviewSummaryPlatforms: '架构与系统', overviewSummaryCpu: 'CPU核心',
+  overviewSummaryLoad: '最高负载', overviewSummaryRam: '物理内存',
+  overviewSummaryDisk: '系统存储', overviewSummaryRates: '实时网速',
+  overviewSummaryTraffic: '周期流量', overviewSummaryCost: '月度费用',
+  overviewSummaryExpiry: '到期与状态', overviewSummaryMissing: '未上报',
+  overviewSummaryUnset: '未设置', overviewSummaryCoverage: '覆盖',
+  overviewSummaryCapacity: '标称总量', overviewSummaryUsed: '已用',
+  overviewSummaryDetails: '更多细目', overviewSummaryCostTotal: '概览', overviewSummaryTrafficMatched: '用量/限额同集', overviewSummaryMatched: '健康在线同集', overviewSummaryCores: '核',
+  overviewSummaryAverage: '核心加权均载', overviewSummaryHealthy: '仅健康在线节点',
+  overviewSummaryLimit: '限额', overviewSummaryKnown: '已知合计',
+  overviewSummaryAnnual: '年化费用', overviewSummaryExpired: '已过期',
+  overviewSummaryRemaining: '剩余', overviewSummaryDays: '天',
+});
+Object.assign(LANGUAGE_PACKS.en, {
+  overviewSummaryLabel: 'Global asset summary', overviewSummaryNodes: 'Node overview',
+  overviewSummaryPlatforms: 'Architecture & OS', overviewSummaryCpu: 'CPU cores',
+  overviewSummaryLoad: 'Highest load', overviewSummaryRam: 'Physical memory',
+  overviewSummaryDisk: 'System storage', overviewSummaryRates: 'Live network rates',
+  overviewSummaryTraffic: 'Cycle traffic', overviewSummaryCost: 'Monthly cost',
+  overviewSummaryExpiry: 'Expiry & status', overviewSummaryMissing: 'Not reported',
+  overviewSummaryUnset: 'Not set', overviewSummaryCoverage: 'Coverage',
+  overviewSummaryCapacity: 'Nominal capacity', overviewSummaryUsed: 'Used',
+  overviewSummaryDetails: 'More details', overviewSummaryCostTotal: 'Overview', overviewSummaryTrafficMatched: 'Matched usage/limit set', overviewSummaryMatched: 'Matched healthy online set', overviewSummaryCores: 'cores',
+  overviewSummaryAverage: 'Core-weighted load', overviewSummaryHealthy: 'Healthy online nodes only',
+  overviewSummaryLimit: 'Limit', overviewSummaryKnown: 'Known total',
+  overviewSummaryAnnual: 'Annualized cost', overviewSummaryExpired: 'Expired',
+  overviewSummaryRemaining: 'Remaining', overviewSummaryDays: 'days',
+});
+for (const pack of Object.values(LANGUAGE_PACKS)) {
+  for (const [key, value] of Object.entries(LANGUAGE_PACKS.en)) {
+    if (key.startsWith('overviewSummary') && !Object.prototype.hasOwnProperty.call(pack, key)) pack[key] = value;
+  }
+}
 // An empty string is a legitimate translation: languages like English have no
 // counter word for "N processes", so processUnit is deliberately ''. Falling back
 // with `||` treated that as missing and re-inserted the Chinese "个" in every

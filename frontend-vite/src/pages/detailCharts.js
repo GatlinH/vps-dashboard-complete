@@ -3,6 +3,40 @@ import '../globals/dashboardGlobals.js';
 // and must be resolved through t() at draw time.
 import { t } from '../core/preferences.js';
 import { coldStartAxisBounds } from '../detail/telemetryAxis.js';
+export function getChartThemeTokens() {
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  return {
+    text: isLight ? '#334155' : '#94a3b8',
+    empty: isLight ? '#475569' : '#94a3b8',
+    grid: isLight ? 'rgba(15, 23, 42, 0.08)' : 'rgba(255, 255, 255, 0.08)',
+    tooltip: {
+      backgroundColor: isLight ? '#ffffff' : '#0f172a',
+      titleColor: isLight ? '#0f172a' : '#e2e8f0',
+      bodyColor: isLight ? '#0f172a' : '#e2e8f0',
+      borderColor: isLight ? '#334155' : '#94a3b8',
+      titleFont: { size: 12, family: "'JetBrains Mono', monospace" },
+      bodyFont: { size: 12, family: "'JetBrains Mono', monospace" },
+    },
+  };
+}
+
+export function refreshChartsTheme(detailCharts) {
+  const theme = getChartThemeTokens();
+  for (const id of ['detailNetworkChart', 'detailPingChart', 'detailCpuChart', 'detailMemoryChart', 'detailProcessCountChart']) {
+    const chart = detailCharts?._instances?.get(id);
+    if (!chart) continue;
+    for (const scale of Object.values(chart.options.scales || {})) {
+      if (scale.ticks) {
+        scale.ticks.color = theme.text;
+        scale.ticks.font = { ...scale.ticks.font, size: 11, family: "'JetBrains Mono', monospace" };
+      }
+      if (scale.grid) scale.grid.color = theme.grid;
+      if (scale.border) scale.border.color = theme.grid;
+    }
+    if (chart.options.plugins?.tooltip) Object.assign(chart.options.plugins.tooltip, theme.tooltip);
+    chart.update('none');
+  }
+}
 function ensureDenseSeries(series) {
   return (Array.isArray(series) ? series : []).map(Number).filter((v) => Number.isFinite(v));
 }
@@ -146,8 +180,8 @@ function telemetryEmptyStatePlugin(hasPoints, message = null) {
       if (hasPoints || live || !chart.chartArea) return;
       const { ctx, chartArea: area } = chart;
       ctx.save();
-      ctx.fillStyle = 'rgba(235,252,255,.92)';
-      ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+      ctx.fillStyle = getChartThemeTokens().empty;
+      ctx.font = "12px 'JetBrains Mono', monospace";
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(message, (area.left + area.right) / 2, (area.top + area.bottom) / 2);
@@ -166,17 +200,17 @@ function makeHudChartOptions(maxTicks = 5, yUnit = '') {
     interaction: { intersect: false, mode: 'index' },
     plugins: {
       legend: { display: false },
-      tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, titleColor: '#eaffff', bodyColor: '#bffffb' }
+      tooltip: { enabled: true, ...getChartThemeTokens().tooltip, borderWidth: 1 }
     },
     scales: {
-      x: { reverse: false, ticks: { color: '#8ab5bd', maxRotation: 0, autoSkip: true, maxTicksLimit: tickLimit, font: { size: mobile ? 7 : 8 } }, grid: { color: 'rgba(98,245,238,0.13)' }, border: { color: 'rgba(98,245,238,.18)' } },
+      x: { reverse: false, ticks: { color: getChartThemeTokens().text, maxRotation: 0, autoSkip: true, maxTicksLimit: tickLimit, font: { size: 11, family: "'JetBrains Mono', monospace" } }, grid: { color: getChartThemeTokens().grid }, border: { color: getChartThemeTokens().grid } },
       y: {
         afterFit(axis){ if (mobile) axis.width = Math.max(axis.width, 44); },
         ticks: {
-          color: '#8ab5bd',
+          color: getChartThemeTokens().text,
           autoSkip: true,
           maxTicksLimit: mobile ? 4 : undefined,
-          font: { size: mobile ? 7 : 8 },
+          font: { size: 11, family: "'JetBrains Mono', monospace" },
           padding: mobile ? 4 : 3,
           callback: (v) => {
             const n = Number(v);
@@ -188,8 +222,8 @@ function makeHudChartOptions(maxTicks = 5, yUnit = '') {
             return yUnit ? `${n}${yUnit}` : n;
           },
         },
-        grid: { color: 'rgba(98,245,238,0.15)' },
-        border: { color: 'rgba(98,245,238,.18)' },
+        grid: { color: getChartThemeTokens().grid },
+        border: { color: getChartThemeTokens().grid },
       }
     }
   };
@@ -254,11 +288,11 @@ function adaptiveRateYScale(values = [], baseY = {}, fmtRateFn) {
   const compress = p95 > 0 && absolutePeak > p95 * 3;
   const label = (kbps) => (typeof fmtRateFn === 'function' ? fmtRateFn(Math.max(0, Number(kbps) || 0)) : String(kbps));
   const common = {
-    color: '#6fa4ad',
+    color: getChartThemeTokens().text,
     autoSkip: false,
     maxTicksLimit: 5,
     padding: 6,
-    font: { size: isDetailMobileChart() ? 8 : 10, weight: '800' },
+    font: { size: 11, family: "'JetBrains Mono', monospace", weight: '800' },
   };
   const afterFit = (axis) => { axis.width = Math.max(axis.width || 0, isDetailMobileChart() ? 48 : 56); };
 
@@ -320,10 +354,10 @@ function adaptiveMsYScale(values = [], baseY = {}) {
     max,
     suggestedMax: max,
     ticks: {
-      color: '#8ab5bd',
+      color: getChartThemeTokens().text,
       maxTicksLimit: isDetailMobileChart() ? 4 : 5,
       padding: 4,
-      font: { size: isDetailMobileChart() ? 8 : 9 },
+      font: { size: 11, family: "'JetBrains Mono', monospace" },
       callback: (v) => {
         const n = Number(v) || 0;
         return n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}s` : `${Math.round(n)}ms`;
@@ -350,11 +384,11 @@ function attachPingPointTooltip(canvas, datasets = [], axisBounds = null, { form
   tip.style.pointerEvents = 'none';
   tip.style.minWidth = '190px';
   tip.style.padding = '8px 10px';
-  tip.style.border = '1px solid rgba(98,245,238,.42)';
+  tip.style.border = `1px solid ${getChartThemeTokens().tooltip.borderColor}`;
   tip.style.borderRadius = '10px';
-  tip.style.background = 'rgba(3,18,28,.95)';
-  tip.style.color = '#dffcff';
-  tip.style.font = '11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+  tip.style.background = getChartThemeTokens().tooltip.backgroundColor;
+  tip.style.color = getChartThemeTokens().text;
+  tip.style.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
   tip.style.boxShadow = '0 10px 28px rgba(0,0,0,.32)';
   card.style.position = card.style.position || 'relative';
   card.appendChild(tip);
@@ -386,6 +420,10 @@ function attachPingPointTooltip(canvas, datasets = [], axisBounds = null, { form
     return best;
   };
   const show = (ev) => {
+    const theme = getChartThemeTokens();
+    tip.style.background = theme.tooltip.backgroundColor;
+    tip.style.color = theme.text;
+    tip.style.borderColor = theme.tooltip.borderColor;
     const p = findNearest(ev);
     if (!p || p.score > 0.18) { tip.style.display = 'none'; return; }
     const lines = [
@@ -771,7 +809,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     // full timestamp). Zeroing both paddings removed exactly that room.
     afterFit: (scale) => { scale.paddingLeft = 0; scale.paddingRight = SMALL_X_TICK_EDGE_PAD; },
     ticks: {
-      color: '#8ab5bd', stepSize: bounds.step, callback: (v) => smallXTickFmt(v), maxRotation: 0, autoSkip: false, font: { size: 8 }, padding: 10,
+      color: getChartThemeTokens().text, stepSize: bounds.step, callback: (v) => smallXTickFmt(v), maxRotation: 0, autoSkip: false, font: { size: 11, family: "'JetBrains Mono', monospace" }, padding: 10,
       // Reserving right-hand padding alone is not enough: the terminal tick is
       // centre-anchored on the last gridline, so half the ~59px timestamp still
       // overhangs the canvas and gets clipped. 'inner' pulls the first/last tick
@@ -780,8 +818,8 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
     },
     offset: false,
     bounds: 'ticks',
-    grid: { color: 'rgba(98,245,238,0.13)' },
-    border: { color: 'rgba(98,245,238,.18)' }
+    grid: { color: getChartThemeTokens().grid },
+    border: { color: getChartThemeTokens().grid }
   });
   const fixedSmallY = (scale) => { scale.width = 28; };
   // CPU/RAM use a fixed raw 1h slice, while network follows the selected range.
@@ -863,7 +901,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
           { label: t('chartDown'), parsing: false, data: networkDownPlot, borderColor: '#ffd66b', backgroundColor: 'transparent', fill: false, tension: networkMobile ? 0.28 : 0.18, pointRadius: 0, pointHoverRadius: 5, borderWidth: networkMobile ? 2.2 : 3.2, showLine: true, stepped: false },
         ]
       },
-      options: { ...baseOptions, elements: { line: { borderCapStyle: 'round', borderJoinStyle: 'round' }, point: { radius: networkMobile ? 0 : undefined } }, plugins: { ...baseOptions.plugins, legend: { display: false, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `${item.dataset.label}: ${fmtRate(Number(item.raw.rawY ?? item.raw.y ?? 0))}${Number.isFinite(Number(item.raw.rawMaxY)) ? ` · ${t('chartPeak')} ${fmtRate(Number(item.raw.rawMaxY))}` : ''}${Number(item.raw.samples) > 1 ? ` · ${Number(item.raw.samples)} ${t('chartSamplesAggregated')}` : ''}` } } }, scales: { x: { type: 'linear', reverse: false, min: networkAxisBounds.min, max: networkAxisBounds.max, ticks: { color: '#45676c', stepSize: Math.max(60 * 1000, Math.round((networkAxisBounds.max - networkAxisBounds.min) / (networkMobile ? 3 : 4))), callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: networkMobile, maxTicksLimit: networkMobile ? 4 : undefined, font: { size: networkMobile ? 7 : 9, weight: '700' } }, grid: { color: networkMobile ? 'rgba(55,95,101,0.12)' : 'rgba(55,95,101,0.20)' }, border: { color: 'rgba(55,95,101,.30)' } }, y: networkYScale } }
+      options: { ...baseOptions, elements: { line: { borderCapStyle: 'round', borderJoinStyle: 'round' }, point: { radius: networkMobile ? 0 : undefined } }, plugins: { ...baseOptions.plugins, legend: { display: false, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: true, ...getChartThemeTokens().tooltip, borderWidth: 1, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `${item.dataset.label}: ${fmtRate(Number(item.raw.rawY ?? item.raw.y ?? 0))}${Number.isFinite(Number(item.raw.rawMaxY)) ? ` · ${t('chartPeak')} ${fmtRate(Number(item.raw.rawMaxY))}` : ''}${Number(item.raw.samples) > 1 ? ` · ${Number(item.raw.samples)} ${t('chartSamplesAggregated')}` : ''}` } } }, scales: { x: { type: 'linear', reverse: false, min: networkAxisBounds.min, max: networkAxisBounds.max, ticks: { color: getChartThemeTokens().text, stepSize: Math.max(60 * 1000, Math.round((networkAxisBounds.max - networkAxisBounds.min) / (networkMobile ? 3 : 4))), callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: networkMobile, maxTicksLimit: networkMobile ? 4 : undefined, font: { size: 11, family: "'JetBrains Mono', monospace", weight: '700' } }, grid: { color: getChartThemeTokens().grid }, border: { color: getChartThemeTokens().grid } }, y: networkYScale } }
     }));
   }
   if (cpuCtx) {
@@ -888,7 +926,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
         ...envelopeDatasets(cpuDisplaySeries, 'rgba(155,211,255,0.20)')]
       },
       plugins: [cpuEmptyPlugin],
-      options: { ...makeHudChartOptions(5, '%'), plugins: { ...makeHudChartOptions(5, '%').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, filter: tooltipSkipsEnvelope, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `CPU ${Number(item.raw.y || 0).toFixed(1)}%${spreadSuffix(item.raw, (v) => `${v.toFixed(1)}%`)}` } } }, scales: { x: smallChartXScale(cpuAxisBounds), y: adaptivePercentYScale(fixedSmallY) } }
+      options: { ...makeHudChartOptions(5, '%'), plugins: { ...makeHudChartOptions(5, '%').plugins, tooltip: { enabled: true, ...getChartThemeTokens().tooltip, borderWidth: 1, filter: tooltipSkipsEnvelope, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `CPU ${Number(item.raw.y || 0).toFixed(1)}%${spreadSuffix(item.raw, (v) => `${v.toFixed(1)}%`)}` } } }, scales: { x: smallChartXScale(cpuAxisBounds), y: adaptivePercentYScale(fixedSmallY) } }
     }));
   }
 
@@ -912,7 +950,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
         ...envelopeDatasets(ramDisplaySeries, 'rgba(255,217,121,0.20)')]
       },
       plugins: [ramEmptyPlugin],
-      options: { ...makeHudChartOptions(5, '%'), plugins: { ...makeHudChartOptions(5, '%').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, filter: tooltipSkipsEnvelope, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `${t('memory')} ${Number(item.raw.y || 0).toFixed(1)}%${spreadSuffix(item.raw, (v) => `${v.toFixed(1)}%`)}` } } }, scales: { x: smallChartXScale(ramAxisBounds), y: adaptivePercentYScale(fixedSmallY) } }
+      options: { ...makeHudChartOptions(5, '%'), plugins: { ...makeHudChartOptions(5, '%').plugins, tooltip: { enabled: true, ...getChartThemeTokens().tooltip, borderWidth: 1, filter: tooltipSkipsEnvelope, callbacks: { title: (items) => items[0] ? telemetryTooltipTime(items[0]) : '', label: (item) => `${t('memory')} ${Number(item.raw.y || 0).toFixed(1)}%${spreadSuffix(item.raw, (v) => `${v.toFixed(1)}%`)}` } } }, scales: { x: smallChartXScale(ramAxisBounds), y: adaptivePercentYScale(fixedSmallY) } }
     }));
   }
 
@@ -924,7 +962,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
       data: { datasets: [{ label: 'Processes', parsing: false, data: processDisplaySeries, borderColor: '#8dffd0', backgroundColor: 'rgba(125,255,193,0.20)', fill: true, tension: 0.18, pointRadius: 0, pointHoverRadius: 6, borderWidth: 3 },
         ...envelopeDatasets(processDisplaySeries, 'rgba(141,255,208,0.20)')] },
       plugins: [processEmptyPlugin],
-      options: { ...makeHudChartOptions(5, ''), plugins: { ...makeHudChartOptions(5, '').plugins, tooltip: { enabled: true, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, filter: tooltipSkipsEnvelope, callbacks: { title: (items) => telemetryTooltipTime(items[0]), label: (item) => `${t('chartRunningProcesses')} ${Math.round(Number(item.raw.y || 0))}${spreadSuffix(item.raw, (v) => `${Math.round(v)}`)}` } } }, scales: { x: smallChartXScale(processAxisBounds), y: processYScale } }
+      options: { ...makeHudChartOptions(5, ''), plugins: { ...makeHudChartOptions(5, '').plugins, tooltip: { enabled: true, ...getChartThemeTokens().tooltip, borderWidth: 1, filter: tooltipSkipsEnvelope, callbacks: { title: (items) => telemetryTooltipTime(items[0]), label: (item) => `${t('chartRunningProcesses')} ${Math.round(Number(item.raw.y || 0))}${spreadSuffix(item.raw, (v) => `${Math.round(v)}`)}` } } }, scales: { x: smallChartXScale(processAxisBounds), y: processYScale } }
     }));
   }
 
@@ -942,13 +980,13 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
         const targets = chart._detailPingTargets || [];
         const loss = targets.length ? Number(targets[0]?.stats?.loss_pct ?? NaN) : NaN;
         chart.ctx.save();
-        chart.ctx.fillStyle = 'rgba(235,252,255,.92)';
-        chart.ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+        chart.ctx.fillStyle = getChartThemeTokens().empty;
+        chart.ctx.font = "12px 'JetBrains Mono', monospace";
         chart.ctx.textAlign = 'center';
         chart.ctx.textBaseline = 'middle';
         chart.ctx.fillText(targets.length ? t('chartAccumulatingIcmp') : t('chartNoLatencyTargets'), (area.left + area.right) / 2, (area.top + area.bottom) / 2 - 8);
-        chart.ctx.fillStyle = 'rgba(102,141,154,.92)';
-        chart.ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+        chart.ctx.fillStyle = getChartThemeTokens().empty;
+        chart.ctx.font = "12px 'JetBrains Mono', monospace";
         chart.ctx.fillText(Number.isFinite(loss) ? `${t('chartProbeFailLoss')} ${loss.toFixed(0)}%` : (targets.length ? t('chartWaitingProbeSample') : t('chartConfigurePingTargets')), (area.left + area.right) / 2, (area.top + area.bottom) / 2 + 12);
         chart.ctx.restore();
       }
@@ -967,7 +1005,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
         })),
       },
       plugins: [pingEmptyPlugin],
-      options: { ...makeHudChartOptions(5, 'ms'), plugins: { ...makeHudChartOptions(5, 'ms').plugins, legend: { display: false, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: hasPingPoints, backgroundColor: 'rgba(3,18,28,.92)', borderColor: 'rgba(98,245,238,.35)', borderWidth: 1, callbacks: { title: (items) => items[0] ? `${t('chartSampleTime')} ${formatTooltipClock(items[0].raw.x)}` : '', label: (item) => `${item.dataset.label}: ${Number(item.raw.rawMs ?? item.raw.y ?? 0).toFixed(1)} ms`, afterLabel: (item) => `${t('chartProtocol')} ${item.raw.protocol || 'icmp'} · ${t('chartLoss')} ${item.raw.lossPct == null ? '—' : `${Number(item.raw.lossPct).toFixed(0)}%`}` } } }, scales: { x: { type: 'linear', reverse: false, min: axis24h[0], max: axis24h[4], ticks: { color: '#8ab5bd', stepSize: Math.max(60 * 1000, Math.round((axis24h[4] - axis24h[0]) / 4)), callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: isDetailMobileChart(), maxTicksLimit: isDetailMobileChart() ? 4 : undefined, font: { size: isDetailMobileChart() ? 7 : 8 } }, grid: { color: 'rgba(98,245,238,0.13)' }, border: { color: 'rgba(98,245,238,.18)' } }, y: pingYScale } }
+      options: { ...makeHudChartOptions(5, 'ms'), plugins: { ...makeHudChartOptions(5, 'ms').plugins, legend: { display: false, labels: { color: '#bfefff', boxWidth: 10, boxHeight: 2 } }, tooltip: { enabled: hasPingPoints, ...getChartThemeTokens().tooltip, borderWidth: 1, callbacks: { title: (items) => items[0] ? `${t('chartSampleTime')} ${formatTooltipClock(items[0].raw.x)}` : '', label: (item) => `${item.dataset.label}: ${Number(item.raw.rawMs ?? item.raw.y ?? 0).toFixed(1)} ms`, afterLabel: (item) => `${t('chartProtocol')} ${item.raw.protocol || 'icmp'} · ${t('chartLoss')} ${item.raw.lossPct == null ? '—' : `${Number(item.raw.lossPct).toFixed(0)}%`}` } } }, scales: { x: { type: 'linear', reverse: false, min: axis24h[0], max: axis24h[4], ticks: { color: getChartThemeTokens().text, stepSize: Math.max(60 * 1000, Math.round((axis24h[4] - axis24h[0]) / 4)), callback: (v) => xTickFmt(v), maxRotation: 0, autoSkip: isDetailMobileChart(), maxTicksLimit: isDetailMobileChart() ? 4 : undefined, font: { size: 11, family: "'JetBrains Mono', monospace" } }, grid: { color: getChartThemeTokens().grid }, border: { color: getChartThemeTokens().grid } }, y: pingYScale } }
     };
     let chart = detailCharts._instances.get('detailPingChart');
     if (chart && chart.canvas !== pingCanvas) {
@@ -1005,13 +1043,13 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
         const area = chart.chartArea;
         if (!area) return;
         chart.ctx.save();
-        chart.ctx.fillStyle = 'rgba(235,252,255,.92)';
-        chart.ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+        chart.ctx.fillStyle = getChartThemeTokens().empty;
+        chart.ctx.font = "12px 'JetBrains Mono', monospace";
         chart.ctx.textAlign = 'center';
         chart.ctx.textBaseline = 'middle';
         chart.ctx.fillText(t('chartNoVpsProbeSamples'), (area.left + area.right) / 2, (area.top + area.bottom) / 2 - 8);
-        chart.ctx.fillStyle = 'rgba(102,141,154,.92)';
-        chart.ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+        chart.ctx.fillStyle = getChartThemeTokens().empty;
+        chart.ctx.font = "12px 'JetBrains Mono', monospace";
         chart.ctx.fillText(t('chartWaitingVpsProbe'), (area.left + area.right) / 2, (area.top + area.bottom) / 2 + 12);
         chart.ctx.restore();
       }
@@ -1020,7 +1058,7 @@ export async function renderDetailMonitorCharts({ chartLabels = [], upSeries = [
       type: 'line',
       data: { datasets: vpsProbeDatasets.map((dataset) => ({ ...dataset, parsing: false, data: [...(dataset.data || [])].sort((a, b) => Number(a?.x) - Number(b?.x)) })) },
       plugins: [vpsProbeEmptyPlugin],
-      options: { ...makeHudChartOptions(5, 'ms'), scales: { x: { type: 'linear', reverse: false, ticks: { callback: (value) => xTickFmt(value), color: '#8ab5bd' }, grid: { color: 'rgba(98,245,238,0.13)' } }, y: makeHudChartOptions(5, 'ms').scales.y } }
+      options: { ...makeHudChartOptions(5, 'ms'), scales: { x: { type: 'linear', reverse: false, ticks: { callback: (value) => xTickFmt(value), color: getChartThemeTokens().text }, grid: { color: getChartThemeTokens().grid } }, y: makeHudChartOptions(5, 'ms').scales.y } }
     }));
     window.__DBG__.DETAIL_GLOBAL_VPS_PROBE_CHART = { targets: vpsProbeTargets.map((target) => target.key), datasets: vpsProbeDatasets.map((dataset) => dataset.label) };
   }

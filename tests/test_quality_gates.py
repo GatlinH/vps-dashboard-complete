@@ -394,3 +394,37 @@ def test_silent_gate_f821_is_zero_tolerance(tmp_path):
     r = subprocess.run([sys.executable, str(SILENT_SCRIPT)], cwd=ROOT, text=True, capture_output=True, env=env)
     assert r.returncode == 1
     assert "F821" in r.stderr and "backend/api/broken.py" in r.stderr
+
+
+@pytest.mark.parametrize(
+    "style_path",
+    ["styles/detail-mobile-layout.css", "styles/overview-lcars.css"],
+)
+def test_registered_layout_rejects_new_important_debt(tmp_path, style_path):
+    BASELINE = ROOT / ".github" / "quality" / "css-important-baseline.json"
+    source = tmp_path / "src"
+    baseline = tmp_path / "baseline.json"
+    shutil.copytree(ROOT / "frontend-vite" / "src", source)
+    shutil.copy2(BASELINE, baseline)
+    command = [
+        sys.executable,
+        str(CSS_SCRIPT),
+        "--source",
+        str(source),
+        "--baseline",
+        str(baseline),
+    ]
+
+    control = subprocess.run(command, cwd=ROOT, text=True, capture_output=True)
+    assert control.returncode == 0, control.stderr
+    assert "CSS_DEBT_GATE_OK" in control.stdout.splitlines()
+
+    style = source / style_path
+    style.write_text(
+        style.read_text(encoding="utf-8")
+        + "\n.css-baseline-regression { display: block !important; }\n",
+        encoding="utf-8",
+    )
+    regression = subprocess.run(command, cwd=ROOT, text=True, capture_output=True)
+    assert regression.returncode == 1, regression.stderr
+    assert regression.stderr == f"ERROR: {style_path}: 1 exceeds baseline 0\n"

@@ -212,3 +212,4 @@ export function renderDetailConsole(ctx) {
 }
 import '../styles/detail-starfleet-console.css';
 import '../styles/detail-starmap-background.css';
+import '../styles/detail-mobile-layout.css';

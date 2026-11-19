@@ -240,7 +240,15 @@ async function chartHarness() {
     console,
     coldStartAxisBounds,
     window: { __DBG__: {} },
-    document: { getElementById: (id) => (id === 'detailPingChart' ? canvas : null) },
+    document: {
+      documentElement: {
+        dataset: { theme: 'dark' },
+        getAttribute(name) {
+          return name === 'data-theme' ? (this.dataset.theme ?? null) : null;
+        },
+      },
+      getElementById: (id) => (id === 'detailPingChart' ? canvas : null),
+    },
     t: (key) => key,
     detailPingSamples: { store: {} },
   });

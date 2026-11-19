@@ -1,15 +1,23 @@
 import { state } from '../store/state.js';
 import { LANGUAGE_PACKS, currentLanguage, t } from '../core/preferences.js';
-import { toDisplay, calcResidualValue, getMonthlyPrice, sourceAmountToCny, getSourceCurrency, updateRateDisplay } from '../utils/currency.js';
+import { toDisplay, calcResidualValue, sourceAmountToCny, getSourceCurrency, updateRateDisplay } from '../utils/currency.js';
 import { getTrafficPct } from '../utils/traffic.js';
 import { normalizePublicServer } from '../services/serverGroups.js';
 import { createOverviewPingController, renderOverviewPing } from '../services/overviewPing.js';
+import { summarizeOverview } from './overviewSummary.js';
+import { renderOverviewSummary, renderOverviewControls } from './overviewTemplates.js';
+import { OVERVIEW_STATUS_KEYS, OVERVIEW_SORT_KEYS, loadOverviewChoice, saveOverviewChoice, countOverviewStatuses, filterSortOverviewNodes } from './overviewFilterSort.js';
+export { summarizeOverview };
 
 const OVERVIEW_GROUP_FILTER_KEY = 'vps_overview_group_filter';
+const OVERVIEW_STATUS_FILTER_KEY = 'vps_overview_status_filter';
+const OVERVIEW_SORT_KEY = 'vps_overview_sort';
 let overviewPingController = null;
 let overviewRouteObserver = null;
 let overviewPageRoot = null;
 let overviewLifecycleWindow = null;
+let overviewCostView = 'total';
+const overviewExpandedDetails = new Set();
 const overviewCardDisposers = [];
 
 function checkOverviewRoute() {
@@ -28,6 +36,7 @@ export function destroyPublicOverviewPage() {
   overviewLifecycleWindow?.removeEventListener('popstate', checkOverviewRoute);
   overviewLifecycleWindow?.removeEventListener('hashchange', checkOverviewRoute);
   overviewLifecycleWindow = null;
+  overviewPageRoot?.removeAttribute('data-theme-style');
   overviewPageRoot = null;
 }
 
@@ -70,29 +79,15 @@ function daysUntilExpiry(expiry) {
   return Math.ceil((t.getTime() - Date.now()) / 86400000);
 }
 
-function summarizeMoonPanel(servers = []) {
+function summarizeMoonPanel(servers = [], cost) {
   const rows = Array.isArray(servers) ? servers : [];
   const status = { total: rows.length, online: 0, warn: 0, offline: 0 };
   const expiry = { today: [], d3: [], d7: [] };
   const badNodes = [];
-  const byRegion = new Map();
-  const byProvider = new Map();
-  let monthlyActual = 0;
-  let yearlyActual = 0;
 
   for (const s of rows) {
     const cls = classifyStatus(s.status);
     status[cls] += 1;
-
-    const monthlyEq = Number(getMonthlyPrice(s) || 0);
-    const sourcePriceCny = sourceAmountToCny(s.price, getSourceCurrency(s));
-    monthlyActual += monthlyEq;
-    yearlyActual += monthlyEq * 12;
-
-    const regionKey = s.location || s.city || s.region || s.country || t('unknownRegion');
-    byRegion.set(regionKey, (byRegion.get(regionKey) || 0) + monthlyEq);
-    const providerKey = s.provider || s.provider_guess || t('unknownProvider');
-    byProvider.set(providerKey, (byProvider.get(providerKey) || 0) + monthlyEq);
 
     const d = daysUntilExpiry(s.expiry);
     if (d != null) {
@@ -105,30 +100,14 @@ function summarizeMoonPanel(servers = []) {
     if (cls !== 'online' || pct >= 85) badNodes.push({ server: s, pct, cls });
   }
 
-  const sortCost = (map) => Array.from(map.entries()).sort((a, b) => b[1] - a[1]).slice(0, 4);
   badNodes.sort((a, b) => (a.cls === 'offline' ? -1 : 0) - (b.cls === 'offline' ? -1 : 0) || b.pct - a.pct);
 
   return {
     status,
     expiry,
-    cost: {
-      monthlyActual,
-      yearlyActual,
-      byRegion: sortCost(byRegion),
-      byProvider: sortCost(byProvider),
-    },
-    badNodes: badNodes.slice(0, 6),
+    cost,
+    badNodes,
   };
-}
-
-function maskIpForOverview(value) {
-  const raw = String(value || '').trim();
-  if (!raw || raw === '—') return '—';
-  const ipv4 = raw.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?::(\d+))?$/);
-  if (ipv4) return `${ipv4[1]}.*.*.***`;
-  if (raw.includes(':')) return `${raw.split(':').filter(Boolean)[0] || '***'}:*:*:***`;
-  if (raw.length > 3) return `${raw.slice(0, 3)}***`;
-  return raw || '***';
 }
 
 function overviewMetricValue(server, key) {
@@ -157,99 +136,6 @@ function overviewTrafficValue(server, key) {
   if (!server.__rawPresentFlags?.[key] || server[key] == null || server[key] === '') return '—';
   const value = Number(server[key]);
   return Number.isFinite(value) && value >= 0 ? fmtResourceGb(value) : '—';
-}
-
-function trafficResetDay(server, trafficData = null) {
-  const raw = Number(trafficData?.reset_day ?? trafficData?.traffic_reset_day ?? server?.traffic_reset_day ?? 1);
-  if (!Number.isFinite(raw)) return 1;
-  return Math.max(1, Math.min(31, Math.trunc(raw)));
-}
-
-function nextTrafficResetDateLabel(resetDay, now = new Date()) {
-  const day = Math.max(1, Math.min(31, Math.trunc(Number(resetDay) || 1)));
-  const y = now.getFullYear();
-  const m = now.getMonth();
-  const effectiveDay = (year, month) => Math.min(day, new Date(year, month + 1, 0).getDate());
-  let target = new Date(y, m, effectiveDay(y, m), 0, 0, 0, 0);
-  if (target <= now) {
-    const ny = m === 11 ? y + 1 : y;
-    const nm = (m + 1) % 12;
-    target = new Date(ny, nm, effectiveDay(ny, nm), 0, 0, 0, 0);
-  }
-  const mm = String(target.getMonth() + 1).padStart(2, '0');
-  const dd = String(target.getDate()).padStart(2, '0');
-  return `${mm}/${dd}`;
-}
-
-function formatTrafficResetText(server, trafficData = null, opts = {}) {
-  const day = trafficResetDay(server, trafficData);
-  // Same locale-ordering contract as the detail page: the day sits between a
-  // translated prefix and suffix rather than inside a hardcoded Chinese template.
-  const suffix = t('trafficResetMonthlySuffix');
-  const prefix = opts.short
-    ? `${day}${suffix}`
-    : `${t('trafficResetMonthlyPrefix')} ${day} ${suffix}`.replace(/\s+/g, ' ').trim();
-  return opts.next === false
-    ? prefix
-    : `${prefix} · ${t('trafficResetNext')} ${nextTrafficResetDateLabel(day)}`;
-}
-
-function formatOverviewTraffic(server) {
-  const used = Number(server.traffic_used_gb ?? 0);
-  const up = Number(server.traffic_up_gb ?? 0);
-  const down = Number(server.traffic_down_gb ?? 0);
-  const limit = Number(server.traffic_limit_gb ?? 0);
-  const realUsed = used || (up + down);
-  if (!realUsed && !limit) return '—';
-  const usedText = fmtResourceGb(realUsed);
-  const mainText = limit > 0 ? `${usedText} / ${fmtResourceGb(limit)}` : usedText;
-  return `${mainText} · ${formatTrafficResetText(server, null, { short: true, next: false })}`;
-}
-
-function formatOverviewLoss(server) {
-  const loss = server.packet_loss ?? server.loss_rate ?? server.ping_loss;
-  if (loss == null || loss === '') return '—';
-  const num = Number(loss);
-  return Number.isFinite(num) ? `${num.toFixed(1)}%` : '—';
-}
-
-function renderOverviewNetworkTable(rows = [], { collapsed = true } = {}) {
-  const tableRows = rows.map((server) => {
-    const lossText = formatOverviewLoss(server);
-    const lossValue = Number.parseFloat(lossText);
-    const location = server.location || server.city || server.region || server.country || '—';
-    const provider = server.provider_guess || server.provider || server.agent_config?.inventory_meta?.org || server.agent_config?.inventory_meta?.isp || '—';
-    const ip = maskIpForOverview(server.ip || server.public_ip || server.agent_config?.inventory_meta?.ip || server.hostname || '—');
-    return `
-      <tr data-id="${server.id || ''}">
-        <td><strong>${escText(server.name || '未命名节点')}</strong></td>
-        <td>${escText(ip)}</td>
-        <td>${escText(location)}</td>
-        <td>${escText(provider)}</td>
-        <td><span class="network-table-rate">${escText(formatOverviewTraffic(server))}</span></td>
-        <td><span class="network-table-loss ${Number.isFinite(lossValue) && lossValue > 0.5 ? 'is-warn' : ''}">${escText(lossText)}</span></td>
-      </tr>`;
-  }).join('');
-  return `
-    <section class="overview-network-table ${collapsed ? 'is-collapsed' : ''}" aria-label="${t('nodeNetworkDetails')}">
-      <button class="overview-network-table-toggle" type="button" aria-expanded="${collapsed ? 'false' : 'true'}">
-        <div>
-          <span class="overview-network-table-kicker">${t('networkDetails')}</span>
-          <h2>${t('nodeNetworkDetails')}</h2>
-        </div>
-        <span class="public-overview-panel-chevron">${collapsed ? '▸' : '▾'}</span>
-      </button>
-      <div class="overview-network-table-scroll">
-        <table>
-          <thead><tr><th>${t('tableNodeId')}</th><th>IP</th><th>${t('geoLocation')}</th><th>${t('operator')}</th><th>${t('monthlyTraffic')}</th><th>${t('packetLoss')}</th></tr></thead>
-          <tbody>${tableRows || `<tr><td colspan="6">${t('noNetworkData')}</td></tr>`}</tbody>
-        </table>
-      </div>
-    </section>`;
-}
-
-function renderCompactEmpty(text) {
-  return `<div class="overview-empty-inline">${escText(text)}</div>`;
 }
 
 function isMasterNode(server = {}) {
@@ -440,12 +326,18 @@ function renderFlatNodeList(nodes = [], activeMeta = null) {
   return `${hint}<div class="public-overview-list overview-v2-list" id="overviewNodeGrid">${nodes.map(renderOverviewNodeCard).join('')}</div>`;
 }
 
-export function renderPublicOverviewPage() {
+export function renderPublicOverviewPage(onRequestRerender) {
   const app = document.getElementById('pageRoot');
   if (!app) { destroyPublicOverviewPage(); return; }
   overviewCardDisposers.splice(0).forEach((dispose) => dispose());
+  app.querySelectorAll('[data-overview-detail]').forEach((detail) => {
+    const key = detail.getAttribute('data-overview-detail');
+    if (detail.open) overviewExpandedDetails.add(key);
+    else overviewExpandedDetails.delete(key);
+  });
   const rows = Array.isArray(state.servers) ? state.servers : [];
-  const summary = summarizeMoonPanel(rows);
+  const assetSummary = summarizeOverview(rows);
+  const summary = summarizeMoonPanel(rows, assetSummary.cost);
   const updatedAtText = state.serversUpdatedAt ? new Date(state.serversUpdatedAt).toLocaleString(currentLanguage === 'zh' ? 'zh-CN' : undefined, { hour12: false }) : t('overviewUpdatedMissing');
   const backendGroups = buildBackendGroups(rows);
   let activeGroup = loadOverviewGroupFilter();
@@ -456,23 +348,24 @@ export function renderPublicOverviewPage() {
   const activeMeta = activeGroup === 'all'
     ? { key: 'all', name: t('overviewAllNodes'), purpose: '', count: rows.length }
     : (backendGroups.find((g) => g.key === activeGroup) || { key: activeGroup, name: t('overviewCurrentGroup'), purpose: '', count: 0 });
-  const filteredNodes = collectFilteredNodes(backendGroups, activeGroup);
-  const filteredCount = filteredNodes.length;
+  const groupedNodes = collectFilteredNodes(backendGroups, activeGroup);
+  const activeStatus = loadOverviewChoice(localStorage, OVERVIEW_STATUS_FILTER_KEY, OVERVIEW_STATUS_KEYS, 'all');
+  const activeSort = loadOverviewChoice(localStorage, OVERVIEW_SORT_KEY, OVERVIEW_SORT_KEYS, 'default');
+  const statusCounts = countOverviewStatuses(groupedNodes);
+  const filteredNodes = filterSortOverviewNodes(groupedNodes, activeStatus, activeSort, compareOverviewNodes);
+  const requestRerender = typeof onRequestRerender === 'function' ? onRequestRerender : () => renderPublicOverviewPage();
   const groupTabs = [
     { key: 'all', name: t('overviewAll'), count: rows.length, color: '' },
     ...backendGroups.map((g) => ({ key: g.key, name: g.name, count: g.count, color: g.color, purpose: g.purpose })),
   ];
-  const expSoonItems = summary.expiry.d7.slice(0, 12).map((s) => `<li><b>${escText(s.name)}</b><span>${daysUntilExpiry(s.expiry)} ${t('overviewExpiryIn')}</span></li>`).join('');
-  const badNodeItems = summary.badNodes.slice(0, 12).map(({ server, pct, cls }) => `<li><b>${escText(server.name)}</b><span>${cls === 'offline' ? t('offline') : `${t('overviewTraffic')} ${pct.toFixed(0)}%`}</span></li>`).join('');
-  const byRegion = summary.cost.byRegion.map(([k, v]) => `<li><b>${escText(k)}</b><span>¥${Math.round(v)}</span></li>`).join('');
-  const byProvider = summary.cost.byProvider.map(([k, v]) => `<li><b>${escText(k)}</b><span>¥${Math.round(v)}</span></li>`).join('');
-  const hasExpiry = summary.expiry.d7.length > 0;
-  const hasAbnormal = summary.badNodes.length > 0;
-  const hasCostSplit = summary.cost.byRegion.length > 0 || summary.cost.byProvider.length > 0;
-
+  app.setAttribute('data-theme-style', 'lcars');
   app.innerHTML = `
-    <section class="public-overview-page starship-console-page overview-layout-p1">
-      <div class="public-overview-floating-topbar" aria-label="资产总览导航与显示设置">
+    <section class="public-overview-page starship-console-page overview-layout-v2 lcars-theme-applied">
+      <div class="public-overview-floating-topbar overview-compact-topbar" aria-label="资产总览导航与显示设置">
+        <div class="overview-compact-heading">
+          <h1>${t('overviewTitle')}</h1>
+          <span>${t('dataUpdated')}：${updatedAtText} · ${summary.status.total} ${t('overviewNodes')} · ${backendGroups.length} ${t('overviewGroups')}</span>
+        </div>
         <a class="public-overview-back" href="/">${t('back')}</a>
         <div class="detail-page-tools public-overview-tools">
           <button class="theme-toggle" id="themeToggle" type="button" aria-label="${t('themeAria')}">
@@ -490,29 +383,6 @@ export function renderPublicOverviewPage() {
         </div>
       </div>
 
-      <div class="public-overview-hero is-compact">
-        <div class="public-overview-hero-copy">
-          <div class="public-overview-kicker">${t('overviewKicker')}</div>
-          <h1>${t('overviewTitle')}</h1>
-          <div class="public-overview-meta-bar">
-            <span>${t('dataUpdated')}：${updatedAtText}</span>
-            <span class="overview-hero-count">${summary.status.total} ${t('overviewNodes')} · ${backendGroups.length} ${t('overviewGroups')}</span>
-          </div>
-        </div>
-        <figure class="public-overview-visual is-compact" aria-label="资产网络主视觉">
-          <img src="/assets/custom/overview-visual-transparent.png" alt="${t('overviewKicker')}" loading="eager" decoding="async" />
-        </figure>
-      </div>
-
-      <div class="public-overview-kpi-strip" role="group" aria-label="资产关键指标">
-        <div class="kpi-item"><span>${t('totalNodes')}</span><strong>${summary.status.total}</strong></div>
-        <div class="kpi-item is-online"><span>${t('online')}</span><strong>${summary.status.online}</strong></div>
-        <div class="kpi-item is-warn"><span>${t('warn')}</span><strong>${summary.status.warn}</strong></div>
-        <div class="kpi-item is-offline"><span>${t('offline')}</span><strong>${summary.status.offline}</strong></div>
-        <div class="kpi-item"><span>${t('monthlyTotalCost')}</span><strong>${toDisplay(summary.cost.monthlyActual)}</strong></div>
-        <div class="kpi-item ${hasExpiry ? 'is-alert' : ''}"><span>${t('within7Days')}</span><strong>${summary.expiry.d7.length}</strong></div>
-      </div>
-
       <div class="overview-group-filter" role="tablist" aria-label="按后台分组筛选节点资产">
         ${groupTabs.map((tab) => {
           const active = tab.key === activeGroup;
@@ -522,67 +392,53 @@ export function renderPublicOverviewPage() {
         }).join('')}
       </div>
 
-      <div class="public-overview-main-grid ${filteredCount >= 4 || rows.length >= 4 ? 'is-many-nodes' : 'is-few-nodes'}">
+      ${renderOverviewSummary(assetSummary, { panel: summary, costView: overviewCostView, expandedDetails: overviewExpandedDetails })}
+
+      ${renderOverviewControls(activeStatus, activeSort, statusCounts)}
+
+      <div class="public-overview-main-grid">
         <section class="public-overview-primary" aria-label="节点列表">
-          <div class="public-overview-section-head">
-            <h2>${t('overviewNodeAssets')}</h2>
-            <span>${filteredCount} ${t('overviewNodes')} · ${activeGroup === 'all' ? t('overviewFlatLayout') : `${t('overviewFilter')}：${escText(activeMeta.name)}`} · ${t('overviewMasterTop')}</span>
-          </div>
           <div class="public-overview-flat-list" id="overviewGroupedList">
             ${renderFlatNodeList(filteredNodes, activeMeta)}
           </div>
         </section>
 
-        <aside class="public-overview-side" aria-label="运营摘要">
-          <section class="public-overview-panel public-overview-panel-fold ${hasExpiry ? 'open is-alert' : 'is-empty'}" data-panel="expiry">
-            <button class="public-overview-panel-toggle" type="button" aria-expanded="${hasExpiry ? 'true' : 'false'}">
-              <span class="public-overview-panel-title">${t('expiringNodes')} · ${summary.expiry.d7.length}</span>
-              <span class="public-overview-panel-chevron">${hasExpiry ? '▾' : '▸'}</span>
-            </button>
-            <div class="public-overview-panel-body">
-              ${expSoonItems ? `<ul class="public-overview-mini-list">${expSoonItems}</ul>` : renderCompactEmpty(t('noExpiring'))}
-            </div>
-          </section>
 
-          <section class="public-overview-panel public-overview-panel-fold ${hasAbnormal ? 'open is-alert' : 'is-empty'}" data-panel="abnormal">
-            <button class="public-overview-panel-toggle" type="button" aria-expanded="${hasAbnormal ? 'true' : 'false'}">
-              <span class="public-overview-panel-title">${t('abnormalNodes')} · ${summary.badNodes.length}</span>
-              <span class="public-overview-panel-chevron">${hasAbnormal ? '▾' : '▸'}</span>
-            </button>
-            <div class="public-overview-panel-body">
-              ${badNodeItems ? `<ul class="public-overview-mini-list">${badNodeItems}</ul>` : renderCompactEmpty(t('noAbnormal'))}
-            </div>
-          </section>
-
-          <section class="public-overview-panel ${hasCostSplit ? '' : 'is-empty'}">
-            <div class="public-overview-panel-title">${t('monthlyByRegion')}</div>
-            <div class="public-overview-panel-body always-open">
-              ${byRegion ? `<ul class="public-overview-mini-list">${byRegion}</ul>` : renderCompactEmpty(t('noData'))}
-            </div>
-          </section>
-
-          <section class="public-overview-panel ${hasCostSplit ? '' : 'is-empty'}">
-            <div class="public-overview-panel-title">${t('monthlyByProvider')}</div>
-            <div class="public-overview-panel-body always-open">
-              ${byProvider ? `<ul class="public-overview-mini-list">${byProvider}</ul>` : renderCompactEmpty(t('noData'))}
-            </div>
-          </section>
-        </aside>
       </div>
 
-      ${renderOverviewNetworkTable(rows, { collapsed: true })}
     </section>`;
 
   updateRateDisplay();
 
-  app.querySelectorAll('.overview-group-tab').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const key = btn.getAttribute('data-group-key') || 'all';
-      saveOverviewGroupFilter(key);
-      // re-render keeps page state simple and consistent with 10s refresh
-      renderPublicOverviewPage();
+  app.querySelectorAll('[data-overview-cost-view]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const view = button.getAttribute('data-overview-cost-view');
+      if (!['total', 'region', 'provider'].includes(view)) return;
+      overviewCostView = view;
+      requestRerender();
     });
   });
+
+  app.querySelectorAll('.overview-group-tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const value = btn.getAttribute('data-group-key');
+      const key = value === 'all' || buildBackendGroups(Array.isArray(state.servers) ? state.servers : []).some((group) => group.key === value) ? value : 'all';
+      saveOverviewGroupFilter(key);
+      requestRerender();
+    });
+  });
+
+  for (const [attribute, storageKey, keys, fallback] of [
+    ['data-overview-status', OVERVIEW_STATUS_FILTER_KEY, OVERVIEW_STATUS_KEYS, 'all'],
+    ['data-overview-sort', OVERVIEW_SORT_KEY, OVERVIEW_SORT_KEYS, 'default'],
+  ]) {
+    app.querySelectorAll(`[${attribute}]`).forEach((button) => {
+      button.addEventListener('click', () => {
+        saveOverviewChoice(localStorage, storageKey, button.getAttribute(attribute), keys, fallback);
+        requestRerender();
+      });
+    });
+  }
 
   app.querySelectorAll('.public-overview-panel-fold').forEach((panel) => {
     const btn = panel.querySelector('.public-overview-panel-toggle');
@@ -592,16 +448,6 @@ export function renderPublicOverviewPage() {
       const chevron = btn.querySelector('.public-overview-panel-chevron');
       if (chevron) chevron.textContent = open ? '▾' : '▸';
     });
-  });
-
-  const networkToggle = app.querySelector('.overview-network-table-toggle');
-  networkToggle?.addEventListener('click', () => {
-    const table = app.querySelector('.overview-network-table');
-    if (!table) return;
-    const open = table.classList.toggle('is-collapsed') === false;
-    networkToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    const chevron = networkToggle.querySelector('.public-overview-panel-chevron');
-    if (chevron) chevron.textContent = open ? '▾' : '▸';
   });
 
   app.querySelectorAll('.public-overview-card').forEach((card) => {
